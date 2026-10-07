@@ -105,7 +105,7 @@ services:
     networks: [vatpac]
 
   grafana:
-    image: grafana/grafana-oss:11.2.2
+    image: grafana/grafana-oss:13.0.2
     restart: unless-stopped
     logging: *logging
     mem_limit: 512m
