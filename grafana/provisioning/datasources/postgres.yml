@@ -1,0 +1,23 @@
+apiVersion: 1
+
+# Read-only PostgreSQL datasource. Values in ${...} are expanded by Grafana from its environment
+# (set in compose from .env). The role grafana_ro can SELECT views and lookups only.
+datasources:
+  - name: vatpac
+    uid: vatpac
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: db:5432
+    user: grafana_ro
+    isDefault: true
+    editable: false
+    jsonData:
+      database: ${POSTGRES_DB}
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+      maxOpenConns: 10
+      maxIdleConns: 5
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: ${GRAFANA_RO_PASSWORD}

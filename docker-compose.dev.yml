@@ -1,0 +1,8 @@
+# Dev overlay: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# Publishes the database on 127.0.0.1:55432 only (never on the LAN).
+# The overlay file itself is the opt-in. A `profiles: [dev]` on the db service would stop db
+# starting in a normal `up`, so it is deliberately not used here.
+services:
+  db:
+    ports:
+      - "127.0.0.1:55432:5432"

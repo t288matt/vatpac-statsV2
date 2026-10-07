@@ -1,0 +1,376 @@
+{
+  "uid": "vatpac-atc-retention",
+  "title": "ATC: retention (unverified)",
+  "tags": [
+    "vatpac",
+    "atc",
+    "unverified"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "vatpac"
+        },
+        "definition": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "query": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Data since",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+      }
+    },
+    {
+      "id": 2,
+      "type": "text",
+      "title": "Unverified definitions",
+      "gridPos": {
+        "x": 0,
+        "y": 2,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**UNVERIFIED.** These panels are built to the columns visible in the Metabase screenshots; the v1 SQL was not recovered. Definitions are the analytics agent's best reading and must be confirmed against the owner's Metabase export. Because there is no backfill, 60-day lapse measures are not meaningful until about 60 days after go-live."
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Active controllers",
+      "description": "UNVERIFIED (screenshot only; showed 178). Assumed: controllers whose latest session started in the last 90 days.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"Active controllers\" FROM controller_activity_summary WHERE last_session >= now() - interval '90 days'"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Lapsed 30 days",
+      "description": "UNVERIFIED (screenshot only; showed 28). Assumed: controllers active in the last 90 days whose latest session started more than 30 days ago.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"Lapsed\" FROM controller_activity_summary\nWHERE last_session >= now() - interval '90 days' AND last_session < now() - interval '30 days'"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "gauge",
+      "title": "Controller retention rate",
+      "description": "UNVERIFIED (screenshot only; showed 84%, bands red below 65, amber 65 to 85, green above 85). The screenshot figures (178 active, 28 lapsed, 84%) are consistent with retention = (active - lapsed) / active.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 6,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT round(100.0 * (count(*) - count(*) FILTER (WHERE last_session < now() - interval '30 days'))\n              / NULLIF(count(*), 0), 0) AS \"Retention (%)\"\nFROM controller_activity_summary\nWHERE last_session >= now() - interval '90 days'"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 50,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 65
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Reactivated in the last 30 days after 60+ days lapsed",
+      "description": "UNVERIFIED (screenshot only; showed 74). Assumed: controllers with a session in the last 30 days whose previous session ended more than 60 days before it started.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"Reactivated\" FROM controller_activity_summary\nWHERE recent_sessions > 0 AND gap_days_before_recent > 60"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Who might need help reactivating?",
+      "description": "UNVERIFIED (screenshot only). Assumed: controllers who started sessions in the last 30 days but were online for under 1 hour in total with no session longer than 30 minutes, newest first. Columns follow the screenshot.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT cid, name, rank_group,\n       first_recent_session::date AS first_session,\n       last_recent_session::date AS last_session,\n       recent_sessions, hours_last_30d AS hours_last_30d, longest_session_minutes\nFROM controller_activity_summary\nWHERE recent_sessions > 0\n  AND hours_last_30d < 1\n  AND longest_session_minutes < 30\nORDER BY last_recent_session DESC\nLIMIT 50"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Who reactivated after being away for more than 60 days?",
+      "description": "UNVERIFIED (screenshot only). Controllers with a session in the last 30 days whose previous session ended more than 60 days earlier. Columns follow the screenshot.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT cid, name, rank_group,\n       first_recent_session::date AS first_session,\n       last_recent_session::date AS last_session,\n       recent_sessions, hours_last_30d, gap_days_before_recent AS days_away\nFROM controller_activity_summary\nWHERE recent_sessions > 0 AND gap_days_before_recent > 60\nORDER BY first_recent_session DESC\nLIMIT 50"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ]
+}

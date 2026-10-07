@@ -1,0 +1,187 @@
+{
+  "uid": "vatpac-military",
+  "title": "Military: aircraft and routes",
+  "tags": [
+    "vatpac",
+    "military"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "vatpac"
+        },
+        "definition": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "query": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Data since",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+      }
+    },
+    {
+      "id": 2,
+      "type": "piechart",
+      "title": "Most popular military aircraft (unique pilots, last 7 days)",
+      "description": "v1 card 65. Distinct pilots per aircraft type flagged is_military in the aircraft_type lookup. Changed from v1: a lookup flag replaces a 400-entry IN list with wildcard patterns.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 2,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT aircraft_icao AS aircraft, count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.is_military\nGROUP BY aircraft_icao\nORDER BY pilots DESC, aircraft"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^pilots$/"
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Most popular military routes (last 7 days)",
+      "description": "v1 card 78. Routes flown by military aircraft types, with share of military flights and pilots.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 2,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT route_label AS route,\n       count(*) AS total_flights,\n       count(DISTINCT cid) AS unique_pilots,\n       round(100.0 * count(*) / sum(count(*)) OVER (), 1) AS \"% of military flights\",\n       round(100.0 * count(DISTINCT cid) / sum(count(DISTINCT cid)) OVER (), 1) AS \"% of military pilots\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.is_military\nGROUP BY route_label\nORDER BY total_flights DESC, unique_pilots DESC\nLIMIT 25"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Hours flown by military aircraft per week (last 14 weeks)",
+      "description": "v1 card 66. Airborne hours by military aircraft types per UTC week (v1 summed time online). Weeks start on Monday.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('week', f.end_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       round((sum(f.airborne_minutes) / 60.0)::numeric, 1) AS \"Military hours\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.is_military\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "98d"
+    }
+  ]
+}

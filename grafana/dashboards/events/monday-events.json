@@ -1,0 +1,145 @@
+{
+  "uid": "vatpac-monday-events",
+  "title": "Events: Monday event",
+  "tags": [
+    "vatpac",
+    "events"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-180d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "vatpac"
+        },
+        "definition": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "query": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Data since",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Monday event attendance (0700-1200Z)",
+      "description": "v1 card 131. Distinct pilot CIDs and distinct controller CIDs present at any time between 0700 and 1200 UTC on each Monday (sessions overlapping the window). Window changed from v1 (0800-1200) to 0700-1200 per the specification.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 2,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT win_start AS time, pilot_cids AS \"Pilots\", controller_cids AS \"Controllers\"\nFROM monday_attendance\nWHERE win_start BETWEEN $__timeFrom() AND $__timeTo()\nORDER BY win_start"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Share of YMML-YSSY airborne time flown by local pilots (Mondays 0700-1200Z)",
+      "description": "v1 card 134 ('What percentage of MRM traffic were locals?'). Per week, the share of airborne minutes on YMML-YSSY and YSSY-YMML flights ending between 0700 and 1200 UTC on Monday that were flown by pilots whose home airfield is in the home region. Changed from v1: airborne minutes instead of time online, home prefixes from settings rather than a hard-coded Y, and a 0700 start.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT (date_trunc('week', f.end_time AT TIME ZONE 'UTC')) AT TIME ZONE 'UTC' AS time,\n       round(100.0 * COALESCE(sum(f.airborne_minutes) FILTER (WHERE f.pilot_is_local), 0)\n             / NULLIF(sum(f.airborne_minutes), 0), 1) AS \"Local pilots (%)\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND extract(isodow FROM f.end_time AT TIME ZONE 'UTC') = 1\n  AND (f.end_time AT TIME ZONE 'UTC')::time >= time '07:00'\n  AND (f.end_time AT TIME ZONE 'UTC')::time < time '12:00'\n  AND ((f.departure = 'YMML' AND f.arrival = 'YSSY') OR (f.departure = 'YSSY' AND f.arrival = 'YMML'))\n  AND f.airborne_minutes > 0\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "showPoints": "always",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      }
+    }
+  ]
+}
