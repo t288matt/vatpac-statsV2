@@ -58,6 +58,7 @@ On Windows without `make`, run the underlying commands shown.
 | `make test` | Unit tests (no database, no network) |
 | `make smoke` | `ops/smoke.sh` |
 | `make size` | Collector size budget check (1400 lines, no module over 300) |
+| `make soak` | Soak report from `poll_log`: was a snapshot stored every 15 s for the last `HOURS` (default 24)? Reports PASS only for a full, gap-free window; shorter runs say INCOMPLETE |
 | `make pii` | Fixture PII check |
 | `make backup` | Take a backup now |
 | `make backup-test` | Restore the newest backup into a scratch database and sanity-check it |

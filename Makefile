@@ -1,4 +1,4 @@
-.PHONY: up down dev logs ps config test lint smoke size pii backup backup-test restore gen-env check-env drift
+.PHONY: soak up down dev logs ps config test lint smoke size pii backup backup-test restore gen-env check-env drift
 
 # Refuses to start with blank/weak secrets (ops/check_env.sh). No .env yet? run: make gen-env
 up: check-env
@@ -68,3 +68,7 @@ TARGET ?= vatpac_restore
 CONFIRM ?=
 restore:
 	docker compose exec -e RESTORE_CONFIRM=$(CONFIRM) backup restore.sh $(FILE) $(TARGET)
+
+HOURS ?= 24
+soak:
+	sh ops/soak_report.sh $(HOURS)
