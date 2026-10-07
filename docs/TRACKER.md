@@ -3,7 +3,7 @@
 Single source of truth for open work on the v3 goal. Update it in the same commit as the change it describes.
 Times are UTC. Statuses: TODO, IN PROGRESS, BLOCKED (owner), WAITING (time), DONE.
 
-Last updated: 07-10-2026 23:30 UTC
+Last updated: 07-10-2026 23:40 UTC
 
 | ID | Item | Status | Detail / next step |
 |----|------|--------|--------------------|
@@ -18,6 +18,7 @@ Last updated: 07-10-2026 23:30 UTC
 | T9 | Triage seven Dependabot PRs | TODO | Hold until main is green. Grafana 11 to 13 needs dashboard testing first. Review action bumps before merging. |
 | T10 | Pin workflow actions to commit SHAs | TODO | See TODO notes in `.github/workflows/ci.yml`. Also move off Node 20 action versions. |
 | T11 | Record soak evidence in docs/ARCHITECTURE.md | TODO | Only after T1, T2, T3 and T4 are all met; then tell the owner the goal is met. |
+| T12 | Data retention rules for all data (LOW priority) | TODO | Owner request 07-10-2026: define retention for every data set, not only names/CIDs (ADR-019 covers those). Scope to cover: position snapshots, sessions, poll log, near-miss and reference-change records, flights archive, backups (count, age, location) and Grafana's own data. Needs a decision per data set (keep, age out, or aggregate), a new ADR, and numbered migrations for any purge job. Disk growth figures from the soak will help size it. No deadline. |
 
 ## Goal-met checklist (verbatim gate)
 - [ ] Soak PASS (T1)
