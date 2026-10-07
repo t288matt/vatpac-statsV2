@@ -1,4 +1,4 @@
-"""SPEC s6 partition lifecycle. UNEXECUTED (no Postgres was available when written).
+"""SPEC s6 partition lifecycle. Run against a real PostgreSQL 16.4 on 07-10-2026 (all pass).
 
 Part A (schema level) needs only SQL. Part B exercises vatpac.maintenance; SPEC s7 names no
 functions for it, so those tests look for conventional names and skip with a clear reason.

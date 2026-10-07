@@ -1,6 +1,6 @@
 """SPEC s3 / s7 / s11: ingest of the fixture through vatpac.store.apply_snapshot.
 
-UNEXECUTED (no Postgres was available when written).
+Run against a real PostgreSQL 16.4 on 07-10-2026 (all pass).
 """
 from __future__ import annotations
 

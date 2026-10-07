@@ -1,4 +1,4 @@
-"""Helpers shared by the integration tests (UNEXECUTED; see conftest.py)."""
+"""Helpers shared by the integration tests (see conftest.py)."""
 from __future__ import annotations
 
 import copy
