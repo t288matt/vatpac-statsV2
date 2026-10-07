@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run every provisioned Grafana panel query through Grafana's own API (SPEC section 12, check 4).
 
-Reads GRAFANA_PORT, GRAFANA_ADMIN_USER and GRAFANA_ADMIN_PASSWORD from .env (never printed).
+Reads GRAFANA_BIND, GRAFANA_PORT, GRAFANA_ADMIN_USER and GRAFANA_ADMIN_PASSWORD from .env (never printed).
 For each dashboard JSON under grafana/dashboards it posts every panel's rawSql to /api/ds/query so
 Grafana expands its macros, and reports OK (rows), EMPTY (no rows yet, acceptable while data is young)
 or ERROR. Dashboard variables are substituted with their current value. Exit 1 on any ERROR.
@@ -97,7 +97,10 @@ def main() -> int:
     ap.add_argument("--dashboards", default="grafana/dashboards")
     args = ap.parse_args()
     env = load_env(Path(args.env))
-    g = Grafana(f"http://127.0.0.1:{env.get('GRAFANA_PORT', '3300')}",
+    host = env.get("GRAFANA_BIND", "127.0.0.1")
+    if host in ("", "0.0.0.0"):
+        host = "127.0.0.1"
+    g = Grafana(f"http://{host}:{env.get('GRAFANA_PORT', '3300')}",
                 env.get("GRAFANA_ADMIN_USER", "admin"), env["GRAFANA_ADMIN_PASSWORD"])
 
     code, body = g.call("GET", "/api/health")
