@@ -72,7 +72,7 @@ class FeedClient:
         if url != self.url:
             self._last_modified = self._etag = None
         self.url = url
-        return url
+        return str(url)
 
     async def _get_once(self) -> FetchResult:
         conditional = (("If-Modified-Since", self._last_modified), ("If-None-Match", self._etag))

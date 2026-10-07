@@ -4,7 +4,6 @@ from __future__ import annotations
 import re
 
 import pytest
-
 from shapely.geometry import Point, shape
 
 NAME = re.compile(r"^(Pilot|Controller) \d{4}( [A-Z]{4})?$")

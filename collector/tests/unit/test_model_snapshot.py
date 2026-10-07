@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -30,7 +30,7 @@ def by_callsign(items: list, callsign: str):
 def test_observed_at_from_update_timestamp_utc(snap: Snapshot) -> None:
     assert snap.observed_at.tzinfo is not None
     assert snap.observed_at.utcoffset() == timedelta(0)
-    want = datetime(2026, 10, 7, 16, 11, 19, 143496, tzinfo=timezone.utc)
+    want = datetime(2026, 10, 7, 16, 11, 19, 143496, tzinfo=UTC)
     assert abs(snap.observed_at - want) < timedelta(milliseconds=1)  # 7-digit fraction in feed
 
 
@@ -93,7 +93,7 @@ def test_pilot_with_full_plan(snap: Snapshot, fixture_payload: dict) -> None:
     assert p.deptime == "1000"
     assert p.groundspeed == 140 and p.altitude == 1500
     assert p.heading == 90
-    assert as_dt(p.logon_time) == datetime(2026, 10, 7, 10, 0, tzinfo=timezone.utc)
+    assert as_dt(p.logon_time) == datetime(2026, 10, 7, 10, 0, tzinfo=UTC)
     assert p.pilot_rating == 0 and p.military_rating == 0
 
 
@@ -142,7 +142,7 @@ def test_controller_fields(snap: Snapshot, fixture_payload: dict) -> None:
     assert c.rating == 5 and c.facility == 5
     assert c.cid == raw["cid"] and c.name.startswith("Controller ")
     assert c.visual_range == 50
-    assert as_dt(c.logon_time) == datetime(2026, 10, 7, 9, 0, tzinfo=timezone.utc)
+    assert as_dt(c.logon_time) == datetime(2026, 10, 7, 9, 0, tzinfo=UTC)
     assert by_callsign(snap.controllers, "BN_GND").frequency_text == "199.998"
 
 
@@ -158,7 +158,7 @@ def test_controller_fields(snap: Snapshot, fixture_payload: dict) -> None:
 def test_timestamp_forms(stamp: str) -> None:
     s = parse_snapshot({"general": {"update_timestamp": stamp}, "pilots": [], "controllers": []})
     assert s.observed_at.utcoffset() == timedelta(0)
-    assert s.observed_at.replace(microsecond=0) == datetime(2026, 10, 7, 16, 11, 19, tzinfo=timezone.utc)
+    assert s.observed_at.replace(microsecond=0) == datetime(2026, 10, 7, 16, 11, 19, tzinfo=UTC)
 
 
 def test_empty_lists() -> None:
