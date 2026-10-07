@@ -56,6 +56,8 @@ The collector connects as `collector` (DML on its tables, EXECUTE on the mainten
 ## ADR-018 Airport movements stay the same as v1 (07-10-2026)
 Owner decision: the movements charts keep v1's definition. Every flight-gate session counts as one departure at its departure airport and one arrival at its arrival airport, whether or not the aircraft ever became airborne. Evidence at the time: in v1's last full month (12-07 to 12-08-2026) 12% of home-region departures had zero airborne time and 6% were circuits, so the charts include parked connections. The `movements` view carries a SQL comment saying so. A later change (an airborne-only panel or definition) needs a new decision and an ADR.
 
+## ADR-019 Names and CIDs are retained indefinitely (07-10-2026)
+Owner decision, confirming ADR-009: no retention or anonymisation rule. Names and CIDs stay in the database and in backups for as long as the data is kept. The option of anonymising sessions older than 12 months (stable hash, so unique-person counts still work) was offered and declined. Consequence: backups hold real names and CIDs and must stay private; before any public exposure (Cloudflare), check the VATSIM data-use policy and put the dashboards behind login (see ADR-009). A later change needs a new ADR and a new numbered migration.
+
 ## OPEN decisions for the owner
-- Names and CIDs are kept forever (ADR-009); no retention or anonymisation rule exists for old sessions or backups.
 - The backup container holds the owner password for the restore scripts (ADR-017); a dedicated restore-only role would be tighter.
