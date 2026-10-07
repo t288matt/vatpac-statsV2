@@ -1,0 +1,1064 @@
+[
+ {
+  "id": 1,
+  "name": "Orders + People",
+  "display": "table",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 2,
+  "name": "Revenue by state",
+  "display": "map",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 3,
+  "name": "Customer satisfaction per category",
+  "display": "bar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 4,
+  "name": "Product category orders per age group",
+  "display": "bar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 5,
+  "name": "Customer survey responses",
+  "display": "table",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 6,
+  "name": "Checkout funnel",
+  "display": "funnel",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 7,
+  "name": "Product breakdown",
+  "display": "pie",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 8,
+  "name": "Total order amount vs. discount given",
+  "display": "scatter",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 9,
+  "name": "Revenue",
+  "display": "line",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 10,
+  "name": "Orders according to sources per quarter",
+  "display": "pivot",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 11,
+  "name": "User flow diagram",
+  "display": "sankey",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 12,
+  "name": "Revenue and orders over time",
+  "display": "combo",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 13,
+  "name": "Revenue by product category",
+  "display": "bar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 14,
+  "name": "Subscription seats over time",
+  "display": "waterfall",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 15,
+  "name": "Revenue per quarter",
+  "display": "smartscalar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 16,
+  "name": "Number of subscriptions",
+  "display": "area",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 17,
+  "name": "Revenue goal for this quarter",
+  "display": "progress",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 18,
+  "name": "Product category orders per age",
+  "display": "bar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 19,
+  "name": "Number of Orders",
+  "display": "line",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 20,
+  "name": "Total orders by product category",
+  "display": "pie",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 21,
+  "name": "Best selling products",
+  "display": "row",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 22,
+  "name": "Average product rating",
+  "display": "gauge",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 23,
+  "name": "Most recent subscription",
+  "display": "object",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 24,
+  "name": "Orders by product category",
+  "display": "line",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 25,
+  "name": "All subscriptions in table view",
+  "display": "table",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 26,
+  "name": "Heavy-Duty Silk Chair trend",
+  "display": "smartscalar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 27,
+  "name": "Quantity sold per quarter",
+  "display": "smartscalar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 28,
+  "name": "Revenue per age group",
+  "display": "bar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 29,
+  "name": "Enormous Wool Car trend",
+  "display": "smartscalar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 30,
+  "name": "Unique customers per month",
+  "display": "smartscalar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 31,
+  "name": "Checkout funnel - Modified",
+  "display": "funnel",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 32,
+  "name": "People with age",
+  "display": "table",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 33,
+  "name": "Revenue per individual age",
+  "display": "bar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 34,
+  "name": "Discounts given per quarter",
+  "display": "smartscalar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 35,
+  "name": "Orders by source per individual age",
+  "display": "bar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 36,
+  "name": "Orders by source per age group",
+  "display": "bar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 37,
+  "name": "Aerodynamic Copper Knife trend",
+  "display": "smartscalar",
+  "archived": true,
+  "qtype": "query",
+  "updated": "2025-08-21 09:47:13.727791+00:00",
+  "sql": null
+ },
+ {
+  "id": 38,
+  "name": "Top domestic routes (last 30 days)",
+  "display": "row",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-08-20 15:38:55.354190+00:00",
+  "sql": "-- Top domestic routes by number of completed flights (format: YSSY-YMML)\nSELECT \n    CONCAT(departure, '-', arrival) as route,\n    departure,\n    arrival,\n    COUNT(*) as flight_count\nFROM flight_summaries\nWHERE departure LIKE 'Y%' \n    AND arrival LIKE 'Y%'\n    AND departure != arrival  -- Exclude flights to same airport\n    AND completion_time >= NOW() - INTERVAL '1 month'\nGROUP BY departure, arrival\nORDER BY flight_count DESC\nLIMIT 10;"
+ },
+ {
+  "id": 39,
+  "name": "Top international route last 30 days",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "-- Top international routes by number of completed flights (format: YSSY-KLAX)\nSELECT \n    CONCAT(departure, '-', arrival) as route,\n    departure,\n    arrival,\n    COUNT(*) as flight_count\nFROM flight_summaries\nWHERE (departure NOT LIKE 'Y%' OR arrival NOT LIKE 'Y%')\n    AND departure != arrival  -- Exclude flights to same airport\n    AND completion_time >= NOW() - INTERVAL '1 month'\nGROUP BY departure, arrival\nORDER BY flight_count DESC\nLIMIT 10;"
+ },
+ {
+  "id": 40,
+  "name": "What server do Australian pilots connect to?",
+  "display": "pie",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-21 09:51:36.020033+00:00",
+  "sql": "-- Query to identify Australian pilots and their server connections\n-- Australian pilots have 'Y' as the 4th last character in their name field\n\nSELECT \n    f.server,\n    COUNT(DISTINCT f.cid) as australian_pilot_count\nFROM flights f\nWHERE \n    -- Check if the 4th last character of the name field is 'Y'\n    SUBSTRING(f.name, LENGTH(f.name) - 3, 1) = 'Y'\n    -- Ensure name is not null and has at least 4 characters\n    AND f.name IS NOT NULL \n    AND LENGTH(f.name) >= 4\n    -- Only include recent/active flights from last 24 hours\n    AND f.last_updated >= NOW() - INTERVAL '24 hours'\nGROUP BY f.server\nORDER BY australian_pilot_count DESC, f.server;"
+ },
+ {
+  "id": 41,
+  "name": "What percentage of flights had at least one ATC interaction?",
+  "display": "line",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-18 22:20:56.584368+00:00",
+  "sql": "-- Percentage of flights with any ATC interaction (rolling, UTC windows)\nWITH canonical AS (\n  SELECT DISTINCT ON (callsign, cid, departure, arrival, logon_time)\n         id, callsign, cid, departure, arrival, logon_time,\n         controller_time_percentage, completion_time\n  FROM flight_summaries\n  WHERE completion_time IS NOT NULL\n    AND controller_time_percentage IS NOT NULL\n  ORDER BY callsign, cid, departure, arrival, logon_time, completion_time DESC, id DESC\n),\nperiods AS (\n  SELECT 'yesterday' AS period_name,\n         COUNT(*) AS total_flights,\n         COUNT(*) FILTER (WHERE controller_time_percentage > 0) AS flights_with_atc\n  FROM canonical\n  WHERE (completion_time AT TIME ZONE 'UTC') >= date_trunc('day', now() AT TIME ZONE 'UTC') - INTERVAL '1 day'\n    AND (completion_time AT TIME ZONE 'UTC') <  date_trunc('day', now() AT TIME ZONE 'UTC')\n  UNION ALL\n  SELECT 'last_7_days',\n         COUNT(*),\n         COUNT(*) FILTER (WHERE controller_time_percentage > 0)\n  FROM canonical\n  WHERE (completion_time AT TIME ZONE 'UTC') >= (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'\n  UNION ALL\n  SELECT 'last_30_days',\n         COUNT(*),\n         COUNT(*) FILTER (WHERE controller_time_percentage > 0)\n  FROM canonical\n  WHERE (completion_time AT TIME ZONE 'UTC') >= (now() AT TIME ZONE 'UTC') - INTERVAL '30 days'\n  UNION ALL\n  SELECT 'last_90_days',\n         COUNT(*),\n         COUNT(*) FILTER (WHERE controller_time_percentage > 0)\n  FROM canonical\n  WHERE (completion_time AT TIME ZONE 'UTC') >= (now() AT TIME ZONE 'UTC') - INTERVAL '90 days'\n)\nSELECT period_name,\n       total_flights,\n       flights_with_atc,\n       CASE WHEN total_flights > 0\n            THEN ROUND((flights_with_atc::numeric / total_flights * 100))\n            ELSE 0 END AS percentage_with_atc\nFROM periods\nORDER BY CASE period_name\n           WHEN 'yesterday'   THEN 1\n           WHEN 'last_7_days' THEN 2\n           WHEN 'last_30_days' THEN 3\n           WHEN 'last_90_days' THEN 4\n         END;"
+ },
+ {
+  "id": 43,
+  "name": "% of time pilots spent on an ATC frequency (with ATC)",
+  "display": "line",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-18 22:19:13.492473+00:00",
+  "sql": "WITH w AS (\n  SELECT controller_time_percentage AS ctp,\n         COALESCE(time_online_minutes, 0) AS minutes,\n         completion_time\n  FROM flight_summaries\n  WHERE controller_time_percentage IS NOT NULL\n)\nSELECT 'yesterday' AS period,\n       ROUND(SUM(ctp * minutes) / NULLIF(SUM(minutes), 0), 2) AS avg_atc_time_percentage\nFROM w\nWHERE completion_time >= date_trunc('day', now()) - interval '1 day'\n  AND completion_time <  date_trunc('day', now())\n\nUNION ALL\nSELECT 'last_7_days',\n       ROUND(SUM(ctp * minutes) / NULLIF(SUM(minutes), 0), 2)\nFROM w\nWHERE completion_time >= now() - interval '7 days'\n\nUNION ALL\nSELECT 'last_30_days',\n       ROUND(SUM(ctp * minutes) / NULLIF(SUM(minutes), 0), 2)\nFROM w\nWHERE completion_time >= now() - interval '30 days'\n\nUNION ALL\nSELECT 'last_90_days',\n       ROUND(SUM(ctp * minutes) / NULLIF(SUM(minutes), 0), 2)\nFROM w\nWHERE completion_time >= now() - interval '90 days';"
+ },
+ {
+  "id": 44,
+  "name": "What are the tpo domestic routes (last 30 days)?",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "-- Top domestic routes by number of completed flights (format: YSSY-YMML)\nSELECT \n    CONCAT(departure, '-', arrival) as route,\n    departure,\n    arrival,\n    COUNT(*) as flight_count\nFROM flight_summaries\nWHERE departure LIKE 'Y%' \n    AND arrival LIKE 'Y%'\n    AND departure != arrival  -- Exclude flights to same airport\n    AND completion_time >= NOW() - INTERVAL '1 month'\nGROUP BY departure, arrival\nORDER BY flight_count DESC\nLIMIT 10;"
+ },
+ {
+  "id": 45,
+  "name": "What are the 10 most popular international routes (last 30 days)?",
+  "display": "row",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-18 17:48:19.190103+00:00",
+  "sql": "-- Top international routes by number of completed flights (format: YSSY-KLAX)\nSELECT \n    CONCAT(departure, '-', arrival) as route,\n    departure,\n    arrival,\n    COUNT(*) as flight_count\nFROM flight_summaries\nWHERE (departure NOT LIKE 'Y%' OR arrival NOT LIKE 'Y%')\n    AND departure != arrival  -- Exclude flights to same airport\n    AND completion_time >= NOW() - INTERVAL '1 month'\nGROUP BY departure, arrival\nORDER BY flight_count DESC\nLIMIT 10;"
+ },
+ {
+  "id": 46,
+  "name": "Which pilots had the most diverse routes in the last fortnight?",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-17 14:25:44.726974+00:00",
+  "sql": "-- Pilots with most diverse routes this week (flights > 1 hour only)\nSELECT \n    name,\n    COUNT(DISTINCT CONCAT(departure, '-', arrival)) as unique_routes,\n    COUNT(*) as total_flights\nFROM flight_summaries\nWHERE completion_time >= NOW() - INTERVAL '14 days'\n    AND name IS NOT NULL\n    AND time_online_minutes > 60  -- Only flights longer than 1 hour\nGROUP BY name\nORDER BY unique_routes DESC, total_flights DESC\nLIMIT 10;"
+ },
+ {
+  "id": 47,
+  "name": "Which S1/S2 controllers handled the most aircraft last week?",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "SELECT c.callsign as controller_callsign, c.name as controller_name, c.rating as controller_rating, \n    (SELECT COUNT(DISTINCT f.callsign) FROM flights f WHERE f.last_updated >= NOW() - INTERVAL '1 week' \n     AND EXISTS (SELECT 1 FROM transceivers t_atc JOIN transceivers t_flight ON t_atc.frequency = t_flight.frequency \n                 WHERE t_atc.callsign = c.callsign AND t_atc.entity_type = 'atc' \n                 AND t_flight.entity_type = 'flight' AND t_flight.callsign = f.callsign)) as unique_flights_handled \nFROM controllers c \nWHERE c.last_updated >= NOW() - INTERVAL '1 week' AND c.rating IN (2, 3) \nORDER BY unique_flights_handled DESC LIMIT 5;"
+ },
+ {
+  "id": 50,
+  "name": "Where do pilots in Australian airspace come from (last 30 days)?",
+  "display": "bar",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "-- Identify pilot origins by 4th last character of name and count completed flights with region mapping\nSELECT \n    CASE \n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('L', 'E') THEN 'Europe'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('V', 'W') THEN 'S & SE Asia'\n\t\tWHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'R' THEN 'East Asia'\n\t\tWHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y' THEN 'Australia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'K' THEN 'United States'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Z' THEN 'China'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'N' THEN 'NZ & Oceania'\n        ELSE 'Other'\n    END as region_name,\n    COUNT(DISTINCT cid) as unique_pilots\nFROM flight_summaries\nWHERE name IS NOT NULL \n    AND LENGTH(name) >= 4\n    AND completion_time >= NOW() - INTERVAL '1 month'\nGROUP BY \n    CASE \n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('L', 'E') THEN 'Europe'\n\t\tWHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('V', 'W') THEN 'S & SE Asia'\n\t\tWHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'R' THEN 'East Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y' THEN 'Australia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'K' THEN 'United States'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Z' THEN 'China'\n\t\tWHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'N' THEN 'NZ & Oceania'\n        ELSE 'Other'\n    END\nORDER BY unique_pilots DESC\nLIMIT 10;"
+ },
+ {
+  "id": 51,
+  "name": "How many flights are currently in each sector?",
+  "display": "pie",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-21 09:52:43.826489+00:00",
+  "sql": "-- Count of pilots currently in each sector (entries < 3 hours ago)\nSELECT \n    COALESCE(fso.sector_name, 'Unknown') as sector_name,\n    COUNT(DISTINCT fso.callsign) as pilots_in_sector\nFROM flight_sector_occupancy fso\nWHERE fso.exit_timestamp IS NULL\n    AND fso.entry_timestamp >= NOW() - INTERVAL '3 hours'\nGROUP BY fso.sector_name\nORDER BY pilots_in_sector DESC;"
+ },
+ {
+  "id": 53,
+  "name": "Wchic secotr had the most traffic last month?",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "SELECT \n    sector_name,\n    SUM(duration_seconds) / 60.0 as total_minutes,\n    COUNT(*) as flight_count,\n    ROUND(AVG(duration_seconds) / 60.0, 2) as avg_minutes_per_flight\nFROM flight_sector_occupancy \nWHERE exit_timestamp IS NOT NULL \n    AND exit_timestamp >= NOW() - INTERVAL '1 month'\n    AND duration_seconds > 0\nGROUP BY sector_name \nORDER BY total_minutes DESC \nLIMIT 10;"
+ },
+ {
+  "id": 55,
+  "name": "Which airport had the most movements (last 30 days)?",
+  "display": "combo",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-18 20:30:21.532687+00:00",
+  "sql": "SELECT \n    airport,\n    SUM(departures) as departures,\n    SUM(arrivals) as arrivals,\n    SUM(departures + arrivals) as total_movements\nFROM (\n    SELECT \n        departure as airport,\n        COUNT(*) as departures,\n        0 as arrivals\n    FROM flight_summaries \n    WHERE departure IS NOT NULL \n        AND departure != ''\n        AND departure LIKE 'Y%'\n        AND completion_time >= NOW() - INTERVAL '1 month'\n    GROUP BY departure\n    \n    UNION ALL\n    \n    SELECT \n        arrival as airport,\n        0 as departures,\n        COUNT(*) as arrivals\n    FROM flight_summaries \n    WHERE arrival IS NOT NULL \n        AND arrival != ''\n        AND arrival LIKE 'Y%'\n        AND completion_time >= NOW() - INTERVAL '1 month'\n    GROUP BY arrival\n) movements\nGROUP BY airport\nORDER BY SUM(departures + arrivals) DESC\nLIMIT 10;"
+ },
+ {
+  "id": 57,
+  "name": "What is the most popular callsign? ",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-17 22:34:05.352425+00:00",
+  "sql": "SELECT \n    callsign,\n    departure,\n    arrival,\n    COUNT(DISTINCT cid) as unique_pilots,\n    COUNT(*) as total_flights\nFROM flight_summaries \nWHERE callsign IS NOT NULL \n    AND completion_time >= NOW() - INTERVAL '30 days'\n    AND callsign != ''  -- Exclude empty callsigns\n    AND departure IS NOT NULL\n    AND arrival IS NOT NULL\nGROUP BY callsign, departure, arrival\nHAVING COUNT(DISTINCT cid) >= 2  -- At least 2 different pilots\nORDER BY unique_pilots DESC, total_flights DESC\nLIMIT 10;"
+ },
+ {
+  "id": 58,
+  "name": "Which airline is most popular? (last 30 days)",
+  "display": "bar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-06 15:09:06.037367+00:00",
+  "sql": "SELECT \n    LEFT(callsign, 3) as company_code,\n    COUNT(DISTINCT cid) as unique_pilots,\n    COUNT(*) as total_flights\nFROM flight_summaries \nWHERE callsign IS NOT NULL \n    AND LENGTH(callsign) >= 3\n    AND completion_time >= NOW() - INTERVAL '30 days'\nGROUP BY LEFT(callsign, 3)\nORDER BY total_flights DESC, unique_pilots DESC\nLIMIT 10;"
+ },
+ {
+  "id": 59,
+  "name": "What were the most popular VFR routes? (last 30 days)",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-19 09:05:35.701099+00:00",
+  "sql": "-- Simple Query: Top 10 Most Popular VFR Routes in Past Month\n-- \n-- This query finds the 10 most popular VFR routes by unique pilots\n-- who have flown between departure and arrival airports in the last 30 days.\n-- Only includes routes with 3 or more unique VFR aircraft.\n--\n-- Usage:\n--   docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -f scripts/simple_popular_vfr_routes.sql\n--\n\nSELECT \n    CONCAT(departure, ' \u2192 ', arrival) as route,\n    COUNT(DISTINCT callsign) as unique_pilots,\n    COUNT(*) as total_vfr_flights,\n    ROUND(AVG(time_online_minutes), 1) as avg_flight_duration_minutes,\n    ROUND(AVG(controller_time_percentage), 1) as avg_atc_contact_percentage,\n    MIN(completion_time) as first_flight_date,\n    MAX(completion_time) as last_flight_date\nFROM flight_summaries \nWHERE flight_rules = 'V'  -- VFR flights only\n    AND departure IS NOT NULL \n    AND arrival IS NOT NULL\n    AND departure != ''\n    AND arrival != ''\n    AND departure != arrival  -- Exclude flights that don't actually go anywhere\n    AND completion_time >= NOW() - INTERVAL '30 days'  -- Last 30 days only\nGROUP BY departure, arrival\nHAVING COUNT(DISTINCT callsign) >= 3  -- Only show routes with at least 3 unique pilots\nORDER BY unique_pilots DESC, total_vfr_flights DESC\nLIMIT 10;"
+ },
+ {
+  "id": 60,
+  "name": "Based on airborne traffic which sectors will be busiest in 1 hour",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-08-25 10:41:33.090108+00:00",
+  "sql": "nn"
+ },
+ {
+  "id": 61,
+  "name": "Which flights had the highest groundspeed (last 7 days)?",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-21 20:10:35.302247+00:00",
+  "sql": "-- Find Aircraft with Highest Sustained Groundspeed (High Performance Version)\n-- \n-- This query finds the highest peak groundspeeds for aircraft with valid destinations.\n-- Each aircraft (callsign) appears only once with their highest performance.\n-- Excludes supersonic jets, military aircraft, business jets, and turboprops.\n--\n-- Usage:\n--   docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -f scripts/highest_sustained_groundspeed.sql\n--\n\n-- Find top peak groundspeeds in the past week (unique by callsign)\nWITH top_peak_speeds AS (\n    SELECT \n        callsign,\n        aircraft_type,\n        departure,\n        arrival,\n        groundspeed as peak_speed_knots,\n        altitude as altitude_feet,\n        latitude,\n        longitude,\n        last_updated as peak_time,\n        name as pilot_name\n    FROM (\n        SELECT \n            callsign,\n            aircraft_type,\n            departure,\n            arrival,\n            groundspeed,\n            altitude,\n            latitude,\n            longitude,\n            last_updated,\n            name,\n            ROW_NUMBER() OVER (PARTITION BY callsign ORDER BY groundspeed DESC) as rn\n        FROM flights \n        WHERE groundspeed IS NOT NULL \n            AND groundspeed > 100  -- Higher threshold for better performance\n            AND groundspeed <= 750  -- Filter out unrealistic speeds\n            AND altitude > 1000  -- Must be airborne\n            AND last_updated >= NOW() - INTERVAL '1 week'  -- Last month only\n            AND arrival IS NOT NULL  -- Must have destination\n            AND arrival != ''  -- Destination cannot be empty\n            -- Exclude supersonic jets and military aircraft\n            AND aircraft_type NOT IN (\n                'CONC', 'TU144', 'TU160', 'MIG21', 'MIG23', 'MIG25', 'MIG29', 'MIG31',\n                'SU27', 'SU30', 'SU33', 'SU35', 'SU57', 'F14', 'F15', 'F16', 'F18', 'FA18',\n                'F22', 'F35', 'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4', 'HAR', 'JAG', 'VF35',\n                'TORN', 'VIGG', 'M2K', 'RAPH', 'EF2K', 'GR4', 'FGR4', 'F4', 'F5', 'HAWK',\n                'A4', 'A6', 'A7', 'F111', 'F117', 'B1', 'B2', 'SR71', 'U2', 'TR1','F18S'\n            )\n            -- Exclude business jets\n            AND aircraft_type NOT IN (\n                'C550', 'C560', 'C680', 'C750', 'C850',  -- Citation series\n                'BE20', 'BE30', 'BE40', 'BE90', 'BE99',  -- Beechcraft\n                'GLF4', 'GLF5', 'GLF6', 'GLF7',          -- Gulfstream\n                'FAL7', 'FAL8', 'FAL9', 'FAL0',          -- Falcon series\n                'LJ35', 'LJ45', 'LJ60', 'LJ75',          -- Learjet series\n                'CL30', 'CL60', 'CL65', 'CL85',          -- Challenger series\n                'GL5T', 'GL6T', 'GL7T', 'GL8T',          -- Global series\n                'E135', 'E145', 'E170', 'E175', 'E190', 'E195'  -- Embraer business jets\n            )\n            -- Exclude turboprops\n            AND aircraft_type NOT IN (\n                'AT72', 'AT76', 'AT42', 'AT45',          -- ATR series\n                'DH8A', 'DH8B', 'DH8C', 'DH8D', 'DH8Q', -- Dash 8 series\n                'B350', 'B190', 'B200', 'B300', 'B360', -- Beechcraft King Air\n                'PC12', 'PC21', 'PC24',                  -- Pilatus series\n                'AN24', 'AN26', 'AN32', 'AN72', 'AN74', -- Antonov series\n                'SF34', 'SF50',                          -- Saab series\n                'DHC6', 'DHC7', 'DHC8', 'K350',                 -- De Havilland Canada\n                'EMB1', 'EMB2', 'EMB3', 'EMB4', 'EMB5'  -- Embraer turboprops\n            )\n            -- Also exclude aircraft types that start with common military prefixes\n            AND aircraft_type NOT LIKE 'F-%'\n            AND aircraft_type NOT LIKE 'MIG%'\n            AND aircraft_type NOT LIKE 'SU-%'\n            AND aircraft_type NOT LIKE 'TU-%'\n            AND aircraft_type NOT LIKE 'MIR%'\n    ) ranked_flights\n    WHERE rn = 1  -- Only the highest speed for each callsign\n    ORDER BY peak_speed_knots DESC\n    LIMIT 20\n)\nSELECT \n    callsign,\n    pilot_name,\n    aircraft_type,\n    departure,\n    arrival,\n    peak_speed_knots,\n    altitude_feet,\n    peak_time\nFROM top_peak_speeds\nORDER BY peak_speed_knots DESC;\n"
+ },
+ {
+  "id": 62,
+  "name": "What was the fastest Milk Run Monday time (YSSY-YMML)?",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-08 22:52:11.111730+00:00",
+  "sql": "WITH syd_mel AS (\n  SELECT\n    fs.id,\n    fs.callsign,\n    fs.name,\n    fs.aircraft_type,\n    fs.logon_time,\n    fs.completion_time,\n    (\n      SELECT MIN(fo.entry_timestamp)\n      FROM flight_sector_occupancy fo\n      WHERE fo.callsign = fs.callsign\n        AND fo.sector_name = 'SYA'\n        AND fo.entry_timestamp BETWEEN fs.logon_time AND fs.completion_time\n    ) AS sya_entry_time,\n    (\n      SELECT MAX(fo.exit_timestamp)\n      FROM flight_sector_occupancy fo\n      WHERE fo.callsign = fs.callsign\n        AND fo.sector_name = 'MLA'\n        AND fo.exit_timestamp BETWEEN fs.logon_time AND fs.completion_time\n    ) AS mla_exit_time\n  FROM flight_summaries fs\n  WHERE fs.departure = 'YSSY'\n    AND fs.arrival = 'YMML'\n    AND EXTRACT(DOW FROM fs.completion_time) = 1\n    AND fs.completion_time >= NOW() - INTERVAL '6 months'\n),\nfiltered AS (\n  SELECT\n    *,\n    EXTRACT(EPOCH FROM (mla_exit_time - sya_entry_time)) / 60.0 AS sya_mla_minutes\n  FROM syd_mel\n  WHERE sya_entry_time IS NOT NULL\n    AND mla_exit_time IS NOT NULL\n    AND EXTRACT(HOUR FROM sya_entry_time) >= 9  -- SYA entry after 0900 UTC\n    AND EXTRACT(HOUR FROM mla_exit_time) < 12   -- MLA exit before 1200 UTC\n)\nSELECT\n  id,\n  callsign,\n  name,\n  aircraft_type,\n  logon_time,\n  completion_time,\n  sya_entry_time,\n  mla_exit_time,\n  ROUND(sya_mla_minutes, 1) AS sya_mla_minutes\nFROM filtered\nWHERE sya_mla_minutes >= 0\nORDER BY sya_mla_minutes ASC\nLIMIT 10;"
+ },
+ {
+  "id": 63,
+  "name": "How many CTR/FSS controllers were active in the last 30 days?",
+  "display": "line",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-19 10:04:24.132648+00:00",
+  "sql": "WITH weekly_periods AS (\n  SELECT \n    date_trunc('week', generate_series(\n      (SELECT MIN(session_start_time) FROM controller_summaries),\n      (SELECT MAX(session_start_time) FROM controller_summaries),\n      '1 week'::interval\n    )) AS week_start,\n    date_trunc('week', generate_series(\n      (SELECT MIN(session_start_time) FROM controller_summaries),\n      (SELECT MAX(session_start_time) FROM controller_summaries),\n      '1 week'::interval\n    )) + '1 week'::interval AS week_end\n),\nweekly_controller_counts AS (\n  SELECT \n    wp.week_start,\n    wp.week_end,\n    COUNT(DISTINCT cs.cid) AS distinct_controllers_30day\n  FROM weekly_periods wp\n  LEFT JOIN controller_summaries cs ON cs.session_start_time >= (wp.week_end - '30 days'::interval) \n                                    AND cs.session_start_time < wp.week_end\n  WHERE cs.session_duration_minutes > 60\n    AND (cs.callsign LIKE '%CTR' OR cs.callsign LIKE '%FSS')\n  GROUP BY wp.week_start, wp.week_end\n  ORDER BY wp.week_start\n)\nSELECT \n  week_start AS date,\n  distinct_controllers_30day AS controllers\nFROM weekly_controller_counts\nWHERE distinct_controllers_30day > 0\nORDER BY week_start;"
+ },
+ {
+  "id": 64,
+  "name": "What was the most popular military aircraft?",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "-- Query to find most popular military aircraft and count unique pilots\n-- Military aircraft list from the specified types\n\nSELECT \n    f.aircraft_type,\n    COUNT(DISTINCT f.cid) as unique_pilots,\n    COUNT(*) as total_flights,\n    ROUND(\n        COUNT(DISTINCT f.cid) * 100.0 / SUM(COUNT(DISTINCT f.cid)) OVER (), \n        2\n    ) as percentage_of_total_pilots\nFROM flights f\nWHERE \n    f.aircraft_type IN (\n        'CONC', 'TU144', 'TU160', 'MIG21', 'MIG23', 'MIG25', 'MIG29', 'MIG31',\n        'SU27', 'SU30', 'SU33', 'SU35', 'SU57', 'F14', 'F15', 'F16', 'F18',\n        'F22', 'F35', 'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4', 'HAR', 'JAG',\n        'TORN', 'VIGG', 'M2K', 'RAPH', 'EF2K', 'GR4', 'FGR4', 'F4', 'F5',\n        'A4', 'A6', 'A7', 'F111', 'F117', 'B1', 'B2', 'SR71', 'U2', 'TR1', 'F18S'\n    )\n    -- Only include recent/active flights from last 24 hours\n    AND f.last_updated >= NOW() - INTERVAL '24 hours'\n    AND f.cid IS NOT NULL\nGROUP BY f.aircraft_type\nORDER BY unique_pilots DESC, total_flights DESC;"
+ },
+ {
+  "id": 65,
+  "name": "What were the most popular military aircraft last week (unique pilots)?",
+  "display": "pie",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-21 10:00:55.324285+00:00",
+  "sql": "-- Query to find most popular military aircraft and count unique pilots\n-- Using flight_summaries table for completed flights\n-- Comprehensive military aircraft list including fighters, bombers, transport, helicopters, etc.\n\nSELECT \n    fs.aircraft_type,\n    COUNT(DISTINCT fs.cid) as unique_pilots,\n    COUNT(*) as total_flights,\n    ROUND(\n        COUNT(DISTINCT fs.cid) * 100.0 / SUM(COUNT(DISTINCT fs.cid)) OVER (), \n        2\n    ) as percentage_of_total_pilots\nFROM flight_summaries fs\nWHERE \n    fs.aircraft_type IN (\n        -- Russian/Soviet Fighters & Interceptors\n        'MIG21', 'MIG23', 'MIG25', 'MIG29', 'MIG31', 'MIG35', 'MIG41',\n        'SU27', 'SU30', 'SU33', 'SU34', 'SU35', 'SU37', 'SU57', 'SU75',\n        'TU22', 'TU95', 'TU160', 'TU22M', 'TU95MS', 'TU160M',\n        \n        -- US Fighters & Attack Aircraft\n        'F14', 'F15', 'F16', 'F18', 'F18S', 'F22', 'F35', 'F4', 'F5',\n        'F111', 'F117', 'A4', 'A6', 'A7', 'A10', 'A12', 'AV8', 'F15E',\n        'F16C', 'F16D', 'F18C', 'F18D', 'F18E', 'F18F', 'F22A', 'F35A',\n        'F35B', 'F35C', 'F4E', 'F5E', 'F5F', 'F111F', 'F117A',\n        \n        -- European Fighters\n        'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN',\n        'VIGG', 'M2K', 'RAPH', 'EF2K', 'GR4', 'FGR4', 'TORN', 'VIGG',\n        'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN', 'VIGG', 'M2K', 'RAPH',\n        'EF2K', 'GR4', 'FGR4', 'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4',\n        \n        -- Bombers & Strategic Aircraft\n        'B1', 'B2', 'B21', 'B52', 'B1B', 'B2A', 'B21A', 'B52H',\n        'SR71', 'U2', 'TR1', 'SR72', 'U2S', 'TR1A', 'SR71A', 'U2R',\n        \n        -- Military Transport Aircraft\n        'C130', 'C17', 'C5', 'C141', 'C160', 'C27', 'C295', 'C130J',\n        'C17A', 'C5M', 'C141B', 'C160R', 'C27J', 'C295M', 'HERC',\n        'A400', 'IL76', 'AN124', 'AN225', 'C17A', 'C5M', 'C141B',\n        \n        -- Military Helicopters\n        'H60', 'H64', 'H47', 'H53', 'H1', 'H2', 'H3', 'H6', 'H8',\n        'AH64', 'AH1', 'AH6', 'AH1Z', 'AH64E', 'CH47', 'CH53', 'CH60',\n        'MH60', 'MH47', 'MH53', 'MH6', 'MH8', 'UH60', 'UH1', 'UH72',\n        \n        -- Military Patrol & Reconnaissance\n        'P3', 'P8', 'P1', 'P3C', 'P8A', 'P1A', 'E2', 'E3', 'E4', 'E6',\n        'E8', 'E2C', 'E3A', 'E4B', 'E6B', 'E8C', 'RC135', 'U2S', 'TR1A',\n        \n        -- Military Trainers\n        'T38', 'T45', 'T6', 'T1', 'T38A', 'T45A', 'T6A', 'T1A',\n        'T50', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12', 'T13', 'T14',\n        \n        -- Military Drones & UAVs\n        'MQ1', 'MQ9', 'MQ1C', 'MQ9A', 'MQ1B', 'MQ9B', 'MQ1D', 'MQ9C',\n        'RQ4', 'RQ7', 'RQ11', 'RQ170', 'RQ180', 'RQ4A', 'RQ7B', 'RQ11B',\n        \n        -- Additional Military Aircraft\n        'F18S', 'F18T', 'F18U', 'F18V', 'F18W', 'F18X', 'F18Y', 'F18Z',\n        'MIG21B', 'MIG21F', 'MIG21M', 'MIG21S', 'MIG21U', 'MIG21UM',\n        'SU27M', 'SU27S', 'SU27UB', 'SU27SM', 'SU27SM3', 'SU27UBM',\n        'F15C', 'F15D', 'F15E', 'F15EX', 'F15I', 'F15K', 'F15S', 'F15SG',\n        'F16A', 'F16B', 'F16C', 'F16D', 'F16E', 'F16F', 'F16I', 'F16V',\n        \n        -- Experimental & Prototype Military Aircraft\n        'X35', 'X47', 'YF23', 'YF22', 'X35A', 'X35B', 'X35C', 'X47A',\n        'X47B', 'YF23A', 'YF22A', 'X35D', 'X47C', 'YF23B', 'YF22B',\n        \n        -- Military Aircraft with Pattern Matching\n        'F-%', 'MIG%', 'SU-%', 'TU-%', 'MIR%', 'A-%', 'B-%', 'C-%',\n        'E-%', 'H-%', 'P-%', 'T-%', 'V-%', 'X-%', 'Y-%', 'Z-%',\n        'MQ%', 'RQ%', 'AH%', 'CH%', 'MH%', 'UH%', 'RC%', 'TR%'\n    )\n    -- Only include completed flights from last week\n    AND fs.completion_time >= NOW() - INTERVAL '1 week'\n    AND fs.cid IS NOT NULL\nGROUP BY fs.aircraft_type\nORDER BY unique_pilots DESC, total_flights DESC;"
+ },
+ {
+  "id": 66,
+  "name": "Hours flown by military aircraft per week",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-21 10:01:24.690461+00:00",
+  "sql": "-- Query to find military hours flown per week over last 98 days\n-- Comprehensive military aircraft list including fighters, bombers, transport, helicopters, etc.\n\nSELECT \n    DATE_TRUNC('week', fs.completion_time) as week_end,\n    ROUND(SUM(fs.time_online_minutes) / 60.0, 0) as military_hours\nFROM flight_summaries fs\nWHERE \n    fs.aircraft_type IN (\n        -- Russian/Soviet Fighters & Interceptors\n        'MIG21', 'MIG23', 'MIG25', 'MIG29', 'MIG31', 'MIG35', 'MIG41',\n        'SU27', 'SU30', 'SU33', 'SU34', 'SU35', 'SU37', 'SU57', 'SU75',\n        'TU22', 'TU95', 'TU160', 'TU22M', 'TU95MS', 'TU160M',\n        \n        -- US Fighters & Attack Aircraft\n        'F14', 'F15', 'F16', 'F18', 'F18S', 'F22', 'F35', 'F4', 'F5',\n        'F111', 'F117', 'A4', 'A6', 'A7', 'A10', 'A12', 'AV8', 'F15E',\n        'F16C', 'F16D', 'F16E', 'F16F', 'F16I', 'F16V', 'F18C', 'F18D',\n        'F18E', 'F18F', 'F22A', 'F35A', 'F35B', 'F35C', 'F4E', 'F5E',\n        'F5F', 'F111F', 'F117A',\n        \n        -- European Fighters\n        'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN',\n        'VIGG', 'M2K', 'RAPH', 'EF2K', 'GR4', 'FGR4', 'TORN', 'VIGG',\n        'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN', 'VIGG', 'M2K', 'RAPH',\n        'EF2K', 'GR4', 'FGR4', 'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4',\n        \n        -- Bombers & Strategic Aircraft\n        'B1', 'B2', 'B21', 'B52', 'B1B', 'B2A', 'B21A', 'B52H',\n        'SR71', 'U2', 'TR1', 'SR72', 'U2S', 'TR1A', 'SR71A', 'U2R',\n        \n        -- Military Transport Aircraft\n        'C130', 'C17', 'C5', 'C141', 'C160', 'C27', 'C295', 'C130J',\n        'C17A', 'C5M', 'C141B', 'C160R', 'C27J', 'C295M', 'HERC',\n        'A400', 'IL76', 'AN124', 'AN225', 'C17A', 'C5M', 'C141B',\n        \n        -- Military Helicopters\n        'H60', 'H64', 'H47', 'H53', 'H1', 'H2', 'H3', 'H6', 'H8',\n        'AH64', 'AH1', 'AH6', 'AH1Z', 'AH64E', 'CH47', 'CH53', 'CH60',\n        'MH60', 'MH47', 'MH53', 'MH6', 'MH8', 'UH60', 'UH1', 'UH72',\n        \n        -- Military Patrol & Reconnaissance\n        'P3', 'P8', 'P1', 'P3C', 'P8A', 'P1A', 'E2', 'E3', 'E4', 'E6',\n        'E8', 'E2C', 'E3A', 'E4B', 'E6B', 'E8C', 'RC135', 'U2S', 'TR1A',\n        \n        -- Military Trainers\n        'T38', 'T45', 'T6', 'T1', 'T38A', 'T45A', 'T6A', 'T1A',\n        'T50', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12', 'T13', 'T14',\n        \n        -- Military Drones & UAVs\n        'MQ1', 'MQ9', 'MQ1C', 'MQ9A', 'MQ1B', 'MQ9B', 'MQ1D', 'MQ9C',\n        'RQ4', 'RQ7', 'RQ11', 'RQ170', 'RQ180', 'RQ4A', 'RQ7B', 'RQ11B',\n        \n        -- Additional Military Aircraft\n        'F18S', 'F18T', 'F18U', 'F18V', 'F18W', 'F18X', 'F18Y', 'F18Z',\n        'MIG21B', 'MIG21F', 'MIG21M', 'MIG21S', 'MIG21U', 'MIG21UM',\n        'SU27M', 'SU27S', 'SU27UB', 'SU27SM', 'SU27SM3', 'SU27UBM',\n        'F15C', 'F15D', 'F15E', 'F15EX', 'F15I', 'F15K', 'F15S', 'F15SG',\n        'F16A', 'F16B', 'F16C', 'F16D', 'F16E', 'F16F', 'F16I', 'F16V',\n        \n        -- Experimental & Prototype Military Aircraft\n        'X35', 'X47', 'YF23', 'YF22', 'X35A', 'X35B', 'X35C', 'X47A',\n        'X47B', 'YF23A', 'YF22A', 'X35D', 'X47C', 'YF23B', 'YF22B',\n        \n        -- Additional Military Aircraft Types\n        'F18S', 'F18T', 'F18U', 'F18V', 'F18W', 'F18X', 'F18Y', 'F18Z',\n        'MIG21B', 'MIG21F', 'MIG21M', 'MIG21S', 'MIG21U', 'MIG21UM',\n        'SU27M', 'SU27S', 'SU27UB', 'SU27SM', 'SU27SM3', 'SU27UBM',\n        'F15C', 'F15D', 'F15E', 'F15EX', 'F15I', 'F15K', 'F15S', 'F15SG',\n        'F16A', 'F16B', 'F16C', 'F16D', 'F16E', 'F16F', 'F16I', 'F16V',\n        \n        -- Military Aircraft with Pattern Matching\n        'F-%', 'MIG%', 'SU-%', 'TU-%', 'MIR%', 'A-%', 'B-%', 'C-%',\n        'E-%', 'H-%', 'P-%', 'T-%', 'V-%', 'X-%', 'Y-%', 'Z-%',\n        'MQ%', 'RQ%', 'AH%', 'CH%', 'MH%', 'UH%', 'RC%', 'TR%'\n    )\n    AND fs.completion_time >= NOW() - INTERVAL '98 days'\n    AND fs.completion_time < NOW()\n    AND fs.cid IS NOT NULL\nGROUP BY DATE_TRUNC('week', fs.completion_time)\nORDER BY week_end DESC;"
+ },
+ {
+  "id": 67,
+  "name": "Who's online?",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "-- Query to show unique callsigns currently online with latest sector\n\nSELECT DISTINCT ON (f.callsign)\n    f.callsign as flight,\n    f.name,\n    f.departure,\n    f.arrival,\n    f.aircraft_type as acft,\n    fso.sector_name as latest_sector,\n    fso.entry_timestamp as sector_entry_time\nFROM flights f\nLEFT JOIN flight_sector_occupancy fso ON (\n    f.callsign = fso.callsign \n    AND fso.entry_timestamp = (\n        SELECT MAX(entry_timestamp) \n        FROM flight_sector_occupancy fso2 \n        WHERE fso2.callsign = f.callsign\n    )\n)\nWHERE f.last_updated >= NOW() - INTERVAL '30 minutes'  -- Active in last 30 minutes\n  AND f.cid IS NOT NULL\nORDER BY f.callsign, fso.entry_timestamp DESC;"
+ },
+ {
+  "id": 68,
+  "name": "How many pilots online?",
+  "display": "scalar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-21 10:03:53.128853+00:00",
+  "sql": "SELECT COUNT(DISTINCT callsign) as unique_flights_online\nFROM flights \nWHERE last_updated >= NOW() - INTERVAL '5 minutes';"
+ },
+ {
+  "id": 69,
+  "name": "How many controllers online?",
+  "display": "scalar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-21 10:04:17.384467+00:00",
+  "sql": "SELECT COUNT(DISTINCT callsign) as unique_controllers_online\nFROM controllers \nWHERE last_updated >= NOW() - INTERVAL '30 minutes';"
+ },
+ {
+  "id": 70,
+  "name": "Where do pilots in Australian airspace come from? (last 30 days)",
+  "display": "pie",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-08-21 09:47:50.819242+00:00",
+  "sql": "SELECT \n    CASE \n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y' THEN 'Australia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Z' THEN 'China'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('V', 'W') THEN 'South and South East Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'R' THEN 'East Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('N', 'A') THEN 'New Zealand and Oceania'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('E', 'L') THEN 'Europe'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'K' THEN 'USA'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'O' THEN 'Middle East'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'C' THEN 'Canada'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'F' THEN 'Africa'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'S' THEN 'Sth America'\n\t\tELSE 'Other/Unknown'\n    END as region,\n    COUNT(DISTINCT cid) as pilot_count\nFROM flights \nWHERE last_updated >= NOW() - INTERVAL '30 days'\n    AND name IS NOT NULL \n    AND name ~ '[A-Z]{4}$'\nGROUP BY region\nORDER BY pilot_count DESC;"
+ },
+ {
+  "id": 71,
+  "name": "From which state to pilots come from? (last 30 days)",
+  "display": "pie",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "WITH icao_state_mapping AS (\n    SELECT \n        icao_code,\n        CASE \n            WHEN iso_region = 'AU-NSW' THEN 'New South Wales'\n            WHEN iso_region = 'AU-VIC' THEN 'Victoria'\n            WHEN iso_region = 'AU-QLD' THEN 'Queensland'\n            WHEN iso_region = 'AU-WA' THEN 'Western Australia'\n            WHEN iso_region = 'AU-SA' THEN 'South Australia'\n            WHEN iso_region = 'AU-TAS' THEN 'Tasmania'\n            WHEN iso_region = 'AU-NT' THEN 'Northern Territory'\n            WHEN iso_region = 'AU-ACT' THEN 'Australian Capital Territory'\n            WHEN iso_region LIKE 'AU-%' THEN 'Other Australian Territory'\n            ELSE 'International'\n        END as state_name\n    FROM (\n        VALUES \n            -- Major airports from your comprehensive CSV data\n            ('YSSY', 'AU-NSW'), ('YSBK', 'AU-NSW'), ('YSCB', 'AU-ACT'), ('YSCN', 'AU-NSW'),\n            ('YSHL', 'AU-NSW'), ('YSTW', 'AU-NSW'), ('YMML', 'AU-VIC'), ('YMAV', 'AU-VIC'),\n            ('YMEN', 'AU-VIC'), ('YMHB', 'AU-TAS'), ('YMLT', 'AU-TAS'), ('YMMB', 'AU-VIC'),\n            ('YBBN', 'AU-QLD'), ('YBAF', 'AU-QLD'), ('YBCG', 'AU-QLD'), ('YBCS', 'AU-QLD'),\n            ('YBLN', 'AU-NSW'), ('YBMK', 'AU-QLD'), ('YBNA', 'AU-NSW'), ('YBRK', 'AU-QLD'),\n            ('YBTL', 'AU-QLD'), ('YBUD', 'AU-QLD'), ('YBUN', 'AU-WA'), ('YPAD', 'AU-SA'),\n            ('YPPH', 'AU-WA'), ('YPJT', 'AU-WA'), ('YPKA', 'AU-WA'), ('YPMQ', 'AU-NSW'),\n            ('YPDN', 'AU-NT'), ('YRED', 'AU-QLD'), ('YGYM', 'AU-QLD'), ('YHBA', 'AU-QLD'),\n            ('YHML', 'AU-VIC'), ('YTWB', 'AU-QLD'), ('YTYS', 'AU-QLD'), ('YUAN', 'AU-NSW'),\n            ('YCDR', 'AU-QLD'), ('YDPO', 'AU-TAS'), ('YGIG', 'AU-QLD'), ('YKTN', 'AU-NT'),\n            ('YLIL', 'AU-VIC'), ('YMAY', 'AU-NSW'), ('YMND', 'AU-VIC'), ('YWLM', 'AU-NSW'),\n            ('YWVA', 'AU-NSW'), ('YCFS', 'AU-NSW'), ('YMIA', 'AU-VIC'), ('YBAS', 'AU-NT'),\n            ('YAYE', 'AU-NT'), ('YBSU', 'AU-QLD'), ('YBTH', 'AU-NSW'), ('YGEL', 'AU-WA'),\n            ('YBMA', 'AU-QLD'), ('YECH', 'AU-VIC'), ('YMDG', 'AU-NSW'), ('YORG', 'AU-NSW'),\n            ('YLHI', 'AU-NSW'), ('YBSS', 'AU-VIC'), ('YBDV', 'AU-QLD'), ('YBRM', 'AU-WA'),\n            ('YPPF', 'AU-SA'), ('YKSC', 'AU-SA'), ('YBHI', 'AU-NSW'), ('YSWG', 'AU-NSW'),\n            ('YMER', 'AU-NSW'), ('YSHT', 'AU-VIC'), ('YSWH', 'AU-VIC'), ('YRTI', 'AU-WA'),\n            ('YBDG', 'AU-VIC'), ('YPAG', 'AU-SA'), ('YABA', 'AU-WA'), ('YBLT', 'AU-VIC'),\n            ('YTDN', 'AU-VIC'), ('YMUL', 'AU-WA'), ('YARM', 'AU-NSW'), ('YWYY', 'AU-TAS'),\n            ('YCBP', 'AU-SA'), ('YLIS', 'AU-NSW'), ('YPKS', 'AU-NSW'), ('YPPD', 'AU-WA'),\n            ('YAMB', 'AU-QLD'), ('YSRI', 'AU-NSW'), ('YBLN', 'AU-WA'), ('YYWG', 'AU-VIC'),\n            ('YMGT', 'AU-WA'), ('YCBG', 'AU-TAS'), ('YLEG', 'AU-VIC'), ('YPLM', 'AU-WA'),\n            ('YGLA', 'AU-QLD'), ('YGTH', 'AU-NSW'), ('YHID', 'AU-QLD'), ('YPGV', 'AU-NT'),\n            ('YPBO', 'AU-WA'), ('YROM', 'AU-QLD'), ('YBWP', 'AU-QLD'), ('YWHA', 'AU-SA'),\n            ('YCWR', 'AU-NSW'), ('YGLB', 'AU-NSW'), ('YTEM', 'AU-NSW'), ('YNPE', 'AU-QLD'),\n            ('YJAB', 'AU-NT'), ('YSEN', 'AU-WA'), ('YKTN', 'AU-VIC'), ('YMNG', 'AU-VIC'),\n            ('YTYA', 'AU-VIC'), ('YKII', 'AU-TAS'), ('YMEK', 'AU-WA'), ('YCKN', 'AU-QLD'),\n            ('YWTN', 'AU-QLD'), ('YCDU', 'AU-SA'), ('YCAR', 'AU-WA'), ('YBCV', 'AU-QLD'),\n            ('YESP', 'AU-WA'), ('YGTE', 'AU-NT'), ('YMOR', 'AU-NSW'), ('YMRY', 'AU-NSW'),\n            ('YNTN', 'AU-QLD'), ('YNRM', 'AU-NSW'), ('YREN', 'AU-SA'), ('YFBS', 'AU-NSW'),\n            ('YOLD', 'AU-SA'), ('YSCO', 'AU-NSW'), ('YBRL', 'AU-NT'), ('YGYM', 'AU-QLD'),\n            ('YMCO', 'AU-VIC'), ('YOLA', 'AU-VIC'), ('YMPC', 'AU-VIC'), ('YBKE', 'AU-NSW'),\n            ('YBIE', 'AU-QLD'), ('YCCY', 'AU-QLD'), ('YCOE', 'AU-QLD'), ('YCOM', 'AU-NSW'),\n            ('YSDU', 'AU-NSW'), ('YELD', 'AU-NT'), ('YLHR', 'AU-QLD'), ('YLRE', 'AU-QLD'),\n            ('YMGD', 'AU-NT'), ('YNBR', 'AU-NSW'), ('YPLC', 'AU-SA'), ('YTNK', 'AU-NT'),\n            ('YPEA', 'AU-WA'), ('YFRT', 'AU-WA'), ('YCTM', 'AU-NSW'), ('YGDH', 'AU-NSW'),\n            ('YKMP', 'AU-NSW'), ('YLEC', 'AU-SA'), ('YPIR', 'AU-SA'), ('YBNS', 'AU-VIC'),\n            ('YBLA', 'AU-VIC'), ('YWSL', 'AU-VIC'), ('YWMC', 'AU-SA'), ('YHUG', 'AU-QLD'),\n            ('YMGB', 'AU-NT'), ('YCHT', 'AU-QLD'), ('YLZI', 'AU-QLD'), ('YWKI', 'AU-SA'),\n            ('YARK', 'AU-SA'), ('YWBL', 'AU-VIC'), ('YLED', 'AU-VIC'), ('YORB', 'AU-VIC'),\n            ('YWGN', 'AU-WA'), ('YKMB', 'AU-QLD'), ('YCNK', 'AU-NSW'), ('YBDG', 'AU-VIC'),\n            ('YBAU', 'AU-QLD'), ('YDNI', 'AU-QLD'), ('YKBR', 'AU-WA'), ('YKUB', 'AU-QLD'),\n            ('YLTN', 'AU-WA'), ('YMHU', 'AU-NT'), ('YMAE', 'AU-QLD'), ('YWBS', 'AU-QLD'),\n            ('YYMI', 'AU-QLD'), ('YYKI', 'AU-QLD'), ('YGDO', 'AU-NSW'), ('YKAR', 'AU-WA'),\n            ('YBUU', 'AU-WA'), ('YADG', 'AU-SA'), ('YCAB', 'AU-QLD'), ('YCOI', 'AU-WA'),\n            ('YBRS', 'AU-VIC'), ('YCRL', 'AU-NSW'), ('YIMT', 'AU-SA'), ('YCOY', 'AU-WA'),\n            ('YLUW', 'AU-WA'), ('YMBT', 'AU-VIC'), ('YNRG', 'AU-WA'), ('YORC', 'AU-QLD'),\n            ('YBHB', 'AU-TAS'), ('YWVA', 'AU-NSW'), ('YCBA', 'AU-NSW'), ('YPOD', 'AU-VIC'),\n            ('YNWN', 'AU-WA'), ('YSNB', 'AU-NT'), ('YTRE', 'AU-NSW'), ('YHAY', 'AU-NSW'),\n            ('YTIB', 'AU-NSW'), ('YNGU', 'AU-NT'), ('YHPN', 'AU-VIC'), ('YHSM', 'AU-VIC'),\n            ('YTEF', 'AU-WA'), ('YPED', 'AU-SA'), ('YDLQ', 'AU-NSW'), ('YCIN', 'AU-WA'),\n            ('YIVL', 'AU-NSW'), ('YBKT', 'AU-QLD'), ('YDMG', 'AU-QLD'), ('YJLC', 'AU-QLD'),\n            ('YKMB', 'AU-QLD'), ('YAUR', 'AU-QLD'), ('YMYB', 'AU-QLD'), ('YCHK', 'AU-WA'),\n            ('YWRC', 'AU-WA'), ('YKHG', 'AU-NT'), ('YGDI', 'AU-QLD'), ('YNSH', 'AU-QLD'),\n            ('YSPT', 'AU-QLD'), ('YKBY', 'AU-SA'), ('YLOX', 'AU-SA'), ('YMBU', 'AU-VIC'),\n            ('YKNG', 'AU-WA'), ('YCDO', 'AU-NSW'), ('YNYN', 'AU-NSW'), ('YTOC', 'AU-NSW'),\n            ('YSGR', 'AU-NSW'), ('YAUG', 'AU-WA'), ('YCEM', 'AU-VIC'), ('YCLQ', 'AU-WA'),\n            ('YGWA', 'AU-SA'), ('YSMB', 'AU-NSW'), ('YHAW', 'AU-SA'), ('YKAL', 'AU-WA'),\n            ('YLCS', 'AU-VIC'), ('YMEL', 'AU-VIC'), ('YILA', 'AU-VIC'), ('YSHR', 'AU-QLD'),\n            ('YOAS', 'AU-NSW'), ('YWBR', 'AU-WA'), ('YWKM', 'AU-WA'), ('YLST', 'AU-WA'),\n            ('YMOG', 'AU-WA'), ('YCNM', 'AU-NSW'), ('YBOK', 'AU-QLD'), ('YBOU', 'AU-QLD'),\n            ('YBAR', 'AU-QLD'), ('YBCK', 'AU-QLD'), ('YSHK', 'AU-WA'), ('YKOW', 'AU-QLD'),\n            ('YLEO', 'AU-WA'), ('YHOT', 'AU-VIC'), ('YWDH', 'AU-QLD'), ('YMES', 'AU-VIC'),\n            ('YCRG', 'AU-VIC'), ('YHPN', 'AU-VIC'), ('YSWL', 'AU-VIC'), ('YKRY', 'AU-QLD'),\n            ('YARA', 'AU-VIC'), ('YDBY', 'AU-WA'), ('YGLI', 'AU-NSW'), ('YGFN', 'AU-NSW'),\n            ('YMBA', 'AU-QLD'), ('YSNW', 'AU-NSW'), ('YPKT', 'AU-NT'), ('YWWL', 'AU-NSW'),\n            ('YBTI', 'AU-NT'), ('YMTI', 'AU-QLD'), ('YRMD', 'AU-QLD'), ('YSRN', 'AU-TAS'),\n            ('YARG', 'AU-WA'), ('YBOI', 'AU-QLD'), ('YPMP', 'AU-QLD'), ('YFLI', 'AU-TAS'),\n            ('YPWR', 'AU-SA'), ('YPMH', 'AU-SA'), ('YSTH', 'AU-TAS'), ('YCAL', 'AU-VIC'),\n            ('YMFD', 'AU-VIC'), ('YPOK', 'AU-VIC'), ('YELM', 'AU-VIC'), ('YBRY', 'AU-WA'),\n            ('YCUN', 'AU-WA'), ('YGIG', 'AU-WA'), ('YMJM', 'AU-WA'), ('YNRV', 'AU-WA'),\n            ('YBLU', 'AU-WA'), ('YGGE', 'AU-WA'), ('YKOJ', 'AU-WA'), ('YNTM', 'AU-WA'),\n            ('YCKI', 'AU-NT'), ('YDLV', 'AU-NT'), ('YGBI', 'AU-NT'), ('YMKA', 'AU-NT'),\n            ('YRBR', 'AU-NT'), ('YSPE', 'AU-QLD'), ('YWCK', 'AU-QLD'), ('YALG', 'AU-QLD'),\n            ('YCMW', 'AU-QLD'), ('YMLS', 'AU-QLD'), ('YOSB', 'AU-QLD'), ('YRBB', 'AU-QLD'),\n            ('YNOV', 'AU-WA'), ('YDGU', 'AU-WA'), ('YTAA', 'AU-QLD'), ('YTCK', 'AU-QLD'),\n            ('YTDR', 'AU-QLD'), ('YTMB', 'AU-QLD'), ('YUDG', 'AU-QLD'), ('YYAK', 'AU-QLD'),\n            ('LGRS', 'AU-QLD'), ('YBWM', 'AU-QLD'), ('YBWT', 'AU-QLD'), ('YCAM', 'AU-QLD'),\n            ('YCFN', 'AU-QLD'), ('YHEC', 'AU-QLD'), ('YHEG', 'AU-QLD'), ('YLRN', 'AU-QLD'),\n            ('YTGA', 'AU-QLD'), ('YTUY', 'AU-QLD'), ('YCUS', 'AU-SA'), ('YNRC', 'AU-SA'),\n            ('YANK', 'AU-SA'), ('YBVA', 'AU-SA'), ('YGAW', 'AU-SA'), ('YINN', 'AU-SA'),\n            ('YKDI', 'AU-SA'), ('YKIG', 'AU-SA'), ('YMLD', 'AU-SA'), ('YMTX', 'AU-SA'),\n            ('YNUB', 'AU-SA'), ('YTIN', 'AU-SA'), ('YYOR', 'AU-SA'), ('DALH', 'AU-SA'),\n            ('YDLH', 'AU-SA'), ('YNPA', 'AU-SA'), ('YOOK', 'AU-SA'), ('YBYI', 'AU-TAS'),\n            ('YTUA', 'AU-TAS'), ('YWRT', 'AU-TAS'), ('YMLC', 'AU-TAS'), ('YAPO', 'AU-VIC'),\n            ('YBUP', 'AU-VIC'), ('YITT', 'AU-VIC'), ('YKTA', 'AU-VIC'), ('YLBO', 'AU-VIC'),\n            ('YLVB', 'AU-VIC'), ('YSDW', 'AU-VIC'), ('YYEA', 'AU-VIC'), ('YYRM', 'AU-VIC'),\n            ('YGRL', 'AU-VIC'), ('YCES', 'AU-VIC'), ('YCWO', 'AU-VIC'), ('YLET', 'AU-VIC'),\n            ('YSLE', 'AU-VIC'), ('YCRE', 'AU-VIC'), ('YBWG', 'AU-WA'), ('YBWX', 'AU-WA'),\n            ('YWYM', 'AU-WA'), ('YBEV', 'AU-WA'), ('YBIU', 'AU-WA'), ('YBOP', 'AU-WA'),\n            ('YCAG', 'AU-WA'), ('YCNF', 'AU-WA'), ('YECL', 'AU-WA'), ('YFTA', 'AU-WA'),\n            ('YGNW', 'AU-WA'), ('YJUN', 'AU-WA'), ('YLAW', 'AU-WA'), ('YMAU', 'AU-WA'),\n            ('YMBL', 'AU-WA'), ('YNPD', 'AU-WA'), ('YNRB', 'AU-WA'), ('YOLW', 'AU-WA'),\n            ('YQDG', 'AU-WA'), ('YSLG', 'AU-WA'), ('YTHS', 'AU-WA'), ('YWIT', 'AU-WA'),\n            ('YWSX', 'AU-WA'), ('YNUM', 'AU-NT'), ('YOEN', 'AU-NT'), ('YYND', 'AU-NT'),\n            ('YANL', 'AU-NT'), ('YAUS', 'AU-NT'), ('YBCR', 'AU-NT'), ('YCOO', 'AU-NT'),\n            ('YLUC', 'AU-NT'), ('YMCR', 'AU-NT'), ('YBKS', 'AU-NT'), ('YCPD', 'AU-NT'),\n            ('YCNY', 'AU-QLD'), ('YIFL', 'AU-QLD'), ('YBMI', 'AU-NSW'), ('YCBR', 'AU-NSW'),\n            ('YJER', 'AU-NSW'), ('YLCG', 'AU-NSW'), ('YMUR', 'AU-NSW'), ('YTYH', 'AU-NSW'),\n            ('YWRL', 'AU-NSW'), ('YWND', 'AU-QLD'), ('YWSG', 'AU-QLD'), ('YWUD', 'AU-SA'),\n            ('YCWL', 'AU-SA'), ('YMBD', 'AU-SA'), ('YMRE', 'AU-SA'), ('YRYK', 'AU-SA'),\n            ('YBHL', 'AU-WA'), ('YBOV', 'AU-SA'), ('YBUU', 'AU-WA'), ('YCDE', 'AU-VIC'),\n            ('YCGO', 'AU-QLD'), ('YRID', 'AU-VIC'), ('YFDF', 'AU-WA'), ('YDRN', 'AU-VIC'),\n            ('YDKI', 'AU-QLD'), ('YEUA', 'AU-VIC'), ('YEXM', 'AU-WA'), ('YGTO', 'AU-TAS'),\n            ('YGIA', 'AU-WA'), ('YGKL', 'AU-QLD'), ('YHBK', 'AU-NSW'), ('YJST', 'AU-SA'),\n            ('YIBO', 'AU-WA'), ('YJNB', 'AU-WA'), ('YSOL', 'AU-WA'), ('YCTI', 'AU-WA'),\n            ('YLGC', 'AU-WA'), ('YLFD', 'AU-QLD'), ('YMVM', 'AU-NSW'), ('YMIP', 'AU-WA'),\n            ('YMIG', 'AU-NSW'), ('YOOM', 'AU-SA'), ('YTMO', 'AU-QLD'), ('YDRA', 'AU-WA'),\n            ('YKYB', 'AU-VIC'), ('YSYN', 'AU-SA'), ('YPEF', 'AU-VIC'), ('YTQY', 'AU-VIC'),\n            ('YTEE', 'AU-QLD'), ('YTRA', 'AU-WA'), ('YTFA', 'AU-SA'), ('YWWI', 'AU-WA'),\n            ('YWGM', 'AU-WA'), ('YWLU', 'AU-WA'), ('YCMU', 'AU-QLD'), ('YQLP', 'AU-QLD'),\n            ('YLRD', 'AU-NSW'), ('YTNG', 'AU-QLD'), ('YEML', 'AU-QLD'), ('YNAR', 'AU-NSW'),\n            ('YTGM', 'AU-QLD'), ('YWLG', 'AU-NSW'), ('YFTZ', 'AU-WA'), ('YMTG', 'AU-SA'),\n            ('YBWW', 'AU-QLD'), ('YCEE', 'AU-SA'), ('YBRN', 'AU-NSW'), ('YCBB', 'AU-NSW'),\n            ('YYNG', 'AU-NSW'), ('YEWA', 'AU-WA'), ('YSMI', 'AU-TAS'), ('YKER', 'AU-VIC'),\n            ('YWKB', 'AU-VIC'), ('YHLC', 'AU-WA'), ('YMNE', 'AU-WA'), ('YGPT', 'AU-NT'),\n            ('YKKG', 'AU-NT'), ('YLEV', 'AU-NT'), ('YPAM', 'AU-QLD'), ('YSGE', 'AU-QLD'),\n            ('YCCT', 'AU-QLD'), ('YBAU', 'AU-QLD'), ('YDNI', 'AU-QLD'), ('YKBR', 'AU-WA'),\n            ('YKUB', 'AU-QLD'), ('YLTN', 'AU-WA'), ('YMHU', 'AU-NT'), ('YMAE', 'AU-QLD'),\n            ('YWBS', 'AU-QLD'), ('YYMI', 'AU-QLD'), ('YYKI', 'AU-QLD')\n        ) AS t(icao_code, iso_region)\n)\nSELECT \n    COALESCE(ism.state_name, 'Unknown State') as state,\n    COUNT(DISTINCT fs.cid) as member_count\nFROM flight_summaries fs\nLEFT JOIN icao_state_mapping ism ON fs.name LIKE '%' || ism.icao_code || '%'\nWHERE \n    fs.completion_time >= NOW() - INTERVAL '30 days'\n    AND fs.name ~ '[A-Z]{4}$'  -- Has a 4-letter ICAO code\n    AND fs.name ~ 'Y[A-Z]{3}'  -- Contains an Australian ICAO code\nGROUP BY ism.state_name\nORDER BY member_count DESC;"
+ },
+ {
+  "id": 72,
+  "name": "Which miltary acft achevied the highest sustained speed?",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "-- Find Military Aircraft with Highest Sustained Groundspeed (2+ minutes)\n-- \n-- This query finds military aircraft that maintained high groundspeeds for at least 2 minutes.\n-- Each aircraft (callsign) appears only once with their highest sustained performance.\n-- Focuses specifically on military aircraft types with sustained speed over time.\n--\n-- Usage:\n--   docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -f scripts/military_sustained_groundspeed.sql\n--\n\n-- Find military aircraft with sustained high groundspeeds for at least 2 minutes\nWITH sustained_speeds AS (\n    SELECT \n        f1.callsign,\n        f1.aircraft_type,\n        f1.departure,\n        f1.arrival,\n        f1.name as pilot_name,\n        f1.groundspeed as sustained_speed_knots,\n        f1.altitude as altitude_feet,\n        f1.latitude,\n        f1.longitude,\n        f1.last_updated as start_time,\n        f2.last_updated as end_time,\n        EXTRACT(EPOCH FROM (f2.last_updated - f1.last_updated)) / 60.0 as duration_minutes\n    FROM flights f1\n    JOIN flights f2 ON f1.callsign = f2.callsign \n        AND f2.last_updated > f1.last_updated\n        AND f2.last_updated <= f1.last_updated + INTERVAL '5 minutes'  -- Look ahead up to 5 minutes\n    WHERE \n        -- Base conditions for f1\n        f1.groundspeed IS NOT NULL \n        AND f1.groundspeed > 300  -- Higher threshold for military performance\n        AND f1.groundspeed <= 2000  -- Allow for supersonic military aircraft\n        AND f1.altitude > 1000  -- Must be airborne\n        AND f1.last_updated >= NOW() - INTERVAL '1 month'  -- Last month only\n        AND f1.arrival IS NOT NULL  -- Must have destination\n        AND f1.arrival != ''  -- Destination cannot be empty\n        \n        -- Speed must be sustained (f2 speed close to f1 speed)\n        AND f2.groundspeed IS NOT NULL\n        AND f2.groundspeed >= f1.groundspeed * 0.9  -- Speed within 10% of initial speed\n        AND f2.groundspeed <= f1.groundspeed * 1.1  -- Speed within 10% of initial speed\n        \n        -- Include ONLY military aircraft\n        AND (\n            -- Fighter jets and interceptors\n            f1.aircraft_type IN (\n                'F14', 'F15', 'F16', 'F18', 'F18S', 'F22', 'F35', 'F4', 'F5',\n                'F111', 'F117', 'A4', 'A6', 'A7', 'B1', 'B2', 'SR71', 'U2', 'TR1',\n                'MIG21', 'MIG23', 'MIG25', 'MIG29', 'MIG31',\n                'SU27', 'SU30', 'SU33', 'SU35', 'SU57',\n                'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4', 'HAR', 'JAG',\n                'TORN', 'VIGG', 'M2K', 'RAPH', 'EF2K', 'GR4', 'FGR4'\n            )\n            -- Or aircraft types that start with common military prefixes\n            OR f1.aircraft_type LIKE 'F-%'\n            OR f1.aircraft_type LIKE 'MIG%'\n            OR f1.aircraft_type LIKE 'SU-%'\n            OR f1.aircraft_type LIKE 'TU-%'\n            OR f1.aircraft_type LIKE 'MIR%'\n            OR f1.aircraft_type LIKE 'A-%'\n            OR f1.aircraft_type LIKE 'B-%'\n            OR f1.aircraft_type LIKE 'C-%'  -- Military C-130, C-17, etc.\n            OR f1.aircraft_type LIKE 'E-%'  -- Military E-2, E-3, etc.\n            OR f1.aircraft_type LIKE 'H-%'  -- Military helicopters\n            OR f1.aircraft_type LIKE 'P-%'  -- Military patrol aircraft\n            OR f1.aircraft_type LIKE 'T-%'  -- Military trainers\n            OR f1.aircraft_type LIKE 'V-%'  -- Military V-22, etc.\n            OR f1.aircraft_type LIKE 'X-%'  -- Experimental military aircraft\n            OR f1.aircraft_type LIKE 'Y-%'  -- Military prototypes\n            OR f1.aircraft_type LIKE 'Z-%'  -- Military drones/UAVs\n            -- Additional military aircraft types\n            OR f1.aircraft_type IN (\n                'HERC', 'C130', 'C17', 'C5', 'C141',  -- Military transport\n                'E2', 'E3', 'E4', 'E6', 'E8',          -- Military command/control\n                'H60', 'H64', 'H47', 'H53', 'H1',     -- Military helicopters\n                'P3', 'P8', 'P1',                       -- Military patrol\n                'T38', 'T45', 'T6', 'T1',              -- Military trainers\n                'V22', 'V280',                          -- Military tiltrotor\n                'X35', 'X47', 'YF23', 'YF22'           -- Experimental/prototype\n            )\n        )\n),\n-- Get the best sustained performance for each callsign\nbest_sustained AS (\n    SELECT \n        callsign,\n        aircraft_type,\n        departure,\n        arrival,\n        pilot_name,\n        sustained_speed_knots,\n        altitude_feet,\n        start_time,\n        end_time,\n        duration_minutes,\n        ROW_NUMBER() OVER (PARTITION BY callsign ORDER BY sustained_speed_knots DESC, duration_minutes DESC) as rn\n    FROM sustained_speeds\n    WHERE duration_minutes >= 2.0  -- Must sustain speed for at least 2 minutes\n)\nSELECT \n    callsign,\n    pilot_name,\n    aircraft_type,\n    departure,\n    arrival,\n    sustained_speed_knots,\n    altitude_feet,\n    duration_minutes,\n    start_time,\n    end_time\nFROM best_sustained\nWHERE rn = 1  -- Only the best sustained performance for each callsign\nORDER BY sustained_speed_knots DESC, duration_minutes DESC\nLIMIT 10;"
+ },
+ {
+  "id": 73,
+  "name": "What were the most popular military aircraft last week? - Duplicate",
+  "display": "pie",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "-- Query to find most popular military aircraft and count unique pilots\n-- Using flight_summaries table for completed flights\n-- Comprehensive military aircraft list including fighters, bombers, transport, helicopters, etc.\n\nSELECT \n    fs.aircraft_type,\n    COUNT(DISTINCT fs.cid) as unique_pilots,\n    COUNT(*) as total_flights,\n    ROUND(\n        COUNT(DISTINCT fs.cid) * 100.0 / SUM(COUNT(DISTINCT fs.cid)) OVER (), \n        2\n    ) as percentage_of_total_pilots\nFROM flight_summaries fs\nWHERE \n    fs.aircraft_type IN (\n        -- Russian/Soviet Fighters & Interceptors\n        'MIG21', 'MIG23', 'MIG25', 'MIG29', 'MIG31', 'MIG35', 'MIG41',\n        'SU27', 'SU30', 'SU33', 'SU34', 'SU35', 'SU37', 'SU57', 'SU75',\n        'TU22', 'TU95', 'TU160', 'TU22M', 'TU95MS', 'TU160M',\n        \n        -- US Fighters & Attack Aircraft\n        'F14', 'F15', 'F16', 'F18', 'F18S', 'F22', 'F35', 'F4', 'F5',\n        'F111', 'F117', 'A4', 'A6', 'A7', 'A10', 'A12', 'AV8', 'F15E',\n        'F16C', 'F16D', 'F18C', 'F18D', 'F18E', 'F18F', 'F22A', 'F35A',\n        'F35B', 'F35C', 'F4E', 'F5E', 'F5F', 'F111F', 'F117A',\n        \n        -- European Fighters\n        'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN',\n        'VIGG', 'M2K', 'RAPH', 'EF2K', 'GR4', 'FGR4', 'TORN', 'VIGG',\n        'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN', 'VIGG', 'M2K', 'RAPH',\n        'EF2K', 'GR4', 'FGR4', 'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4',\n        \n        -- Bombers & Strategic Aircraft\n        'B1', 'B2', 'B21', 'B52', 'B1B', 'B2A', 'B21A', 'B52H',\n        'SR71', 'U2', 'TR1', 'SR72', 'U2S', 'TR1A', 'SR71A', 'U2R',\n        \n        -- Military Transport Aircraft\n        'C130', 'C17', 'C5', 'C141', 'C160', 'C27', 'C295', 'C130J',\n        'C17A', 'C5M', 'C141B', 'C160R', 'C27J', 'C295M', 'HERC',\n        'A400', 'IL76', 'AN124', 'AN225', 'C17A', 'C5M', 'C141B',\n        \n        -- Military Helicopters\n        'H60', 'H64', 'H47', 'H53', 'H1', 'H2', 'H3', 'H6', 'H8',\n        'AH64', 'AH1', 'AH6', 'AH1Z', 'AH64E', 'CH47', 'CH53', 'CH60',\n        'MH60', 'MH47', 'MH53', 'MH6', 'MH8', 'UH60', 'UH1', 'UH72',\n        \n        -- Military Patrol & Reconnaissance\n        'P3', 'P8', 'P1', 'P3C', 'P8A', 'P1A', 'E2', 'E3', 'E4', 'E6',\n        'E8', 'E2C', 'E3A', 'E4B', 'E6B', 'E8C', 'RC135', 'U2S', 'TR1A',\n        \n        -- Military Trainers\n        'T38', 'T45', 'T6', 'T1', 'T38A', 'T45A', 'T6A', 'T1A',\n        'T50', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12', 'T13', 'T14',\n        \n        -- Military Drones & UAVs\n        'MQ1', 'MQ9', 'MQ1C', 'MQ9A', 'MQ1B', 'MQ9B', 'MQ1D', 'MQ9C',\n        'RQ4', 'RQ7', 'RQ11', 'RQ170', 'RQ180', 'RQ4A', 'RQ7B', 'RQ11B',\n        \n        -- Additional Military Aircraft\n        'F18S', 'F18T', 'F18U', 'F18V', 'F18W', 'F18X', 'F18Y', 'F18Z',\n        'MIG21B', 'MIG21F', 'MIG21M', 'MIG21S', 'MIG21U', 'MIG21UM',\n        'SU27M', 'SU27S', 'SU27UB', 'SU27SM', 'SU27SM3', 'SU27UBM',\n        'F15C', 'F15D', 'F15E', 'F15EX', 'F15I', 'F15K', 'F15S', 'F15SG',\n        'F16A', 'F16B', 'F16C', 'F16D', 'F16E', 'F16F', 'F16I', 'F16V',\n        \n        -- Experimental & Prototype Military Aircraft\n        'X35', 'X47', 'YF23', 'YF22', 'X35A', 'X35B', 'X35C', 'X47A',\n        'X47B', 'YF23A', 'YF22A', 'X35D', 'X47C', 'YF23B', 'YF22B',\n        \n        -- Military Aircraft with Pattern Matching\n        'F-%', 'MIG%', 'SU-%', 'TU-%', 'MIR%', 'A-%', 'B-%', 'C-%',\n        'E-%', 'H-%', 'P-%', 'T-%', 'V-%', 'X-%', 'Y-%', 'Z-%',\n        'MQ%', 'RQ%', 'AH%', 'CH%', 'MH%', 'UH%', 'RC%', 'TR%'\n    )\n    -- Only include completed flights from last week\n    AND fs.completion_time >= NOW() - INTERVAL '1 week'\n    AND fs.cid IS NOT NULL\nGROUP BY fs.aircraft_type\nORDER BY unique_pilots DESC, total_flights DESC;"
+ },
+ {
+  "id": 74,
+  "name": "What were the most popular military routes this week?",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "-- Query to find most popular military aircraft routes\n-- Using flight_summaries table for completed flights\n-- Comprehensive military aircraft list including fighters, bombers, transport, helicopters, etc.\n-- Last week only\n\nSELECT \n    fs.departure,\n    fs.arrival,\n    COUNT(*) as total_flights,\n    ROUND(\n        COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), \n        2\n    ) as percentage_of_total_flights\nFROM flight_summaries fs\nWHERE \n    fs.aircraft_type IN (\n        -- Russian/Soviet Fighters & Interceptors\n        'MIG21', 'MIG23', 'MIG25', 'MIG29', 'MIG31', 'MIG35', 'MIG41',\n        'SU27', 'SU30', 'SU33', 'SU34', 'SU35', 'SU37', 'SU57', 'SU75',\n        'TU22', 'TU95', 'TU160', 'TU22M', 'TU95MS', 'TU160M',\n        \n        -- US Fighters & Attack Aircraft\n        'F14', 'F15', 'F16', 'F18', 'F18S', 'F22', 'F35', 'F4', 'F5',\n        'F111', 'F117', 'A4', 'A6', 'A7', 'A10', 'A12', 'AV8', 'F15E',\n        'F16C', 'F16D', 'F16E', 'F16F', 'F16I', 'F16V', 'F18C', 'F18D',\n        'F18E', 'F18F', 'F22A', 'F35A', 'F35B', 'F35C', 'F4E', 'F5E',\n        'F5F', 'F111F', 'F117A',\n        \n        -- European Fighters\n        'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN',\n        'VIGG', 'M2K', 'RAPH', 'EF2K', 'GR4', 'FGR4', 'TORN', 'VIGG',\n        'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN', 'VIGG', 'M2K', 'RAPH',\n        'EF2K', 'GR4', 'FGR4', 'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4',\n        \n        -- Bombers & Strategic Aircraft\n        'B1', 'B2', 'B21', 'B52', 'B1B', 'B2A', 'B21A', 'B52H',\n        'SR71', 'U2', 'TR1', 'SR72', 'U2S', 'TR1A', 'SR71A', 'U2R',\n        \n        -- Military Transport Aircraft\n        'C130', 'C17', 'C5', 'C141', 'C160', 'C27', 'C295', 'C130J',\n        'C17A', 'C5M', 'C141B', 'C160R', 'C27J', 'C295M', 'HERC',\n        'A400', 'IL76', 'AN124', 'AN225', 'C17A', 'C5M', 'C141B',\n        \n        -- Military Helicopters\n        'H60', 'H64', 'H47', 'H53', 'H1', 'H2', 'H3', 'H6', 'H8',\n        'AH64', 'AH1', 'AH6', 'AH1Z', 'AH64E', 'CH47', 'CH53', 'CH60',\n        'MH60', 'MH47', 'MH53', 'MH6', 'MH8', 'UH60', 'UH1', 'UH72',\n        \n        -- Military Patrol & Reconnaissance\n        'P3', 'P8', 'P1', 'P3C', 'P8A', 'P1A', 'E2', 'E3', 'E4', 'E6',\n        'E8', 'E2C', 'E3A', 'E4B', 'E6B', 'E8C', 'RC135', 'U2S', 'TR1A',\n        \n        -- Military Trainers\n        'T38', 'T45', 'T6', 'T1', 'T38A', 'T45A', 'T6A', 'T1A',\n        'T50', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12', 'T13', 'T14',\n        \n        -- Military Drones & UAVs\n        'MQ1', 'MQ9', 'MQ1C', 'MQ9A', 'MQ1B', 'MQ9B', 'MQ1D', 'MQ9C',\n        'RQ4', 'RQ7', 'RQ11', 'RQ170', 'RQ180', 'RQ4A', 'RQ7B', 'RQ11B',\n        \n        -- Additional Military Aircraft\n        'F18S', 'F18T', 'F18U', 'F18V', 'F18W', 'F18X', 'F18Y', 'F18Z',\n        'MIG21B', 'MIG21F', 'MIG21M', 'MIG21S', 'MIG21U', 'MIG21UM',\n        'SU27M', 'SU27S', 'SU27UB', 'SU27SM', 'SU27SM3', 'SU27UBM',\n        'F15C', 'F15D', 'F15E', 'F15EX', 'F15I', 'F15K', 'F15S', 'F15SG',\n        'F16A', 'F16B', 'F16C', 'F16D', 'F16E', 'F16F', 'F16I', 'F16V',\n        \n        -- Experimental & Prototype Military Aircraft\n        'X35', 'X47', 'YF23', 'YF22', 'X35A', 'X35B', 'X35C', 'X47A',\n        'X47B', 'YF23A', 'YF22A', 'X35D', 'X47C', 'YF23B', 'YF22B',\n        \n        -- Military Aircraft with Pattern Matching\n        'F-%', 'MIG%', 'SU-%', 'TU-%', 'MIR%', 'A-%', 'B-%', 'C-%',\n        'E-%', 'H-%', 'P-%', 'T-%', 'V-%', 'X-%', 'Y-%', 'Z-%',\n        'MQ%', 'RQ%', 'AH%', 'CH%', 'MH%', 'UH%', 'RC%', 'TR%'\n    )\n    -- Only include completed flights from last week\n    AND fs.completion_time >= NOW() - INTERVAL '1 week'\n    AND fs.completion_time < NOW()\n    AND fs.cid IS NOT NULL\n    -- Ensure both departure and arrival are valid\n    AND fs.departure IS NOT NULL \n    AND fs.departure != ''\n    AND fs.arrival IS NOT NULL \n    AND fs.arrival != ''\nGROUP BY fs.departure, fs.arrival\nORDER BY total_flights DESC\nLIMIT 50;"
+ },
+ {
+  "id": 76,
+  "name": "How many flight were there for each joining cohort (last 30 days)?",
+  "display": "bar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-30 10:22:00.795709+00:00",
+  "sql": "-- Flights in the last week grouped by CID prefix (ignoring last 5 digits)\n-- Excludes flights with CID prefix 0\n-- \n-- This query groups VATSIM CIDs by their prefix (first few digits)\n-- and shows total flights and unique pilots for each group\n-- \n-- Usage: Run this to see pilot activity patterns by VATSIM user ID ranges\n-- \n-- CID prefix represents approximately 100,000 users per group\n\nWITH cid_ranges AS (\n    SELECT \n        FLOOR(cid / 100000) as cid_group, \n        cid \n    FROM flight_summaries \n    WHERE completion_time >= NOW() - INTERVAL '30 days'\n        AND cid IS NOT NULL\n        AND FLOOR(cid / 100000) > 0  -- Exclude CID prefix 0\n)\nSELECT \n    cid_group,\n    COUNT(*) as total_flights,\n    COUNT(DISTINCT cid) as unique_pilots\nFROM cid_ranges \nGROUP BY cid_group \nORDER BY cid_group;\n\n-- Alternative view with more details (uncomment if needed):\n/*\nWITH cid_ranges AS (\n    SELECT \n        FLOOR(cid / 100000) as cid_group, \n        cid,\n        time_online_minutes,\n        controller_time_percentage\n    FROM flight_summaries \n    WHERE completion_time >= NOW() - INTERVAL '7 days'\n        AND cid IS NOT NULL\n        AND FLOOR(cid / 100000) > 0  -- Exclude CID prefix 0\n)\nSELECT \n    cid_group,\n    COUNT(*) as total_flights,\n    COUNT(DISTINCT cid) as unique_pilots,\n    ROUND(AVG(time_online_minutes), 1) as avg_flight_duration_minutes,\n    ROUND(AVG(controller_time_percentage), 1) as avg_atc_contact_percentage\nFROM cid_ranges \nGROUP BY cid_group \nORDER BY cid_group;\n*/\n"
+ },
+ {
+  "id": 77,
+  "name": "What were the most popular military routes last week?",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "-- Query to find most popular routes by military aircraft from last week\n-- Using flight_summaries table for completed flights with route information\n\nSELECT \n    fs.departure,\n    fs.arrival,\n    CONCAT(fs.departure, ' \u2192 ', fs.arrival) as route,\n    fs.aircraft_type,\n    COUNT(*) as total_flights,\n    COUNT(DISTINCT fs.cid) as unique_pilots,\n    ROUND(\n        COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), \n        2\n    ) as percentage_of_total_military_flights,\n    ROUND(\n        COUNT(DISTINCT fs.cid) * 100.0 / SUM(COUNT(DISTINCT fs.cid)) OVER (), \n        2\n    ) as percentage_of_total_military_pilots\nFROM flight_summaries fs\nWHERE \n    fs.aircraft_type IN (\n        -- Russian/Soviet Fighters & Interceptors\n        'MIG21', 'MIG23', 'MIG25', 'MIG29', 'MIG31', 'MIG35', 'MIG41',\n        'SU27', 'SU30', 'SU33', 'SU34', 'SU35', 'SU37', 'SU57', 'SU75',\n        'TU22', 'TU95', 'TU160', 'TU22M', 'TU95MS', 'TU160M',\n        \n        -- US Fighters & Attack Aircraft\n        'F14', 'F15', 'F16', 'F18', 'F18S', 'F22', 'F35', 'F4', 'F5',\n        'F111', 'F117', 'A4', 'A6', 'A7', 'A10', 'A12', 'AV8', 'F15E',\n        'F16C', 'F16D', 'F18C', 'F18D', 'F18E', 'F18F', 'F22A', 'F35A',\n        'F35B', 'F35C', 'F4E', 'F5E', 'F5F', 'F111F', 'F117A',\n        \n        -- European Fighters\n        'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN',\n        'VIGG', 'M2K', 'RAPH', 'EF2K', 'GR4', 'FGR4', 'TORN', 'VIGG',\n        'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN', 'VIGG', 'M2K', 'RAPH',\n        'EF2K', 'GR4', 'FGR4', 'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4',\n        \n        -- Bombers & Strategic Aircraft\n        'B1', 'B2', 'B21', 'B52', 'B1B', 'B2A', 'B21A', 'B52H',\n        'SR71', 'U2', 'TR1', 'SR72', 'U2S', 'TR1A', 'SR71A', 'U2R',\n        \n        -- Military Transport Aircraft\n        'C130', 'C17', 'C5', 'C141', 'C160', 'C27', 'C295', 'C130J',\n        'C17A', 'C5M', 'C141B', 'C160R', 'C27J', 'C295M', 'HERC',\n        'A400', 'IL76', 'AN124', 'AN225', 'C17A', 'C5M', 'C141B',\n        \n        -- Military Helicopters\n        'H60', 'H64', 'H47', 'H53', 'H1', 'H2', 'H3', 'H6', 'H8',\n        'AH64', 'AH1', 'AH6', 'AH1Z', 'AH64E', 'CH47', 'CH53', 'CH60',\n        'MH60', 'MH47', 'MH53', 'MH6', 'MH8', 'UH60', 'UH1', 'UH72',\n        \n        -- Military Patrol & Reconnaissance\n        'P3', 'P8', 'P1', 'P3C', 'P8A', 'P1A', 'E2', 'E3', 'E4', 'E6',\n        'E8', 'E2C', 'E3A', 'E4B', 'E6B', 'E8C', 'RC135', 'U2S', 'TR1A',\n        \n        -- Military Trainers\n        'T38', 'T45', 'T6', 'T1', 'T38A', 'T45A', 'T6A', 'T1A',\n        'T50', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12', 'T13', 'T14',\n        \n        -- Military Drones & UAVs\n        'MQ1', 'MQ9', 'MQ1C', 'MQ9A', 'MQ1B', 'MQ9B', 'MQ1D', 'MQ9C',\n        'RQ4', 'RQ7', 'RQ11', 'RQ170', 'RQ180', 'RQ4A', 'RQ7B', 'RQ11B',\n        \n        -- Additional Military Aircraft\n        'F18S', 'F18T', 'F18U', 'F18V', 'F18W', 'F18X', 'F18Y', 'F18Z',\n        'MIG21B', 'MIG21F', 'MIG21M', 'MIG21S', 'MIG21U', 'MIG21UM',\n        'SU27M', 'SU27S', 'SU27UB', 'SU27SM', 'SU27SM3', 'SU27UBM',\n        'F15C', 'F15D', 'F15E', 'F15EX', 'F15I', 'F15K', 'F15S', 'F15SG',\n        'F16A', 'F16B', 'F16C', 'F16D', 'F16E', 'F16F', 'F16I', 'F16V',\n        \n        -- Experimental & Prototype Military Aircraft\n        'X35', 'X47', 'YF23', 'YF22', 'X35A', 'X35B', 'X35C', 'X47A',\n        'X47B', 'YF23A', 'YF22A', 'X35D', 'X47C', 'YF23B', 'YF22B',\n        \n        -- Military Aircraft with Pattern Matching\n        'F-%', 'MIG%', 'SU-%', 'TU-%', 'MIR%', 'A-%', 'B-%', 'C-%',\n        'E-%', 'H-%', 'P-%', 'T-%', 'V-%', 'X-%', 'Y-%', 'Z-%',\n        'MQ%', 'RQ%', 'AH%', 'CH%', 'MH%', 'UH%', 'RC%', 'TR%'\n    )\n    -- Only include completed flights from last week\n    AND fs.completion_time >= NOW() - INTERVAL '1 week'\n    -- Ensure we have valid departure and arrival data\n    AND fs.departure IS NOT NULL \n    AND fs.arrival IS NOT NULL\n    AND fs.departure != ''\n    AND fs.arrival != ''\nGROUP BY fs.departure, fs.arrival, fs.aircraft_type\nORDER BY total_flights DESC, unique_pilots DESC, fs.aircraft_type;"
+ },
+ {
+  "id": 78,
+  "name": "What were the most popular military routes last week?",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-21 10:01:42.406148+00:00",
+  "sql": "-- Query to find most popular routes by military aircraft from last week\n-- Using flight_summaries table for completed flights with route information\n\nSELECT \n    fs.departure,\n    fs.arrival,\n    CONCAT(fs.departure, ' \u2192 ', fs.arrival) as route,\n    COUNT(*) as total_flights,\n    COUNT(DISTINCT fs.cid) as unique_pilots,\n    ROUND(\n        COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), \n        2\n    ) as percentage_of_total_military_flights,\n    ROUND(\n        COUNT(DISTINCT fs.cid) * 100.0 / SUM(COUNT(DISTINCT fs.cid)) OVER (), \n        2\n    ) as percentage_of_total_military_pilots\nFROM flight_summaries fs\nWHERE \n    fs.aircraft_type IN (\n        -- Russian/Soviet Fighters & Interceptors\n        'MIG21', 'MIG23', 'MIG25', 'MIG29', 'MIG31', 'MIG35', 'MIG41',\n        'SU27', 'SU30', 'SU33', 'SU34', 'SU35', 'SU37', 'SU57', 'SU75',\n        'TU22', 'TU95', 'TU160', 'TU22M', 'TU95MS', 'TU160M',\n        \n        -- US Fighters & Attack Aircraft\n        'F14', 'F15', 'F16', 'F18', 'F18S', 'F22', 'F35', 'F4', 'F5',\n        'F111', 'F117', 'A4', 'A6', 'A7', 'A10', 'A12', 'AV8', 'F15E',\n        'F16C', 'F16D', 'F18C', 'F18D', 'F18E', 'F18F', 'F22A', 'F35A',\n        'F35B', 'F35C', 'F4E', 'F5E', 'F5F', 'F111F', 'F117A',\n        \n        -- European Fighters\n        'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN',\n        'VIGG', 'M2K', 'RAPH', 'EF2K', 'GR4', 'FGR4', 'TORN', 'VIGG',\n        'MIR2', 'MIR4', 'HAR', 'JAG', 'TORN', 'VIGG', 'M2K', 'RAPH',\n        'EF2K', 'GR4', 'FGR4', 'TYPH', 'RAF', 'GRIP', 'MIR2', 'MIR4',\n        \n        -- Bombers & Strategic Aircraft\n        'B1', 'B2', 'B21', 'B52', 'B1B', 'B2A', 'B21A', 'B52H',\n        'SR71', 'U2', 'TR1', 'SR72', 'U2S', 'TR1A', 'SR71A', 'U2R',\n        \n        -- Military Transport Aircraft\n        'C130', 'C17', 'C5', 'C141', 'C160', 'C27', 'C295', 'C130J',\n        'C17A', 'C5M', 'C141B', 'C160R', 'C27J', 'C295M', 'HERC',\n        'A400', 'IL76', 'AN124', 'AN225', 'C17A', 'C5M', 'C141B',\n        \n        -- Military Helicopters\n        'H60', 'H64', 'H47', 'H53', 'H1', 'H2', 'H3', 'H6', 'H8',\n        'AH64', 'AH1', 'AH6', 'AH1Z', 'AH64E', 'CH47', 'CH53', 'CH60',\n        'MH60', 'MH47', 'MH53', 'MH6', 'MH8', 'UH60', 'UH1', 'UH72',\n        \n        -- Military Patrol & Reconnaissance\n        'P3', 'P8', 'P1', 'P3C', 'P8A', 'P1A', 'E2', 'E3', 'E4', 'E6',\n        'E8', 'E2C', 'E3A', 'E4B', 'E6B', 'E8C', 'RC135', 'U2S', 'TR1A',\n        \n        -- Military Trainers\n        'T38', 'T45', 'T6', 'T1', 'T38A', 'T45A', 'T6A', 'T1A',\n        'T50', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12', 'T13', 'T14',\n        \n        -- Military Drones & UAVs\n        'MQ1', 'MQ9', 'MQ1C', 'MQ9A', 'MQ1B', 'MQ9B', 'MQ1D', 'MQ9C',\n        'RQ4', 'RQ7', 'RQ11', 'RQ170', 'RQ180', 'RQ4A', 'RQ7B', 'RQ11B',\n        \n        -- Additional Military Aircraft\n        'F18S', 'F18T', 'F18U', 'F18V', 'F18W', 'F18X', 'F18Y', 'F18Z',\n        'MIG21B', 'MIG21F', 'MIG21M', 'MIG21S', 'MIG21U', 'MIG21UM',\n        'SU27M', 'SU27S', 'SU27UB', 'SU27SM', 'SU27SM3', 'SU27UBM',\n        'F15C', 'F15D', 'F15E', 'F15EX', 'F15I', 'F15K', 'F15S', 'F15SG',\n        'F16A', 'F16B', 'F16C', 'F16D', 'F16E', 'F16F', 'F16I', 'F16V',\n        \n        -- Experimental & Prototype Military Aircraft\n        'X35', 'X47', 'YF23', 'YF22', 'X35A', 'X35B', 'X35C', 'X47A',\n        'X47B', 'YF23A', 'YF22A', 'X35D', 'X47C', 'YF23B', 'YF22B',\n        \n        -- Military Aircraft with Pattern Matching\n        'F-%', 'MIG%', 'SU-%', 'TU-%', 'MIR%', 'A-%', 'B-%', 'C-%',\n        'E-%', 'H-%', 'P-%', 'T-%', 'V-%', 'X-%', 'Y-%', 'Z-%',\n        'MQ%', 'RQ%', 'AH%', 'CH%', 'MH%', 'UH%', 'RC%', 'TR%'\n    )\n    -- Only include completed flights from last week\n    AND fs.completion_time >= NOW() - INTERVAL '1 week'\n    -- Ensure we have valid departure and arrival data\n    AND fs.departure IS NOT NULL \n    AND fs.arrival IS NOT NULL\n    AND fs.departure != ''\n    AND fs.arrival != ''\nGROUP BY fs.departure, fs.arrival\nORDER BY total_flights DESC, unique_pilots DESC;"
+ },
+ {
+  "id": 80,
+  "name": "Which C1 and above controllers handled the most aircraft in a single session last week? - Modified",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "-- Top 5 controller sessions by number of aircraft handled\n-- Shows individual sessions with the largest aircraft counts\n-- Using the pre-calculated total_aircraft_handled field from controller_summaries table\n\nSELECT \n    cs.callsign as controller_callsign,\n    cs.name as controller_name,\n    cs.total_aircraft_handled as unique_flights_handled,\n    cs.session_duration_minutes as session_duration_minutes,\n    cs.session_start_time as session_start_time\nFROM controller_summaries cs\nWHERE cs.rating IN (5,6,7,8,9,10,11,12,13)  -- Only rank 1-3 controllers\n    AND cs.total_aircraft_handled > 0  -- Ensure we have flights handled\nORDER BY cs.total_aircraft_handled DESC\nLIMIT 5;\n\n-- Alternative query if you want to see the aircraft details for each controller:\n-- SELECT \n--     cs.callsign as controller_callsign,\n--     cs.name as controller_name,\n--     cs.rating as controller_rating,\n--     cs.total_aircraft_handled as unique_flights_handled,\n--     cs.aircraft_details as flight_details,\n--     cs.session_start_time as session_start_time\n-- FROM controller_summaries cs\n-- WHERE cs.rating = 4\n--     AND cs.session_start_time >= NOW() - INTERVAL '1 week'\n--     AND cs.total_aircraft_handled > 0\n-- ORDER BY cs.total_aircraft_handled DESC\n-- LIMIT 5;\n\n"
+ },
+ {
+  "id": 86,
+  "name": "What was the fastest Milk Run Monday time (YMML-YSSY)?",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-08 23:44:22.712560+00:00",
+  "sql": "WITH mel_syd AS (\n  SELECT\n    fs.id,\n    fs.callsign,\n    fs.name,\n    fs.aircraft_type,\n    fs.logon_time,\n    fs.completion_time,\n    (\n      SELECT MIN(fo.entry_timestamp)\n      FROM flight_sector_occupancy fo\n      WHERE fo.callsign = fs.callsign\n        AND fo.sector_name = 'MLA'\n        AND fo.entry_timestamp BETWEEN fs.logon_time AND fs.completion_time\n    ) AS mla_entry_time,\n    (\n      SELECT MAX(fo.exit_timestamp)\n      FROM flight_sector_occupancy fo\n      WHERE fo.callsign = fs.callsign\n        AND fo.sector_name = 'SYA'\n        AND fo.exit_timestamp BETWEEN fs.logon_time AND fs.completion_time\n    ) AS sya_exit_time\n  FROM flight_summaries fs\n  WHERE fs.departure = 'YMML'\n    AND fs.arrival = 'YSSY'\n    AND EXTRACT(DOW FROM fs.completion_time) = 1\n    AND fs.completion_time >= NOW() - INTERVAL '6 months'\n),\nfiltered AS (\n  SELECT\n    *,\n    EXTRACT(EPOCH FROM (sya_exit_time - mla_entry_time)) / 60.0 AS mla_sya_minutes\n  FROM mel_syd\n  WHERE mla_entry_time IS NOT NULL\n    AND sya_exit_time IS NOT NULL\n    AND EXTRACT(HOUR FROM mla_entry_time) >= 9  -- MLA entry after 0900 UTC\n    AND EXTRACT(HOUR FROM sya_exit_time) < 12   -- SYA exit before 1200 UTC\n)\nSELECT\n  id,\n  callsign,\n  name,\n  aircraft_type,\n  logon_time,\n  completion_time,\n  mla_entry_time,\n  sya_exit_time,\n  ROUND(mla_sya_minutes, 1) AS mla_sya_minutes\nFROM filtered\nWHERE mla_sya_minutes >= 0\nORDER BY mla_sya_minutes ASC\nLIMIT 10;"
+ },
+ {
+  "id": 87,
+  "name": "Which CTR/FSS controller were online as CTR/FSS (last 30 days)?",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-08-22 10:42:44.200969+00:00",
+  "sql": "-- Longest Online FSS and CTR Controllers\n-- \n-- This query finds which FSS (Flight Service Station) and CTR (Center) controllers\n-- were online for the longest time, including total aircraft handled.\n--\n-- Usage:\n--   docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -f scripts/longest_online_fss_ctr_controllers.sql\n--\n\n-- Find longest online FSS and CTR controllers\nWITH fss_ctr_controllers AS (\n    SELECT \n        callsign,\n        name as controller_name,\n        cid,\n        rating,\n        facility,\n        server,\n        session_start_time,\n        session_end_time,\n        session_duration_minutes,\n        total_aircraft_handled,\n        peak_aircraft_count,\n        frequencies_used,\n        aircraft_details\n    FROM controller_summaries\n    WHERE callsign LIKE '%FSS%'  -- Flight Service Station controllers\n        OR callsign LIKE '%CTR%'  -- Center controllers\n        AND session_duration_minutes > 0  -- Must have valid session duration\n        AND session_start_time >= NOW() - INTERVAL '1 month'  -- Last month\n),\nranked_controllers AS (\n    SELECT \n        callsign,\n        controller_name,\n        cid,\n        rating,\n        facility,\n        server,\n        session_start_time,\n        session_end_time,\n        session_duration_minutes,\n        total_aircraft_handled,\n        peak_aircraft_count,\n        frequencies_used,\n        aircraft_details,\n        -- Rank by session duration (longest first)\n        ROW_NUMBER() OVER (ORDER BY session_duration_minutes DESC) as duration_rank,\n        -- Rank by aircraft handled (most first)\n        ROW_NUMBER() OVER (ORDER BY total_aircraft_handled DESC) as aircraft_rank\n    FROM fss_ctr_controllers\n    WHERE session_duration_minutes > 0  -- Additional safety check\n)\nSELECT \n    duration_rank,\n    callsign,\n    controller_name,\n    cid,\n    rating,\n    facility,\n    server,\n    session_start_time,\n    session_end_time,\n    session_duration_minutes,\n    total_aircraft_handled,\n    peak_aircraft_count,\n    -- Calculate average aircraft per hour\n    ROUND(total_aircraft_handled::numeric / NULLIF(session_duration_minutes / 60, 0), 1) as avg_aircraft_per_hour,\n    -- Show which frequencies were used\n    frequencies_used,\n    -- Show aircraft interaction details\n    aircraft_details\nFROM ranked_controllers\nORDER BY session_duration_minutes DESC\nLIMIT 20;\n\n-- ============================================================================\n-- SUMMARY STATISTICS FOR FSS AND CTR CONTROLLERS\n-- ============================================================================\n-- This section provides summary statistics for all FSS and CTR controllers\n\nWITH fss_ctr_stats AS (\n    SELECT \n        session_duration_minutes,\n        total_aircraft_handled,\n        peak_aircraft_count,\n        -- Categorize by controller type\n        CASE \n            WHEN callsign LIKE '%FSS%' THEN 'FSS'\n            WHEN callsign LIKE '%CTR%' THEN 'CTR'\n            ELSE 'OTHER'\n        END as controller_type\n    FROM controller_summaries\n    WHERE (callsign LIKE '%FSS%' OR callsign LIKE '%CTR%')\n        AND session_duration_minutes > 0\n        AND session_start_time >= NOW() - INTERVAL '1 month'\n)\nSELECT \n    controller_type,\n    COUNT(*) as total_sessions,\n    ROUND(AVG(session_duration_minutes), 1) as avg_session_duration_minutes,\n    MIN(session_duration_minutes) as shortest_session_minutes,\n    MAX(session_duration_minutes) as longest_session_minutes,\n    ROUND(STDDEV(session_duration_minutes), 1) as std_dev_minutes,\n    ROUND(AVG(total_aircraft_handled), 1) as avg_aircraft_handled,\n    MIN(total_aircraft_handled) as min_aircraft_handled,\n    MAX(total_aircraft_handled) as max_aircraft_handled,\n    ROUND(AVG(peak_aircraft_count), 1) as avg_peak_aircraft,\n    -- Calculate efficiency (aircraft per hour)\n    ROUND(AVG(total_aircraft_handled::numeric / NULLIF(session_duration_minutes / 60, 0)), 1) as avg_efficiency_aircraft_per_hour\nFROM fss_ctr_stats\nGROUP BY controller_type\nORDER BY avg_session_duration_minutes DESC;\n"
+ },
+ {
+  "id": 88,
+  "name": "In which sector do flights spend  the most time (last 30 days)? ",
+  "display": "bar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-21 12:56:05.163827+00:00",
+  "sql": "-- Top 10 sectors where aircraft spend the most time\nSELECT \n    sector_name,\n    ROUND(SUM(duration_seconds) / 3600.0) as total_time_hours,\n    ROUND(AVG(duration_seconds) / 60.0) as avg_time_per_aircraft_minutes\nFROM flight_sector_occupancy\nWHERE exit_timestamp IS NOT NULL  -- Only completed sector visits\n    AND entry_timestamp >= NOW() - INTERVAL '1 month'\nGROUP BY sector_name\nORDER BY total_time_hours DESC\nLIMIT 10;"
+ },
+ {
+  "id": 89,
+  "name": "How many pilots online? - Duplicate",
+  "display": "scalar",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "SELECT COUNT(DISTINCT callsign) as unique_flights_online\nFROM flights \nWHERE last_updated >= NOW() - INTERVAL '5 minutes';"
+ },
+ {
+  "id": 90,
+  "name": "What are the most popular aircraft? (no. of flights)",
+  "display": "pie",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-17 14:36:07.421621+00:00",
+  "sql": "-- Most Popular Aircraft Types by Flights Flown\n-- \n-- This query finds which aircraft types are most popular based on\n-- the number of flights flown, including detailed statistics.\n--\n-- Usage:\n--   docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -f scripts/most_popular_aircraft_types.sql\n--\n\n-- Aircraft category summary only (detailed rankings removed)\n\n-- ============================================================================\n-- SUMMARY STATISTICS BY AIRCRAFT CATEGORY\n-- ============================================================================\n-- This section provides summary statistics grouped by aircraft categories\n\nWITH aircraft_categories AS (\n    SELECT \n        aircraft_type,\n        name,\n        cid,\n        total_enroute_time_minutes,\n        time_online_minutes,\n        controller_callsigns,\n        controller_time_percentage,\n        -- Categorize aircraft by type with more specific groupings\n        CASE \n            -- Airbus Family (Check first to avoid conflicts)\n            WHEN aircraft_type LIKE '%A320%' OR aircraft_type LIKE '%A321%' OR aircraft_type LIKE '%A319%' OR aircraft_type LIKE '%A20N%' OR aircraft_type = 'A20N' THEN 'Airbus A320 Family'\n            WHEN aircraft_type LIKE '%A350%' OR aircraft_type LIKE '%A35%' THEN 'Airbus A350 Family'\n            WHEN aircraft_type LIKE '%A330%' OR aircraft_type LIKE '%A33%' THEN 'Airbus A330 Family'\n            WHEN aircraft_type LIKE '%A380%' OR aircraft_type LIKE '%A38%' THEN 'Airbus A380 Family'\n            WHEN aircraft_type LIKE '%A21%' AND aircraft_type NOT LIKE '%A20N%' THEN 'Airbus A220 Family'\n            \n            -- Boeing Family\n            WHEN aircraft_type LIKE '%B738%' OR aircraft_type LIKE '%B737%' OR aircraft_type LIKE '%B38%' THEN 'Boeing 737 Family'\n            WHEN aircraft_type LIKE '%B788%' OR aircraft_type LIKE '%B789%' THEN 'Boeing 787 Family'\n            WHEN aircraft_type LIKE '%B77%' THEN 'Boeing 777 Family'\n            WHEN aircraft_type LIKE '%B74%' THEN 'Boeing 747 Family'\n            WHEN aircraft_type LIKE '%B76%' THEN 'Boeing 767 Family'\n            \n            -- Regional Jets\n            WHEN aircraft_type LIKE '%RJ%' OR aircraft_type LIKE '%CRJ%' OR aircraft_type LIKE '%ERJ%' THEN 'Regional Jets'\n            WHEN aircraft_type LIKE '%AT7%' OR aircraft_type LIKE '%ATR%' THEN 'ATR Turboprops'\n            WHEN aircraft_type LIKE '%DH8%' OR aircraft_type LIKE '%DHC%' THEN 'De Havilland Canada'\n            WHEN aircraft_type LIKE '%SF3%' OR aircraft_type LIKE '%SAAB%' THEN 'Saab Turboprops'\n            \n            -- Business Jets (Comprehensive Category)\n            WHEN aircraft_type LIKE '%C750%' OR aircraft_type LIKE '%C700%' OR aircraft_type LIKE '%C680%' OR aircraft_type LIKE '%CIT%' OR aircraft_type LIKE '%C%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%PC12%' OR aircraft_type LIKE '%PC24%' OR aircraft_type LIKE '%PC21%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%GULF%' OR aircraft_type LIKE '%G550%' OR aircraft_type LIKE '%G650%' OR aircraft_type LIKE '%GLF%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%FALC%' OR aircraft_type LIKE '%FA50%' OR aircraft_type LIKE '%FA900%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%LEAR%' OR aircraft_type LIKE '%LJ%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%HAWK%' OR aircraft_type LIKE '%HS%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%CHALL%' OR aircraft_type LIKE '%CL%' OR aircraft_type LIKE '%CL60%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%TBM%' OR aircraft_type LIKE '%TBM9%' THEN 'Business Jets'\n            \n            -- General Aviation\n            WHEN aircraft_type LIKE '%C172%' OR aircraft_type LIKE '%C152%' OR aircraft_type LIKE '%C182%' OR aircraft_type LIKE '%C208%' OR aircraft_type LIKE '%C310%' OR aircraft_type LIKE '%C337%' OR aircraft_type LIKE '%C404%' THEN 'Cessna Props'\n            WHEN aircraft_type LIKE '%PA28%' OR aircraft_type LIKE '%PA32%' OR aircraft_type LIKE '%PA44%' THEN 'Piper Aircraft'\n            WHEN aircraft_type LIKE '%DA40%' OR aircraft_type LIKE '%DA42%' OR aircraft_type LIKE '%DA62%' THEN 'Diamond Aircraft'\n            WHEN aircraft_type LIKE '%BEECH%' OR aircraft_type LIKE '%BE%' OR aircraft_type LIKE '%BARON%' THEN 'Beechcraft Aircraft'\n            WHEN aircraft_type LIKE '%MOONEY%' OR aircraft_type LIKE '%M20%' THEN 'Mooney Aircraft'\n            \n            -- Military Aircraft (Comprehensive Category)\n            WHEN aircraft_type LIKE '%F%' AND aircraft_type ~ '^[A-Z][0-9]' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%F16%' OR aircraft_type LIKE '%F18%' OR aircraft_type LIKE '%F15%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%F35%' OR aircraft_type LIKE '%F22%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%F111%' OR aircraft_type LIKE '%F18S%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%C130%' OR aircraft_type LIKE '%C17%' OR aircraft_type LIKE '%C5%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%KC%' OR aircraft_type LIKE '%TANKER%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%P3%' OR aircraft_type LIKE '%P8%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%MIG%' OR aircraft_type LIKE '%SU%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%MIR%' OR aircraft_type LIKE '%MIRAGE%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%TOR%' OR aircraft_type LIKE '%TORNADO%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%HAR%' OR aircraft_type LIKE '%HARRIER%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%CH%' OR aircraft_type LIKE '%UH%' OR aircraft_type LIKE '%AH%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%H60%' OR aircraft_type LIKE '%UH60%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%PTS%' OR aircraft_type LIKE '%PARATROOPER%' THEN 'Military Aircraft'\n            \n            -- Helicopters (Comprehensive Category)\n            WHEN aircraft_type LIKE '%H%' OR aircraft_type LIKE '%HELI%' OR aircraft_type LIKE '%ROTOR%' OR aircraft_type LIKE '%R%' OR aircraft_type LIKE '%ROBIN%' OR aircraft_type LIKE '%ROBINSON%' OR aircraft_type LIKE '%GYRO%' OR aircraft_type LIKE '%AUTO%' THEN 'Helicopters'\n            \n            -- Vintage/Classic Aircraft\n            WHEN aircraft_type LIKE '%DC3%' OR aircraft_type LIKE '%DC6%' OR aircraft_type LIKE '%DC9%' THEN 'Douglas Classic Aircraft'\n            WHEN aircraft_type LIKE '%CONC%' OR aircraft_type LIKE '%CONCORDE%' THEN 'Concorde'\n            WHEN aircraft_type LIKE '%SPIT%' OR aircraft_type LIKE '%MUSTANG%' OR aircraft_type LIKE '%WARBIRD%' THEN 'Warbirds'\n            \n            -- Special Purpose\n            WHEN aircraft_type LIKE '%GLID%' OR aircraft_type LIKE '%SAILPLANE%' THEN 'Gliders'\n            WHEN aircraft_type LIKE '%BALLOON%' OR aircraft_type LIKE '%AIRSHIP%' THEN 'Lighter Than Air'\n            \n            -- Additional Boeing Models (Already covered in main Boeing families)\n            -- All Boeing 737 variants now consolidated into Boeing 737 Family above\n            WHEN aircraft_type LIKE '%B58%' THEN 'Beechcraft Baron'\n            WHEN aircraft_type LIKE '%B350%' THEN 'Beechcraft King Air'\n            \n            -- Additional Airbus Models\n            WHEN aircraft_type LIKE '%A30%' AND aircraft_type NOT LIKE '%A20N%' THEN 'Airbus A300/A310'\n            WHEN aircraft_type LIKE '%A31%' THEN 'Airbus A310'\n            WHEN aircraft_type LIKE '%A32%' THEN 'Airbus A320 Variants'\n            WHEN aircraft_type LIKE '%A33%' THEN 'Airbus A330 Variants'\n            WHEN aircraft_type LIKE '%A34%' THEN 'Airbus A340 Variants'\n            WHEN aircraft_type LIKE '%A35%' THEN 'Airbus A350 Variants'\n            WHEN aircraft_type LIKE '%A38%' THEN 'Airbus A380 Variants'\n            WHEN aircraft_type LIKE '%A225%' THEN 'Antonov An-225'\n            \n            -- Embraer Aircraft\n            WHEN aircraft_type LIKE '%E1%' OR aircraft_type LIKE '%E2%' OR aircraft_type LIKE '%EMB%' THEN 'Embraer Regional Jets'\n            WHEN aircraft_type LIKE '%ERJ%' OR aircraft_type LIKE '%E17%' OR aircraft_type LIKE '%E19%' THEN 'Embraer ERJ Series'\n            \n            -- Bombardier Aircraft\n            WHEN aircraft_type LIKE '%CRJ%' OR aircraft_type LIKE '%CL%' THEN 'Bombardier Regional Jets'\n            WHEN aircraft_type LIKE '%Q%' OR aircraft_type LIKE '%DASH%' THEN 'Bombardier Q Series'\n            \n            -- Additional Regional Aircraft\n            WHEN aircraft_type LIKE '%ATR%' OR aircraft_type LIKE '%AT%' THEN 'ATR Turboprops'\n            WHEN aircraft_type LIKE '%FOKKER%' OR aircraft_type LIKE '%FK%' THEN 'Fokker Aircraft'\n            WHEN aircraft_type LIKE '%BAE%' OR aircraft_type LIKE '%AVRO%' THEN 'BAE Systems Aircraft'\n            \n            -- Additional Business Jets (Already covered in main Business Jets category)\n            \n            -- Additional General Aviation\n            WHEN aircraft_type LIKE '%CESS%' OR aircraft_type LIKE '%C%' THEN 'Cessna Aircraft'\n            WHEN aircraft_type LIKE '%PIPER%' OR aircraft_type LIKE '%PA%' THEN 'Piper Aircraft'\n            WHEN aircraft_type LIKE '%DIAM%' OR aircraft_type LIKE '%DA%' THEN 'Diamond Aircraft'\n            WHEN aircraft_type LIKE '%BEECH%' OR aircraft_type LIKE '%BE%' THEN 'Beechcraft Aircraft'\n            WHEN aircraft_type LIKE '%MOON%' OR aircraft_type LIKE '%M%' THEN 'Mooney Aircraft'\n            WHEN aircraft_type LIKE '%GRUMM%' OR (aircraft_type LIKE '%AA%' AND aircraft_type NOT LIKE '%A2%' AND aircraft_type NOT LIKE '%A3%' AND aircraft_type NOT LIKE '%A4%' AND aircraft_type NOT LIKE '%A5%' AND aircraft_type NOT LIKE '%A6%' AND aircraft_type NOT LIKE '%A7%' AND aircraft_type NOT LIKE '%A8%') THEN 'Grumman Aircraft'\n            WHEN aircraft_type LIKE '%BELL%' OR aircraft_type LIKE '%BL%' THEN 'Bell Aircraft'\n            \n            -- Additional Military Aircraft (Already covered in main Military Aircraft category)\n            \n            -- Vintage/Classic Aircraft\n            WHEN aircraft_type LIKE '%DC%' THEN 'Douglas Classic Aircraft'\n            WHEN aircraft_type LIKE '%CONC%' OR aircraft_type LIKE '%CONCORDE%' THEN 'Concorde'\n            WHEN aircraft_type LIKE '%SPIT%' OR aircraft_type LIKE '%MUSTANG%' OR aircraft_type LIKE '%WARBIRD%' THEN 'Warbirds'\n            WHEN aircraft_type LIKE '%LOCK%' OR aircraft_type LIKE '%L%' THEN 'Lockheed Classic Aircraft'\n            WHEN aircraft_type LIKE '%BOE%' THEN 'Boeing Classic Aircraft'\n            \n            -- Experimental and Homebuilt\n            WHEN aircraft_type LIKE '%EXP%' OR aircraft_type LIKE '%HOME%' OR aircraft_type LIKE '%BUILT%' THEN 'Experimental Aircraft'\n            WHEN aircraft_type LIKE '%ULTR%' OR aircraft_type LIKE '%LIGHT%' THEN 'Ultralight Aircraft'\n            \n            -- Agricultural and Utility\n            WHEN aircraft_type LIKE '%AG%' OR aircraft_type LIKE '%CROP%' OR aircraft_type LIKE '%DUST%' THEN 'Agricultural Aircraft'\n            WHEN aircraft_type LIKE '%UTIL%' OR aircraft_type LIKE '%UTILITY%' THEN 'Utility Aircraft'\n            WHEN aircraft_type LIKE '%CARGO%' OR aircraft_type LIKE '%FREIGHT%' THEN 'Cargo Aircraft'\n            \n            -- Seaplanes and Amphibious\n            WHEN aircraft_type LIKE '%SEA%' OR aircraft_type LIKE '%FLOAT%' OR aircraft_type LIKE '%AMPH%' THEN 'Seaplanes'\n            \n            -- Gliders and Sailplanes\n            WHEN aircraft_type LIKE '%GLID%' OR aircraft_type LIKE '%SAIL%' OR aircraft_type LIKE '%SOAR%' THEN 'Gliders'\n            \n            -- Lighter Than Air\n            WHEN aircraft_type LIKE '%BALLOON%' OR aircraft_type LIKE '%AIRSHIP%' OR aircraft_type LIKE '%BLIMP%' THEN 'Lighter Than Air'\n            \n            -- Specific Aircraft Models (Exact Matches)\n            WHEN aircraft_type = '172' OR aircraft_type = 'C172' THEN 'Cessna 172'\n            WHEN aircraft_type = 'C152' THEN 'Cessna 152'\n            WHEN aircraft_type = 'C182' THEN 'Cessna 182'\n            WHEN aircraft_type = 'C208' THEN 'Cessna Caravan'\n            WHEN aircraft_type = 'C25C' THEN 'Cessna Citation'\n            WHEN aircraft_type = 'C310' THEN 'Cessna 310'\n            WHEN aircraft_type = 'C337' THEN 'Cessna Skymaster'\n            WHEN aircraft_type = 'C404' THEN 'Cessna 404'\n            WHEN aircraft_type = 'C510' THEN 'Cessna Citation Mustang'\n            WHEN aircraft_type = 'C56X' THEN 'Cessna Citation Excel'\n            WHEN aircraft_type = 'C700' THEN 'Cessna Citation Longitude'\n            WHEN aircraft_type = 'C750' THEN 'Cessna Citation X'\n            WHEN aircraft_type = 'CL60' THEN 'Bombardier Challenger'\n            WHEN aircraft_type = 'P28A' THEN 'Piper PA-28'\n            WHEN aircraft_type = 'PA24' THEN 'Piper PA-24'\n            WHEN aircraft_type = 'PA44' THEN 'Piper PA-44'\n            WHEN aircraft_type = 'DA40' THEN 'Diamond DA40'\n            WHEN aircraft_type = 'DA42' THEN 'Diamond DA42'\n            WHEN aircraft_type = 'DA50' THEN 'Diamond DA50'\n            WHEN aircraft_type = 'DA62' THEN 'Diamond DA62'\n            WHEN aircraft_type = 'BE10' THEN 'Beechcraft King Air'\n            WHEN aircraft_type = 'BE36' THEN 'Beechcraft Bonanza'\n            WHEN aircraft_type = 'BE58' THEN 'Beechcraft Baron'\n            WHEN aircraft_type = 'BE9L' THEN 'Beechcraft King Air'\n            WHEN aircraft_type = 'PC12' THEN 'Pilatus PC-12'\n            WHEN aircraft_type = 'PC21' THEN 'Pilatus PC-21'\n            WHEN aircraft_type = 'PC24' THEN 'Pilatus PC-24'\n            WHEN aircraft_type = 'TBM9' THEN 'TBM TBM-900'\n            WHEN aircraft_type = 'SR22' THEN 'Cirrus SR22'\n            WHEN aircraft_type = 'MXS' THEN 'MX Aircraft MXS'\n            WHEN aircraft_type = 'S22T' THEN 'Cirrus SR22T'\n            WHEN aircraft_type = 'SW4' THEN 'Fairchild Swearingen'\n            WHEN aircraft_type = 'L410' THEN 'Let L-410'\n            WHEN aircraft_type = 'SF34' THEN 'Saab 340'\n            WHEN aircraft_type = 'SF50' THEN 'Cirrus Vision SF50'\n            WHEN aircraft_type = 'E190' THEN 'Embraer E190'\n            WHEN aircraft_type = 'E300' THEN 'Embraer E300'\n            WHEN aircraft_type = 'E50P' THEN 'Embraer Phenom'\n            WHEN aircraft_type = 'EC45' THEN 'Eurocopter EC145'\n            WHEN aircraft_type = 'AS50' THEN 'Eurocopter AS350'\n            WHEN aircraft_type = 'H60' THEN 'Sikorsky H-60'\n            WHEN aircraft_type = 'UH60' THEN 'Sikorsky UH-60'\n            WHEN aircraft_type = 'F111' THEN 'General Dynamics F-111'\n            WHEN aircraft_type = 'F18S' THEN 'McDonnell Douglas F-18'\n            WHEN aircraft_type = 'F35' THEN 'Lockheed Martin F-35'\n            WHEN aircraft_type = 'GLF6' THEN 'Gulfstream G650'\n            WHEN aircraft_type = 'CONC' THEN 'Concorde'\n            WHEN aircraft_type = 'PTS1' THEN 'Paratrooper Aircraft'\n            WHEN aircraft_type = 'RJ70' THEN 'Avro RJ70'\n            WHEN aircraft_type = 'P8' THEN 'Boeing P-8 Poseidon'\n            WHEN aircraft_type = 'A225' THEN 'Antonov An-225'\n            \n            ELSE 'Other Aircraft'\n        END as aircraft_category\n    FROM flight_summaries\n    WHERE aircraft_type IS NOT NULL \n        AND aircraft_type != ''\n        AND total_enroute_time_minutes > 0\n        AND completion_time >= NOW() - INTERVAL '6 months'\n),\ncategory_stats AS (\n    SELECT \n        aircraft_category,\n        COUNT(*) as total_flights,\n        COUNT(DISTINCT aircraft_type) as unique_aircraft_types,\n        ROUND(AVG(total_enroute_time_minutes), 1) as avg_flight_duration_minutes,\n        ROUND(AVG(time_online_minutes), 1) as avg_time_online_minutes,\n        ROUND(\n            (COUNT(CASE WHEN controller_callsigns IS NOT NULL AND jsonb_typeof(controller_callsigns) = 'object' AND controller_callsigns != '{}' THEN 1 END)::numeric / COUNT(*)) * 100, 1\n        ) as percent_with_controllers,\n        ROUND(AVG(total_enroute_time_minutes::numeric / NULLIF(time_online_minutes, 0)), 2) as avg_efficiency_ratio\n    FROM aircraft_categories\n    GROUP BY aircraft_category\n)\nSELECT \n    aircraft_category as type,\n    COUNT(*) as total_flights,\n    COUNT(DISTINCT cid) as unique_pilots,\n    ROUND(AVG(controller_time_percentage), 1) || '%' as avg_time_with_atc\nFROM aircraft_categories\nGROUP BY aircraft_category\nORDER BY COUNT(*) DESC;\n"
+ },
+ {
+  "id": 93,
+  "name": "How many active pilots and controllers do we have (LOG SCALE)?",
+  "display": "bar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-31 21:54:27.004637+00:00",
+  "sql": "WITH pilot_data AS (\n    SELECT \n        1 as rating,\n        'Pilot' as rank_name,\n        COUNT(DISTINCT fs.cid) as unique_controllers\n    FROM flight_summaries fs\n    WHERE fs.completion_time >= NOW() - INTERVAL '90 days'\n        AND fs.cid IS NOT NULL\n        AND fs.total_enroute_time_minutes >= 30\n),\ncontroller_data AS (\n    SELECT \n        cs.rating,\n        CASE cs.rating\n            WHEN 1 THEN 'Obs'\n            WHEN 2 THEN 'S1'\n            WHEN 3 THEN 'S2'\n            WHEN 4 THEN 'S3'\n            WHEN 5 THEN 'C1'\n            WHEN 6 THEN 'C2'\n            WHEN 7 THEN 'C3'\n            WHEN 8 THEN 'I1'\n            WHEN 9 THEN 'I2'\n            WHEN 10 THEN 'I3'\n            WHEN 11 THEN 'Administrator'\n            ELSE 'Unknown'\n        END as rank_name,\n        COUNT(DISTINCT cs.cid) as unique_controllers\n    FROM controller_summaries cs\n    WHERE (cs.session_start_time >= NOW() - INTERVAL '90 days'\n        OR cs.session_end_time >= NOW() - INTERVAL '90 days')\n        AND cs.session_duration_minutes >= 30\n    GROUP BY cs.rating\n)\nSELECT * FROM pilot_data\nUNION ALL\nSELECT * FROM controller_data\nORDER BY rating;"
+ },
+ {
+  "id": 94,
+  "name": "When are people online on weekdays (last 90 days)?",
+  "display": "line",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-25 14:19:34.331099+00:00",
+  "sql": "-- Count of flights and ATC active by hour on weekdays for last 90 days\n-- Shows both metrics on same timeline for comparison\n\nWITH flight_hours AS (\n    SELECT \n        f.callsign,\n        f.logon_time,\n        f.completion_time,\n        generate_series(\n            EXTRACT(HOUR FROM f.logon_time),\n            CASE \n                WHEN EXTRACT(HOUR FROM f.completion_time) >= EXTRACT(HOUR FROM f.logon_time) \n                THEN EXTRACT(HOUR FROM f.completion_time)\n                ELSE EXTRACT(HOUR FROM f.completion_time) + 24  -- Handle overnight flights\n            END\n        ) % 24 as active_hour  -- Wrap back to 0-23 range\n    FROM flight_summaries f\n    WHERE f.completion_time >= NOW() - INTERVAL '90 days'\n        AND f.total_enroute_time_minutes > 0\n        AND EXTRACT(DOW FROM f.logon_time) IN (0, 1, 6)  -- Sun, Mon, Sat (where your data is)\n        AND f.logon_time IS NOT NULL\n        AND f.completion_time IS NOT NULL\n),\natc_hours AS (\n    SELECT \n        cs.callsign,\n        cs.session_start_time,\n        cs.session_end_time,\n        generate_series(\n            EXTRACT(HOUR FROM cs.session_start_time),\n            CASE \n                WHEN cs.session_end_time IS NULL THEN EXTRACT(HOUR FROM NOW())\n                WHEN EXTRACT(HOUR FROM cs.session_end_time) >= EXTRACT(HOUR FROM cs.session_start_time)\n                THEN EXTRACT(HOUR FROM cs.session_end_time)\n                ELSE EXTRACT(HOUR FROM cs.session_end_time) + 24  -- Handle overnight sessions\n            END\n        ) % 24 as active_hour  -- Wrap back to 0-23 range\n    FROM controller_summaries cs\n    WHERE (cs.session_start_time >= NOW() - INTERVAL '90 days'\n        OR cs.session_end_time >= NOW() - INTERVAL '90 days')\n        AND cs.session_duration_minutes >= 20\n        AND EXTRACT(DOW FROM cs.session_start_time) IN (0, 1, 6)  -- Sun, Mon, Sat (where your data is)\n        AND cs.session_start_time IS NOT NULL\n)\nSELECT \n    COALESCE(fh.active_hour, ah.active_hour) as hour,\n    COUNT(DISTINCT fh.callsign) as active_flights,\n    COUNT(DISTINCT ah.callsign) as active_atc\nFROM flight_hours fh\nFULL OUTER JOIN atc_hours ah ON fh.active_hour = ah.active_hour\nGROUP BY COALESCE(fh.active_hour, ah.active_hour)\nORDER BY hour;"
+ },
+ {
+  "id": 95,
+  "name": "What time are Pilots/ATC online weekend?",
+  "display": "line",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-23 23:26:50.246509+00:00",
+  "sql": "-- Count of flights and ATC active by hour on weekends for last 90 days\n-- Shows both metrics on same timeline for comparison\n\nWITH flight_hours AS (\n    SELECT \n        f.callsign,\n        f.logon_time,\n        f.completion_time,\n        generate_series(\n            EXTRACT(HOUR FROM f.logon_time),\n            EXTRACT(HOUR FROM f.completion_time)\n        ) as active_hour\n    FROM flight_summaries f\n    WHERE f.completion_time >= NOW() - INTERVAL '90 days'\n        AND f.total_enroute_time_minutes > 0\n        AND EXTRACT(DOW FROM f.logon_time) IN (0, 6)  -- Weekends only\n        AND f.logon_time IS NOT NULL\n        AND f.completion_time IS NOT NULL\n),\natc_hours AS (\n    SELECT \n        cs.callsign,\n        cs.session_start_time,\n        cs.session_end_time,\n        generate_series(\n            EXTRACT(HOUR FROM cs.session_start_time),\n            EXTRACT(HOUR FROM COALESCE(cs.session_end_time, NOW()))\n        ) as active_hour\n    FROM controller_summaries cs\n    WHERE (cs.session_start_time >= NOW() - INTERVAL '90 days'\n        OR cs.session_end_time >= NOW() - INTERVAL '90 days')\n        AND cs.session_duration_minutes >= 30\n        AND EXTRACT(DOW FROM cs.session_start_time) IN (0, 6)  -- Weekends only\n        AND cs.session_start_time IS NOT NULL\n)\nSELECT \n    COALESCE(fh.active_hour, ah.active_hour) as hour,\n    COUNT(DISTINCT fh.callsign) as active_flights,\n    COUNT(DISTINCT ah.callsign) as active_atc\nFROM flight_hours fh\nFULL OUTER JOIN atc_hours ah ON fh.active_hour = ah.active_hour\nGROUP BY COALESCE(fh.active_hour, ah.active_hour)\nORDER BY hour;"
+ },
+ {
+  "id": 96,
+  "name": "(Broken) % of time pilots spent on a TMA, CTR or FSS frequency (with ATC)",
+  "display": "line",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-08-24 22:46:29.458439+00:00",
+  "sql": "SELECT \n    'yesterday' as period,\n    f.callsign,\n    f.departure,\n    f.arrival,\n    f.aircraft_type,\n    f.logon_time,\n    f.last_updated,\n    EXTRACT(EPOCH FROM (f.last_updated - f.logon_time))/60 as duration_minutes,\n    fs.airborne_controller_time_percentage,\n    fs.controller_time_percentage,\n    fs.primary_enroute_sector,\n    fs.total_enroute_sectors\nFROM flights f\nLEFT JOIN flight_summaries fs ON f.callsign = fs.callsign\nWHERE fs.airborne_controller_time_percentage IS NOT NULL\n    AND fs.airborne_controller_time_percentage > 0\n    AND DATE(f.logon_time) = CURRENT_DATE - INTERVAL '1 day'\n\nUNION ALL\n\nSELECT \n    'last_7_days' as period,\n    f.callsign,\n    f.departure,\n    f.arrival,\n    f.aircraft_type,\n    f.logon_time,\n    f.last_updated,\n    EXTRACT(EPOCH FROM (f.last_updated - f.logon_time))/60 as duration_minutes,\n    fs.airborne_controller_time_percentage,\n    fs.controller_time_percentage,\n    fs.primary_enroute_sector,\n    fs.total_enroute_sectors\nFROM flights f\nLEFT JOIN flight_summaries fs ON f.callsign = fs.callsign\nWHERE fs.airborne_controller_time_percentage IS NOT NULL\n    AND fs.airborne_controller_time_percentage > 0\n    AND f.logon_time >= CURRENT_DATE - INTERVAL '7 days'\n\nUNION ALL\n\nSELECT \n    'last_30_days' as period,\n    f.callsign,\n    f.departure,\n    f.arrival,\n    f.aircraft_type,\n    f.logon_time,\n    f.last_updated,\n    EXTRACT(EPOCH FROM (f.last_updated - f.logon_time))/60 as duration_minutes,\n    fs.airborne_controller_time_percentage,\n    fs.controller_time_percentage,\n    fs.primary_enroute_sector,\n    fs.total_enroute_sectors\nFROM flights f\nLEFT JOIN flight_summaries fs ON f.callsign = fs.callsign\nWHERE fs.airborne_controller_time_percentage IS NOT NULL\n    AND fs.airborne_controller_time_percentage > 0\n    AND f.logon_time >= CURRENT_DATE - INTERVAL '30 days'\n\nUNION ALL\n\nSELECT \n    'last_90_days' as period,\n    f.callsign,\n    f.departure,\n    f.arrival,\n    f.aircraft_type,\n    f.logon_time,\n    f.last_updated,\n    EXTRACT(EPOCH FROM (f.last_updated - f.logon_time))/60 as duration_minutes,\n    fs.airborne_controller_time_percentage,\n    fs.controller_time_percentage,\n    fs.primary_enroute_sector,\n    fs.total_enroute_sectors\nFROM flights f\nLEFT JOIN flight_summaries fs ON f.callsign = fs.callsign\nWHERE fs.airborne_controller_time_percentage IS NOT NULL\n    AND fs.airborne_controller_time_percentage > 0\n    AND f.logon_time >= CURRENT_DATE - INTERVAL '90 days'\nORDER BY period, airborne_controller_time_percentage DESC\nLIMIT 60;\n\n"
+ },
+ {
+  "id": 97,
+  "name": "What are the 10 most popular domestic routes (last 30 days)?",
+  "display": "row",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-21 17:32:23.242753+00:00",
+  "sql": "-- Top international routes by number of completed flights (format: YSSY-KLAX)\nSELECT \n    CONCAT(departure, '-', arrival) as route,\n    departure,\n    arrival,\n    COUNT(*) as flight_count\nFROM flight_summaries\nWHERE (departure LIKE 'Y%' AND arrival LIKE 'Y%')\n    AND departure != arrival  -- Exclude flights to same airport\n    AND completion_time >= NOW() - INTERVAL '1 month'\nGROUP BY departure, arrival\nORDER BY flight_count DESC\nLIMIT 10;"
+ },
+ {
+  "id": 98,
+  "name": " % of time airborne pilots spent on a frequency with ATC",
+  "display": "line",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-20 18:14:50.843304+00:00",
+  "sql": "WITH canonical AS (\n  SELECT DISTINCT ON (callsign, cid, departure, arrival, logon_time)\n         id, callsign, cid, departure, arrival, logon_time,\n         airborne_controller_time_percentage, time_online_minutes, completion_time\n  FROM flight_summaries\n  WHERE completion_time IS NOT NULL\n    AND airborne_controller_time_percentage IS NOT NULL\n  ORDER BY callsign, cid, departure, arrival, logon_time, completion_time DESC, id DESC\n),\nw AS (\n  SELECT airborne_controller_time_percentage AS pct,\n         COALESCE(time_online_minutes, 0) AS minutes,\n         completion_time\n  FROM canonical\n)\nSELECT 'yesterday' AS period,\n       ROUND(SUM(pct * minutes) / NULLIF(SUM(minutes), 0), 2) AS avg_airborne_atc_percentage\nFROM w\nWHERE (completion_time AT TIME ZONE 'UTC') >= date_trunc('day', now() AT TIME ZONE 'UTC') - interval '1 day'\n  AND (completion_time AT TIME ZONE 'UTC') <  date_trunc('day', now() AT TIME ZONE 'UTC')\n\nUNION ALL\nSELECT 'last_7_days',\n       ROUND(SUM(pct * minutes) / NULLIF(SUM(minutes), 0), 2)\nFROM w\nWHERE completion_time >= now() - interval '7 days'\n\nUNION ALL\nSELECT 'last_30_days',\n       ROUND(SUM(pct * minutes) / NULLIF(SUM(minutes), 0), 2)\nFROM w\nWHERE completion_time >= now() - interval '30 days'\n\nUNION ALL\nSELECT 'last_90_days',\n       ROUND(SUM(pct * minutes) / NULLIF(SUM(minutes), 0), 2)\nFROM w\nWHERE completion_time >= now() - interval '90 days';"
+ },
+ {
+  "id": 99,
+  "name": "Where do pilots currently in Australian airspace come from?",
+  "display": "pie",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-25 13:18:31.450786+00:00",
+  "sql": "-- Query 1: Identify pilot origins by region for pilots currently online (top 6)\nSELECT \n    CASE \n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('L', 'E') THEN 'Europe'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('V', 'W') THEN 'S & SE Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'R' THEN 'East Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y' THEN 'Australia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'K' THEN 'United States'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Z' THEN 'China'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'N' THEN 'NZ & Oceania'\n    END as region_name,\n    COUNT(DISTINCT cid) as unique_pilots\nFROM flights\nWHERE name IS NOT NULL \n    AND LENGTH(name) >= 4\n    AND last_updated >= NOW() - INTERVAL '5 minutes'  -- pilots active in last 5 minutes\n    AND SUBSTRING(name, LENGTH(name) - 3, 1) IN ('L', 'E', 'V', 'W', 'R', 'Y', 'K', 'Z', 'N')  -- Only include mapped regions\nGROUP BY \n    CASE \n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('L', 'E') THEN 'Europe'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('V', 'W') THEN 'S & SE Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'R' THEN 'East Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y' THEN 'Australia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'K' THEN 'United States'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Z' THEN 'China'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'N' THEN 'NZ & Oceania'\n    END\nORDER BY unique_pilots DESC\nLIMIT 6;"
+ },
+ {
+  "id": 100,
+  "name": "Who flies most Australian airspace (last 30 days)?",
+  "display": "pie",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-25 15:07:18.576526+00:00",
+  "sql": "-- Flight Counts by Region from Flight Summaries\n-- \n-- This script analyzes completed flights by region using the 4th last character of pilot names\n-- and maps them to geographic regions for completed flights only.\n-- Counts distinct flights by callsign + date combination.\n-- Excludes flights from regions not covered by specific letter mappings.\n--\n-- Usage:\n--   docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -f scripts/flight_counts_by_region.sql\n--\n\n-- Query: Count distinct completed flights (callsign + date) by region (top 6)\nSELECT \n    CASE \n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('L', 'E') THEN 'Europe'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('V', 'W') THEN 'S & SE Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'R' THEN 'East Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y' THEN 'Australia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'K' THEN 'United States'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Z' THEN 'China'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'N' THEN 'NZ & Oceania'\n    END as region_name,\n    COUNT(DISTINCT CONCAT(callsign, '|', DATE(completion_time))) as unique_flights  -- callsign + date combination\nFROM flight_summaries\nWHERE name IS NOT NULL \n    AND LENGTH(name) >= 4\n    AND completion_time >= NOW() - INTERVAL '1 month'  -- flights completed in last month\n    AND SUBSTRING(name, LENGTH(name) - 3, 1) IN ('L', 'E', 'V', 'W', 'R', 'Y', 'K', 'Z', 'N')\nGROUP BY \n    CASE \n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('L', 'E') THEN 'Europe'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('V', 'W') THEN 'S & SE Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'R' THEN 'East Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y' THEN 'Australia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'K' THEN 'United States'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Z' THEN 'China'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'N' THEN 'NZ & Oceania'\n    END\nORDER BY unique_flights DESC\nLIMIT 6;"
+ },
+ {
+  "id": 101,
+  "name": "Who spends most time in Australian airspace (last 30 days)?",
+  "display": "pie",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-25 15:08:07.518340+00:00",
+  "sql": "-- Total Airborne Time by Region\n-- \n-- Simple query showing total airborne time in minutes for each geographic region\n-- based on the 4th last character of pilot names.\n--\n-- Usage:\n--   docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -f scripts/total_airborne_time_by_region.sql\n--\n\nSELECT \n    CASE \n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('L', 'E') THEN 'Europe'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('V', 'W') THEN 'S & SE Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'R' THEN 'East Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y' THEN 'Australia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'K' THEN 'United States'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Z' THEN 'China'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'N' THEN 'NZ & Oceania'\n    END as region_name,\n    SUM(time_online_minutes) as total_airborne_time_minutes\nFROM flight_summaries\nWHERE name IS NOT NULL \n    AND LENGTH(name) >= 4\n    AND completion_time >= NOW() - INTERVAL '1 month'\n    AND time_online_minutes IS NOT NULL\n    AND time_online_minutes > 0\n    AND SUBSTRING(name, LENGTH(name) - 3, 1) IN ('L', 'E', 'V', 'W', 'R', 'Y', 'K', 'Z', 'N')\nGROUP BY \n    CASE \n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('L', 'E') THEN 'Europe'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) IN ('V', 'W') THEN 'S & SE Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'R' THEN 'East Asia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y' THEN 'Australia'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'K' THEN 'United States'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Z' THEN 'China'\n        WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'N' THEN 'NZ & Oceania'\n    END\nORDER BY total_airborne_time_minutes DESC;"
+ },
+ {
+  "id": 102,
+  "name": "What the avg altitude of acft transitioning from SYA to WOL sectors?",
+  "display": "scalar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-25 20:20:22.989172+00:00",
+  "sql": "SELECT \n  ROUND(AVG(fso2.entry_altitude)) as avg_entry_altitude_wol_from_sya\nFROM flight_sector_occupancy fso1\nJOIN flight_sector_occupancy fso2 ON fso1.callsign = fso2.callsign\nWHERE fso1.sector_name = 'SYA' \n  AND fso2.sector_name = 'WOL'\n  AND fso1.exit_timestamp IS NOT NULL\n  AND fso2.entry_timestamp > fso1.exit_timestamp\n  AND fso2.entry_altitude IS NOT NULL;"
+ },
+ {
+  "id": 103,
+  "name": "What percentage of flights have a SELCAL code in their remarks ?",
+  "display": "scalar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-25 20:15:17.755290+00:00",
+  "sql": "SELECT \n  ROUND(\n    (COUNT(CASE WHEN remarks ILIKE '%sel/%' THEN 1 END) * 100.0 / \n     COUNT(CASE WHEN remarks IS NOT NULL AND remarks != '' THEN 1 END)), 2\n  ) as percentage_with_sel_in_remarks\nFROM flights\nWHERE remarks IS NOT NULL AND remarks != '';"
+ },
+ {
+  "id": 104,
+  "name": "What is the busiest time in the TSN sector?",
+  "display": "scalar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-25 20:18:51.163666+00:00",
+  "sql": "WITH hourly_counts AS (\n  SELECT \n    EXTRACT(HOUR FROM entry_timestamp AT TIME ZONE 'UTC') as hour_utc,\n    COUNT(*) as flight_count\n  FROM flight_sector_occupancy\n  WHERE sector_name = 'TSN'\n    AND entry_timestamp IS NOT NULL\n  GROUP BY EXTRACT(HOUR FROM entry_timestamp AT TIME ZONE 'UTC')\n),\nrolling_3hr AS (\n  SELECT \n    hour_utc,\n    flight_count,\n    flight_count + \n      COALESCE(LAG(flight_count, 1) OVER (ORDER BY hour_utc), \n               (SELECT flight_count FROM hourly_counts WHERE hour_utc = 23)) +\n      COALESCE(LAG(flight_count, 2) OVER (ORDER BY hour_utc), \n               (SELECT flight_count FROM hourly_counts WHERE hour_utc = 22)) as rolling_3hr_count\n  FROM hourly_counts\n)\nSELECT \n  CONCAT(\n    LPAD(hour_utc::text, 2, '0'), '00-',\n    LPAD(((hour_utc + 2) % 24)::text, 2, '0'), '00 UTC'\n  ) as peak_3hr_period\nFROM rolling_3hr\nORDER BY rolling_3hr_count DESC\nLIMIT 1;"
+ },
+ {
+  "id": 105,
+  "name": "Which is the most 'popular' sector? (last 90 days?)",
+  "display": "bar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-25 21:15:56.839033+00:00",
+  "sql": "SELECT \n  sector_name,\n  COUNT(*) as total_flights\nFROM flight_sector_occupancy\nWHERE entry_timestamp >= NOW() - INTERVAL '90 days'\n  AND sector_name IS NOT NULL\nGROUP BY sector_name\nORDER BY total_flights DESC;"
+ },
+ {
+  "id": 106,
+  "name": "What is the busiest time in the IND sector?",
+  "display": "scalar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-26 06:19:00.869218+00:00",
+  "sql": "WITH hourly_counts AS (\n  SELECT \n    EXTRACT(HOUR FROM entry_timestamp AT TIME ZONE 'UTC') as hour_utc,\n    COUNT(*) as flight_count\n  FROM flight_sector_occupancy\n  WHERE sector_name = 'IND'\n    AND entry_timestamp IS NOT NULL\n  GROUP BY EXTRACT(HOUR FROM entry_timestamp AT TIME ZONE 'UTC')\n),\nrolling_3hr AS (\n  SELECT \n    hour_utc,\n    flight_count,\n    flight_count + \n      COALESCE(LAG(flight_count, 1) OVER (ORDER BY hour_utc), \n               (SELECT flight_count FROM hourly_counts WHERE hour_utc = 23)) +\n      COALESCE(LAG(flight_count, 2) OVER (ORDER BY hour_utc), \n               (SELECT flight_count FROM hourly_counts WHERE hour_utc = 22)) as rolling_3hr_count\n  FROM hourly_counts\n)\nSELECT \n  CONCAT(\n    LPAD(hour_utc::text, 2, '0'), '00-',\n    LPAD(((hour_utc + 2) % 24)::text, 2, '0'), '00 UTC'\n  ) as peak_3hr_period\nFROM rolling_3hr\nORDER BY rolling_3hr_count DESC\nLIMIT 1;"
+ },
+ {
+  "id": 107,
+  "name": "What is the busiest time in the GUN sector?",
+  "display": "scalar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-26 06:19:45.669412+00:00",
+  "sql": "WITH hourly_counts AS (\n  SELECT \n    EXTRACT(HOUR FROM entry_timestamp AT TIME ZONE 'UTC') as hour_utc,\n    COUNT(*) as flight_count\n  FROM flight_sector_occupancy\n  WHERE sector_name = 'GUN'\n    AND entry_timestamp IS NOT NULL\n  GROUP BY EXTRACT(HOUR FROM entry_timestamp AT TIME ZONE 'UTC')\n),\nrolling_3hr AS (\n  SELECT \n    hour_utc,\n    flight_count,\n    flight_count + \n      COALESCE(LAG(flight_count, 1) OVER (ORDER BY hour_utc), \n               (SELECT flight_count FROM hourly_counts WHERE hour_utc = 23)) +\n      COALESCE(LAG(flight_count, 2) OVER (ORDER BY hour_utc), \n               (SELECT flight_count FROM hourly_counts WHERE hour_utc = 22)) as rolling_3hr_count\n  FROM hourly_counts\n)\nSELECT \n  CONCAT(\n    LPAD(hour_utc::text, 2, '0'), '00-',\n    LPAD(((hour_utc + 2) % 24)::text, 2, '0'), '00 UTC'\n  ) as peak_3hr_period\nFROM rolling_3hr\nORDER BY rolling_3hr_count DESC\nLIMIT 1;"
+ },
+ {
+  "id": 108,
+  "name": "Top 50 service providers (last 30 days)",
+  "display": "bar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-31 11:49:19.568684+00:00",
+  "sql": "SELECT \n  cid,\n  TRIM(MAX(name)) AS name,\n  ROUND(SUM(session_duration_minutes) / 60.0, 2) AS total_controller_online_hours,\n  SUM(total_aircraft_handled) AS total_flights_controlled,\n  (5 * ROUND(SUM(session_duration_minutes) / 60.0, 2)) + SUM(total_aircraft_handled) AS total_value\nFROM controller_summaries \nWHERE cid IS NOT NULL \n  AND session_duration_minutes > 0 \n  AND session_start_time >= NOW() - INTERVAL '30 days'\nGROUP BY cid\nORDER BY total_value DESC\nLIMIT 50;"
+ },
+ {
+  "id": 115,
+  "name": "How many controllers logged on (last 30 days)?",
+  "display": "bar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-01 14:59:00.543139+00:00",
+  "sql": "-- Count of unique controllers who logged on in the last month (>= 60 mins total), by rank group\nWITH all_ranks AS (\n    SELECT 2 as rating, 'S1' as rank_group\n    UNION ALL SELECT 3, 'S2'\n    UNION ALL SELECT 4, 'S3'\n    UNION ALL SELECT 5, 'C1'\n    UNION ALL SELECT 7, 'C3'\n    UNION ALL SELECT 8, 'I1+'\n),\neligible_controllers AS (\n    SELECT \n        cs.cid,\n        cs.rating,\n        SUM(cs.session_duration_minutes) AS total_minutes\n    FROM controller_summaries cs\n    WHERE cs.session_start_time >= NOW() - INTERVAL '1 month'\n    GROUP BY cs.cid, cs.rating\n    HAVING SUM(cs.session_duration_minutes) > 60\n),\ncontroller_counts AS (\n    SELECT \n        CASE \n            WHEN ec.rating = 2 THEN 'S1'\n            WHEN ec.rating = 3 THEN 'S2'\n            WHEN ec.rating = 4 THEN 'S3'\n            WHEN ec.rating = 5 THEN 'C1'\n            WHEN ec.rating = 7 THEN 'C3'\n            WHEN ec.rating >= 8 THEN 'I1+'\n            ELSE 'Unknown'\n        END as rank_group,\n        COUNT(DISTINCT ec.cid) as unique_controllers\n    FROM eligible_controllers ec\n    GROUP BY \n        CASE \n            WHEN ec.rating = 2 THEN 'S1'\n            WHEN ec.rating = 3 THEN 'S2'\n            WHEN ec.rating = 4 THEN 'S3'\n            WHEN ec.rating = 5 THEN 'C1'\n            WHEN ec.rating = 7 THEN 'C3'\n            WHEN ec.rating >= 8 THEN 'I1+'\n            ELSE 'Unknown'\n        END\n)\nSELECT \n    ar.rank_group,\n    COALESCE(cc.unique_controllers, 0) as unique_controllers\nFROM all_ranks ar\nLEFT JOIN controller_counts cc ON ar.rank_group = cc.rank_group\nORDER BY ar.rating;"
+ },
+ {
+  "id": 116,
+  "name": "How many controllers logged on last 3 months?",
+  "display": "bar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-01 14:59:38.769582+00:00",
+  "sql": "-- Count of unique controllers who logged on in the last month (>= 60 mins total), by rank group\nWITH all_ranks AS (\n    SELECT 2 as rating, 'S1' as rank_group\n    UNION ALL SELECT 3, 'S2'\n    UNION ALL SELECT 4, 'S3'\n    UNION ALL SELECT 5, 'C1'\n    UNION ALL SELECT 7, 'C3'\n    UNION ALL SELECT 8, 'I1+'\n),\neligible_controllers AS (\n    SELECT \n        cs.cid,\n        cs.rating,\n        SUM(cs.session_duration_minutes) AS total_minutes\n    FROM controller_summaries cs\n    WHERE cs.session_start_time >= NOW() - INTERVAL '3 months'\n    GROUP BY cs.cid, cs.rating\n    HAVING SUM(cs.session_duration_minutes) > 60\n),\ncontroller_counts AS (\n    SELECT \n        CASE \n            WHEN ec.rating = 2 THEN 'S1'\n            WHEN ec.rating = 3 THEN 'S2'\n            WHEN ec.rating = 4 THEN 'S3'\n            WHEN ec.rating = 5 THEN 'C1'\n            WHEN ec.rating = 7 THEN 'C3'\n            WHEN ec.rating >= 8 THEN 'I1+'\n            ELSE 'Unknown'\n        END as rank_group,\n        COUNT(DISTINCT ec.cid) as unique_controllers\n    FROM eligible_controllers ec\n    GROUP BY \n        CASE \n            WHEN ec.rating = 2 THEN 'S1'\n            WHEN ec.rating = 3 THEN 'S2'\n            WHEN ec.rating = 4 THEN 'S3'\n            WHEN ec.rating = 5 THEN 'C1'\n            WHEN ec.rating = 7 THEN 'C3'\n            WHEN ec.rating >= 8 THEN 'I1+'\n            ELSE 'Unknown'\n        END\n)\nSELECT \n    ar.rank_group,\n    COALESCE(cc.unique_controllers, 0) as unique_controllers\nFROM all_ranks ar\nLEFT JOIN controller_counts cc ON ar.rank_group = cc.rank_group\nORDER BY ar.rating;"
+ },
+ {
+  "id": 117,
+  "name": "API ingestion freshness",
+  "display": "gauge",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-08-31 21:50:39.655113+00:00",
+  "sql": "SELECT EXTRACT(EPOCH FROM (NOW() - GREATEST(\n  COALESCE((SELECT MAX(last_updated_api) FROM flights), TIMESTAMPTZ 'epoch'),\n  COALESCE((SELECT MAX(last_updated) FROM controllers), TIMESTAMPTZ 'epoch'),\n  COALESCE((SELECT MAX(\"timestamp\") FROM transceivers), TIMESTAMPTZ 'epoch')\n)))::BIGINT AS global_lag_seconds;"
+ },
+ {
+  "id": 118,
+  "name": "Flights table freshness",
+  "display": "gauge",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-30 19:34:35.820403+00:00",
+  "sql": "SELECT (\n  EXTRACT(EPOCH FROM (NOW() - GREATEST(\n    COALESCE((SELECT MAX(last_updated_api) FROM flights), TIMESTAMPTZ 'epoch'),\n    COALESCE((SELECT MAX(last_updated) FROM controllers), TIMESTAMPTZ 'epoch'),\n    COALESCE((SELECT MAX(\"timestamp\") FROM transceivers), TIMESTAMPTZ 'epoch')\n  ))) / 60\n)::BIGINT AS global_lag_minutes;"
+ },
+ {
+  "id": 119,
+  "name": "Controller table freshness",
+  "display": "scalar",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-08-30 19:28:40.398025+00:00",
+  "sql": "WITH s AS (\n  SELECT MAX(last_updated) AS max_ts, COUNT(*) AS cnt\n  FROM controllers\n)\nSELECT CASE\n         WHEN s.cnt = 0 OR s.max_ts IS NULL THEN 'NA'\n         ELSE ROUND(EXTRACT(EPOCH FROM (NOW() - s.max_ts))/60.0, 0)::TEXT\n       END AS controllers_lag_minutes\nFROM s;"
+ },
+ {
+  "id": 120,
+  "name": "Controller table freshness",
+  "display": "gauge",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-31 14:54:31.490426+00:00",
+  "sql": "SELECT ROUND(\n  EXTRACT(EPOCH FROM (NOW() - COALESCE((SELECT MAX(last_updated) FROM controllers), TIMESTAMPTZ 'epoch')))\n  / 60.0, 1\n) AS controllers_lag_minutes;"
+ },
+ {
+  "id": 121,
+  "name": "Oldest open sector age",
+  "display": "gauge",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-30 19:34:00.886324+00:00",
+  "sql": "SELECT COALESCE(\n  ROUND(EXTRACT(EPOCH FROM (NOW() - MIN(entry_timestamp)))/60.0, 0),\n  0\n) AS oldest_open_age_minutes\nFROM flight_sector_occupancy\nWHERE exit_timestamp IS NULL;"
+ },
+ {
+  "id": 122,
+  "name": "Numer of unique flights past overdue processing",
+  "display": "gauge",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-18 19:59:57.493945+00:00",
+  "sql": "WITH params AS (\n  SELECT (NOW() AT TIME ZONE 'UTC' - INTERVAL '8 hours') AS cutoff\n),\nbase AS (\n  SELECT callsign, cid, departure, arrival,\n         COALESCE(logon_time, last_updated) AS logon_time,\n         last_updated, deptime, route\n  FROM flights\n  WHERE last_updated < (SELECT cutoff FROM params)\n    AND logon_time IS NOT NULL\n),\nordered AS (\n  SELECT b.*, \n         LAG(last_updated) OVER (\n           PARTITION BY callsign, cid, departure, arrival\n           ORDER BY GREATEST(logon_time, last_updated), last_updated\n         ) AS prev_last_updated\n  FROM base b\n),\nsegmented AS (\n  SELECT *,\n         CASE\n           WHEN prev_last_updated IS NULL THEN 1\n           WHEN EXTRACT(EPOCH FROM (logon_time - prev_last_updated)) / 60.0 > 120 THEN 1\n           ELSE 0\n         END AS is_new_seg\n  FROM ordered\n),\nlabeled AS (\n  SELECT *,\n         SUM(is_new_seg) OVER (\n           PARTITION BY callsign, cid, departure, arrival\n           ORDER BY GREATEST(logon_time, last_updated), last_updated\n           ROWS UNBOUNDED PRECEDING\n         ) AS segment_id\n  FROM segmented\n),\nsessions AS (\n  SELECT\n    callsign, cid, departure, arrival,\n    MIN(logon_time) AS session_start,\n    MAX(last_updated) AS session_end\n  FROM labeled\n  GROUP BY callsign, cid, departure, arrival, segment_id\n),\nawaiting AS (\n  SELECT s.*\n  FROM sessions s\n  WHERE NOT EXISTS (\n    SELECT 1\n    FROM flight_summaries fs\n    WHERE fs.callsign   = s.callsign\n      AND fs.cid        IS NOT DISTINCT FROM s.cid\n      AND fs.departure  IS NOT DISTINCT FROM s.departure\n      AND fs.arrival    IS NOT DISTINCT FROM s.arrival\n      AND fs.logon_time IS NOT DISTINCT FROM s.session_start\n  )\n)\nSELECT COUNT(*) AS awaiting_flight_summaries\nFROM awaiting;"
+ },
+ {
+  "id": 123,
+  "name": "Flow - when a flight is first associated with a controller record",
+  "display": "gauge",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-31 16:15:55.468291+00:00",
+  "sql": "-- Controller end\u2192processed flow with cap to avoid repair/backfill distortion\n-- Window: last 24h; Grace: ignore last 1h; Cap: only include rows processed within 120 min of end\n\nWITH params AS (\n  SELECT\n    (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours') AS lookback,\n    (NOW() AT TIME ZONE 'UTC' - INTERVAL '1 hour')  AS grace_cutoff,\n    INTERVAL '120 minutes'                           AS max_real_time_lag\n),\nended AS (\n  SELECT cs.id, cs.session_end_time, cs.updated_at\n  FROM controller_summaries cs\n  CROSS JOIN params p\n  WHERE cs.session_end_time IS NOT NULL\n    AND cs.session_end_time BETWEEN p.lookback AND p.grace_cutoff\n),\neligible AS (\n  -- Keep only rows processed within the real-time cap after end\n  SELECT e.*\n  FROM ended e\n  CROSS JOIN params p\n  WHERE e.updated_at >= e.session_end_time\n    AND e.updated_at <= e.session_end_time + p.max_real_time_lag\n),\nlags AS (\n  SELECT EXTRACT(EPOCH FROM (updated_at - session_end_time))/60.0 AS minutes_after_end\n  FROM eligible\n),\ncounts AS (\n  SELECT\n    (SELECT COUNT(*) FROM ended)    AS total_ended,\n    (SELECT COUNT(*) FROM eligible) AS eligible_rows\n)\nSELECT\n  COALESCE((SELECT ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY minutes_after_end)::numeric, 2) FROM lags), 0) AS p50_minutes,\n  COALESCE((SELECT ROUND(PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY minutes_after_end)::numeric, 2) FROM lags), 0) AS p90_minutes,\n  COALESCE((SELECT ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY minutes_after_end)::numeric, 2) FROM lags), 0) AS p95_minutes,\n  c.total_ended,\n  c.eligible_rows,\n  CASE WHEN c.total_ended > 0 THEN ROUND(100.0 * c.eligible_rows::numeric / c.total_ended, 2) ELSE 0 END AS coverage_pct\nFROM counts c;"
+ },
+ {
+  "id": 124,
+  "name": "Flow - when a controller is first associated with a flight record",
+  "display": "gauge",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-30 20:54:57.693445+00:00",
+  "sql": "-- FIXED: add FROM diffs\nWITH recent AS (\n  SELECT id, logon_time, controller_callsigns\n  FROM flight_summaries\n  WHERE logon_time >= NOW() - INTERVAL '24 hours'\n    AND controller_callsigns IS NOT NULL\n    AND controller_callsigns <> '{}'::jsonb\n),\nfirst_assoc AS (\n  SELECT fs.id, MIN((kv.value->>'first_contact')::timestamptz) AS first_contact_ts\n  FROM recent fs\n  CROSS JOIN LATERAL jsonb_each(fs.controller_callsigns) AS kv(key, value)\n  GROUP BY fs.id\n),\ndiffs AS (\n  SELECT EXTRACT(EPOCH FROM (fa.first_contact_ts - fs.logon_time))/60.0 AS minutes_to_first_controller\n  FROM recent fs\n  JOIN first_assoc fa ON fa.id = fs.id\n  WHERE fs.logon_time IS NOT NULL AND fa.first_contact_ts IS NOT NULL\n)\nSELECT ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY minutes_to_first_controller))::numeric, 2)\n       AS flight_to_controller_p95_minutes\nFROM diffs;"
+ },
+ {
+  "id": 125,
+  "name": "Is there data integrity (Flight\u2192controller mismatches)?",
+  "display": "gauge",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-18 18:52:22.585860+00:00",
+  "sql": "WITH flight_ctrl AS (\n  SELECT\n    fs.id AS flight_summary_id,\n    UPPER(fs.callsign) AS flight_callsign,\n    fs.logon_time,\n    COALESCE(fs.completion_time, NOW() AT TIME ZONE 'UTC') AS completion_time,\n    key AS controller_callsign\n  FROM flight_summaries fs\n  CROSS JOIN LATERAL jsonb_object_keys(fs.controller_callsigns) AS key\n  WHERE fs.controller_callsigns IS NOT NULL\n    AND fs.controller_callsigns <> '{}'::jsonb\n),\ncontroller_hits AS (\n  SELECT\n    cs.id,\n    cs.callsign,\n    cs.session_start_time,\n    COALESCE(cs.session_end_time, NOW() AT TIME ZONE 'UTC') AS session_end_time,\n    d->>'callsign' AS flight_callsign,\n    d->>'departure' AS departure,\n    d->>'arrival' AS arrival\n  FROM controller_summaries cs\n  JOIN LATERAL jsonb_array_elements(COALESCE(cs.aircraft_details, '[]'::jsonb)) AS d ON TRUE\n  WHERE cs.enrichment_status = 'completed'\n)\nSELECT COUNT(*) AS flight_to_controller_mismatches\nFROM flight_ctrl fc\nWHERE NOT EXISTS (\n  SELECT 1\n  FROM controller_hits ch\n  WHERE ch.callsign = fc.controller_callsign\n    AND ch.session_start_time <= fc.completion_time\n    AND ch.session_end_time >= fc.logon_time\n    AND ch.flight_callsign = fc.flight_callsign\n);"
+ },
+ {
+  "id": 126,
+  "name": "Is there data integrity (Controller \u2192 Flight mismatches)?",
+  "display": "gauge",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-18 12:39:17.133403+00:00",
+  "sql": "WITH params AS (\n  SELECT (NOW() AT TIME ZONE 'UTC' - INTERVAL '15 mins') AS cutoff\n),\nctrl_flights AS (\n  SELECT\n    cs.id AS controller_summary_id,\n    cs.callsign AS controller_callsign,\n    cs.session_start_time,\n    COALESCE(cs.session_end_time, NOW() AT TIME ZONE 'UTC') AS session_end_time,\n    d->>'callsign' AS flight_callsign\n  FROM controller_summaries cs\n  CROSS JOIN LATERAL jsonb_array_elements(COALESCE(cs.aircraft_details, '[]'::jsonb)) AS d\n  CROSS JOIN params p\n  WHERE cs.enrichment_status = 'completed'\n    AND cs.session_start_time <= p.cutoff\n    AND COALESCE(cs.session_end_time, NOW() AT TIME ZONE 'UTC') <= p.cutoff\n)\nSELECT COUNT(*)::bigint AS controller_to_flight_mismatches\nFROM ctrl_flights cf\nJOIN flight_summaries fs\n  ON fs.callsign = cf.flight_callsign\n AND fs.logon_time <= cf.session_end_time\n AND COALESCE(fs.completion_time, NOW() AT TIME ZONE 'UTC') >= cf.session_start_time\n AND fs.enrichment_status = 'completed'\nWHERE fs.controller_callsigns IS NULL\n   OR fs.controller_callsigns = '{}'::jsonb\n   OR NOT (fs.controller_callsigns ? cf.controller_callsign);"
+ },
+ {
+  "id": 127,
+  "name": "Which day had the most flights?",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "SELECT \n    DATE(logon_time) as flight_date,\n    EXTRACT(DOW FROM logon_time) as day_of_week,\n    COUNT(*) as total_flights,\n    ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as rank\nFROM flight_summaries \nWHERE logon_time >= NOW() - INTERVAL '6 months'\n    AND logon_time IS NOT NULL\nGROUP BY DATE(logon_time), EXTRACT(DOW FROM logon_time)\nORDER BY total_flights DESC\nLIMIT 5;"
+ },
+ {
+  "id": 128,
+  "name": "Which date had the most flights?",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-17 14:50:11.637089+00:00",
+  "sql": "SELECT \n    DATE(logon_time) as flight_date,\n    CASE EXTRACT(DOW FROM logon_time)\n        WHEN 0 THEN 'Sunday'\n        WHEN 1 THEN 'Monday'\n        WHEN 2 THEN 'Tuesday'\n        WHEN 3 THEN 'Wednesday'\n        WHEN 4 THEN 'Thursday'\n        WHEN 5 THEN 'Friday'\n        WHEN 6 THEN 'Saturday'\n    END as day_name,    COUNT(*) as total_flights,\n    ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as rank\nFROM flight_summaries \nWHERE logon_time >= NOW() - INTERVAL '6 months'\n    AND logon_time IS NOT NULL\nGROUP BY DATE(logon_time), EXTRACT(DOW FROM logon_time)\nORDER BY total_flights DESC\nLIMIT 5;"
+ },
+ {
+  "id": 129,
+  "name": "What days had the most people online?",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-08-31 21:50:22.412453+00:00",
+  "sql": "SELECT \n    DATE(logon_time) as member_date,\n    CASE EXTRACT(DOW FROM logon_time)\n        WHEN 0 THEN 'Sunday'\n        WHEN 1 THEN 'Monday'\n        WHEN 2 THEN 'Tuesday'\n        WHEN 3 THEN 'Wednesday'\n        WHEN 4 THEN 'Thursday'\n        WHEN 5 THEN 'Friday'\n        WHEN 6 THEN 'Saturday'\n    END as day_name,\n    COUNT(DISTINCT cid) as unique_members,\n    ROW_NUMBER() OVER (ORDER BY COUNT(DISTINCT cid) DESC) as rank\nFROM flight_summaries\nWHERE logon_time >= NOW() - INTERVAL '6 months'\n    AND logon_time IS NOT NULL\n    AND cid IS NOT NULL\nGROUP BY DATE(logon_time), EXTRACT(DOW FROM logon_time)\nORDER BY unique_members DESC\nLIMIT 5;"
+ },
+ {
+  "id": 130,
+  "name": "How many controllers on during Monday 0800-1200UTC",
+  "display": "bar",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "WITH mondays AS (\n  SELECT generate_series(\n    (SELECT date_trunc('week', MIN(session_start_time))::date FROM controller_summaries),\n    (date_trunc('week', now())::date),\n    '1 week'\n  )::date AS monday_date\n)\nSELECT\n  m.monday_date,\n  COUNT(DISTINCT cs.cid) AS unique_cids,\n  STRING_AGG(DISTINCT cs.cid::text, ', ') FILTER (WHERE cs.cid IS NOT NULL) AS cids_list\nFROM mondays m\nLEFT JOIN controller_summaries cs\n  ON cs.session_start_time <= (m.monday_date + time '12:00')::timestamp AT TIME ZONE 'UTC'\n  AND (\n    cs.session_end_time IS NULL\n    OR cs.session_end_time >= (m.monday_date + time '08:00')::timestamp AT TIME ZONE 'UTC'\n  )\nGROUP BY m.monday_date\nORDER BY m.monday_date DESC;"
+ },
+ {
+  "id": 131,
+  "name": "Monday event attendance",
+  "display": "bar",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-08 22:40:44.003822+00:00",
+  "sql": "WITH mondays AS (\n  SELECT generate_series(\n    (SELECT date_trunc('week', MIN(session_start_time))::date FROM controller_summaries),\n    (date_trunc('week', now())::date),\n    '1 week'\n  )::date AS monday_date\n)\nSELECT\n  m.monday_date,\n  -- controllers\n  COUNT(DISTINCT cs.cid) AS unique_controller_cids,\n  STRING_AGG(DISTINCT cs.cid::text, ', ') FILTER (WHERE cs.cid IS NOT NULL) AS controller_cids_list,\n  -- flights\n  COUNT(DISTINCT fs.cid) AS unique_flight_cids,\n  STRING_AGG(DISTINCT fs.cid::text, ', ') FILTER (WHERE fs.cid IS NOT NULL) AS flight_cids_list\nFROM mondays m\nLEFT JOIN controller_summaries cs\n  ON cs.session_start_time <= (m.monday_date + time '12:00')::timestamp AT TIME ZONE 'UTC'\n  AND (\n    cs.session_end_time IS NULL\n    OR cs.session_end_time >= (m.monday_date + time '08:00')::timestamp AT TIME ZONE 'UTC'\n  )\nLEFT JOIN flight_summaries fs\n  ON fs.logon_time <= (m.monday_date + time '12:00')::timestamp AT TIME ZONE 'UTC'\n  AND (\n    fs.completion_time IS NULL\n    OR fs.completion_time >= (m.monday_date + time '08:00')::timestamp AT TIME ZONE 'UTC'\n  )\nGROUP BY m.monday_date\nORDER BY m.monday_date DESC;"
+ },
+ {
+  "id": 132,
+  "name": "Slowest YMML-YSSY Milkrun Monday",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-08 23:45:09.374331+00:00",
+  "sql": "WITH mel_syd AS (\n  SELECT\n    fs.id,\n    fs.callsign,\n    fs.name,\n    fs.aircraft_type,\n    fs.logon_time,\n    fs.completion_time,\n    fs.controller_callsigns,\n    (\n      SELECT MIN(fo.entry_timestamp)\n      FROM flight_sector_occupancy fo\n      WHERE fo.callsign = fs.callsign\n        AND fo.sector_name = 'MLA'\n        AND fo.entry_timestamp BETWEEN fs.logon_time AND fs.completion_time\n    ) AS mla_entry_time,\n    (\n      SELECT MAX(fo.exit_timestamp)\n      FROM flight_sector_occupancy fo\n      WHERE fo.callsign = fs.callsign\n        AND fo.sector_name = 'SYA'\n        AND fo.exit_timestamp BETWEEN fs.logon_time AND fs.completion_time\n    ) AS sya_exit_time\n  FROM flight_summaries fs\n  WHERE fs.departure = 'YMML'\n    AND fs.arrival = 'YSSY'\n    AND EXTRACT(DOW FROM fs.completion_time) = 1\n    AND fs.completion_time >= NOW() - INTERVAL '6 months'\n),\nfiltered AS (\n  SELECT\n    *,\n    EXTRACT(EPOCH FROM (sya_exit_time - mla_entry_time)) / 60.0 AS mla_sya_minutes,\n    CASE \n      WHEN jsonb_typeof(controller_callsigns) = 'object' \n      THEN (SELECT COUNT(*) FROM jsonb_object_keys(controller_callsigns)) \n      ELSE 0 \n    END AS controllers_spoken_to\n  FROM mel_syd\n  WHERE mla_entry_time IS NOT NULL\n    AND sya_exit_time IS NOT NULL\n    AND EXTRACT(HOUR FROM mla_entry_time) >= 9  -- MLA entry after 0900 UTC\n    AND EXTRACT(HOUR FROM sya_exit_time) < 12   -- SYA exit before 1200 UTC\n)\nSELECT\n  id,\n  callsign,\n  name,\n  aircraft_type,\n  logon_time,\n  completion_time,\n  mla_entry_time,\n  sya_exit_time,\n  ROUND(mla_sya_minutes, 1) AS mla_sya_minutes,\n  controllers_spoken_to\nFROM filtered\nWHERE mla_sya_minutes >= 0\nORDER BY mla_sya_minutes DESC  -- Changed from ASC to DESC\nLIMIT 10;"
+ },
+ {
+  "id": 133,
+  "name": "How many pilots were on the same freq as a controller? (0800-1200z monday)",
+  "display": "line",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-09 11:04:23.985165+00:00",
+  "sql": "-- corrected_controller_slots_aligned.sql\n-- Align controller-generated slots to the canonical 5-minute grid and\n-- convert frequencies robustly. This ensures controller_slots.time_slot\n-- matches time_slots.time_slot so joins succeed.\n\nWITH recent_monday AS (\n    SELECT\n        CASE\n            WHEN EXTRACT(DOW FROM CURRENT_DATE) = 1 THEN CURRENT_DATE\n            ELSE CURRENT_DATE - INTERVAL '1 day' * (EXTRACT(DOW FROM CURRENT_DATE) - 1)\n        END AS monday_date\n),\ntime_slots AS (\n    SELECT\n        monday_date + INTERVAL '8 hours' + (generate_series(0, 47) * INTERVAL '5 minutes') AS time_slot\n    FROM recent_monday\n),\ncontroller_slots AS (\n    SELECT\n        cs.callsign,\n        CASE\n            WHEN rf.raw_freq = '' THEN NULL\n            WHEN POSITION('.' IN rf.raw_freq) > 0 THEN (round(rf.raw_freq::numeric, 3) * 1000000)::bigint\n            ELSE rf.raw_freq::bigint\n        END AS frequency,\n        generate_series(\n            -- Align session start to nearest 5-minute grid used by time_slots\n            to_timestamp(floor(EXTRACT(EPOCH FROM GREATEST(cs.session_start_time, rm.monday_date + INTERVAL '8 hours'))/300)*300)::timestamptz,\n            LEAST(COALESCE(cs.session_end_time, rm.monday_date + INTERVAL '12 hours'), rm.monday_date + INTERVAL '12 hours'),\n            INTERVAL '5 minutes'\n        ) AS time_slot\n    FROM controller_summaries cs\n    CROSS JOIN recent_monday rm\n    CROSS JOIN LATERAL (\n        SELECT regexp_replace(jsonb_array_elements_text(cs.frequencies_used), '[^0-9\\.]', '', 'g') AS raw_freq\n    ) rf\n    WHERE cs.frequencies_used IS NOT NULL\n      AND cs.session_start_time < rm.monday_date + INTERVAL '12 hours'\n      AND (cs.session_end_time IS NULL OR cs.session_end_time > rm.monday_date + INTERVAL '8 hours')\n),\nflight_counts AS (\n    SELECT\n        ts.time_slot,\n        ft.frequency,\n        COUNT(DISTINCT ft.callsign) AS unique_callsigns\n    FROM transceivers ft\n    JOIN time_slots ts\n      ON ft.timestamp >= ts.time_slot - INTERVAL '3 minutes'\n     AND ft.timestamp <  ts.time_slot + INTERVAL '3 minutes'\n    WHERE ft.entity_type = 'flight'\n      AND ft.frequency BETWEEN 118000000 AND 137000000\n      AND ft.frequency NOT IN (120500000, 121700000, 126500000)\n      AND NOT (ft.frequency BETWEEN 121500000 AND 121500999)\n    GROUP BY\n        ft.frequency,\n        ts.time_slot\n)\n\nSELECT\n    ROW_NUMBER() OVER (ORDER BY cs.time_slot, cs.callsign) AS id,\n    cs.time_slot      AS time,\n    cs.callsign       AS series,\n    COALESCE(fc.unique_callsigns, 0) AS value\nFROM controller_slots cs\nLEFT JOIN flight_counts fc\n  ON fc.frequency BETWEEN cs.frequency - 5000 AND cs.frequency + 5000\n AND cs.time_slot = fc.time_slot\nWHERE cs.frequency BETWEEN 118000000 AND 137000000\n  AND cs.frequency NOT IN (120500000, 121700000, 126500000)\n  AND NOT (cs.frequency BETWEEN 121500000 AND 121500999)\n  AND cs.callsign NOT ILIKE '%DEL%'\n  AND COALESCE(fc.unique_callsigns, 0) >= 3\nORDER BY cs.time_slot, cs.callsign;"
+ },
+ {
+  "id": 134,
+  "name": "What percentage of MRM traffic were locals?",
+  "display": "line",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-09 11:18:12.502311+00:00",
+  "sql": "-- Australia % of Total Airborne Time for YMML<->YSSY (Mondays 08:00-12:00 UTC, grouped by week)\nWITH filtered AS (\n    SELECT\n        date_trunc('week', completion_time AT TIME ZONE 'UTC')::date AS week_start_utc,\n        name,\n        time_online_minutes,\n        departure,\n        arrival\n    FROM flight_summaries\n    WHERE name IS NOT NULL\n        AND LENGTH(name) >= 4\n        AND time_online_minutes IS NOT NULL\n        AND time_online_minutes > 0\n        -- only Mondays in UTC\n        AND date_part('dow', completion_time AT TIME ZONE 'UTC') = 1\n        AND (completion_time AT TIME ZONE 'UTC')::time >= time '08:00'\n        AND (completion_time AT TIME ZONE 'UTC')::time <  time '12:00'\n        -- only flights between YMML and YSSY (either direction)\n        AND (\n            (departure = 'YMML' AND arrival = 'YSSY')\n            OR (departure = 'YSSY' AND arrival = 'YMML')\n        )\n)\nSELECT\n    week_start_utc,\n    SUM(CASE WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y' THEN time_online_minutes ELSE 0 END) AS australia_minutes,\n    SUM(time_online_minutes) AS total_minutes,\n    CASE\n        WHEN SUM(time_online_minutes) = 0 THEN 0\n        ELSE ROUND(100.0 * SUM(CASE WHEN SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y' THEN time_online_minutes ELSE 0 END) / SUM(time_online_minutes), 2)\n    END AS australia_percentage\nFROM filtered\nGROUP BY week_start_utc\nORDER BY week_start_utc DESC;"
+ },
+ {
+  "id": 135,
+  "name": "What are the most popular aircraft? (no. of pilots)",
+  "display": "pie",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-17 14:51:25.954996+00:00",
+  "sql": "-- Most Popular Aircraft Types by Unique Pilots\n-- \n-- This query finds which aircraft types are most popular based on\n-- the number of unique pilots who have flown them, including detailed statistics.\n--\n-- Usage:\n--   docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -f scripts/most_popular_aircraft_types.sql\n--\n\n-- Aircraft category summary only (detailed rankings removed)\n\n-- ============================================================================\n-- SUMMARY STATISTICS BY AIRCRAFT CATEGORY\n-- ============================================================================\n-- This section provides summary statistics grouped by aircraft categories\n\nWITH aircraft_categories AS (\n    SELECT \n        aircraft_type,\n        name,\n        cid,\n        total_enroute_time_minutes,\n        time_online_minutes,\n        controller_callsigns,\n        controller_time_percentage,\n        -- Categorize aircraft by type with more specific groupings\n        CASE \n            -- Airbus Family (Check first to avoid conflicts)\n            WHEN aircraft_type LIKE '%A320%' OR aircraft_type LIKE '%A321%' OR aircraft_type LIKE '%A319%' OR aircraft_type LIKE '%A20N%' OR aircraft_type = 'A20N' THEN 'Airbus A320 Family'\n            WHEN aircraft_type LIKE '%A350%' OR aircraft_type LIKE '%A35%' THEN 'Airbus A350 Family'\n            WHEN aircraft_type LIKE '%A330%' OR aircraft_type LIKE '%A33%' THEN 'Airbus A330 Family'\n            WHEN aircraft_type LIKE '%A380%' OR aircraft_type LIKE '%A38%' THEN 'Airbus A380 Family'\n            WHEN aircraft_type LIKE '%A21%' AND aircraft_type NOT LIKE '%A20N%' THEN 'Airbus A220 Family'\n            \n            -- Boeing Family\n            WHEN aircraft_type LIKE '%B738%' OR aircraft_type LIKE '%B737%' OR aircraft_type LIKE '%B38%' THEN 'Boeing 737 Family'\n            WHEN aircraft_type LIKE '%B788%' OR aircraft_type LIKE '%B789%' THEN 'Boeing 787 Family'\n            WHEN aircraft_type LIKE '%B77%' THEN 'Boeing 777 Family'\n            WHEN aircraft_type LIKE '%B74%' THEN 'Boeing 747 Family'\n            WHEN aircraft_type LIKE '%B76%' THEN 'Boeing 767 Family'\n            \n            -- Regional Jets\n            WHEN aircraft_type LIKE '%RJ%' OR aircraft_type LIKE '%CRJ%' OR aircraft_type LIKE '%ERJ%' THEN 'Regional Jets'\n            WHEN aircraft_type LIKE '%AT7%' OR aircraft_type LIKE '%ATR%' THEN 'ATR Turboprops'\n            WHEN aircraft_type LIKE '%DH8%' OR aircraft_type LIKE '%DHC%' THEN 'De Havilland Canada'\n            WHEN aircraft_type LIKE '%SF3%' OR aircraft_type LIKE '%SAAB%' THEN 'Saab Turboprops'\n            \n            -- Business Jets (Comprehensive Category)\n            WHEN aircraft_type LIKE '%C750%' OR aircraft_type LIKE '%C700%' OR aircraft_type LIKE '%C680%' OR aircraft_type LIKE '%CIT%' OR aircraft_type LIKE '%C%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%PC12%' OR aircraft_type LIKE '%PC24%' OR aircraft_type LIKE '%PC21%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%GULF%' OR aircraft_type LIKE '%G550%' OR aircraft_type LIKE '%G650%' OR aircraft_type LIKE '%GLF%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%FALC%' OR aircraft_type LIKE '%FA50%' OR aircraft_type LIKE '%FA900%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%LEAR%' OR aircraft_type LIKE '%LJ%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%HAWK%' OR aircraft_type LIKE '%HS%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%CHALL%' OR aircraft_type LIKE '%CL%' OR aircraft_type LIKE '%CL60%' THEN 'Business Jets'\n            WHEN aircraft_type LIKE '%TBM%' OR aircraft_type LIKE '%TBM9%' THEN 'Business Jets'\n            \n            -- General Aviation\n            WHEN aircraft_type LIKE '%C172%' OR aircraft_type LIKE '%C152%' OR aircraft_type LIKE '%C182%' OR aircraft_type LIKE '%C208%' OR aircraft_type LIKE '%C310%' OR aircraft_type LIKE '%C337%' OR aircraft_type LIKE '%C404%' THEN 'Cessna Props'\n            WHEN aircraft_type LIKE '%PA28%' OR aircraft_type LIKE '%PA32%' OR aircraft_type LIKE '%PA44%' THEN 'Piper Aircraft'\n            WHEN aircraft_type LIKE '%DA40%' OR aircraft_type LIKE '%DA42%' OR aircraft_type LIKE '%DA62%' THEN 'Diamond Aircraft'\n            WHEN aircraft_type LIKE '%BEECH%' OR aircraft_type LIKE '%BE%' OR aircraft_type LIKE '%BARON%' THEN 'Beechcraft Aircraft'\n            WHEN aircraft_type LIKE '%MOONEY%' OR aircraft_type LIKE '%M20%' THEN 'Mooney Aircraft'\n            \n            -- Military Aircraft (Comprehensive Category)\n            WHEN aircraft_type LIKE '%F%' AND aircraft_type ~ '^[A-Z][0-9]' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%F16%' OR aircraft_type LIKE '%F18%' OR aircraft_type LIKE '%F15%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%F35%' OR aircraft_type LIKE '%F22%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%F111%' OR aircraft_type LIKE '%F18S%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%C130%' OR aircraft_type LIKE '%C17%' OR aircraft_type LIKE '%C5%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%KC%' OR aircraft_type LIKE '%TANKER%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%P3%' OR aircraft_type LIKE '%P8%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%MIG%' OR aircraft_type LIKE '%SU%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%MIR%' OR aircraft_type LIKE '%MIRAGE%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%TOR%' OR aircraft_type LIKE '%TORNADO%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%HAR%' OR aircraft_type LIKE '%HARRIER%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%CH%' OR aircraft_type LIKE '%UH%' OR aircraft_type LIKE '%AH%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%H60%' OR aircraft_type LIKE '%UH60%' THEN 'Military Aircraft'\n            WHEN aircraft_type LIKE '%PTS%' OR aircraft_type LIKE '%PARATROOPER%' THEN 'Military Aircraft'\n            \n            -- Helicopters (Comprehensive Category)\n            WHEN aircraft_type LIKE '%H%' OR aircraft_type LIKE '%HELI%' OR aircraft_type LIKE '%ROTOR%' OR aircraft_type LIKE '%R%' OR aircraft_type LIKE '%ROBIN%' OR aircraft_type LIKE '%ROBINSON%' OR aircraft_type LIKE '%GYRO%' OR aircraft_type LIKE '%AUTO%' THEN 'Helicopters'\n            \n            -- Vintage/Classic Aircraft\n            WHEN aircraft_type LIKE '%DC3%' OR aircraft_type LIKE '%DC6%' OR aircraft_type LIKE '%DC9%' THEN 'Douglas Classic Aircraft'\n            WHEN aircraft_type LIKE '%CONC%' OR aircraft_type LIKE '%CONCORDE%' THEN 'Concorde'\n            WHEN aircraft_type LIKE '%SPIT%' OR aircraft_type LIKE '%MUSTANG%' OR aircraft_type LIKE '%WARBIRD%' THEN 'Warbirds'\n            \n            -- Special Purpose\n            WHEN aircraft_type LIKE '%GLID%' OR aircraft_type LIKE '%SAILPLANE%' THEN 'Gliders'\n            WHEN aircraft_type LIKE '%BALLOON%' OR aircraft_type LIKE '%AIRSHIP%' THEN 'Lighter Than Air'\n            \n            -- Additional Boeing Models (Already covered in main Boeing families)\n            -- All Boeing 737 variants now consolidated into Boeing 737 Family above\n            WHEN aircraft_type LIKE '%B58%' THEN 'Beechcraft Baron'\n            WHEN aircraft_type LIKE '%B350%' THEN 'Beechcraft King Air'\n            \n            -- Additional Airbus Models\n            WHEN aircraft_type LIKE '%A30%' AND aircraft_type NOT LIKE '%A20N%' THEN 'Airbus A300/A310'\n            WHEN aircraft_type LIKE '%A31%' THEN 'Airbus A310'\n            WHEN aircraft_type LIKE '%A32%' THEN 'Airbus A320 Variants'\n            WHEN aircraft_type LIKE '%A33%' THEN 'Airbus A330 Variants'\n            WHEN aircraft_type LIKE '%A34%' THEN 'Airbus A340 Variants'\n            WHEN aircraft_type LIKE '%A35%' THEN 'Airbus A350 Variants'\n            WHEN aircraft_type LIKE '%A38%' THEN 'Airbus A380 Variants'\n            WHEN aircraft_type LIKE '%A225%' THEN 'Antonov An-225'\n            \n            -- Embraer Aircraft\n            WHEN aircraft_type LIKE '%E1%' OR aircraft_type LIKE '%E2%' OR aircraft_type LIKE '%EMB%' THEN 'Embraer Regional Jets'\n            WHEN aircraft_type LIKE '%ERJ%' OR aircraft_type LIKE '%E17%' OR aircraft_type LIKE '%E19%' THEN 'Embraer ERJ Series'\n            \n            -- Bombardier Aircraft\n            WHEN aircraft_type LIKE '%CRJ%' OR aircraft_type LIKE '%CL%' THEN 'Bombardier Regional Jets'\n            WHEN aircraft_type LIKE '%Q%' OR aircraft_type LIKE '%DASH%' THEN 'Bombardier Q Series'\n            \n            -- Additional Regional Aircraft\n            WHEN aircraft_type LIKE '%ATR%' OR aircraft_type LIKE '%AT%' THEN 'ATR Turboprops'\n            WHEN aircraft_type LIKE '%FOKKER%' OR aircraft_type LIKE '%FK%' THEN 'Fokker Aircraft'\n            WHEN aircraft_type LIKE '%BAE%' OR aircraft_type LIKE '%AVRO%' THEN 'BAE Systems Aircraft'\n            \n            -- Additional Business Jets (Already covered in main Business Jets category)\n            \n            -- Additional General Aviation\n            WHEN aircraft_type LIKE '%CESS%' OR aircraft_type LIKE '%C%' THEN 'Cessna Aircraft'\n            WHEN aircraft_type LIKE '%PIPER%' OR aircraft_type LIKE '%PA%' THEN 'Piper Aircraft'\n            WHEN aircraft_type LIKE '%DIAM%' OR aircraft_type LIKE '%DA%' THEN 'Diamond Aircraft'\n            WHEN aircraft_type LIKE '%BEECH%' OR aircraft_type LIKE '%BE%' THEN 'Beechcraft Aircraft'\n            WHEN aircraft_type LIKE '%MOON%' OR aircraft_type LIKE '%M%' THEN 'Mooney Aircraft'\n            WHEN aircraft_type LIKE '%GRUMM%' OR (aircraft_type LIKE '%AA%' AND aircraft_type NOT LIKE '%A2%' AND aircraft_type NOT LIKE '%A3%' AND aircraft_type NOT LIKE '%A4%' AND aircraft_type NOT LIKE '%A5%' AND aircraft_type NOT LIKE '%A6%' AND aircraft_type NOT LIKE '%A7%' AND aircraft_type NOT LIKE '%A8%') THEN 'Grumman Aircraft'\n            WHEN aircraft_type LIKE '%BELL%' OR aircraft_type LIKE '%BL%' THEN 'Bell Aircraft'\n            \n            -- Additional Military Aircraft (Already covered in main Military Aircraft category)\n            \n            -- Vintage/Classic Aircraft\n            WHEN aircraft_type LIKE '%DC%' THEN 'Douglas Classic Aircraft'\n            WHEN aircraft_type LIKE '%CONC%' OR aircraft_type LIKE '%CONCORDE%' THEN 'Concorde'\n            WHEN aircraft_type LIKE '%SPIT%' OR aircraft_type LIKE '%MUSTANG%' OR aircraft_type LIKE '%WARBIRD%' THEN 'Warbirds'\n            WHEN aircraft_type LIKE '%LOCK%' OR aircraft_type LIKE '%L%' THEN 'Lockheed Classic Aircraft'\n            WHEN aircraft_type LIKE '%BOE%' THEN 'Boeing Classic Aircraft'\n            \n            -- Experimental and Homebuilt\n            WHEN aircraft_type LIKE '%EXP%' OR aircraft_type LIKE '%HOME%' OR aircraft_type LIKE '%BUILT%' THEN 'Experimental Aircraft'\n            WHEN aircraft_type LIKE '%ULTR%' OR aircraft_type LIKE '%LIGHT%' THEN 'Ultralight Aircraft'\n            \n            -- Agricultural and Utility\n            WHEN aircraft_type LIKE '%AG%' OR aircraft_type LIKE '%CROP%' OR aircraft_type LIKE '%DUST%' THEN 'Agricultural Aircraft'\n            WHEN aircraft_type LIKE '%UTIL%' OR aircraft_type LIKE '%UTILITY%' THEN 'Utility Aircraft'\n            WHEN aircraft_type LIKE '%CARGO%' OR aircraft_type LIKE '%FREIGHT%' THEN 'Cargo Aircraft'\n            \n            -- Seaplanes and Amphibious\n            WHEN aircraft_type LIKE '%SEA%' OR aircraft_type LIKE '%FLOAT%' OR aircraft_type LIKE '%AMPH%' THEN 'Seaplanes'\n            \n            -- Gliders and Sailplanes\n            WHEN aircraft_type LIKE '%GLID%' OR aircraft_type LIKE '%SAIL%' OR aircraft_type LIKE '%SOAR%' THEN 'Gliders'\n            \n            -- Lighter Than Air\n            WHEN aircraft_type LIKE '%BALLOON%' OR aircraft_type LIKE '%AIRSHIP%' OR aircraft_type LIKE '%BLIMP%' THEN 'Lighter Than Air'\n            \n            -- Specific Aircraft Models (Exact Matches)\n            WHEN aircraft_type = '172' OR aircraft_type = 'C172' THEN 'Cessna 172'\n            WHEN aircraft_type = 'C152' THEN 'Cessna 152'\n            WHEN aircraft_type = 'C182' THEN 'Cessna 182'\n            WHEN aircraft_type = 'C208' THEN 'Cessna Caravan'\n            WHEN aircraft_type = 'C25C' THEN 'Cessna Citation'\n            WHEN aircraft_type = 'C310' THEN 'Cessna 310'\n            WHEN aircraft_type = 'C337' THEN 'Cessna Skymaster'\n            WHEN aircraft_type = 'C404' THEN 'Cessna 404'\n            WHEN aircraft_type = 'C510' THEN 'Cessna Citation Mustang'\n            WHEN aircraft_type = 'C56X' THEN 'Cessna Citation Excel'\n            WHEN aircraft_type = 'C700' THEN 'Cessna Citation Longitude'\n            WHEN aircraft_type = 'C750' THEN 'Cessna Citation X'\n            WHEN aircraft_type = 'CL60' THEN 'Bombardier Challenger'\n            WHEN aircraft_type = 'P28A' THEN 'Piper PA-28'\n            WHEN aircraft_type = 'PA24' THEN 'Piper PA-24'\n            WHEN aircraft_type = 'PA44' THEN 'Piper PA-44'\n            WHEN aircraft_type = 'DA40' THEN 'Diamond DA40'\n            WHEN aircraft_type = 'DA42' THEN 'Diamond DA42'\n            WHEN aircraft_type = 'DA50' THEN 'Diamond DA50'\n            WHEN aircraft_type = 'DA62' THEN 'Diamond DA62'\n            WHEN aircraft_type = 'BE10' THEN 'Beechcraft King Air'\n            WHEN aircraft_type = 'BE36' THEN 'Beechcraft Bonanza'\n            WHEN aircraft_type = 'BE58' THEN 'Beechcraft Baron'\n            WHEN aircraft_type = 'BE9L' THEN 'Beechcraft King Air'\n            WHEN aircraft_type = 'PC12' THEN 'Pilatus PC-12'\n            WHEN aircraft_type = 'PC21' THEN 'Pilatus PC-21'\n            WHEN aircraft_type = 'PC24' THEN 'Pilatus PC-24'\n            WHEN aircraft_type = 'TBM9' THEN 'TBM TBM-900'\n            WHEN aircraft_type = 'SR22' THEN 'Cirrus SR22'\n            WHEN aircraft_type = 'MXS' THEN 'MX Aircraft MXS'\n            WHEN aircraft_type = 'S22T' THEN 'Cirrus SR22T'\n            WHEN aircraft_type = 'SW4' THEN 'Fairchild Swearingen'\n            WHEN aircraft_type = 'L410' THEN 'Let L-410'\n            WHEN aircraft_type = 'SF34' THEN 'Saab 340'\n            WHEN aircraft_type = 'SF50' THEN 'Cirrus Vision SF50'\n            WHEN aircraft_type = 'E190' THEN 'Embraer E190'\n            WHEN aircraft_type = 'E300' THEN 'Embraer E300'\n            WHEN aircraft_type = 'E50P' THEN 'Embraer Phenom'\n            WHEN aircraft_type = 'EC45' THEN 'Eurocopter EC145'\n            WHEN aircraft_type = 'AS50' THEN 'Eurocopter AS350'\n            WHEN aircraft_type = 'H60' THEN 'Sikorsky H-60'\n            WHEN aircraft_type = 'UH60' THEN 'Sikorsky UH-60'\n            WHEN aircraft_type = 'F111' THEN 'General Dynamics F-111'\n            WHEN aircraft_type = 'F18S' THEN 'McDonnell Douglas F-18'\n            WHEN aircraft_type = 'F35' THEN 'Lockheed Martin F-35'\n            WHEN aircraft_type = 'GLF6' THEN 'Gulfstream G650'\n            WHEN aircraft_type = 'CONC' THEN 'Concorde'\n            WHEN aircraft_type = 'PTS1' THEN 'Paratrooper Aircraft'\n            WHEN aircraft_type = 'RJ70' THEN 'Avro RJ70'\n            WHEN aircraft_type = 'P8' THEN 'Boeing P-8 Poseidon'\n            WHEN aircraft_type = 'A225' THEN 'Antonov An-225'\n            \n            ELSE 'Other Aircraft'\n        END as aircraft_category\n    FROM flight_summaries\n    WHERE aircraft_type IS NOT NULL \n        AND aircraft_type != ''\n        AND total_enroute_time_minutes > 0\n        AND completion_time >= NOW() - INTERVAL '6 months'\n),\ncategory_stats AS (\n    SELECT \n        aircraft_category,\n        COUNT(*) as total_flights,\n        COUNT(DISTINCT aircraft_type) as unique_aircraft_types,\n        ROUND(AVG(total_enroute_time_minutes), 1) as avg_flight_duration_minutes,\n        ROUND(AVG(time_online_minutes), 1) as avg_time_online_minutes,\n        ROUND(\n            (COUNT(CASE WHEN controller_callsigns IS NOT NULL AND jsonb_typeof(controller_callsigns) = 'object' AND controller_callsigns != '{}' THEN 1 END)::numeric / COUNT(*)) * 100, 1\n        ) as percent_with_controllers,\n        ROUND(AVG(total_enroute_time_minutes::numeric / NULLIF(time_online_minutes, 0)), 2) as avg_efficiency_ratio\n    FROM aircraft_categories\n    GROUP BY aircraft_category\n)\nSELECT \n    aircraft_category as type,\n    COUNT(DISTINCT cid) as unique_pilots,\n    ROUND(AVG(controller_time_percentage), 1) || '%' as avg_time_with_atc\nFROM aircraft_categories\nGROUP BY aircraft_category\nORDER BY COUNT(DISTINCT cid) DESC;"
+ },
+ {
+  "id": 136,
+  "name": "Which airport had the least movements (last 30 days)?",
+  "display": "table",
+  "archived": true,
+  "qtype": "native",
+  "updated": "2025-09-17 22:55:21.913845+00:00",
+  "sql": "SELECT \n    airport,\n    SUM(departures) as departures,\n    SUM(arrivals) as arrivals,\n    SUM(departures + arrivals) as total_movements\nFROM (\n    SELECT \n        departure as airport,\n        COUNT(*) as departures,\n        0 as arrivals\n    FROM flight_summaries \n    WHERE departure IS NOT NULL \n        AND departure != ''\n        AND departure LIKE 'Y%'\n        AND completion_time >= NOW() - INTERVAL '1 month'\n    GROUP BY departure\n    \n    UNION ALL\n    \n    SELECT \n        arrival as airport,\n        0 as departures,\n        COUNT(*) as arrivals\n    FROM flight_summaries \n    WHERE arrival IS NOT NULL \n        AND arrival != ''\n        AND arrival LIKE 'Y%'\n        AND completion_time >= NOW() - INTERVAL '1 month'\n    GROUP BY arrival\n) movements\nGROUP BY airport\nHAVING SUM(departures + arrivals) > 0\nORDER BY SUM(departures + arrivals) ASC\nLIMIT 20;"
+ },
+ {
+  "id": 137,
+  "name": "How many controllers were active in the last 30 days?",
+  "display": "line",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-19 09:55:52.124905+00:00",
+  "sql": "WITH weekly_periods AS (\n  SELECT \n    date_trunc('week', generate_series(\n      (SELECT MIN(session_start_time) FROM controller_summaries),\n      (SELECT MAX(session_start_time) FROM controller_summaries),\n      '1 week'::interval\n    )) AS week_start,\n    date_trunc('week', generate_series(\n      (SELECT MIN(session_start_time) FROM controller_summaries),\n      (SELECT MAX(session_start_time) FROM controller_summaries),\n      '1 week'::interval\n    )) + '1 week'::interval AS week_end\n),\nweekly_controller_counts AS (\n  SELECT \n    wp.week_start,\n    wp.week_end,\n    COUNT(DISTINCT cs.cid) AS distinct_controllers_30day\n  FROM weekly_periods wp\n  LEFT JOIN controller_summaries cs ON cs.session_start_time >= (wp.week_end - '30 days'::interval) \n                                    AND cs.session_start_time < wp.week_end\n  WHERE cs.session_duration_minutes > 60\n  GROUP BY wp.week_start, wp.week_end\n  ORDER BY wp.week_start\n)\nSELECT \n  week_start AS date,\n  distinct_controllers_30day AS controllers\nFROM weekly_controller_counts\nWHERE distinct_controllers_30day > 0\nORDER BY week_start;"
+ },
+ {
+  "id": 138,
+  "name": "departure boards",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-21 20:30:49.295810+00:00",
+  "sql": "-- SYDNEY AIRPORT DEPARTURES BOARD FOR METABASE\n-- =============================================\n-- This query is optimized for Metabase display\n-- Shows current flight status, aircraft types, destinations, and summary statistics\n\nWITH latest_flights AS (\n    SELECT DISTINCT ON (callsign)\n        callsign,\n        name,\n        departure,\n        arrival,\n        aircraft_type,\n        groundspeed,\n        altitude,\n        last_updated,\n        deptime,\n        flight_rules,\n        CASE \n            WHEN groundspeed > 100 THEN 'DEPARTED'\n            WHEN groundspeed > 0 AND groundspeed <= 100 THEN 'TAXIING'\n            WHEN groundspeed = 0 AND altitude < 100 THEN 'AT GATE'\n            WHEN groundspeed = 0 AND altitude >= 100 THEN 'BOARDING'\n            ELSE 'UNKNOWN'\n        END as status,\n        CASE \n            WHEN groundspeed > 100 THEN 'D'\n            WHEN groundspeed > 0 AND groundspeed <= 100 THEN 'T'\n            WHEN groundspeed = 0 AND altitude < 100 THEN 'G'\n            WHEN groundspeed = 0 AND altitude >= 100 THEN 'B'\n            ELSE '?'\n        END as status_icon\n    FROM flights \n    WHERE departure = 'YSSY' \n        AND DATE(last_updated) = CURRENT_DATE\n        AND last_updated >= '2025-09-21 09:00:00+00'\n    ORDER BY callsign, last_updated DESC\n),\nboard_data AS (\n    SELECT \n        callsign,\n        arrival,\n        COALESCE(aircraft_type, 'N/A') as aircraft_type,\n        status_icon || ' ' || status as status_display,\n        COALESCE(deptime, 'N/A') as scheduled_departure,\n        groundspeed,\n        altitude,\n        COALESCE(flight_rules, 'N/A') as flight_rules,\n        last_updated,\n        'A' || LPAD((ROW_NUMBER() OVER (ORDER BY callsign))::TEXT, 2, '0') as gate,\n        CASE \n            WHEN groundspeed > 100 THEN 'DEPARTED'\n            WHEN groundspeed > 0 AND groundspeed <= 100 THEN 'TAXIING'\n            WHEN groundspeed = 0 AND altitude < 100 THEN 'AT GATE'\n            WHEN groundspeed = 0 AND altitude >= 100 THEN 'BOARDING'\n            ELSE 'UNKNOWN'\n        END as status_clean\n    FROM latest_flights\n    ORDER BY \n        CASE \n            WHEN groundspeed > 100 THEN 4\n            WHEN groundspeed > 0 AND groundspeed <= 100 THEN 3\n            WHEN groundspeed = 0 AND altitude >= 100 THEN 2\n            WHEN groundspeed = 0 AND altitude < 100 THEN 1\n            ELSE 5\n        END,\n        last_updated DESC\n    LIMIT 25\n)\nSELECT \n    callsign as \"Flight\",\n    arrival as \"Destination\",\n    gate as \"Gate\",\n    status_clean as \"Status\",\n    scheduled_departure as \"Scheduled\",\n    'ON TIME' as \"Delay\",\n    groundspeed as \"Speed (kts)\",\n    altitude as \"Altitude (ft)\",\n    flight_rules as \"Rules\",\n    aircraft_type as \"Aircraft\",\n    last_updated as \"Last Update\"\nFROM board_data\nORDER BY \n    CASE status_clean\n        WHEN 'AT GATE' THEN 1\n        WHEN 'BOARDING' THEN 2\n        WHEN 'TAXIING' THEN 3\n        WHEN 'DEPARTED' THEN 4\n        ELSE 5\n    END,\n    last_updated DESC;"
+ },
+ {
+  "id": 139,
+  "name": "How healthy is enrichment last 24 hours?",
+  "display": "table",
+  "archived": false,
+  "qtype": "native",
+  "updated": "2025-09-21 20:55:55.870821+00:00",
+  "sql": "-- Metabase Database Health Monitoring Query\nSELECT \n    'flight_summaries' as table_name,\n    COUNT(*) as total_records,\n    COUNT(CASE WHEN enrichment_last_error IS NOT NULL THEN 1 END) as error_count,\n    ROUND(COUNT(CASE WHEN enrichment_last_error IS NOT NULL THEN 1 END) * 100.0 / COUNT(*), 2) as error_percentage,\n    MAX(updated_at) as last_update,\n    CURRENT_TIMESTAMP as check_time\nFROM flight_summaries \nWHERE updated_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'\n\nUNION ALL\n\nSELECT \n    'controller_summaries',\n    COUNT(*),\n    COUNT(CASE WHEN enrichment_last_error IS NOT NULL THEN 1 END),\n    ROUND(COUNT(CASE WHEN enrichment_last_error IS NOT NULL THEN 1 END) * 100.0 / COUNT(*), 2),\n    MAX(updated_at),\n    CURRENT_TIMESTAMP\nFROM controller_summaries \nWHERE updated_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'\n"
+ }
+]
