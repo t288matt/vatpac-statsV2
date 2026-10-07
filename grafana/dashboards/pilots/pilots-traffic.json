@@ -1,0 +1,615 @@
+{
+  "uid": "vatpac-pilots-traffic",
+  "title": "Pilots: traffic and aircraft",
+  "tags": [
+    "vatpac",
+    "pilots"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "vatpac"
+        },
+        "definition": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "query": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Data since",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Most popular international routes (last 30 days)",
+      "description": "v1 card 45. Top 10 departure-arrival pairs where either end is outside the home region (home prefixes from app_setting home_icao_prefixes). Flights with unknown (ZZZZ) ends and same-airport circuits are excluded.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 2,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT route_label AS route, departure, arrival, count(*) AS flights, count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.departure <> f.arrival\n  AND NOT f.is_zzzz\n  AND NOT (f.dep_is_home AND f.arr_is_home)\nGROUP BY route_label, departure, arrival\nORDER BY flights DESC, route\nLIMIT 10"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Most popular domestic routes (last 30 days)",
+      "description": "v1 card 97. Top 10 departure-arrival pairs where both ends are in the home region. Same-airport circuits and ZZZZ are excluded.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 2,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT route_label AS route, departure, arrival, count(*) AS flights, count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.departure <> f.arrival\n  AND NOT f.is_zzzz\n  AND f.dep_is_home AND f.arr_is_home\nGROUP BY route_label, departure, arrival\nORDER BY flights DESC, route\nLIMIT 10"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Most popular VFR routes (last 30 days)",
+      "description": "v1 card 59. VFR flights (flight rules V) between two different airports, routes flown by at least 3 distinct pilots. Changed from v1: counts distinct CIDs (v1 counted callsigns) and drops the average ATC contact percentage, which depended on frequency matching.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT route_label AS route,\n       count(DISTINCT cid) AS pilots,\n       count(*) AS flights,\n       round(avg(duration_minutes)::numeric, 1) AS \"Average duration (min)\",\n       min(end_time) AS \"First flight\",\n       max(end_time) AS \"Latest flight\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.flight_rules = 'V'\n  AND f.departure <> f.arrival\n  AND NOT f.is_zzzz\nGROUP BY route_label\nHAVING count(DISTINCT cid) >= 3\nORDER BY pilots DESC, flights DESC\nLIMIT 10"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Pilots with the most diverse routes (last 14 days)",
+      "description": "v1 card 46. Pilots ranked by number of distinct departure-arrival pairs, flights longer than 60 minutes only. Pilot name as shown on the network.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 11,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (array_agg(f.name ORDER BY f.end_time DESC))[1] AS pilot,\n       count(DISTINCT route_label) AS unique_routes,\n       count(*) AS total_flights\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.duration_minutes > 60\n  AND NOT f.is_zzzz\nGROUP BY f.cid\nORDER BY unique_routes DESC, total_flights DESC\nLIMIT 10"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "14d"
+    },
+    {
+      "id": 6,
+      "type": "barchart",
+      "title": "Busiest home-region airports (last 30 days)",
+      "description": "v1 card 55. Departures and arrivals at home-region airports (from the movements view), top 10 by total movements. Departures are counted at flight start, arrivals at flight end.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT airport,\n       count(*) FILTER (WHERE movement_type = 'departure') AS departures,\n       count(*) FILTER (WHERE movement_type = 'arrival') AS arrivals\nFROM movements\nWHERE movement_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY airport\nORDER BY count(*) DESC, airport\nLIMIT 10"
+        }
+      ],
+      "options": {
+        "xField": "airport",
+        "stacking": "normal",
+        "showValue": "auto",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Quietest home-region airports (last 30 days)",
+      "description": "Screenshot-only chart ('Which airport had the least movements'). The 20 home-region airports with the fewest movements; every airport with at least one movement appears.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT airport,\n       count(*) FILTER (WHERE movement_type = 'departure') AS departures,\n       count(*) FILTER (WHERE movement_type = 'arrival') AS arrivals,\n       count(*) AS total_movements\nFROM movements\nWHERE movement_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY airport\nORDER BY total_movements, airport\nLIMIT 20"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "barchart",
+      "title": "Most popular airlines (last 30 days)",
+      "description": "v1 card 58. Callsign prefix (three letters followed by a digit, so private registrations such as VHABC are not counted as airlines) mapped to a name through the airline lookup. Top 10 by flights. Changed from v1, which took the first three characters of every callsign.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(airline_name, airline_prefix) AS airline,\n       count(*) AS flights,\n       count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND airline_prefix IS NOT NULL\nGROUP BY airline_prefix, airline_name\nORDER BY flights DESC, pilots DESC\nLIMIT 10"
+        }
+      ],
+      "options": {
+        "xField": "airline",
+        "showValue": "auto",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Most popular callsigns (last 30 days)",
+      "description": "v1 card 57. Callsign and route flown by at least 2 distinct pilots, top 10 by distinct pilots then flights.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 29,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT callsign, departure, arrival,\n       count(DISTINCT cid) AS unique_pilots,\n       count(*) AS total_flights\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY callsign, departure, arrival\nHAVING count(DISTINCT cid) >= 2\nORDER BY unique_pilots DESC, total_flights DESC\nLIMIT 10"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "piechart",
+      "title": "Most popular aircraft by flights (last 30 days)",
+      "description": "v1 card 90. Flights per aircraft category from the aircraft_type lookup (codes not in the lookup are 'Other / uncategorised'). Changed from v1: categories come from a lookup table instead of a LIKE ladder that mis-classified many types.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(aircraft_category, 'Other / uncategorised') AS category,\n       count(*) AS flights\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1\nORDER BY flights DESC"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^flights$/"
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "piechart",
+      "title": "Most popular aircraft by pilots (last 30 days)",
+      "description": "v1 card 135. Distinct pilots per aircraft category from the aircraft_type lookup. Same category change as the flights chart.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 38,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(aircraft_category, 'Other / uncategorised') AS category,\n       count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1\nORDER BY pilots DESC"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^pilots$/"
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Highest groundspeeds (last 7 days)",
+      "description": "v1 card 61. Peak groundspeed per callsign (top 20). Excludes military, supersonic, business jets, turboprops and regional jets using the aircraft_type lookup. Changed from v1: uses the maximum groundspeed stored on the session (capped at 700 kt on ingest) and the highest altitude reached, not the altitude at the moment of peak speed.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT callsign, pilot, aircraft_icao AS aircraft, departure, arrival,\n       max_gs_kt AS \"Peak groundspeed (kt)\", max_alt_ft AS \"Highest altitude (ft)\", end_time AS \"Flight ended\"\nFROM (\n  SELECT f.callsign, f.name AS pilot, f.aircraft_icao, f.departure, f.arrival, f.max_gs_kt, f.max_alt_ft, f.end_time,\n         row_number() OVER (PARTITION BY f.callsign ORDER BY f.max_gs_kt DESC, f.end_time DESC) AS rn\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.max_gs_kt IS NOT NULL\n    AND NOT f.is_military\n    AND COALESCE(f.aircraft_category, '') NOT IN ('Supersonic', 'Business jet', 'Turboprop', 'Regional jet')\n) ranked\nWHERE rn = 1\nORDER BY max_gs_kt DESC\nLIMIT 20"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "7d"
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Busiest days by flights (last 6 months)",
+      "description": "v1 card 128. The five UTC dates with the most flights (by flight start).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 58,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (f.start_time AT TIME ZONE 'UTC')::date AS flight_date,\n       trim(to_char(f.start_time AT TIME ZONE 'UTC', 'Day')) AS day_name,\n       count(*) AS total_flights\nFROM flight_ext f\nWHERE f.start_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1, 2\nORDER BY total_flights DESC, flight_date DESC\nLIMIT 5"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "180d"
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Busiest days by pilots online (last 6 months)",
+      "description": "v1 card 129. The five UTC dates with the most distinct pilots (by flight start).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 58,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (f.start_time AT TIME ZONE 'UTC')::date AS flight_date,\n       trim(to_char(f.start_time AT TIME ZONE 'UTC', 'Day')) AS day_name,\n       count(DISTINCT f.cid) AS unique_pilots\nFROM flight_ext f\nWHERE f.start_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1, 2\nORDER BY unique_pilots DESC, flight_date DESC\nLIMIT 5"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "180d"
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Flights with SELCAL in the remarks",
+      "description": "v1 card 103. Share of flights whose remarks contain 'SEL/', out of flights that have any remarks (same denominator as v1).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 65,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT round(100.0 * count(*) FILTER (WHERE f.has_selcal) / NULLIF(count(*), 0), 2) AS \"SELCAL (%)\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.has_remarks"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

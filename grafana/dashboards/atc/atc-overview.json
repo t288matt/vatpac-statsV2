@@ -1,0 +1,440 @@
+{
+  "uid": "vatpac-atc-overview",
+  "title": "ATC: controllers",
+  "tags": [
+    "vatpac",
+    "atc"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "vatpac"
+        },
+        "definition": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "query": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Data since",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Controllers online now",
+      "description": "v1 card 69. Whitelisted controllers in the newest snapshot (network_snapshot.controllers_in_region).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 2,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT controllers_in_region AS \"Controllers\" FROM network_history ORDER BY observed_at DESC LIMIT 1"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Controllers online over time",
+      "description": "Screenshot-only chart (controllers online over time). Whitelisted controllers per snapshot, averaged into buckets that follow the dashboard range.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 2,
+        "w": 20,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(observed_at, $__interval),\n       avg(controllers_in_region) AS \"Controllers\"\nFROM network_history\nWHERE $__timeFilter(observed_at)\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "interval": "1m"
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Controllers online now (list)",
+      "description": "Archived v1 card 67 ('Who's online?'), rebuilt from the controller sessions seen in the last two snapshots. Frequency shown in MHz.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT callsign, name, cid, rank_group AS rating, frequency_mhz AS \"Frequency (MHz)\",\n       logon_time AS \"Logged on\", hours_online AS \"Hours online\"\nFROM controller_online_now\nORDER BY callsign"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Controllers logged on (last 30 days)",
+      "description": "v1 card 115. Distinct controllers by rating group with more than 60 minutes online in total in the period. Observer and C2 ratings are left out, as in v1.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ranks(sort, rank_group) AS (VALUES (2, 'S1'), (3, 'S2'), (4, 'S3'), (5, 'C1'), (7, 'C3'), (8, 'I1+')),\nper_controller AS (\n  SELECT cid, rank_group, sum(duration_minutes) AS minutes\n  FROM controller_session_ranked\n  WHERE session_start BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY cid, rank_group\n  HAVING sum(duration_minutes) > 60\n)\nSELECT r.rank_group, count(p.cid) AS controllers\nFROM ranks r\nLEFT JOIN per_controller p ON p.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
+        }
+      ],
+      "options": {
+        "xField": "rank_group",
+        "showValue": "always",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "barchart",
+      "title": "Controllers logged on (last 3 months)",
+      "description": "v1 card 116. As the 30-day chart, over 3 months.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ranks(sort, rank_group) AS (VALUES (2, 'S1'), (3, 'S2'), (4, 'S3'), (5, 'C1'), (7, 'C3'), (8, 'I1+')),\nper_controller AS (\n  SELECT cid, rank_group, sum(duration_minutes) AS minutes\n  FROM controller_session_ranked\n  WHERE session_start BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY cid, rank_group\n  HAVING sum(duration_minutes) > 60\n)\nSELECT r.rank_group, count(p.cid) AS controllers\nFROM ranks r\nLEFT JOIN per_controller p ON p.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
+        }
+      ],
+      "options": {
+        "xField": "rank_group",
+        "showValue": "always",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "3M"
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "CTR and FSS controllers active (rolling 30 days, weekly)",
+      "description": "v1 card 63. For each week, distinct controllers who started a CTR or FSS session of more than 60 minutes in the 30 days up to the end of that week. The v1 chart plotted weeks with zero as gaps; zeros are drawn here.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT w.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM generate_series(\n       date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n       date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC'),\n       interval '1 week') AS w(week_start)\nLEFT JOIN controller_session_ranked s\n       ON s.session_start >= (w.week_start + interval '1 week' - interval '30 days') AT TIME ZONE 'UTC'\n      AND s.session_start <  (w.week_start + interval '1 week') AT TIME ZONE 'UTC'\n      AND s.duration_minutes > 60\n      AND s.is_ctr_fss\nGROUP BY w.week_start\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "180d"
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Controllers active (rolling 30 days, weekly)",
+      "description": "v1 card 137. As the CTR/FSS chart, for all positions.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT w.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM generate_series(\n       date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n       date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC'),\n       interval '1 week') AS w(week_start)\nLEFT JOIN controller_session_ranked s\n       ON s.session_start >= (w.week_start + interval '1 week' - interval '30 days') AT TIME ZONE 'UTC'\n      AND s.session_start <  (w.week_start + interval '1 week') AT TIME ZONE 'UTC'\n      AND s.duration_minutes > 60\n      \nGROUP BY w.week_start\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "180d"
+    },
+    {
+      "id": 9,
+      "type": "barchart",
+      "title": "Top 50 service providers (last 30 days)",
+      "description": "v1 card 108. Controllers ranked by hours online. Changed from v1: the score is hours online only (v1 added 5 points per hour to aircraft handled, which depended on frequency matching).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 24,
+        "h": 14
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (array_agg(name ORDER BY session_start DESC))[1] AS controller,\n       round((sum(duration_minutes) / 60.0)::numeric, 1) AS \"Hours online\"\nFROM controller_session_ranked\nWHERE session_start BETWEEN $__timeFrom() AND $__timeTo()\n  AND duration_minutes > 0\nGROUP BY cid\nORDER BY sum(duration_minutes) DESC\nLIMIT 50"
+        }
+      ],
+      "options": {
+        "xField": "controller",
+        "xTickLabelRotation": -45,
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "barchart",
+      "title": "Controllers with the shortest average session (last 30 days)",
+      "description": "UNVERIFIED. Screenshot-only chart ('Which controllers have the shortest avg session duration?'). The 15 controllers with the lowest average session length; the minimum of 3 sessions is an assumption because the v1 SQL was not recovered.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (array_agg(name ORDER BY session_start DESC))[1] AS controller,\n       round(avg(duration_minutes)::numeric, 1) AS \"Average session (minutes)\"\nFROM controller_session_ranked\nWHERE session_start BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY cid\nHAVING count(*) >= 3\nORDER BY avg(duration_minutes), cid\nLIMIT 15"
+        }
+      ],
+      "options": {
+        "xField": "controller",
+        "xTickLabelRotation": -45,
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ]
+}

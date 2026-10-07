@@ -1,0 +1,358 @@
+{
+  "uid": "vatpac-demographics",
+  "title": "Demographics: pilot origins and cohorts",
+  "tags": [
+    "vatpac",
+    "demographics"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "vatpac"
+        },
+        "definition": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "query": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Data since",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+      }
+    },
+    {
+      "id": 2,
+      "type": "piechart",
+      "title": "Where pilots currently online come from",
+      "description": "v1 card 99. Home region of pilots online now, from the ICAO code at the end of the pilot's name and the region_map lookup. Changed from v1: unmapped or missing codes appear as 'Unknown' instead of being dropped, and there is no top-6 cut.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 2,
+        "w": 8,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT region, count(DISTINCT cid) AS pilots\nFROM pilot_online_now\nGROUP BY region\nORDER BY pilots DESC"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^pilots$/"
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "piechart",
+      "title": "Who flies most in Australian airspace: flights by home region (last 30 days)",
+      "description": "v1 card 100. Flights per pilot home region. Changed from v1: counts flights (sessions) instead of distinct callsign-and-date pairs; includes 'Unknown'.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 2,
+        "w": 8,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT pilot_region AS region, count(*) AS flights\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY pilot_region\nORDER BY flights DESC"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^flights$/"
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "piechart",
+      "title": "Who spends most time in Australian airspace: airborne hours by home region (last 30 days)",
+      "description": "v1 card 101. Airborne hours per pilot home region (v1 used total time online). Includes 'Unknown'.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 2,
+        "w": 8,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT pilot_region AS region, round((sum(airborne_minutes) / 60.0)::numeric, 1) AS hours\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND airborne_minutes > 0\nGROUP BY pilot_region\nORDER BY hours DESC"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^hours$/"
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Flights by joining cohort (CID range, last 30 days)",
+      "description": "v1 card 76. Flights and distinct pilots grouped by CID in blocks of 100,000 (a rough proxy for when the pilot joined the network). CIDs below 100,000 are excluded, as in v1.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 16,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT cohort,\n       count(*) AS flights,\n       count(DISTINCT cid) AS pilots\nFROM cohorts\nWHERE end_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY cid_group, cohort\nORDER BY cid_group"
+        }
+      ],
+      "options": {
+        "xField": "cohort",
+        "showValue": "auto",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "piechart",
+      "title": "Servers used by home-region pilots (last 24 hours)",
+      "description": "v1 card 40. Distinct home-region pilots by network server (home region taken from the ICAO code in the pilot's name and the home prefix setting).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 12,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(server, 'Unknown') AS server, count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.pilot_is_local\nGROUP BY 1\nORDER BY pilots DESC"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^pilots$/"
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "24h"
+    },
+    {
+      "id": 7,
+      "type": "barchart",
+      "title": "Active pilots and controllers (last 90 days, log scale)",
+      "description": "v1 card 93. Distinct pilots with at least 30 minutes airborne in a flight, and distinct controllers with sessions of at least 30 minutes by rating group. Log scale, as in v1. Changed from v1: pilots use airborne minutes (v1 used enroute minutes).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT label, people FROM (\n  SELECT 0 AS sort, 'Pilots' AS label, count(DISTINCT f.cid) AS people\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.airborne_minutes >= 30\n  UNION ALL\n  SELECT CASE c.rank_group WHEN 'OBS' THEN 1 WHEN 'S1' THEN 2 WHEN 'S2' THEN 3 WHEN 'S3' THEN 4 WHEN 'C1' THEN 5\n                           WHEN 'C2' THEN 6 WHEN 'C3' THEN 7 WHEN 'I1+' THEN 8 ELSE 9 END,\n         c.rank_group, count(DISTINCT c.cid)\n  FROM controller_session_ranked c\n  WHERE c.session_start BETWEEN $__timeFrom() AND $__timeTo()\n    AND c.duration_minutes >= 30\n  GROUP BY c.rank_group\n) x\nORDER BY sort"
+        }
+      ],
+      "options": {
+        "xField": "label",
+        "showValue": "always",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "scaleDistribution": {
+              "type": "log",
+              "log": 10
+            }
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "90d"
+    }
+  ]
+}

@@ -1,0 +1,221 @@
+# VATPAC Stats v3 stack. SPEC.md section 9 is authoritative.
+# Secrets come only from .env (git-ignored). Copy .env.example to .env first.
+# Image tags are pinned; confirm each by pulling before first deploy.
+name: vatpac
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  db:
+    image: postgres:16.4-bookworm
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 2g
+    shm_size: 256mb
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vatpac}
+      POSTGRES_USER: ${POSTGRES_USER:-vatpac}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./ops/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    networks: [vatpac]
+
+  migrate:
+    build:
+      context: ./ops/migrate
+    image: vatpac-stats-migrate:local
+    restart: "no"
+    logging: *logging
+    mem_limit: 256m
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vatpac}
+      POSTGRES_USER: ${POSTGRES_USER:-vatpac}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      GRAFANA_RO_PASSWORD: ${GRAFANA_RO_PASSWORD:?set GRAFANA_RO_PASSWORD in .env}
+      WATCHDOG_DB_PASSWORD: ${WATCHDOG_DB_PASSWORD:?set WATCHDOG_DB_PASSWORD in .env}
+    volumes:
+      - ./db:/db:ro
+    networks: [vatpac]
+
+  collector:
+    build:
+      context: .
+      dockerfile: collector/Dockerfile
+      args:
+        VERSION: ${VATPAC_VERSION:-dev}
+    image: vatpac-stats-collector:local
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 512m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vatpac}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vatpac}
+      VATSIM_FEED_URL: ${VATSIM_FEED_URL:-https://data.vatsim.net/v3/vatsim-data.json}
+      VATSIM_STATUS_URL: ${VATSIM_STATUS_URL:-https://status.vatsim.net/status.json}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-15}
+      HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-10}
+      POSITION_RETENTION_DAYS: ${POSITION_RETENTION_DAYS:-90}
+      AIRBORNE_GAP_CAP_SECONDS: ${AIRBORNE_GAP_CAP_SECONDS:-40}
+      HOME_ICAO_PREFIXES: ${HOME_ICAO_PREFIXES:-Y}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      HEALTH_PORT: ${HEALTH_PORT:-8080}
+    volumes:
+      - ./config:/app/config:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,urllib.request;urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('HEALTH_PORT','8080'), timeout=4)"
+      interval: 30s
+      timeout: 6s
+      retries: 3
+      start_period: 40s
+    networks: [vatpac]
+
+  grafana:
+    image: grafana/grafana-oss:11.2.2
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 512m
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3300/}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_DATE_FORMATS_DEFAULT_TIMEZONE: utc
+      # Referenced by the provisioned datasource as $${GRAFANA_RO_DB_PASSWORD}
+      GRAFANA_RO_DB_PASSWORD: ${GRAFANA_RO_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-vatpac}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "${GRAFANA_PORT:-3300}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 6s
+      retries: 3
+      start_period: 40s
+    networks: [vatpac]
+
+  backup:
+    build:
+      context: ./ops/backup
+    image: vatpac-stats-backup:local
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 256m
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-vatpac}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-vatpac}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_TIME_UTC: ${BACKUP_TIME_UTC:-02:00}
+      BACKUP_RESTORE_TEST_DAY: ${BACKUP_RESTORE_TEST_DAY:-7}
+    volumes:
+      - backups:/backups
+    networks: [vatpac]
+
+  watchdog:
+    build:
+      context: ./ops/watchdog
+    image: vatpac-stats-watchdog:local
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 128m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      # No Docker access: the watchdog checks HTTP health and the database and
+      # alerts only. Container restarts are handled outside this repo.
+      DOCKER_HOST_URL: ""
+      COMPOSE_PROJECT: vatpac
+      COLLECTOR_HEALTH_URL: http://collector:${HEALTH_PORT:-8080}/health
+      GRAFANA_HEALTH_URL: http://grafana:3000/api/health
+      DB_HOST: db
+      DB_NAME: ${POSTGRES_DB:-vatpac}
+      DB_USER: watchdog_ro
+      DB_PASSWORD: ${WATCHDOG_DB_PASSWORD}
+      BACKUP_DIR: /backups
+      STATUS_FILE: /var/watchdog/watchdog_status.json
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      UPTIME_KUMA_PUSH_URL: ${UPTIME_KUMA_PUSH_URL:-}
+      WATCHDOG_INTERVAL_SECONDS: ${WATCHDOG_INTERVAL_SECONDS:-60}
+      WATCHDOG_WARN_SECONDS: ${WATCHDOG_WARN_SECONDS:-60}
+      WATCHDOG_PAGE_SECONDS: ${WATCHDOG_PAGE_SECONDS:-300}
+      WATCHDOG_CONFIRM_CYCLES: ${WATCHDOG_CONFIRM_CYCLES:-2}
+      WATCHDOG_DISK_PCT: ${WATCHDOG_DISK_PCT:-80}
+      WATCHDOG_DB_MAX_GB: ${WATCHDOG_DB_MAX_GB:-20}
+      WATCHDOG_BACKUP_MAX_HOURS: ${WATCHDOG_BACKUP_MAX_HOURS:-26}
+    volumes:
+      - backups:/backups:ro
+      - watchdog_status:/var/watchdog
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,sys,time;sys.exit(0 if time.time()-os.path.getmtime('/var/watchdog/watchdog_status.json')<180 else 1)"
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    networks: [vatpac]
+
+networks:
+  vatpac:
+    name: vatpac
+
+volumes:
+  pgdata:
+  grafana_data:
+  backups:
+  watchdog_status:

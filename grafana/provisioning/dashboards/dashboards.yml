@@ -1,0 +1,14 @@
+apiVersion: 1
+
+# Loads every dashboard JSON under /var/lib/grafana/dashboards (mount ./grafana/dashboards there,
+# read-only). Each sub-directory becomes a Grafana folder: pilots -> "pilots", and so on.
+providers:
+  - name: vatpac
+    orgId: 1
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true

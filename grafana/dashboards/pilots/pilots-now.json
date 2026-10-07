@@ -1,0 +1,346 @@
+{
+  "uid": "vatpac-pilots-now",
+  "title": "Pilots: online now",
+  "tags": [
+    "vatpac",
+    "pilots"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "vatpac"
+        },
+        "definition": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "query": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "airport",
+        "type": "textbox",
+        "label": "Departure board airport",
+        "query": "YSSY",
+        "current": {
+          "text": "YSSY",
+          "value": "YSSY"
+        },
+        "hide": 0,
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Data since",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Pilots online now (in region)",
+      "description": "v1 card 68. Pilots inside the Australian boundary polygon in the newest snapshot (network_snapshot.pilots_in_region).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 2,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT pilots_in_region AS \"Pilots\" FROM network_history ORDER BY observed_at DESC LIMIT 1"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Pilots online now (network-wide)",
+      "description": "All pilots on the VATSIM network in the newest snapshot (network_snapshot.pilots_global). New panel; context for the in-region figure.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 2,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT pilots_global AS \"Pilots\" FROM network_history ORDER BY observed_at DESC LIMIT 1"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Pilots online over time",
+      "description": "Screenshot-only chart (pilots online over time). Pilots in region and network-wide per snapshot, averaged into buckets that follow the dashboard range.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 2,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(observed_at, $__interval),\n       avg(pilots_in_region) AS \"In region\",\n       avg(pilots_global) AS \"Network-wide\"\nFROM network_history\nWHERE $__timeFilter(observed_at)\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "interval": "1m"
+    },
+    {
+      "id": 5,
+      "type": "trend",
+      "title": "When are pilots and controllers online: weekdays (UTC, last 90 days)",
+      "description": "v1 card 94. Average number online by UTC hour of day, Monday to Friday, from snapshots. Changed from v1, which counted distinct sessions touching each hour (and used Sun/Mon/Sat as 'weekdays').",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT extract(hour FROM observed_at AT TIME ZONE 'UTC')::int AS hour_utc,\n       round(avg(pilots_in_region)::numeric, 1) AS \"Pilots\",\n       round(avg(controllers_in_region)::numeric, 1) AS \"Controllers\"\nFROM network_history\nWHERE $__timeFilter(observed_at)\n  AND extract(isodow FROM observed_at AT TIME ZONE 'UTC') BETWEEN 1 AND 5\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {
+        "xField": "hour_utc"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "90d"
+    },
+    {
+      "id": 6,
+      "type": "trend",
+      "title": "When are pilots and controllers online: weekends (UTC, last 90 days)",
+      "description": "v1 card 95. Average number online by UTC hour of day, Saturday and Sunday, from snapshots. Changed from v1 (session-overlap counts) to average concurrent users.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT extract(hour FROM observed_at AT TIME ZONE 'UTC')::int AS hour_utc,\n       round(avg(pilots_in_region)::numeric, 1) AS \"Pilots\",\n       round(avg(controllers_in_region)::numeric, 1) AS \"Controllers\"\nFROM network_history\nWHERE $__timeFilter(observed_at)\n  AND extract(isodow FROM observed_at AT TIME ZONE 'UTC') IN (6, 7)\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {
+        "xField": "hour_utc"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "90d"
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Departure board",
+      "description": "v1 card 138. Pilots whose flight plan departs the chosen airport (default YSSY) and who were seen in the last 3 hours, newest first within status. Changed from v1: no invented gate or 'ON TIME' columns; status is derived from ground speed (60 kt or more = airborne, the same threshold as airborne minutes).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 11
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT callsign AS \"Flight\",\n       COALESCE(arrival, 'N/A') AS \"Destination\",\n       status AS \"Status\",\n       COALESCE(deptime, 'N/A') AS \"Planned departure (UTC)\",\n       gs_kt AS \"Speed (kt)\",\n       alt_ft AS \"Altitude (ft)\",\n       COALESCE(flight_rules, 'N/A') AS \"Rules\",\n       COALESCE(aircraft_icao, 'N/A') AS \"Aircraft\",\n       last_seen AS \"Last seen\"\nFROM (\n  SELECT l.*,\n         CASE WHEN NOT l.is_online THEN 'LOGGED OFF'\n              WHEN l.gs_kt >= 60 THEN 'AIRBORNE'\n              WHEN l.gs_kt > 0 THEN 'TAXIING'\n              WHEN l.gs_kt = 0 THEN 'ON GROUND'\n              ELSE 'UNKNOWN' END AS status,\n         CASE WHEN NOT l.is_online THEN 5\n              WHEN l.gs_kt >= 60 THEN 4\n              WHEN l.gs_kt > 0 THEN 3\n              WHEN l.gs_kt = 0 THEN 1\n              ELSE 6 END AS status_rank\n  FROM pilot_latest l\n  WHERE l.departure = upper(btrim(${airport:sqlstring}))\n) b\nORDER BY status_rank, last_seen DESC\nLIMIT 25"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ]
+}
