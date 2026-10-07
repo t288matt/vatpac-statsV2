@@ -53,6 +53,9 @@ The first design computed `flight` live with window functions over every positio
 ## ADR-017 Least-privilege database roles (07-10-2026)
 The collector connects as `collector` (DML on its tables, EXECUTE on the maintenance functions, no DDL; the partition and refresh functions are SECURITY DEFINER), backups as `backup_ro` (`pg_read_all_data`), Grafana as `grafana_ro` (views and lookups, connection limit 10), the watchdog as `watchdog_ro`. The owner role is used by `migrate` and by restore only. Trade-off: the backup container still holds the owner password for the restore scripts; a dedicated restore role would be tighter.
 
+## ADR-018 Airport movements stay the same as v1 (07-10-2026)
+Owner decision: the movements charts keep v1's definition. Every flight-gate session counts as one departure at its departure airport and one arrival at its arrival airport, whether or not the aircraft ever became airborne. Evidence at the time: in v1's last full month (12-07 to 12-08-2026) 12% of home-region departures had zero airborne time and 6% were circuits, so the charts include parked connections. The `movements` view carries a SQL comment saying so. A later change (an airborne-only panel or definition) needs a new decision and an ADR.
+
 ## OPEN decisions for the owner
-- `movements` (airport movements charts) counts every flight-gate session, including people who connect and never move. Changing it to count only flights that became airborne would depart from "same as v1" (decision 11).
 - Names and CIDs are kept forever (ADR-009); no retention or anonymisation rule exists for old sessions or backups.
+- The backup container holds the owner password for the restore scripts (ADR-017); a dedicated restore-only role would be tighter.
