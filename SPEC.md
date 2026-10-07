@@ -60,6 +60,19 @@ Tables (final DDL lives in `db/migrations/`; this is the contract):
 ## 7. Collector layout (`collector/src/vatpac/`)
 `settings.py` (pydantic-settings; every variable documented, defaults, validation), `feed.py` (fetch, retry, conditional, discovery), `filters.py` (the three filters + reference loading + near-miss), `model.py` (typed dataclasses and parsing/plausibility), `store.py` (one transaction per snapshot, upserts, events, network_snapshot, poll_log), `maintenance.py` (partitions, retention, view refresh, poll_log trimming), `health.py` (aiohttp `/health` and `/metrics`), `main.py` (supervisor, signals). Budget: whole package under about 900 lines, no module over 300. One DB driver. Type-annotated, ruff + mypy clean.
 
+### Public interfaces (contract so QA can test independently of the builder)
+- `vatpac.errors.ReferenceDataError(Exception)`.
+- `vatpac.filters.load_polygon(path: str | Path) -> shapely.geometry.Polygon` (raises `ReferenceDataError` if missing, not a Polygon, ring not closed, or coordinates outside lon -180..180 / lat -90..90).
+- `vatpac.filters.inside_polygon(polygon, lat: float | None, lon: float | None) -> bool` (None for either coordinate returns True; edge points return False; shapely `contains`).
+- `vatpac.filters.load_whitelist(path: str | Path) -> frozenset[str]` (both line formats, `#` comments and blanks skipped, exact case-sensitive callsigns; raises `ReferenceDataError` if the file is missing, unreadable or yields zero callsigns).
+- `vatpac.filters.is_near_miss(callsign: str, whitelist: frozenset[str]) -> bool` (False if listed or if it ends with `_OBS`; True when the text before the first `_` equals the prefix of any whitelisted callsign).
+- `vatpac.model.parse_frequency_hz(text: str | None) -> int | None` ("121.700" -> 121700000; "199.998" -> None; None/invalid -> None).
+- `vatpac.model.home_icao(name: str | None) -> str | None` (trailing space-separated token of exactly 4 uppercase letters, else None).
+- `vatpac.model.clamp_pilot(gs: int | None, alt: int | None) -> tuple[int | None, int | None, int]` (out-of-range values become None; third item = number of rejected values).
+- `vatpac.model.parse_snapshot(payload: dict) -> Snapshot` where `Snapshot` has `observed_at: datetime` (from `general.update_timestamp`, UTC), `pilots: list[Pilot]`, `controllers: list[Controller]`, `pilots_global: int`, `controllers_global: int`; `Pilot` and `Controller` are frozen dataclasses with the feed fields in snake_case (`cid, name, callsign, server, logon_time, latitude, longitude, altitude, groundspeed, heading, departure, arrival, aircraft_icao, aircraft_faa, flight_rules, route, remarks, planned_alt, deptime, pilot_rating, military_rating`; controllers: `cid, name, callsign, frequency_text, facility, rating, server, visual_range, logon_time`).
+- `vatpac.settings.Settings` (pydantic-settings; env names as in `.env.example`).
+- `vatpac.store.apply_snapshot(conn, snapshot, polygon, whitelist, *, polygon_sha, whitelist_sha) -> ApplyResult` (single transaction; `ApplyResult` carries the counts written to `poll_log`).
+
 Upsert rules per snapshot (store.py):
 - Pilot inside polygon: upsert `pilot_session` on `(cid, callsign, logon_time)`: set `last_seen = observed_at`, update plan fields to latest non-null, `max_gs_kt/max_alt_ft = GREATEST`, then `INSERT INTO pilot_position ... ON CONFLICT DO NOTHING`.
 - Controller on whitelist: upsert `controller_session`; if `rating` changed insert `controller_rating_event`; if `frequency_hz` changed insert `controller_frequency_event` (first sighting also inserts both).
