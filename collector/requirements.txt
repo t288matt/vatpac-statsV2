@@ -3,5 +3,8 @@ httpx==0.28.1
 psycopg[binary]==3.3.6
 psycopg_pool==3.3.3
 shapely==2.2.0
+# numpy 2.x wheels need the x86-64-v2 CPU baseline; a default Proxmox/QEMU virtual CPU (kvm64/qemu64) lacks it
+# and the collector crash-loops with 'NumPy was built with baseline optimizations'. 1.26.x runs on any x86-64.
+numpy==1.26.4
 pydantic-settings==2.15.0
 aiohttp==3.14.4
