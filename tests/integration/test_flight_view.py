@@ -1,6 +1,6 @@
 """SPEC s4.3 / s5 / s6: the `flight` view (gate, normalisation, gap/span split, airborne minutes).
 
-UNEXECUTED (no Postgres was available when written). Sessions are inserted synthetically, so
+Run against a real PostgreSQL 16.4 on 07-10-2026 (all pass). Sessions are inserted synthetically, so
 these tests do not depend on the collector code. They DO assume the view exposes the columns
 named in SPEC s6 (airborne_minutes, sample_count, is_circuit, is_zzzz, touches_home_region) plus
 cid, departure and arrival. SPEC does not list the view's full column set (see tests/README.md).

@@ -1,4 +1,4 @@
-"""SPEC s6: `grafana_ro` has SELECT on views and lookups, nothing else. UNEXECUTED.
+"""SPEC s6: `grafana_ro` has SELECT on views and lookups, nothing else. Run against PostgreSQL 16.4 on 07-10-2026.
 
 Uses VATPAC_TEST_GRAFANA_RO_DSN if set; otherwise SET ROLE grafana_ro on the superuser connection.
 """

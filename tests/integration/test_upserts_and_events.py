@@ -1,4 +1,4 @@
-"""SPEC s7 upsert rules. UNEXECUTED (no Postgres was available when written)."""
+"""SPEC s7 upsert rules. Run against a real PostgreSQL 16.4 on 07-10-2026 (all pass)."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
