@@ -4,7 +4,7 @@ Every in-scope v1 chart and what replaced it, for the Grafana dashboards in `gra
 
 Status key: **KEPT** same question and definition (SQL rewritten against the v3 views); **CHANGED** same question, definition altered (see the difference column); **UNVERIFIED** the definition is the analytics agent's best reading and awaits the owner's Metabase export; **DROPPED** not rebuilt (reason given).
 
-Panels read views and lookups only: `flight`, `controller_session_merged`, `online_now` and `data_freshness` from migration `20261007000004_views.sql`, the rest from migration `20261007000010_analytics_views.sql` (kept in `grafana/views.sql` as the editable source). There is no backfill, so every chart starts empty at go-live.
+Panels read views and lookups only: `flight`, `controller_session_merged`, `online_now` and `data_freshness` from migration `20261007000004_views.sql`, the rest from migration `20261007000010_analytics_views.sql` (the `flight` view is now a thin view over the incrementally maintained `flight_summary` table, migration `20261007000020`). There is no backfill, so every chart starts empty at go-live.
 
 Verification on 07-10-2026: every panel query was run against the live local stack through Grafana's own API (`ops/check_panels.py`): 61 queries, 0 errors, 45 returned rows and 16 were empty because the data was only minutes old (no controllers online, no history for weekly or 30-day charts). They are also parsed with sqlglot and every column resolved against the view definitions (`grafana/validate_dashboards.py`, `grafana/check_columns.py`). "Runs without error" is not the same as "answers the question correctly": the Test column says what to check once enough data exists.
 

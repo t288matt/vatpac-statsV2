@@ -23,7 +23,7 @@ from .errors import FeedError, RateLimitedError, ReferenceDataError
 from .feed import FeedClient
 from .filters import ReferenceData, load_reference
 from .health import Stats, start_server
-from .maintenance import run_maintenance
+from .maintenance import FLIGHT_REFRESH_INTERVAL_S, refresh_flights, run_maintenance
 from .model import Snapshot, parse_snapshot, update_timestamp
 from .settings import Settings
 from .store import ApplyResult, apply_snapshot, record_reference_change, write_poll_log
@@ -33,6 +33,10 @@ _STD_ATTRS = set(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
 UNCHANGED_RETRY_S = 2.0
 MAINTENANCE_INTERVAL_S = 86_400.0
 MAINTENANCE_RETRY_S = 60.0
+APPLY_TIMEOUT_S = 25.0
+MAX_MALFORMED_FRACTION, MIN_WHITELIST_FRACTION = 0.2, 0.7
+# fail fast on a stuck statement or lock; Collector._maintain raises statement_timeout for its own session
+DB_OPTIONS = "-c statement_timeout=20000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=30000"
 
 
 class JsonFormatter(logging.Formatter):
@@ -40,8 +44,8 @@ class JsonFormatter(logging.Formatter):
         out: dict[str, Any] = {
             "ts": datetime.fromtimestamp(record.created).astimezone().isoformat(timespec="milliseconds"),
             "level": record.levelname, "logger": record.name, "msg": record.getMessage(),
+            **{k: v for k, v in record.__dict__.items() if k not in _STD_ATTRS},
         }
-        out.update({k: v for k, v in record.__dict__.items() if k not in _STD_ATTRS})
         if record.exc_info:
             out["exc"] = self.formatException(record.exc_info)
         return json.dumps(out, default=str)
@@ -94,7 +98,11 @@ class Collector:
 
     def _maintain(self) -> dict[str, int]:
         with self.pool.connection() as conn:
-            out = run_maintenance(conn, self.settings)
+            conn.execute("SET statement_timeout = '15min'")  # lock_timeout stays 5 s
+            try:
+                out = run_maintenance(conn, self.settings)
+            finally:
+                conn.execute("RESET statement_timeout")
         self._record_reference(self.ref)  # idempotent; also covers a database that was down at startup
         return out
 
@@ -114,7 +122,12 @@ class Collector:
                 snapshot = parse_snapshot(payload)
                 if not snapshot.pilots_global and not snapshot.controllers_global:
                     raise FeedError("feed has no pilots or controllers (treated as an outage)", 200)
-                result = await asyncio.to_thread(self._apply, snapshot, ref)
+                total = snapshot.pilots_global + snapshot.controllers_global
+                if snapshot.malformed > MAX_MALFORMED_FRACTION * total:
+                    raise FeedError(f"{snapshot.malformed} of {total} feed entries malformed", 200)
+                if snapshot.malformed:
+                    err = f"{snapshot.malformed} malformed feed entries skipped"
+                result = await asyncio.wait_for(asyncio.to_thread(self._apply, snapshot, ref), APPLY_TIMEOUT_S)
                 self.last_ts, status = snapshot.observed_at, "ok"
         except RateLimitedError as exc:
             err, http, retry_in = str(exc), 429, exc.retry_after
@@ -124,12 +137,15 @@ class Collector:
             err = f"CheckViolation: {exc}"
             log.error("snapshot rejected by database check, running maintenance", extra={"error": str(exc)})
             await self.maintain_once()
+        except TimeoutError:  # the worker thread is ended by the database statement/lock timeouts
+            err = "apply timed out"
+            log.error("snapshot apply timed out after %ss", APPLY_TIMEOUT_S)
         except Exception as exc:  # a bad poll must never kill the process
             err = f"{type(exc).__name__}: {exc}"
             log.exception("poll failed")
         ms = int((time.monotonic() - t0) * 1000)
-        await asyncio.to_thread(self._log_poll, status, ref, snapshot_ts=snap_ts, duration_ms=ms,
-                                http_status=http, result=result, error=err)
+        await asyncio.to_thread(self._log_poll, status, ref, snapshot_ts=snap_ts, duration_ms=ms, http_status=http,
+                                result=result, error=err)
         self._update_stats(status, result, snap_ts, err)
         return PollOutcome(status, retry_in)
 
@@ -143,7 +159,8 @@ class Collector:
             st.polls_skipped += status == "skipped_unchanged"
             st.polls_ok += status == "ok"
             st.consecutive_failures = 0
-            st.last_ok_wall = time.time()
+            if status == "ok":  # an unchanged feed is not progress (see health.py)
+                st.last_ok_wall = time.time()
         if result is not None and snap_ts is not None:
             st.last_snapshot_ts = snap_ts
             st.positions_written += result.positions_inserted
@@ -200,19 +217,41 @@ class Collector:
         while not await self._sleep(MAINTENANCE_INTERVAL_S if ok else MAINTENANCE_RETRY_S):
             ok = await self.maintain_once()
 
+    def _refresh_flights(self) -> None:
+        with self.pool.connection() as conn:
+            refresh_flights(conn)
+
+    async def flight_summary_loop(self) -> None:
+        """Keep flight_summary current (about 0.1 s of work every 5 minutes); a failure only makes charts stale."""
+        while not await self._sleep(FLIGHT_REFRESH_INTERVAL_S):
+            try:
+                await asyncio.to_thread(self._refresh_flights)
+            except Exception:
+                log.exception("flight summary refresh failed")
+
     def request_reload(self) -> None:
         task = asyncio.get_running_loop().create_task(self.reload_reference())
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+    def _reject_reload(self, error: str, **extra: Any) -> None:
+        self.stats.reload_rejected += 1
+        self.stats.last_reload_error = error
+        log.error("reference reload rejected, keeping previous files", extra={"error": error, "alert": True, **extra})
 
     async def reload_reference(self) -> None:
         s = self.settings
         try:
             new = await asyncio.to_thread(load_reference, s.polygon_path, s.whitelist_path)
         except ReferenceDataError as exc:
-            self.stats.reload_rejected += 1
-            log.error("reference reload rejected, keeping previous files", extra={"error": str(exc), "alert": True})
+            self._reject_reload(str(exc))
             return
+        old_wl, new_wl = self.ref.whitelist, new.whitelist
+        if len(new_wl) < MIN_WHITELIST_FRACTION * len(old_wl):
+            self._reject_reload(f"whitelist shrank from {len(old_wl)} to {len(new_wl)} entries",
+                                dropped=sorted(old_wl - new_wl)[:20])
+            return
+        self.stats.last_reload_error = None
         if (new.polygon_sha, new.whitelist_sha) != (self.ref.polygon_sha, self.ref.whitelist_sha):
             self.ref, self.stats.reference = new, self._versions(new)
             log.info("reference data reloaded", extra=self.stats.reference)
@@ -225,7 +264,7 @@ class Collector:
 async def run(settings: Settings, ref: ReferenceData) -> None:
     pool = ConnectionPool(settings.dsn, min_size=1, max_size=4, timeout=10, open=False,
                           check=ConnectionPool.check_connection,
-                          kwargs={"autocommit": True, "connect_timeout": 10})
+                          kwargs={"autocommit": True, "connect_timeout": 10, "options": DB_OPTIONS})
     pool.open(wait=False)  # keeps retrying in the background if the database is not up yet
     feed = FeedClient(settings)
     collector = Collector(settings, ref, pool, feed)
@@ -240,7 +279,8 @@ async def run(settings: Settings, ref: ReferenceData) -> None:
         await feed.discover()
         first_ok = await collector.maintain_once()  # partitions must exist before the first poll
         log.info("collector started", extra={"version": __version__, **collector.stats.reference})
-        await asyncio.gather(collector.poll_loop(), collector.maintenance_loop(first_ok))
+        await asyncio.gather(collector.poll_loop(), collector.maintenance_loop(first_ok),
+                             collector.flight_summary_loop())
     finally:
         await runner.cleanup()
         await feed.aclose()

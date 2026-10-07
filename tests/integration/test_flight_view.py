@@ -42,9 +42,9 @@ def run(n: int, start: datetime = T0, step: int = 15, gs: int | None = 250):
 
 
 def flights(conn, cid: int) -> list[dict]:
-    mv = conn.execute("SELECT 1 AS x FROM pg_matviews WHERE matviewname = 'flight'").fetchone()
-    if mv:
-        conn.execute("REFRESH MATERIALIZED VIEW flight")
+    # `flight` reads the incremental flight_summary table: recompute it for all sessions first
+    # (the collector does this every 5 minutes with refresh_flight_summary()).
+    conn.execute("SELECT refresh_flight_summary(NULL)")
     return conn.execute("SELECT * FROM flight WHERE cid = %s ORDER BY 1", (cid,)).fetchall()
 
 

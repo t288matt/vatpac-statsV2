@@ -18,6 +18,7 @@ Expected steady state: about 2 to 3 GB for 90 days of positions. Much more means
 | Old `pilot_position_*` partitions not dropped | `\dt pilot_position_*` shows days older than `POSITION_RETENTION_DAYS` | Check collector maintenance logs. A partition is kept while it holds an open session. Lower `POSITION_RETENTION_DAYS` in `.env` and `docker compose up -d collector`. |
 | Docker logs | `du -sh /var/lib/docker/containers/*/*-json.log` | Rotation is 10 MB x 5 per container, so this should be small. |
 | Backups | `docker compose exec backup du -sh /backups` | Lower `BACKUP_RETENTION_DAYS`; copy dumps off-box first (`restore.md`). |
+| Leftover restore databases and safety dumps | `docker compose exec db psql -U vatpac -d postgres -c "\l"` shows `*_old`; `ls /backups/*.prerestore` | `DROP DATABASE "<name>_old"` once the restore is verified (`restore.md`). Safety dumps rotate with `BACKUP_RETENTION_DAYS`. |
 | Unused images and build cache | `docker system df` | `docker image prune -f` and `docker builder prune -f`. Never prune volumes. |
 | WAL growth | `docker compose exec db du -sh /var/lib/postgresql/data/pg_wal` | Normally capped near `max_wal_size` (2 GB). |
 | Bloat | table size much larger than row count suggests | Plain `VACUUM (VERBOSE) <table>` does not shrink files; schedule a maintenance window for `VACUUM FULL` (locks the table). |

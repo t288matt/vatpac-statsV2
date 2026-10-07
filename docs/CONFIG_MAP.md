@@ -98,7 +98,7 @@ Source: `C:\Users\mdora\Claude\VATPAC-Stats V2\docker-compose.yml`. Several v1 v
 |---|---|---|---|
 | `POSTGRES_DB` | `vatsim_data` | CHANGED | `POSTGRES_DB` default `vatpac`. New schema, new name. |
 | `POSTGRES_USER` | `vatsim_user` | CHANGED | `POSTGRES_USER` default `vatpac`. |
-| `POSTGRES_PASSWORD` | hard-coded `vatsim_password` | CHANGED | Now required from `.env`, no default, never in git. |
+| `POSTGRES_PASSWORD` | a hard-coded default password committed in the compose file | CHANGED | Now required from `.env`, no default, never in git. |
 | `POSTGRES_SHARED_BUFFERS`, `POSTGRES_EFFECTIVE_CACHE_SIZE`, `POSTGRES_WORK_MEM`, `POSTGRES_MAINTENANCE_WORK_MEM` | 4GB / 16GB / 128MB / 1GB | CHANGED | These are not standard settings of the official postgres image, so they were probably not applied in v1 (not verified). v3 sets tuning in `ops/postgres/postgresql.conf` (512MB shared buffers, 1GB cache, 16MB work_mem) sized for a 2 GB container. |
 | `DATABASE_URL` | hard-coded URL | CHANGED | Built in compose from the `POSTGRES_*` values. |
 | `LOG_LEVEL` | `INFO` | KEPT | Same name. v3 emits JSON logs. |

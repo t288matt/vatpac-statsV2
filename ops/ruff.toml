@@ -1,0 +1,7 @@
+# Lint settings for the python under ops/ (watchdog, checks). The collector has its own in collector/pyproject.toml.
+line-length = 140
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["UP038"]  # deprecated rule

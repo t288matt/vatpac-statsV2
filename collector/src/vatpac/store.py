@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+import logging
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -14,6 +15,8 @@ from shapely.geometry import Polygon
 
 from .filters import inside_polygon, is_near_miss
 from .model import Snapshot, clamp_pilot, home_icao, parse_frequency_hz
+
+log = logging.getLogger(__name__)
 
 _PILOT_SQL = """
 WITH x AS (
@@ -52,11 +55,28 @@ WITH x AS (
     max_alt_ft = GREATEST(ps.max_alt_ft, EXCLUDED.max_alt_ft),
     pilot_rating = COALESCE(EXCLUDED.pilot_rating, ps.pilot_rating),
     military_rating = COALESCE(EXCLUDED.military_rating, ps.military_rating)
+  WHERE (ps.first_seen, ps.last_seen, ps.name, ps.home_icao, ps.server, ps.departure, ps.arrival, ps.aircraft_icao,
+      ps.aircraft_faa, ps.flight_rules, ps.route, ps.remarks, ps.planned_alt, ps.deptime, ps.max_gs_kt, ps.max_alt_ft,
+      ps.pilot_rating, ps.military_rating) IS DISTINCT FROM (
+      LEAST(ps.first_seen, EXCLUDED.first_seen), GREATEST(ps.last_seen, EXCLUDED.last_seen),
+      COALESCE(EXCLUDED.name, ps.name), COALESCE(EXCLUDED.home_icao, ps.home_icao),
+      COALESCE(EXCLUDED.server, ps.server), COALESCE(EXCLUDED.departure, ps.departure),
+      COALESCE(EXCLUDED.arrival, ps.arrival), COALESCE(EXCLUDED.aircraft_icao, ps.aircraft_icao),
+      COALESCE(EXCLUDED.aircraft_faa, ps.aircraft_faa), COALESCE(EXCLUDED.flight_rules, ps.flight_rules),
+      COALESCE(EXCLUDED.route, ps.route), COALESCE(EXCLUDED.remarks, ps.remarks),
+      COALESCE(EXCLUDED.planned_alt, ps.planned_alt), COALESCE(EXCLUDED.deptime, ps.deptime),
+      GREATEST(ps.max_gs_kt, EXCLUDED.max_gs_kt), GREATEST(ps.max_alt_ft, EXCLUDED.max_alt_ft),
+      COALESCE(EXCLUDED.pilot_rating, ps.pilot_rating), COALESCE(EXCLUDED.military_rating, ps.military_rating))
   RETURNING id, cid, callsign, logon_time
+), ids AS (  -- rows left untouched by the WHERE above are not returned, so read them from the table
+  SELECT id, cid, callsign, logon_time FROM up
+  UNION ALL
+  SELECT s.id, s.cid, s.callsign, s.logon_time FROM pilot_session s JOIN x USING (cid, callsign, logon_time)
+  WHERE NOT EXISTS (SELECT 1 FROM up WHERE up.id = s.id)
 )
 INSERT INTO pilot_position (observed_at, session_id, lat, lon, alt_ft, gs_kt, hdg)
-SELECT %(ts)s, up.id, x.lat, x.lon, x.alt_ft, x.gs_kt, x.hdg
-FROM up JOIN x USING (cid, callsign, logon_time)
+SELECT %(ts)s, ids.id, x.lat, x.lon, x.alt_ft, x.gs_kt, x.hdg
+FROM ids JOIN x USING (cid, callsign, logon_time)
 ON CONFLICT DO NOTHING
 """
 
@@ -143,6 +163,25 @@ def _jsonb(rows: list[dict[str, Any]]) -> Jsonb:
     return Jsonb(rows, dumps=lambda o: json.dumps(o, default=lambda v: v.isoformat()))
 
 
+def _write(conn: psycopg.Connection[Any], cur: psycopg.Cursor[Any], sql: str, rows: list[dict[str, Any]],
+           ts: datetime, fetch: bool) -> tuple[int, list[Any], list[str]]:
+    """Run a batch statement in a savepoint. If one poisoned record makes it fail (DataError/IntegrityError), bisect
+    down to the offender and skip it. Returns (rowcount, fetched rows, rejected callsigns)."""
+    try:
+        with conn.transaction():
+            cur.execute(sql, {"rows": _jsonb(rows), "ts": ts})
+            return max(cur.rowcount, 0), cur.fetchall() if fetch else [], []
+    except (psycopg.DataError, psycopg.IntegrityError) as exc:
+        if "partition" in str(exc):  # a missing partition is not a bad record: the caller creates it
+            raise
+        if len(rows) == 1:
+            log.warning("record rejected", extra={"callsign": rows[0]["callsign"], "error": type(exc).__name__})
+            return 0, [], [rows[0]["callsign"]]
+        mid = len(rows) // 2
+        (n1, f1, b1), (n2, f2, b2) = (_write(conn, cur, sql, half, ts, fetch) for half in (rows[:mid], rows[mid:]))
+        return n1 + n2, f1 + f2, b1 + b2
+
+
 def apply_snapshot(
     conn: psycopg.Connection[Any],
     snapshot: Snapshot,
@@ -163,38 +202,34 @@ def apply_snapshot(
         gs, alt, rejected = clamp_pilot(p.groundspeed, p.altitude)
         res.rejected_values += rejected
         pilots[(p.cid, p.callsign, p.logon_time)] = {
-            "cid": p.cid, "callsign": p.callsign, "logon_time": p.logon_time, "name": p.name,
-            "home_icao": home_icao(p.name), "server": p.server, "departure": p.departure,
-            "arrival": p.arrival, "aircraft_icao": p.aircraft_icao, "aircraft_faa": p.aircraft_faa,
-            "flight_rules": p.flight_rules, "route": p.route, "remarks": p.remarks,
-            "planned_alt": p.planned_alt, "deptime": p.deptime, "gs_kt": gs, "alt_ft": alt,
-            "pilot_rating": p.pilot_rating, "military_rating": p.military_rating,
+            **asdict(p), "home_icao": home_icao(p.name), "gs_kt": gs, "alt_ft": alt,
             "lat": p.latitude, "lon": p.longitude, "hdg": p.heading,
         }
         if (p.departure or "").strip() and (p.arrival or "").strip():
             res.pilots_with_plan += 1
-    res.pilots_inside = res.pilots_kept = len(pilots)
+    res.pilots_inside = len(pilots)
 
     controllers: dict[tuple[int, str, datetime], dict[str, Any]] = {}
     near_miss: dict[str, int] = {}
     for c in snapshot.controllers:
         if c.callsign in whitelist:
             controllers[(c.cid, c.callsign, c.logon_time)] = {
-                "cid": c.cid, "callsign": c.callsign, "logon_time": c.logon_time, "name": c.name,
-                "rating": c.rating, "facility": c.facility, "server": c.server,
-                "frequency_hz": parse_frequency_hz(c.frequency_text), "visual_range": c.visual_range,
-            }
+                **asdict(c), "frequency_hz": parse_frequency_hz(c.frequency_text)}
         elif is_near_miss(c.callsign, whitelist):
             near_miss[c.callsign] = c.cid
     res.controllers_kept = len(controllers)
 
     with conn.transaction(), conn.cursor(row_factory=tuple_row) as cur:  # independent of the connection's row factory
+        res.pilots_kept = len(pilots)
         if pilots:
-            cur.execute(_PILOT_SQL, {"rows": _jsonb(list(pilots.values())), "ts": ts})
-            res.positions_inserted = max(cur.rowcount, 0)
+            res.positions_inserted, _, bad = _write(conn, cur, _PILOT_SQL, list(pilots.values()), ts, False)
+            res.pilots_kept -= len(bad)
+            res.rejected_values += len(bad)
         if controllers:
-            cur.execute(_CONTROLLER_SQL, {"rows": _jsonb(list(controllers.values())), "ts": ts})
-            ids = {(r[1], r[2], r[3]): r[0] for r in cur.fetchall()}
+            _, fetched, bad = _write(conn, cur, _CONTROLLER_SQL, list(controllers.values()), ts, True)
+            res.controllers_kept -= len(bad)
+            res.rejected_values += len(bad)
+            ids = {(r[1], r[2], r[3]): r[0] for r in fetched}
             keys = [k for k in controllers if k in ids]
             for table, col, typ, field_name in (
                 ("controller_rating_event", "rating", "int", "rating"),

@@ -19,6 +19,7 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 
 def load_env(path: Path) -> dict[str, str]:
@@ -35,7 +36,7 @@ class Grafana:
         self.base = base.rstrip("/")
         self.auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
 
-    def call(self, method: str, path: str, body: dict | None = None) -> tuple[int, dict | list | str]:
+    def call(self, method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, dict[str, Any] | list[Any] | str]:
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(self.base + path, data=data, method=method)
         req.add_header("Authorization", self.auth)
@@ -52,7 +53,7 @@ class Grafana:
                 return e.code, raw
 
 
-def variable_values(dash: dict) -> dict[str, str]:
+def variable_values(dash: dict[str, Any]) -> dict[str, str]:
     out: dict[str, str] = {}
     for t in dash.get("templating", {}).get("list", []):
         cur = t.get("current", {}).get("value")
@@ -81,7 +82,7 @@ def substitute(sql: str, values: dict[str, str]) -> tuple[str, list[str]]:
     return re.sub(r"\$\{(\w+)(?::(\w+))?\}|\$(\w+)", rep, sql), missing
 
 
-def count_rows(result: dict) -> int:
+def count_rows(result: dict[str, Any]) -> int:
     n = 0
     for frame in result.get("frames", []):
         vals = frame.get("data", {}).get("values", [])

@@ -1,3 +1,5 @@
+# Base image pinned by tag; digest pinning (FROM python:3.12-slim@sha256:...) is the stricter policy once
+# digests can be resolved (docker buildx imagetools inspect). Dependabot's docker ecosystem tracks this.
 FROM python:3.12-slim
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1

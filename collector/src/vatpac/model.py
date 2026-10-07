@@ -4,20 +4,24 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, TypeVar
 
 from .errors import FeedError
 
 log = logging.getLogger(__name__)
+_T = TypeVar("_T")
 
 NO_FREQUENCY_HZ = 199_998_000
 GS_RANGE = (0, 700)
 ALT_RANGE = (-1500, 65000)
 _HOME_RE = re.compile(r"\s([A-Z]{4})$")
 _FRACTION_RE = re.compile(r"(\.\d{6})\d+")
+_CTRL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+_SPACE_RE = re.compile(r"[\t\n]+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,9 +74,7 @@ class Snapshot:
 
 def parse_frequency_hz(text: str | None) -> int | None:
     """'121.700' -> 121700000. '199.998' (no frequency), None and junk -> None."""
-    if text is None:
-        return None
-    try:
+    try:  # str(None) is not a number either, so None falls through to the except
         hz = int(Decimal(str(text).strip()) * 1_000_000)
     except (InvalidOperation, ValueError):
         return None
@@ -81,20 +83,15 @@ def parse_frequency_hz(text: str | None) -> int | None:
 
 def home_icao(name: str | None) -> str | None:
     """Trailing space-separated token of exactly four uppercase letters, else None."""
-    if not name:
-        return None
-    m = _HOME_RE.search(name.rstrip())
+    m = _HOME_RE.search((name or "").rstrip())
     return m.group(1) if m else None
 
 
 def clamp_pilot(gs: int | None, alt: int | None) -> tuple[int | None, int | None, int]:
     """Plausibility caps: out-of-range values become None. Third item counts rejected values."""
-    rejected = 0
-    if gs is not None and not GS_RANGE[0] <= gs <= GS_RANGE[1]:
-        gs, rejected = None, rejected + 1
-    if alt is not None and not ALT_RANGE[0] <= alt <= ALT_RANGE[1]:
-        alt, rejected = None, rejected + 1
-    return gs, alt, rejected
+    bad_gs = gs is not None and not GS_RANGE[0] <= gs <= GS_RANGE[1]
+    bad_alt = alt is not None and not ALT_RANGE[0] <= alt <= ALT_RANGE[1]
+    return None if bad_gs else gs, None if bad_alt else alt, bad_gs + bad_alt
 
 
 def _ts(value: Any) -> datetime:
@@ -118,7 +115,9 @@ def update_timestamp(payload: dict[str, Any]) -> datetime:
 def _s(value: Any) -> str | None:
     if value is None:
         return None
-    text = str(value).replace("\x00", "")  # NUL is not storable in text/jsonb
+    # lone surrogates (rejected by jsonb) become '?'; control characters (incl. NUL) are dropped; tab/newline -> space
+    text = str(value).encode("utf-8", "replace").decode("utf-8")
+    text = _CTRL_RE.sub("", _SPACE_RE.sub(" ", text))
     return text if text.strip() else None
 
 
@@ -135,7 +134,7 @@ def _callsign(value: Any) -> str:
     text = _s(value)  # an empty callsign would violate the table CHECK and abort the whole snapshot
     if text is None:
         raise ValueError("empty callsign")
-    return text
+    return text.strip()
 
 
 def _f(value: Any) -> float | None:
@@ -181,18 +180,18 @@ def parse_snapshot(payload: dict[str, Any]) -> Snapshot:
     raw_pilots = payload.get("pilots") or []
     raw_ctrls = payload.get("controllers") or []
     malformed = 0
-    pilots: list[Pilot] = []
-    controllers: list[Controller] = []
-    for raw in raw_pilots:
-        try:
-            pilots.append(_pilot(raw))
-        except (KeyError, TypeError, ValueError):
-            malformed += 1
-    for raw in raw_ctrls:
-        try:
-            controllers.append(_controller(raw))
-        except (KeyError, TypeError, ValueError):
-            malformed += 1
+
+    def parse_all(raws: list[Any], build: Callable[[dict[str, Any]], _T]) -> list[_T]:
+        nonlocal malformed
+        out: list[_T] = []
+        for raw in raws:
+            try:
+                out.append(build(raw))
+            except (KeyError, TypeError, ValueError):
+                malformed += 1
+        return out
+
+    pilots, controllers = parse_all(raw_pilots, _pilot), parse_all(raw_ctrls, _controller)
     if malformed:
         log.warning("malformed feed entries skipped", extra={"count": malformed})
     return Snapshot(observed_at, pilots, controllers, len(raw_pilots), len(raw_ctrls), malformed)

@@ -1,6 +1,10 @@
 # VATPAC Stats v3 stack. SPEC.md section 9 is authoritative.
-# Secrets come only from .env (git-ignored). Copy .env.example to .env first.
-# Image tags are pinned; confirm each by pulling before first deploy.
+# Secrets come only from .env (git-ignored). Generate it with `sh ops/gen_env.sh`; the secret
+# values in .env.example are blank on purpose, so compose fails until they are set.
+# Image policy: third-party images are pinned by exact version tag. Pinning by digest
+# (image: name:tag@sha256:...) is the stricter policy and is recommended once the deploy host can
+# resolve digests (`docker buildx imagetools inspect <image>:<tag>`); Dependabot (docker
+# ecosystem) proposes tag and digest bumps. Digests cannot be resolved offline, so tags are kept.
 name: vatpac
 
 x-logging: &logging
@@ -49,6 +53,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       GRAFANA_RO_PASSWORD: ${GRAFANA_RO_PASSWORD:?set GRAFANA_RO_PASSWORD in .env}
       WATCHDOG_DB_PASSWORD: ${WATCHDOG_DB_PASSWORD:?set WATCHDOG_DB_PASSWORD in .env}
+      COLLECTOR_DB_PASSWORD: ${COLLECTOR_DB_PASSWORD:?set COLLECTOR_DB_PASSWORD in .env}
+      BACKUP_DB_PASSWORD: ${BACKUP_DB_PASSWORD:?set BACKUP_DB_PASSWORD in .env}
     volumes:
       - ./db:/db:ro
     networks: [vatpac]
@@ -71,7 +77,8 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-vatpac}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vatpac}
+      # least-privilege role `collector` (created by the migrate job), not the owner/superuser
+      DATABASE_URL: postgresql://collector:${COLLECTOR_DB_PASSWORD:?set COLLECTOR_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-vatpac}
       VATSIM_FEED_URL: ${VATSIM_FEED_URL:-https://data.vatsim.net/v3/vatsim-data.json}
       VATSIM_STATUS_URL: ${VATSIM_STATUS_URL:-https://status.vatsim.net/status.json}
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-15}
@@ -81,6 +88,8 @@ services:
       HOME_ICAO_PREFIXES: ${HOME_ICAO_PREFIXES:-Y}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       HEALTH_PORT: ${HEALTH_PORT:-8080}
+      CIRCUIT_FAILURE_THRESHOLD: ${CIRCUIT_FAILURE_THRESHOLD:-5}
+      CIRCUIT_SLOW_INTERVAL_SECONDS: ${CIRCUIT_SLOW_INTERVAL_SECONDS:-60}
     volumes:
       - ./config:/app/config:ro
     healthcheck:
@@ -100,6 +109,10 @@ services:
     restart: unless-stopped
     logging: *logging
     mem_limit: 512m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # read_only + tmpfs is NOT enabled: Grafana writes plugins/logs/sessions under /var/lib/grafana
+    # and /tmp, and this could not be validated offline. Revisit with a test deploy.
     depends_on:
       db:
         condition: service_healthy
@@ -107,6 +120,7 @@ services:
         condition: service_completed_successfully
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      # Only applied on first start (empty grafana_data). Rotate with `grafana cli admin reset-admin-password`.
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3300/}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
@@ -114,6 +128,11 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_DATE_FORMATS_DEFAULT_TIMEZONE: utc
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      # false suits plain-http LAN access; set GRAFANA_COOKIE_SECURE=true behind TLS
+      GF_SECURITY_COOKIE_SECURE: ${GRAFANA_COOKIE_SECURE:-false}
+      GF_USERS_VIEWERS_CAN_EDIT: "false"
       # Referenced by the provisioned datasource as $${GRAFANA_RO_DB_PASSWORD}
       GRAFANA_RO_DB_PASSWORD: ${GRAFANA_RO_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-vatpac}
@@ -122,7 +141,8 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "${GRAFANA_PORT:-3300}:3000"
+      # loopback by default; LAN access is opt-in via GRAFANA_BIND (LAN IP or 0.0.0.0)
+      - "${GRAFANA_BIND:-127.0.0.1}:${GRAFANA_PORT:-3300}:3000"
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1"]
       interval: 30s
@@ -134,10 +154,14 @@ services:
   backup:
     build:
       context: ./ops/backup
+      args:
+        EXTRA_APT_PACKAGES: ${BACKUP_EXTRA_APT_PACKAGES:-}
     image: vatpac-stats-backup:local
     restart: unless-stopped
     logging: *logging
     mem_limit: 256m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     depends_on:
       db:
         condition: service_healthy
@@ -146,14 +170,30 @@ services:
     environment:
       PGHOST: db
       PGPORT: "5432"
-      PGUSER: ${POSTGRES_USER:-vatpac}
-      PGPASSWORD: ${POSTGRES_PASSWORD}
+      # pg_dump runs as the read-only role backup_ro (pg_read_all_data)
+      PGUSER: backup_ro
+      PGPASSWORD: ${BACKUP_DB_PASSWORD:?set BACKUP_DB_PASSWORD in .env}
       PGDATABASE: ${POSTGRES_DB:-vatpac}
+      # restore.sh / restore-test.sh need CREATE/DROP/RENAME DATABASE, which backup_ro cannot do,
+      # so they use the owner role (never used by the nightly dump)
+      RESTORE_PGUSER: ${POSTGRES_USER:-vatpac}
+      RESTORE_PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       BACKUP_TIME_UTC: ${BACKUP_TIME_UTC:-02:00}
       BACKUP_RESTORE_TEST_DAY: ${BACKUP_RESTORE_TEST_DAY:-7}
+      BACKUP_REMOTE: ${BACKUP_REMOTE:-}
     volumes:
       - backups:/backups
+    healthcheck:
+      # healthy = a dump younger than ~25 h exists, or the loop started less than 24 h ago
+      # (the first nightly run has not happened yet)
+      test:
+        - CMD-SHELL
+        - "find /backups -maxdepth 1 -name '*.dump' -mmin -1500 | grep -q . || find /backups/.loop_started -mmin -1440 2>/dev/null | grep -q ."
+      interval: 5m
+      timeout: 10s
+      retries: 1
+      start_period: 2m
     networks: [vatpac]
 
   watchdog:
@@ -193,8 +233,10 @@ services:
       WATCHDOG_PAGE_SECONDS: ${WATCHDOG_PAGE_SECONDS:-300}
       WATCHDOG_CONFIRM_CYCLES: ${WATCHDOG_CONFIRM_CYCLES:-2}
       WATCHDOG_DISK_PCT: ${WATCHDOG_DISK_PCT:-80}
+      WATCHDOG_DISK_PATHS: ${WATCHDOG_DISK_PATHS:-/backups,/}
       WATCHDOG_DB_MAX_GB: ${WATCHDOG_DB_MAX_GB:-20}
       WATCHDOG_BACKUP_MAX_HOURS: ${WATCHDOG_BACKUP_MAX_HOURS:-26}
+      WATCHDOG_RESTORE_TEST_MAX_DAYS: ${WATCHDOG_RESTORE_TEST_MAX_DAYS:-9}
     volumes:
       - backups:/backups:ro
       - watchdog_status:/var/watchdog
