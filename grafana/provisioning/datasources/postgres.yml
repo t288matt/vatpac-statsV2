@@ -20,4 +20,5 @@ datasources:
       maxIdleConns: 5
       connMaxLifetime: 14400
     secureJsonData:
-      password: ${GRAFANA_RO_PASSWORD}
+      # compose passes the password to Grafana as GRAFANA_RO_DB_PASSWORD
+      password: ${GRAFANA_RO_DB_PASSWORD}

@@ -57,7 +57,7 @@ class Config:
         self.restart_cap = int(env_num("WATCHDOG_RESTART_CAP_PER_HOUR", 3))
         self.restart_after = max(1, int(env_num("WATCHDOG_RESTART_AFTER_CYCLES", 3)))
         self.restartable = env_set("WATCHDOG_RESTARTABLE", "db,collector,grafana,backup")
-        self.expected = env_set("WATCHDOG_EXPECTED", "db,collector,grafana,backup,docker-socket-proxy")
+        self.expected = env_set("WATCHDOG_EXPECTED", "db,collector,grafana,backup")
         # Empty (the default) means no Docker access: container state checks and
         # restarts are skipped and the watchdog only checks health and the database.
         self.docker = env("DOCKER_HOST_URL", "")
