@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
 import math
 import signal
@@ -23,13 +22,13 @@ from .errors import FeedError, RateLimitedError, ReferenceDataError
 from .feed import FeedClient
 from .filters import ReferenceData, load_reference
 from .health import Stats, start_server
+from .logsetup import setup_logging
 from .maintenance import FLIGHT_REFRESH_INTERVAL_S, refresh_flights, run_maintenance
 from .model import Snapshot, parse_snapshot, update_timestamp
 from .settings import Settings
 from .store import ApplyResult, apply_snapshot, record_reference_change, write_poll_log
 
 log = logging.getLogger("vatpac")
-_STD_ATTRS = set(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
 UNCHANGED_RETRY_S = 2.0
 MAINTENANCE_INTERVAL_S = 86_400.0
 MAINTENANCE_RETRY_S = 60.0
@@ -37,25 +36,6 @@ APPLY_TIMEOUT_S = 25.0
 MAX_MALFORMED_FRACTION, MIN_WHITELIST_FRACTION = 0.2, 0.7
 # fail fast on a stuck statement or lock; Collector._maintain raises statement_timeout for its own session
 DB_OPTIONS = "-c statement_timeout=20000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=30000"
-
-
-class JsonFormatter(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
-        out: dict[str, Any] = {
-            "ts": datetime.fromtimestamp(record.created).astimezone().isoformat(timespec="milliseconds"),
-            "level": record.levelname, "logger": record.name, "msg": record.getMessage(),
-            **{k: v for k, v in record.__dict__.items() if k not in _STD_ATTRS},
-        }
-        if record.exc_info:
-            out["exc"] = self.formatException(record.exc_info)
-        return json.dumps(out, default=str)
-
-
-def setup_logging(level: str) -> None:
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(JsonFormatter())
-    logging.basicConfig(level=level, handlers=[handler], force=True)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 @dataclass(slots=True)
