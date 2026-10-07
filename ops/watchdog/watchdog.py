@@ -16,12 +16,13 @@ import shutil
 import signal
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
 import psycopg
+from psycopg.conninfo import make_conninfo
 
 OK, WARN, CRIT = "ok", "warn", "crit"
 RANK = {OK: 0, WARN: 1, CRIT: 2}
@@ -54,6 +55,11 @@ class Config:
         self.disk_pct = env_num("WATCHDOG_DISK_PCT", 80)
         self.db_max_gb = env_num("WATCHDOG_DB_MAX_GB", 20)
         self.backup_max_h = env_num("WATCHDOG_BACKUP_MAX_HOURS", 26)
+        self.restore_test_max_days = env_num("WATCHDOG_RESTORE_TEST_MAX_DAYS", 9)
+        # Filesystems to check. The pgdata and backups named volumes both live under the Docker data
+        # root on the host; the watchdog sees /backups (and / for the container layer), which is
+        # that same host filesystem. Add a path here if a volume is moved to its own mount.
+        self.disk_paths = [p.strip() for p in env("WATCHDOG_DISK_PATHS", "/backups,/").split(",") if p.strip()]
         self.restart_cap = int(env_num("WATCHDOG_RESTART_CAP_PER_HOUR", 3))
         self.restart_after = max(1, int(env_num("WATCHDOG_RESTART_AFTER_CYCLES", 3)))
         self.restartable = env_set("WATCHDOG_RESTARTABLE", "db,collector,grafana,backup")
@@ -64,9 +70,10 @@ class Config:
         self.project = env("COMPOSE_PROJECT", "vatpac")
         self.collector_url = env("COLLECTOR_HEALTH_URL", "http://collector:8080/health")
         self.grafana_url = env("GRAFANA_HEALTH_URL", "http://grafana:3000/api/health")
-        self.db_dsn = (
-            f"host={env('DB_HOST', 'db')} dbname={env('DB_NAME', 'vatpac')} "
-            f"user={env('DB_USER', 'watchdog_ro')} password={env('DB_PASSWORD')} connect_timeout=5"
+        # make_conninfo quotes/escapes values; a raw space-separated string breaks on odd passwords
+        self.db_dsn = make_conninfo(
+            host=env("DB_HOST", "db"), dbname=env("DB_NAME", "vatpac"),
+            user=env("DB_USER", "watchdog_ro"), password=env("DB_PASSWORD"), connect_timeout=5,
         )
         self.backup_dir = Path(env("BACKUP_DIR", "/backups"))
         self.status_file = Path(env("STATUS_FILE", "/var/watchdog/watchdog_status.json"))
@@ -76,7 +83,7 @@ class Config:
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def age_level(age: float | None, cfg: Config, what: str) -> Result:
@@ -140,10 +147,28 @@ def check_db(cfg: Config) -> dict[str, Result]:
 
 
 def check_disk(cfg: Config) -> Result:
-    usage = shutil.disk_usage("/")
-    pct = usage.used / usage.total * 100
-    level = CRIT if pct >= cfg.disk_pct + 10 else WARN if pct >= cfg.disk_pct else OK
-    return level, f"{pct:.0f}% used"
+    """Worst level across WATCHDOG_DISK_PATHS (paths on the same device are checked once)."""
+    worst: Result = (OK, "no path to check")
+    parts: list[str] = []
+    seen_dev: set[int] = set()
+    for path in cfg.disk_paths:
+        try:
+            dev = os.stat(path).st_dev
+            if dev in seen_dev:
+                continue
+            seen_dev.add(dev)
+            usage = shutil.disk_usage(path)
+        except OSError:
+            parts.append(f"{path} unreadable")
+            if RANK[WARN] > RANK[worst[0]]:
+                worst = (WARN, "")
+            continue
+        pct = usage.used / usage.total * 100
+        level = CRIT if pct >= cfg.disk_pct + 10 else WARN if pct >= cfg.disk_pct else OK
+        parts.append(f"{path} {pct:.0f}% used")
+        if RANK[level] > RANK[worst[0]]:
+            worst = (level, "")
+    return worst[0], ", ".join(parts) if parts else worst[1]
 
 
 def check_backup(cfg: Config, first_run: float) -> Result:
@@ -152,6 +177,44 @@ def check_backup(cfg: Config, first_run: float) -> Result:
     age_h = (time.time() - newest) / 3600
     detail = f"newest backup {age_h:.1f} h old" if files else f"no backup yet ({age_h:.1f} h since watchdog first ran)"
     return (CRIT if age_h > cfg.backup_max_h else OK), detail
+
+
+def parse_restore_result(text: str) -> tuple[datetime | None, str]:
+    """Parse the .last_restore_test line: '<UTC timestamp> OK|FAIL ...'. Returns (time, OK|FAIL|?)."""
+    tokens = text.strip().split()
+    if len(tokens) < 2:
+        return None, "?"
+    try:
+        when: datetime | None = datetime.strptime(tokens[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    except ValueError:
+        when = None
+    return when, tokens[1] if tokens[1] in ("OK", "FAIL") else "?"
+
+
+def check_restore_test(cfg: Config, first_run: float) -> Result:
+    """The weekly restore test must have passed recently. FAIL is critical; a stale or missing
+    result is a warning (BACKUP_RESTORE_TEST_DAY=0 disables the test: set the max days to 0 too)."""
+    path = cfg.backup_dir / ".last_restore_test"
+    if cfg.restore_test_max_days <= 0:
+        return OK, "restore-test age check disabled"
+    try:
+        text = path.read_text()
+        mtime = path.stat().st_mtime
+    except OSError:
+        age_d = (time.time() - first_run) / 86400
+        if age_d > cfg.restore_test_max_days:
+            return WARN, f"no restore test result after {age_d:.1f} days"
+        return OK, "no restore test yet"
+    when, verdict = parse_restore_result(text)
+    ts = when.timestamp() if when else mtime
+    age_d = (time.time() - ts) / 86400
+    if verdict == "FAIL":
+        return CRIT, f"last restore test FAILED {age_d:.1f} days ago"
+    if verdict != "OK":
+        return WARN, "last restore test result unreadable"
+    if age_d > cfg.restore_test_max_days:
+        return WARN, f"last successful restore test {age_d:.1f} days ago (limit {cfg.restore_test_max_days:g})"
+    return OK, f"last restore test OK {age_d:.1f} days ago"
 
 
 class Docker:
@@ -309,7 +372,9 @@ def cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, s
     near_miss = db.pop("_near_miss", (OK, ""))[1]
     results.update(db)
     results["disk"] = check_disk(cfg)
-    results["backup_age"] = check_backup(cfg, state.setdefault("first_run", time.time()))
+    first_run = state.setdefault("first_run", time.time())
+    results["backup_age"] = check_backup(cfg, first_run)
+    results["restore_test"] = check_restore_test(cfg, first_run)
 
     containers: dict[str, dict[str, Any]] = {}
     if cfg.docker:
@@ -331,7 +396,7 @@ def cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, s
 
     # Restart decisions. A target must be bad for restart_after consecutive cycles.
     bad: dict[str, str] = {}
-    for svc, ins in containers.items():
+    for svc in containers:
         lv, detail = results.get(f"container:{svc}", (OK, ""))
         if lv == CRIT and svc not in ("migrate", "watchdog"):
             bad[svc] = detail

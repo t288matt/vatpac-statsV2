@@ -19,11 +19,17 @@ schema={
  'controller_unlisted_sighting':"callsign cid first_seen last_seen polls_seen",
 }
 schema={k:{c:'text' for c in s.split()} for k,s in schema.items()}
-# derive views.sql view columns in order (they depend on each other)
-text=open('grafana/views.sql',encoding='utf-8').read()
-body=re.sub(r"(?is)\$\$.*?\$\$","'body'",text)
+# derive the view columns from db/migrations/*.sql in order (later views depend on earlier ones;
+# a view redefined by a later migration replaces the earlier definition)
+def migration_statements():
+    for f in sorted(glob.glob("db/migrations/*.sql")):
+        body = re.sub(r"(?is)\$(\w*)\$.*?\$\1\$", "'body'", open(f, encoding="utf-8").read())  # dollar-quoted bodies
+        try:
+            yield from sqlglot.parse(body, read='postgres')
+        except Exception as e:  # sqlglot may not know every PostgreSQL construct
+            print('PARSE ERR', f, str(e).splitlines()[0][:160])
 funcs=set()
-for st in sqlglot.parse(body,read='postgres'):
+for st in migration_statements():
     if st is None: continue
     if isinstance(st,exp.Create) and st.args.get('kind')=='VIEW':
         name=st.this.name

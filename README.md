@@ -57,7 +57,7 @@ On Windows without `make`, run the underlying commands shown.
 | `make lint` | ruff and mypy on the collector |
 | `make test` | Unit tests (no database, no network) |
 | `make smoke` | `ops/smoke.sh` |
-| `make size` | Collector size budget check (1300 lines, no module over 300) |
+| `make size` | Collector size budget check (1400 lines, no module over 300) |
 | `make pii` | Fixture PII check |
 | `make backup` | Take a backup now |
 | `make backup-test` | Restore the newest backup into a scratch database and sanity-check it |

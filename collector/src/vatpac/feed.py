@@ -36,12 +36,10 @@ def backoff_delay(attempt: int, rng: random.Random | None = None) -> float:
 
 
 def parse_retry_after(value: str | None, default: float = 30.0) -> float:
-    seconds: float = default
     try:
-        if value is not None:
-            seconds = float(value)
+        seconds = default if value is None else float(value)
     except ValueError:
-        pass
+        seconds = default
     return min(max(seconds, 1.0), RETRY_AFTER_CAP_S)
 
 
@@ -51,9 +49,8 @@ class FeedClient:
         self.url = settings.vatsim_feed_url
         self._last_modified: str | None = None
         self._etag: str | None = None
-        timeout = httpx.Timeout(settings.http_timeout_seconds, connect=min(5.0, settings.http_timeout_seconds))
         self._client = client or httpx.AsyncClient(
-            timeout=timeout,
+            timeout=httpx.Timeout(settings.http_timeout_seconds, connect=min(5.0, settings.http_timeout_seconds)),
             headers={"User-Agent": f"vatpac-stats/{__version__}", "Accept-Encoding": "gzip"},
             follow_redirects=True,
         )
@@ -78,11 +75,8 @@ class FeedClient:
         return url
 
     async def _get_once(self) -> FetchResult:
-        headers: dict[str, str] = {}
-        if self._last_modified:
-            headers["If-Modified-Since"] = self._last_modified
-        if self._etag:
-            headers["If-None-Match"] = self._etag
+        conditional = (("If-Modified-Since", self._last_modified), ("If-None-Match", self._etag))
+        headers = {k: v for k, v in conditional if v}
         resp = await self._client.get(self.url, headers=headers)
         if resp.status_code == 304:
             return FetchResult(None, 304)

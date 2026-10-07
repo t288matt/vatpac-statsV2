@@ -3,13 +3,16 @@
 #   backup.sh loop   run forever: one backup at BACKUP_TIME_UTC daily (and one at start-up if
 #                    the newest backup is older than 24 h); weekly restore test
 #   backup.sh once   take one backup now and exit
-# Connection comes from the standard PG* environment variables.
+# Connection comes from the standard PG* environment variables (the read-only role backup_ro).
+# BACKUP_REMOTE (optional): a shell command run after each successful backup with BACKUP_FILE set to
+# the new dump (off-box copy, e.g. rclone/rsync). Its failure is logged, never fatal.
 set -euo pipefail
 
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 BACKUP_TIME_UTC="${BACKUP_TIME_UTC:-02:00}"
 RESTORE_TEST_DAY="${BACKUP_RESTORE_TEST_DAY:-7}"
+BACKUP_REMOTE="${BACKUP_REMOTE:-}"
 
 log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) backup: $*"; }
 
@@ -25,6 +28,7 @@ take_backup() {
     mv "$tmp" "$file"
     date -u +%Y-%m-%dT%H:%M:%SZ > "${BACKUP_DIR}/.last_success"
     log "ok $(du -h "$file" | cut -f1)"
+    run_remote "$file"
   else
     rm -f "$tmp"
     log "FAILED pg_dump"
@@ -33,11 +37,24 @@ take_backup() {
   rotate
 }
 
+run_remote() {
+  [ -n "$BACKUP_REMOTE" ] || return 0
+  log "running BACKUP_REMOTE hook"
+  if BACKUP_FILE="$1" timeout 3600 sh -c "$BACKUP_REMOTE"; then
+    date -u +%Y-%m-%dT%H:%M:%SZ > "${BACKUP_DIR}/.last_remote_success"
+    log "BACKUP_REMOTE ok"
+  else
+    log "BACKUP_REMOTE FAILED (the local backup is intact)"
+  fi
+}
+
 rotate() {
-  # Delete dumps older than RETENTION_DAYS, but never the newest one.
+  # Delete dumps (and restore safety dumps) older than RETENTION_DAYS.
   find "$BACKUP_DIR" -maxdepth 1 -name '*.dump' -mtime +"$RETENTION_DAYS" -print -delete \
     | sed 's/^/backup: rotated out /' || true
-  find "$BACKUP_DIR" -maxdepth 1 -name '*.dump.partial' -mmin +120 -delete || true
+  find "$BACKUP_DIR" -maxdepth 1 -name '*.prerestore' -mtime +"$RETENTION_DAYS" -print -delete \
+    | sed 's/^/backup: rotated out /' || true
+  find "$BACKUP_DIR" -maxdepth 1 \( -name '*.dump.partial' -o -name '*.prerestore.partial' \) -mmin +120 -delete || true
 }
 
 seconds_until_next() {
@@ -55,6 +72,7 @@ case "${1:-loop}" in
     take_backup
     ;;
   loop)
+    touch "${BACKUP_DIR}/.loop_started"   # the container healthcheck tolerates the first 24 h
     if [ -z "$(find "$BACKUP_DIR" -maxdepth 1 -name '*.dump' -mmin -1440 -print -quit)" ]; then
       log "no backup in the last 24 h; taking one now"
       take_backup || log "start-up backup failed; will retry at ${BACKUP_TIME_UTC} UTC"

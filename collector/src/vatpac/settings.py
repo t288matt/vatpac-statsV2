@@ -1,12 +1,12 @@
 """Collector settings from environment variables (names as in .env.example; defaults in brackets).
 
-POSTGRES_HOST [db] POSTGRES_PORT [5432] POSTGRES_DB [vatpac] POSTGRES_USER [vatpac] POSTGRES_PASSWORD:
-database connection (DATABASE_URL overrides all five). VATSIM_FEED_URL: fallback feed URL when discovery
-through VATSIM_STATUS_URL (data.v3[0]) fails. POLL_INTERVAL_SECONDS [15] (5..300). HTTP_TIMEOUT_SECONDS [10].
-POSITION_RETENTION_DAYS [90]. AIRBORNE_GAP_CAP_SECONDS [40] and HOME_ICAO_PREFIXES [Y, comma separated] are
-published to app_setting for the SQL views. LOG_LEVEL [INFO]. POLYGON_PATH / WHITELIST_PATH: reference files
-[/app/config/...]. HEALTH_PORT [8080]. CIRCUIT_FAILURE_THRESHOLD [5] consecutive failures open the breaker;
-CIRCUIT_SLOW_INTERVAL_SECONDS [60] is the cadence while open (polling never stops).
+POSTGRES_HOST [db] POSTGRES_PORT [5432] POSTGRES_DB [vatpac] POSTGRES_USER [vatpac] POSTGRES_PASSWORD: database
+connection, assembled with make_conninfo (DATABASE_URL overrides all five). VATSIM_FEED_URL: fallback feed URL when
+discovery through VATSIM_STATUS_URL (data.v3[0]) fails. POLL_INTERVAL_SECONDS [15] (5..300). HTTP_TIMEOUT_SECONDS [10].
+POSITION_RETENTION_DAYS [90]. AIRBORNE_GAP_CAP_SECONDS [40] and HOME_ICAO_PREFIXES [Y, comma separated] are published
+to app_setting for the SQL views. LOG_LEVEL [INFO]. POLYGON_PATH / WHITELIST_PATH: reference files [/app/config/...].
+HEALTH_PORT [8080]. CIRCUIT_FAILURE_THRESHOLD [5] consecutive failures open the breaker; CIRCUIT_SLOW_INTERVAL_SECONDS
+[60] is the cadence while open (polling never stops).
 """
 
 from __future__ import annotations

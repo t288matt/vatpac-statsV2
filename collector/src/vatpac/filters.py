@@ -7,7 +7,6 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 
 import shapely
@@ -76,16 +75,11 @@ def load_whitelist(path: str | Path) -> frozenset[str]:
     return frozenset(seen)
 
 
-@lru_cache(maxsize=4)
-def _prefixes(whitelist: frozenset[str]) -> frozenset[str]:
-    return frozenset(c.split("_", 1)[0] for c in whitelist if "_" in c)
-
-
 def is_near_miss(callsign: str, whitelist: frozenset[str]) -> bool:
     """Unlisted controller whose prefix (text before the first `_`) matches a listed prefix."""
     if callsign in whitelist or callsign.endswith("_OBS") or "_" not in callsign:
         return False
-    return callsign.split("_", 1)[0] in _prefixes(whitelist)
+    return callsign.split("_", 1)[0] in {c.split("_", 1)[0] for c in whitelist if "_" in c}
 
 
 def file_sha256(path: str | Path) -> str:

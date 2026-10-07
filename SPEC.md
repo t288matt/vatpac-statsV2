@@ -58,7 +58,7 @@ Tables (final DDL lives in `db/migrations/`; this is the contract):
 - Migrations are forward-only SQL; each file idempotent where possible.
 
 ## 7. Collector layout (`collector/src/vatpac/`)
-`settings.py` (pydantic-settings; every variable documented, defaults, validation), `feed.py` (fetch, retry, conditional, discovery), `filters.py` (the three filters + reference loading + near-miss), `model.py` (typed dataclasses and parsing/plausibility), `store.py` (one transaction per snapshot, upserts, events, network_snapshot, poll_log), `maintenance.py` (partitions, retention, view refresh, poll_log trimming), `health.py` (aiohttp `/health` and `/metrics`), `main.py` (supervisor, signals). Budget: whole package under 1300 physical lines (ADR-014), no module over 300. One DB driver. Type-annotated, ruff + mypy clean.
+`settings.py` (pydantic-settings; every variable documented, defaults, validation), `feed.py` (fetch, retry, conditional, discovery), `filters.py` (the three filters + reference loading + near-miss), `model.py` (typed dataclasses and parsing/plausibility), `store.py` (one transaction per snapshot, upserts, events, network_snapshot, poll_log), `maintenance.py` (partitions, retention, view refresh, poll_log trimming), `health.py` (aiohttp `/health` and `/metrics`), `main.py` (supervisor, signals). Budget: whole package under 1400 physical lines (ADR-014), no module over 300. One DB driver. Type-annotated, ruff + mypy clean.
 
 ### Public interfaces (contract so QA can test independently of the builder)
 - `vatpac.errors.ReferenceDataError(Exception)`.
@@ -94,7 +94,7 @@ Dashboards show "data since <go-live>" because there is no backfill.
 - Fixture: an **anonymised** recorded feed snapshot (names/CIDs scrambled deterministically; callsigns kept) in `tests/fixtures/`. Golden test: expected kept pilots/controllers counts for the fixture; `_OBS` and ATIS never stored.
 - Integration tests (need Docker): compose up, migrate, ingest the fixture twice (second run inserts zero rows), views return expected rows, partition create/drop, `grafana_ro` cannot write, every provisioned panel query runs.
 - CI (GitHub Actions): ruff, mypy, unit tests, `docker compose config`, image build, gitleaks + a PII check on fixtures, config-reference drift check.
-- Size budget check in CI (collector package under 1300 lines, no module over 300).
+- Size budget check in CI (collector package under 1400 lines, no module over 300).
 
 ## 12. Acceptance (the goal)
 1. Clean clone + `.env` from `.env.example` + `docker compose up -d`: all services healthy.

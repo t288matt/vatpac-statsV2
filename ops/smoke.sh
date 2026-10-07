@@ -60,10 +60,11 @@ else
   fail "grafana /api/health reports database ok"
 fi
 
-# 5. grafana_ro cannot write
+# 5. grafana_ro cannot write (the role is read-only by default, but a session can switch that off, so
+#    switch it off here and prove the privileges themselves deny the write)
 RO_PW="$(sed -n 's/^GRAFANA_RO_PASSWORD=//p' .env 2>/dev/null | head -n1)"
 ro_try() {
-  dc exec -T -e PGPASSWORD="$RO_PW" db sh -c 'psql -X -tA -h 127.0.0.1 -U grafana_ro -d "$POSTGRES_DB" -c "$1" 2>&1' sh "$1"
+  dc exec -T -e PGPASSWORD="$RO_PW" db sh -c 'psql -X -tA -h 127.0.0.1 -U grafana_ro -d "$POSTGRES_DB" -c "SET default_transaction_read_only = off" -c "$1" 2>&1' sh "$1"
 }
 denied=0
 for stmt in "CREATE TABLE smoke_should_fail (i int)" "INSERT INTO poll_log (status) VALUES ('ok')" "DELETE FROM poll_log"; do

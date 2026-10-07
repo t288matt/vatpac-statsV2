@@ -68,19 +68,16 @@ def test_idempotent_second_apply_adds_zero_rows(db, payload, refdata) -> None:
 
 
 def test_failure_mid_snapshot_leaves_nothing_behind(db, payload, refdata) -> None:
-    """SPEC s3: one transaction per snapshot. A poisoned pilot must roll everything back."""
+    """SPEC s3: one transaction per snapshot. A failure that is not a bad record (here: no partition for the
+    snapshot time) must roll everything back. A bad record is skipped instead: test_poison_records.py."""
     import dataclasses
 
-    from vatpac.filters import inside_polygon
     from vatpac.model import parse_snapshot
     from vatpac.store import apply_snapshot
 
     poly, wl = refdata
     snap = parse_snapshot(at(payload))
-    # the poisoned pilot must be INSIDE the polygon, otherwise it is filtered and never written
-    inside = next(p for p in snap.pilots if inside_polygon(poly, p.latitude, p.longitude))
-    bad_pilot = dataclasses.replace(inside, cid="not-a-number")  # type: ignore[arg-type]
-    broken = dataclasses.replace(snap, pilots=[*snap.pilots, bad_pilot])
+    broken = dataclasses.replace(snap, observed_at=datetime(2031, 1, 1, tzinfo=timezone.utc))
     with pytest.raises(Exception):
         apply_snapshot(db, broken, poly, wl, polygon_sha="p" * 64, whitelist_sha="w" * 64)
     if not db.autocommit:

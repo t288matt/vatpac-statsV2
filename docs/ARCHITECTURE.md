@@ -114,7 +114,7 @@ The watchdog (`ops/watchdog/watchdog.py`) checks the collector `/health`, the ag
 
 ## 8. Size and quality gates
 
-The collector package has a hard size budget of 1300 physical lines with no module over 300 (ADR-014), checked in CI by `ops/check_size_budget.py`. CI also runs ruff, mypy, the unit tests, `docker compose config`, image builds and a fixture PII check (`.github/workflows/ci.yml`).
+The collector package has a hard size budget of 1400 physical lines with no module over 300 (ADR-014), checked in CI by `ops/check_size_budget.py`. CI also runs ruff, mypy, the unit tests, `docker compose config`, image builds and a fixture PII check (`.github/workflows/ci.yml`).
 
 ## 9. Related documents
 

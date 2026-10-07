@@ -7,7 +7,7 @@ Checks every JSON file under grafana/dashboards: it parses, panels (other than t
 `vatpac` datasource and have rawSql, SQL reads only allow-listed views and lookups (no base tables),
 no hard-coded dates, no DISTINCT ON, panel ids and dashboard uids are unique. If `sqlglot` is
 installed (optional) every query is also parsed with the Postgres dialect after Grafana macros are
-substituted, and views.sql / seed_lookups.sql are parsed too.
+substituted, and db/migrations/*.sql are parsed too (informational: PostgreSQL is the authority).
 
 NOTHING IS EXECUTED AGAINST POSTGRES. This checks shape and syntax only.
 Exit status 0 when there are no errors, 1 otherwise.
@@ -23,7 +23,7 @@ HERE = Path(__file__).resolve().parent
 DASHBOARDS = HERE / "dashboards"
 
 # Objects a panel may read, derived by scanning the SQL files: every view created in db/migrations
-# or grafana/views.sql, plus the lookup tables (SPEC section 6) that db/migrations creates.
+# (the single source of truth: there is no separate grafana/views.sql), plus the lookup tables (SPEC section 6) that db/migrations creates.
 # Base tables (pilot_session, poll_log ...) are deliberately NOT allowed.
 ROOT = HERE.parent
 LOOKUPS = {"controller_rating", "facility", "pilot_rating", "airline", "aircraft_type", "region_map"}
@@ -32,8 +32,7 @@ TABLE_RE = re.compile(r"(?i)create\s+table\s+(?:if\s+not\s+exists\s+)?(\w+)")
 MIGRATION_FILES = sorted((ROOT / "db" / "migrations").glob("*.sql"))
 MIGRATION_TEXT = "\n".join(f.read_text(encoding="utf-8") for f in MIGRATION_FILES)
 MIGRATION_VIEWS = set(VIEW_RE.findall(MIGRATION_TEXT))
-ANALYTICS_VIEWS = set(VIEW_RE.findall((HERE / "views.sql").read_text(encoding="utf-8")))
-ALLOWED = MIGRATION_VIEWS | ANALYTICS_VIEWS | (LOOKUPS & set(TABLE_RE.findall(MIGRATION_TEXT)))
+ALLOWED = MIGRATION_VIEWS | (LOOKUPS & set(TABLE_RE.findall(MIGRATION_TEXT)))
 SKIP_RELATIONS = {"generate_series", "unnest", "lateral"}  # functions / keywords after FROM or JOIN
 
 MACROS = [
@@ -176,31 +175,18 @@ def main() -> int:
                 except Exception as exc:  # sqlglot raises ParseError and TokenError
                     errors.append(f"{full}: SQL does not parse: {str(exc).splitlines()[0]}")
 
-    # views.sql and seed_lookups.sql
-    views_sql = HERE / "views.sql"
-    if views_sql.exists():
-        text = views_sql.read_text(encoding="utf-8")
-        defined = ANALYTICS_VIEWS
-        for missing in sorted(set(LOOKUPS) - ALLOWED):
-            errors.append(f"lookup table {missing} is not created by db/migrations")
-        for extra in sorted(defined - ALLOWED):
-            warnings.append(f"views.sql defines {extra}, which no allow-list entry covers")
-        if sqlglot is not None:
-            body = re.sub(r"(?is)\$\$.*?\$\$", "'body'", text)  # function bodies are dollar-quoted
-            for stmt in [s for s in sqlglot.parse(body, read="postgres") if s is not None]:
-                n_parsed += 1
-            # parse() raises on failure, so reaching here means every statement parsed
-    else:
-        errors.append("views.sql missing")
-    seed_sql = HERE / "seed_lookups.sql"
-    if seed_sql.exists():
-        if sqlglot is not None:
+    # db/migrations/*.sql: lookups exist, and (informational) every file parses
+    for missing in sorted(set(LOOKUPS) - ALLOWED):
+        errors.append(f"lookup table {missing} is not created by db/migrations")
+    if not MIGRATION_FILES:
+        errors.append("db/migrations has no .sql files")
+    if sqlglot is not None:
+        for f in MIGRATION_FILES:
+            body = re.sub(r"(?is)\$(\w*)\$.*?\$\1\$", "'body'", f.read_text(encoding="utf-8"))  # dollar-quoted bodies
             try:
-                sqlglot.parse(seed_sql.read_text(encoding="utf-8"), read="postgres")
+                n_parsed += len([st for st in sqlglot.parse(body, read="postgres") if st is not None])
             except Exception as exc:
-                errors.append(f"seed_lookups.sql does not parse: {str(exc).splitlines()[0]}")
-    else:
-        errors.append("seed_lookups.sql missing")
+                warnings.append(f"{f.name}: sqlglot could not parse it ({str(exc).splitlines()[0]}); PostgreSQL decides")
 
     print(f"dashboards: {len(files)}  (folders: {', '.join(f'{k}={v}' for k, v in sorted(folders.items()))})")
     print(f"panels with queries: {n_panels}   text panels: {n_text}   queries checked: {n_queries}")

@@ -1,12 +1,19 @@
 # Runbook: backups and restore
 
-Backups: the `backup` service writes `vatpac_<UTC stamp>.dump` (pg_dump custom format) to the `backups` named volume at `BACKUP_TIME_UTC` (default 02:00) and keeps `BACKUP_RETENTION_DAYS` (default 14) days. The watchdog alerts if the newest dump is older than 26 h. The dump holds data and schema, not roles (the migrate job recreates roles).
+Backups: the `backup` service writes `vatpac_<UTC stamp>.dump` (pg_dump custom format) to the `backups` named volume at `BACKUP_TIME_UTC` (default 02:00) and keeps `BACKUP_RETENTION_DAYS` (default 14) days. The dump runs as the read-only role `backup_ro` (member of `pg_read_all_data`; password `BACKUP_DB_PASSWORD`). The dump holds data and schema, not roles (the migrate job recreates roles).
+
+Monitoring:
+- The `backup` container has a healthcheck: healthy while a dump younger than about 25 h exists, or the backup loop started less than 24 h ago.
+- The watchdog alerts if the newest dump is older than `WATCHDOG_BACKUP_MAX_HOURS` (26 h), if the last weekly restore test is `FAIL` (critical), and if the last successful restore test is older than `WATCHDOG_RESTORE_TEST_MAX_DAYS` (9 days, warning).
+
+Roles: dumping needs only `backup_ro`. Restores and the restore test must `CREATE`, `DROP` and `RENAME` databases, which `backup_ro` cannot do, so `restore.sh` and `restore-test.sh` connect as the owner role through `RESTORE_PGUSER` / `RESTORE_PGPASSWORD` (set in the backup service from `POSTGRES_USER` / `POSTGRES_PASSWORD`). The nightly dump never uses the owner role.
 
 ## See what exists
 ```sh
 docker compose exec backup ls -lh /backups
 docker compose exec backup cat /backups/.last_success /backups/.last_restore_test
 ```
+`.last_restore_test` is one line: `<UTC timestamp> OK|FAIL <detail>`.
 
 ## Take one now
 ```sh
@@ -17,34 +24,57 @@ make backup        # docker compose exec backup backup.sh once
 ```sh
 make backup-test   # restores the newest dump into scratch DB vatpac_restore_test, checks tables, drops it
 ```
+The scratch database is dropped on every exit path, including failure.
+
+## How `restore.sh` protects you
+`RESTORE_CONFIRM=<target> restore.sh FILE [TARGET]` (default target `vatpac_restore`):
+1. Refuses the system databases `postgres`, `template0`, `template1`, and names that are not letters, digits and underscores.
+2. Requires `RESTORE_CONFIRM` to equal the target database name exactly (not `yes`).
+3. Refuses if any other session is connected to the target (`pg_stat_activity`). Stop the writers first.
+4. If the target exists and has tables, takes a safety dump first: `/backups/<target>_prerestore_<stamp>.prerestore`. It is not counted as a nightly backup and rotates with `BACKUP_RETENTION_DAYS`.
+5. Restores into `<target>_restoring` and runs the same sanity checks as the restore test (`pilot_session`, `poll_log`, non-empty `schema_migrations`). If they fail, the live database is untouched and `<target>_restoring` is dropped.
+6. Swaps with two `ALTER DATABASE ... RENAME`: `<target>` becomes `<target>_old`, then `<target>_restoring` becomes `<target>`. It will not run again while `<target>_old` exists: check it, then drop it.
 
 ## Restore into a scratch database (safe, to inspect data)
 ```sh
-make restore FILE=/backups/vatpac_20261007T020000Z.dump TARGET=vatpac_restore
+make restore FILE=/backups/vatpac_20261007T020000Z.dump TARGET=vatpac_restore CONFIRM=vatpac_restore
 docker compose exec db psql -U vatpac -d vatpac_restore -c "SELECT count(*) FROM poll_log"
 ```
+Roles are not in the dump and ownership is dropped, so the copy is owned by the owner role. That is fine for inspection.
 
 ## Disaster recovery: replace the live database
-Use when the live database is lost or corrupt.
-1. Stop writers: `docker compose stop collector grafana watchdog` (the watchdog would otherwise restart things).
-2. Restore over the live DB (destructive; needs explicit confirmation):
+Use when the live database is lost or corrupt. Replace `vatpac` with `POSTGRES_DB` if you changed it.
+1. Stop everything that connects: `docker compose stop collector grafana watchdog`. (The restore refuses if any other session remains.)
+2. Restore over the live name:
    ```sh
-   docker compose exec -e RESTORE_CONFIRM=yes backup restore.sh /backups/<file>.dump vatpac
+   make restore FILE=/backups/<file>.dump TARGET=vatpac CONFIRM=vatpac
    ```
-   (replace `vatpac` with `POSTGRES_DB`).
-3. Re-apply roles and grants: `docker compose up -d migrate` (idempotent).
+   The old database is kept as `vatpac_old`, and a safety dump of it is in `/backups/*.prerestore`.
+3. Re-apply roles and grants to the new database: `docker compose up migrate` (idempotent; the dump carries no roles or ACLs).
 4. Start everything: `docker compose up -d`, then `make smoke`.
-5. Positions between the backup and the failure are lost (no backfill); note the gap.
+5. When satisfied, drop the old copy: `docker compose exec db psql -U vatpac -d postgres -c 'DROP DATABASE "vatpac_old"'`. It occupies disk until you do.
+6. Positions between the backup and the failure are lost (no backfill); note the gap.
 
 ## Restore into a brand-new volume (fresh VM or after `docker compose down -v`)
 1. `docker compose up -d db` then `docker compose up migrate` (creates empty schema and roles).
-2. Copy the dump onto the new host, then into the backup container:
-   `docker compose cp ./vatpac_<stamp>.dump backup:/backups/` (start the `backup` service first).
-3. Follow "replace the live database" from step 2.
+2. Start the `backup` service, then copy the dump in: `docker compose cp ./vatpac_<stamp>.dump backup:/backups/`.
+3. Follow "replace the live database" from step 1 (the empty live database is not backed up first because it has tables from migrate; the safety dump is just tiny).
 
 ## Off-box copies
-The `backups` volume lives on the same disk as the database. Copy dumps off the VM regularly:
+The `backups` volume lives on the same disk as the database, so a dead disk loses both. Set `BACKUP_REMOTE` in `.env` to run a command after every successful nightly dump. The new file is in `$BACKUP_FILE`. Default empty = off. A failure is logged (`BACKUP_REMOTE FAILED`) but never fails the backup; success writes `/backups/.last_remote_success`.
+
+The backup image has no copy tools. Add them at build time with `BACKUP_EXTRA_APT_PACKAGES` (space separated Debian packages) and rebuild (`docker compose up -d --build backup`):
+```sh
+# rclone to a remote you configured (mount the config via a compose override, or use env-based RCLONE_CONFIG_* variables)
+BACKUP_EXTRA_APT_PACKAGES=rclone
+BACKUP_REMOTE=rclone copyto "$BACKUP_FILE" remote:vatpac-backups/
+
+# rsync over ssh (mount a key and known_hosts via a compose override; do not bake keys into the image)
+BACKUP_EXTRA_APT_PACKAGES=rsync openssh-client
+BACKUP_REMOTE=rsync -e "ssh -i /run/keys/id -o StrictHostKeyChecking=yes" "$BACKUP_FILE" backup@host:/srv/vatpac/
+```
+Note the command runs through `sh -c`, so keep `$BACKUP_FILE` quoted. Credentials never go in the repo or in `.env.example`. Manual copy, without the hook:
 ```sh
 docker run --rm -v vatpac_backups:/b -v "$PWD":/out alpine sh -c 'cp /b/*.dump /out/'
 ```
-then rsync/rclone them elsewhere. Dumps contain real names and CIDs: treat them as personal data.
+then rsync/rclone them elsewhere. Dumps contain real names and CIDs: treat them as personal data and encrypt them at the destination.

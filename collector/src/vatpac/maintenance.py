@@ -1,14 +1,15 @@
-"""Daily maintenance: settings sync, partitions, retention, view refresh, poll_log trimming."""
+"""Maintenance: settings sync, partitions, retention, flight summary and view refresh, poll_log trimming.
+
+run_maintenance runs daily (and at startup); refresh_flights alone runs every FLIGHT_REFRESH_INTERVAL_S."""
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import psycopg
-from psycopg import sql
 from psycopg.rows import tuple_row
 
 from .settings import Settings
@@ -17,6 +18,8 @@ log = logging.getLogger(__name__)
 
 POLL_LOG_RETENTION_DAYS = 400
 PARTITIONS_AHEAD = 7
+FLIGHT_REFRESH_INTERVAL_S = 300.0  # main.py: how often to call refresh_flights
+FLIGHT_REFRESH_WINDOW = timedelta(hours=12)
 
 
 def sync_settings(conn: psycopg.Connection[Any], settings: Settings) -> None:
@@ -46,8 +49,25 @@ def ensure_partitions(
 
 
 def drop_old_partitions(conn: psycopg.Connection[Any], today: date, retention_days: int) -> int:
-    """Drop partitions older than retention that hold no recently active session. Returns the number dropped."""
-    return _scalar(conn, "SELECT drop_old_pilot_position_partitions(%s, %s)", (retention_days, today))
+    """Finalise flights, then drop partitions older than retention that hold no recently active session.
+
+    Returns the number dropped. The SQL function raises a NOTICE for a partition pinned beyond twice the
+    retention; it is logged here as a warning.
+    """
+
+    def on_notice(diag: Any) -> None:
+        log.warning("partition maintenance notice", extra={"notice": diag.message_primary})
+
+    conn.add_notice_handler(on_notice)
+    try:
+        return _scalar(conn, "SELECT drop_old_pilot_position_partitions(%s, %s)", (retention_days, today))
+    finally:
+        conn.remove_notice_handler(on_notice)
+
+
+def refresh_flights(conn: psycopg.Connection[Any], window: timedelta = FLIGHT_REFRESH_WINDOW) -> int:
+    """Recompute flight_summary for sessions seen within ``window``. Idempotent; returns rows changed."""
+    return _scalar(conn, "SELECT refresh_flight_summary(%s)", (window,))
 
 
 def trim_poll_log(conn: psycopg.Connection[Any], days: int = POLL_LOG_RETENTION_DAYS) -> int:
@@ -56,15 +76,8 @@ def trim_poll_log(conn: psycopg.Connection[Any], days: int = POLL_LOG_RETENTION_
 
 
 def refresh_materialized_views(conn: psycopg.Connection[Any]) -> int:
-    """Refresh every materialized view in public (concurrently when it has a unique index)."""
-    names = [r[0] for r in conn.execute("SELECT matviewname FROM pg_matviews WHERE schemaname = 'public'")]
-    for name in names:
-        ident = sql.Identifier("public", name)
-        try:
-            conn.execute(sql.SQL("REFRESH MATERIALIZED VIEW CONCURRENTLY {}").format(ident))
-        except psycopg.errors.ObjectNotInPrerequisiteState:
-            conn.execute(sql.SQL("REFRESH MATERIALIZED VIEW {}").format(ident))
-    return len(names)
+    """Refresh every materialized view in public (SECURITY DEFINER SQL function: no table rights needed)."""
+    return _scalar(conn, "SELECT refresh_materialized_views()", ())
 
 
 def run_maintenance(conn: psycopg.Connection[Any], settings: Settings) -> dict[str, int]:
@@ -78,6 +91,7 @@ def run_maintenance(conn: psycopg.Connection[Any], settings: Settings) -> dict[s
     tasks: dict[str, Callable[[], int]] = {
         "settings": settings_task,
         "partitions_created": lambda: ensure_partitions(conn, today),
+        "flights_refreshed": lambda: refresh_flights(conn),
         "partitions_dropped": lambda: drop_old_partitions(conn, today, settings.position_retention_days),
         "poll_log_trimmed": lambda: trim_poll_log(conn),
         "views_refreshed": lambda: refresh_materialized_views(conn),

@@ -1,0 +1,36 @@
+# Keeps third-party GitHub Actions and base images current. Once the workflow actions are pinned to
+# commit SHAs (see TODO comments in .github/workflows), Dependabot updates the SHA and the tag comment.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /collector
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /ops/backup
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /ops/migrate
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /ops/watchdog
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /collector
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /ops/watchdog
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly

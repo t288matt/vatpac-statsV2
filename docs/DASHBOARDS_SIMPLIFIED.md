@@ -59,7 +59,7 @@ These watched v1's enrichment and matching jobs, which do not exist in v3. They 
 
 - Pilot "online" and "active" counts come from `network_snapshot` and the `flight` view, not from enrichment tables.
 - Military aircraft are a boolean in the `aircraft_type` lookup instead of a long hard-coded list in each query (cards 65, 66, 78).
-- Airline, aircraft category and pilot home region are lookups (`airline`, `aircraft_type`, `region_map`), seeded by `grafana/seed_lookups.sql`. Unlisted codes show as Other or Unknown instead of being silently dropped.
+- Airline, aircraft category and pilot home region are lookups (`airline`, `aircraft_type`, `region_map`), seeded by migration `20261007000011_seed_analytics_lookups.sql`. Unlisted codes show as Other or Unknown instead of being silently dropped.
 - Home-region tests use the `home_icao_prefixes` setting (default `Y`) rather than a hard-coded `Y`.
 - No backfill: every chart starts empty at go-live, and each dashboard says "Data since" the first stored snapshot.
 
