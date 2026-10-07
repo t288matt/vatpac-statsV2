@@ -3,7 +3,7 @@
 Single source of truth for open work on the v3 goal. Update it in the same commit as the change it describes.
 Times are UTC. Statuses: TODO, IN PROGRESS, BLOCKED (owner), WAITING (time), DONE.
 
-Last updated: 07-10-2026 23:20 UTC
+Last updated: 07-10-2026 23:30 UTC
 
 | ID | Item | Status | Detail / next step |
 |----|------|--------|--------------------|
@@ -12,7 +12,7 @@ Last updated: 07-10-2026 23:20 UTC
 | T3 | CI green on main | DONE | 07-10-2026: lint fixed in 6e3d131, size-budget fixed in 7f5641a; owner confirmed the newest ci run on main is green. |
 | T4 | Telegram alert delivery | DONE | 07-10-2026: credentials set on the VM, watchdog recreated, test alert accepted by Telegram (HTTP 200) and confirmed received by the owner. Accepted risk (owner, 07-10-2026): the bot token appeared in a session transcript via a debug script and was not rotated; rotate via BotFather if in doubt. |
 | T5 | Retention and reactivation charts | BLOCKED (owner) | Unverified. Needs the Metabase export to compare against. |
-| T6 | Names/CIDs retention rule | BLOCKED (owner) | Owner decision needed; recommendation to be given when asked. |
+| T6 | Names/CIDs retention rule | DONE | 07-10-2026: owner chose to keep names and CIDs forever, no rule (ADR-019). |
 | T7 | Deploy 6e3d131 and 7f5641a to the VM | WAITING | Do after T1 passes (a redeploy would break the soak). Method: `git archive HEAD \| ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'` then `docker compose up -d --build`. |
 | T8 | Read-only deploy key so the VM can `git pull` | TODO | Optional; needs the owner to add the key in GitHub settings. |
 | T9 | Triage seven Dependabot PRs | TODO | Hold until main is green. Grafana 11 to 13 needs dashboard testing first. Review action bumps before merging. |
