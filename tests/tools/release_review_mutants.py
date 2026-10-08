@@ -30,7 +30,7 @@ M: list[tuple[str, str, str, str]] = [
     ("M03 future bound default 120 s -> 100000 s", V + "settings.py", "feed_max_future_seconds: int = Field(120,", "feed_max_future_seconds: int = Field(100000,"),
     ("M04 future bound ignores the setting (fixed 3600 s)", V + "main.py", "bound = update_timestamp(payload), self.settings.feed_max_future_seconds", "bound = update_timestamp(payload), 3600"),
     ("M05 startup load_last_ts call removed", V + "main.py", "        await collector.load_last_ts()\n", ""),
-    ("M06 startup query counts future rows", V + "main.py", " WHERE observed_at <= now() + make_interval(secs => %s)\"", "\" ; _ = %s\""),
+    ("M06 startup query counts future rows", V + "main.py", " WHERE observed_at <= now() + make_interval(secs => %s)\"", " WHERE %s IS NOT NULL\""),
     ("M07 _SUP no longer excluded from near-miss", V + "filters.py", 'callsign.endswith(("_OBS", "_SUP"))', 'callsign.endswith(("_OBS",))'),
     ("M08 _OBS no longer excluded from near-miss", V + "filters.py", 'callsign.endswith(("_OBS", "_SUP"))', 'callsign.endswith(("_SUP",))'),
     ("M09 text cap boundary > -> >=", V + "model.py", "len(v) > limit", "len(v) >= limit"),
