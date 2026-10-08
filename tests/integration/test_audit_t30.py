@@ -285,3 +285,16 @@ def test_a_zzzz_arrival_is_flagged_as_zzzz(conn) -> None:
     make_session(conn, 9700010, run(5), dep="YSSY", arr="ZZZZ")
     row = flights(conn, 9700010)[0]
     assert row["is_zzzz"] is True and row["is_circuit"] is False
+
+
+
+def test_run_maintenance_uses_the_configured_retention(conn) -> None:
+    """Mutant C30 (retention hard-coded to 1 day): a 40 day old partition must survive a 60 day retention."""
+    from vatpac.maintenance import run_maintenance
+    from vatpac.settings import Settings
+
+    old = datetime.now(timezone.utc) - timedelta(days=40)
+    name = partition_for(conn, old)
+    out = run_maintenance(conn, Settings(position_retention_days=60))
+    assert out["failed"] == 0
+    assert name in _partitions(conn)
