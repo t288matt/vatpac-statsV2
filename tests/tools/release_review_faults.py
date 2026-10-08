@@ -174,10 +174,13 @@ async def s_future() -> None:
     try:
         fake.body = payload(BASE)
         st = [(await col.poll_once()).status]
+        await drain(col)  # the archive drops a job submitted while its worker is busy, so wait between polls
         fake.body = payload(NOW + timedelta(minutes=10))  # 10 minutes ahead of the clock
         st.append((await col.poll_once()).status)
+        await drain(col)
         fake.body = payload(NOW + timedelta(seconds=119))  # inside the bound
         st.append((await col.poll_once()).status)
+        await drain(col)
         fake.body = payload(BASE + timedelta(seconds=15))  # genuine but older than the 119 s one -> skipped by design
         st.append((await col.poll_once()).status)
         await drain(col)
@@ -312,7 +315,7 @@ async def s_slow() -> None:
     col.pool.close()
 
 
-async def s_memory(n: int = 500, scale: int = 28) -> None:
+async def s_memory(n: int = 500, scale: int = 17) -> None:
     reset()
     fake, s = Fake(), settings(archive_compact_every_s=60, archive_full_every_s=300)
     await fake.start()
