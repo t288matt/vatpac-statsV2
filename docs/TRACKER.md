@@ -3,7 +3,7 @@
 Single source of truth for open work on the v3 goal. Update it in the same commit as the change it describes.
 Times are UTC. Statuses: TODO, IN PROGRESS, BLOCKED (owner), WAITING (time), DONE.
 
-Last updated: 08-10-2026 08:00 UTC
+Last updated: 08-10-2026 08:20 UTC
 
 | ID | Item | Status | Detail / next step |
 |----|------|--------|--------------------|
@@ -22,6 +22,7 @@ Last updated: 08-10-2026 08:00 UTC
 | T13 | Rebuild controller retention dashboard from the real v1 SQL | TODO | 11 cards (13 minus two duplicates): active, retention rate, lapsed 30/60/90+, reactivated count and list, help list, S1 cohort, activity levels, engagement index, activity trends. New migration plus Grafana panels plus fixture tests. Deploy after the soak. |
 | T14 | Re-check 19 v1 cards edited after the 28-09-2025 snapshot | TODO | Repo definitions were copied from the older SQL: 41, 43, 55, 61, 63, 66, 78, 93, 94, 95, 98, 108, 116, 129, 131, 133, 134, 135, 137. Card 55 (movements) first: ADR-018 may rest on the old definition. |
 | T15 | Decide and build the other cards created after the snapshot (ids 140-186) | TODO | About 30 candidates after excluding duplicates (178, 179), sector charts (159, 160, still dropped per decision 1) and v1 internal integrity (147): pilot onboarding and retention (3), military RAAFv (4), management (2), ATC providers and session lengths (5), pilots (155), Monday (156), 4 h in 8 h window (186). Owner picks scope. |
+| T16 | Permanent data-integrity checks | WAITING (soak) | Owner approved 08-10-2026, to start after the soak completes. Scope: (a) unit test with an independent point-in-polygon and whitelist count against the fixture feed; (b) `ops/check_data_integrity.py` plus an integration test on a `_test` database (duplicates, impossible durations, orphans, in-region <= global, snapshot gaps); (c) `ops/check_feed_crosscheck.py` against the live feed, run by hand or on a schedule, not in CI; (d) optionally a watchdog alert on an integrity breach. Evidence so far (08-10-2026 07:47-07:49 UTC): 6 of 6 live feed updates matched the stored counts exactly; DB integrity queries clean. Still to do: repeat the cross-check at the weekday evening peak; compare v1 and v3 once v1 has run for several hours (ask the owner first). |
 
 ## Goal-met checklist (verbatim gate)
 - [ ] Soak PASS (T1)
