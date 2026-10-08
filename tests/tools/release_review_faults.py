@@ -53,7 +53,7 @@ def payload(ts: datetime, fractional: bool = True, scale: int = 1) -> bytes:
     """The fixture stamped ts. fractional: logon_time carries .1234567; scale: clone the pilots to make a big feed."""
     p = copy.deepcopy(FIX)
     p["general"]["update_timestamp"] = ts.strftime("%Y-%m-%dT%H:%M:%S.1434968Z")
-    base = p["pilots"]
+    base = list(p["pilots"])  # a copy: appending to the list being iterated never ends
     for k in range(1, scale):
         for q in base:
             c = copy.deepcopy(q)
