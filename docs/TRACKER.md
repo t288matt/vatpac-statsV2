@@ -5,7 +5,7 @@ Times are UTC. Statuses: TODO, IN PROGRESS, BLOCKED (owner), WAITING (time), DON
 
 Resume note for a cold start (usage-limit reset): docs/RESUME.md
 
-Last updated: 08-10-2026 15:00 UTC
+Last updated: 08-10-2026 16:00 UTC
 
 | ID | Item | Status | Detail / next step |
 |----|------|--------|--------------------|
@@ -34,7 +34,8 @@ Last updated: 08-10-2026 15:00 UTC
 | T23 | Metabase export: seven cards with newer-format SQL | DONE | Received 08-10-2026. Card 55 (movements) confirms ADR-018: v1 counts every flight with a Y-prefixed departure or arrival, no airborne filter. Cards 93, 129 sent to the pilots agent; 176 built (T13); 180, 184, 186 are held for T15. |
 | T24 | Housekeeping on the owner's Metabase host | TODO (owner) | The Metabase container there was started on the `latest` image against the old database; a 46 MB backup dump (contains real names) sits in the owner's home folder, and the exported card CSVs sit on this PC outside git. Secure or delete when no longer needed. |
 | T25 | Repair Docker Desktop on the owner's PC (LOW) | TODO | Engine returns HTTP 500, so local integration tests cannot run; CI covers them meanwhile. |
-| T26 | Independent review of changes since the retention rebuild | IN PROGRESS | Read-only reviewer agent started 08-10-2026 over e90963e to HEAD (migrations, dashboards, tests, CI change). Findings to be triaged before any deploy. |
+| T26 | Independent review of changes since the retention rebuild | DONE | Reviewer reported 08-10-2026: no high-severity defects, no secrets, migrations and CI change correct. Fixed same day: (1) cards 94 and 95 join multiplied pilot rows by ATC rows per hour, now each side is counted before the join; (3) card 93 could show several bars labelled Unknown, now grouped by label. Integration suite after the fixes: 117 passed, 1 skipped. Remaining findings are in T27. |
+| T27 | Review follow-ups (LOW, after the usage reset) | TODO | (2) Rewrite stale cells in docs/CHART_DEFINITIONS.md rows 94, 95, 63, 137, 116, 66, 78, 129, 135, 61: only the notes were appended, so Definition, Panel title, Difference and Test cells still describe the old panels (risk: the doc is used as an acceptance spec). (4) atc-retention.json panels 10 to 15 rely on the database timezone being UTC (set in ops/postgres/postgresql.conf); add AT TIME ZONE UTC or ALTER ROLE grafana_ro SET timezone in db/roles.sql. (5) Known v1 quirks, documented, not to fix: empty months drop their lapsed count in panel 15; pilots-now panel 5 for sessions over 24 h; gauge overlaps a panel (cosmetic). Residual: confirm no hand-made controller_summaries exists on the VM before deploying migration 30 (the earlier test used a temporary view that was removed). |
 
 ## Goal-met checklist (verbatim gate)
 - [ ] Soak PASS (T1)
