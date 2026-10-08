@@ -27,14 +27,14 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `VATSIM_STATUS_URL` | `https://status.vatsim.net/status.json` | collector | Discovery document (`data.v3[0]`). |
 | `POLL_INTERVAL_SECONDS` | `15` | collector | Poll cadence. Valid 5 to 300. |
 | `HTTP_TIMEOUT_SECONDS` | `10` | collector | Request timeout (connect timeout is the lower of 5 s and this). Valid 1 to 60. |
+| `TEXT_MAX_LENGTH` | `2000` | collector | Free-text fields of a pilot or controller (name, route, remarks, server and so on) are cut to this many characters at ingest; each cut field counts once in `poll_log.rejected_values`. Valid 100 to 100000. |
+| `FEED_MAX_FUTURE_SECONDS` | `120` | collector | A feed snapshot whose `update_timestamp` is more than this many seconds ahead of the collector's clock is rejected as a feed error (`error` poll, nothing stored, `last seen` unchanged), so one future-dated snapshot cannot make every later real update look unchanged. Valid 15 to 3600. The collector host's clock must be correct to well within this bound. |
 | `POSITION_RETENTION_DAYS` | `90` | collector | Raw positions kept this long (whole daily partitions). Valid 2 to 3650. |
 | `AIRBORNE_GAP_CAP_SECONDS` | `40` | collector | Cap per sample gap in airborne minutes. Valid 15 to 600. Published to `app_setting` for the views. |
 | `HOME_ICAO_PREFIXES` | `Y` | collector | Comma-separated letter prefixes defining the home region (for example `Y` or `Y,NZ`). Published to `app_setting`. |
 | `LOG_LEVEL` | `INFO` | collector | `DEBUG`, `INFO`, `WARNING` or `ERROR` (case-insensitive). The watchdog also reads it, but compose does not pass it on, so the watchdog stays at `INFO`. |
 | `CIRCUIT_FAILURE_THRESHOLD` | `5` | collector | Consecutive upstream failures that open the circuit breaker (1 to 1000). Polling never stops. |
 | `CIRCUIT_SLOW_INTERVAL_SECONDS` | `60` | collector | Poll cadence in seconds while the breaker is open (5 to 3600). |
-| `TEXT_MAX_LENGTH` | `2000` | collector | Free-text fields of a pilot or controller (name, route, remarks, server and so on) are cut to this many characters at ingest; each cut field counts once in `poll_log.rejected_values`. Valid 100 to 100000. |
-| `FEED_MAX_FUTURE_SECONDS` | `120` | collector | A feed snapshot whose `update_timestamp` is more than this many seconds ahead of the collector's clock is rejected as a feed error (`error` poll, nothing stored, `last seen` unchanged), so one future-dated snapshot cannot make every later real update look unchanged. Valid 15 to 3600. The collector host's clock must be correct to well within this bound. |
 | `HEALTH_PORT` | `8080` | collector, watchdog | Port of the collector's `/health` and `/metrics` inside the container. |
 | `VATPAC_VERSION` | `dev` | collector build arg | Version label baked into the image (the release workflow sets it from the git tag). |
 | `BACKUP_RETENTION_DAYS` | `14` | backup | Days of dumps kept. |

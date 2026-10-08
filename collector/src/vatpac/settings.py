@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     vatsim_status_url: str = "https://status.vatsim.net/status.json"
     poll_interval_seconds: float = Field(15.0, ge=5, le=300)
     http_timeout_seconds: float = Field(10.0, ge=1, le=60)
+    text_max_length: int = Field(2000, ge=100, le=100_000)
+    feed_max_future_seconds: int = Field(120, ge=15, le=3600)
     position_retention_days: int = Field(90, ge=2, le=3650)
     airborne_gap_cap_seconds: int = Field(40, ge=15, le=600)
     home_icao_prefixes: str = "Y"
@@ -41,8 +43,6 @@ class Settings(BaseSettings):
     health_port: int = Field(8080, ge=1, le=65535)
     circuit_failure_threshold: int = Field(5, ge=1, le=1000)
     circuit_slow_interval_seconds: float = Field(60.0, ge=5, le=3600)
-    text_max_length: int = Field(2000, ge=100, le=100_000)
-    feed_max_future_seconds: int = Field(120, ge=15, le=3600)
 
     @field_validator("log_level", mode="before")
     @classmethod
