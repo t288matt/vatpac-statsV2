@@ -1,16 +1,15 @@
 {
   "uid": "vatpac-atc-retention",
-  "title": "ATC: retention (unverified)",
+  "title": "ATC: retention and reactivation",
   "tags": [
     "vatpac",
-    "atc",
-    "unverified"
+    "atc"
   ],
   "timezone": "utc",
   "editable": false,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "version": 1,
+  "version": 4,
   "refresh": "5m",
   "time": {
     "from": "now-30d",
@@ -60,7 +59,7 @@
     {
       "id": 2,
       "type": "text",
-      "title": "Unverified definitions",
+      "title": "About these panels",
       "gridPos": {
         "x": 0,
         "y": 2,
@@ -69,14 +68,14 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**UNVERIFIED.** These panels are built to the columns visible in the Metabase screenshots; the v1 SQL was not recovered. Definitions are the analytics agent's best reading and must be confirmed against the owner's Metabase export. Because there is no backfill, 60-day lapse measures are not meaningful until about 60 days after go-live."
+        "content": "Definitions are copied from the v1 Metabase cards (exported 08-10-2026). Windows are relative to now. Because there is no backfill, the 30 to 90 day measures are not meaningful until about 90 days after go-live. As in v1, 'reactivated' needs no earlier session, so until the database holds 60 days of history every controller counts as reactivated."
       }
     },
     {
       "id": 3,
       "type": "stat",
       "title": "Active controllers",
-      "description": "UNVERIFIED (screenshot only; showed 178). Assumed: controllers whose latest session started in the last 90 days.",
+      "description": "v1 Metabase card 165. Distinct controllers with a session that started in the last 30 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -84,7 +83,7 @@
       "gridPos": {
         "x": 0,
         "y": 5,
-        "w": 6,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -97,7 +96,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT count(*) AS \"Active controllers\" FROM controller_activity_summary WHERE last_session >= now() - interval '90 days'"
+          "rawSql": "-- Card 1: Active Controllers\nSELECT COUNT(DISTINCT cid) as count\nFROM controller_summaries\nWHERE session_start_time >= NOW() - INTERVAL '30 days'"
         }
       ],
       "options": {
@@ -132,15 +131,15 @@
       "id": 4,
       "type": "stat",
       "title": "Lapsed 30 days",
-      "description": "UNVERIFIED (screenshot only; showed 28). Assumed: controllers active in the last 90 days whose latest session started more than 30 days ago.",
+      "description": "v1 Metabase card 166. Last session 30 to 60 days ago.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
       },
       "gridPos": {
-        "x": 6,
+        "x": 4,
         "y": 5,
-        "w": 6,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -153,7 +152,63 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT count(*) AS \"Lapsed\" FROM controller_activity_summary\nWHERE last_session >= now() - interval '90 days' AND last_session < now() - interval '30 days'"
+          "rawSql": "SELECT COUNT(DISTINCT cid) as count\nFROM (\n    SELECT cid\n    FROM controller_summaries\n    GROUP BY cid\n    HAVING MAX(session_start_time) >= NOW() - INTERVAL '60 days'\n       AND MAX(session_start_time) < NOW() - INTERVAL '30 days'\n) sub"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Lapsed 60 days",
+      "description": "v1 Metabase card 168. Last session 60 to 90 days ago.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 5,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT cid) as count\nFROM (\n    SELECT cid\n    FROM controller_summaries\n    GROUP BY cid\n    HAVING MAX(session_start_time) >= NOW() - INTERVAL '90 days'\n       AND MAX(session_start_time) < NOW() - INTERVAL '60 days'\n) sub"
         }
       ],
       "options": {
@@ -185,10 +240,10 @@
       }
     },
     {
-      "id": 5,
-      "type": "gauge",
-      "title": "Controller retention rate",
-      "description": "UNVERIFIED (screenshot only; showed 84%, bands red below 65, amber 65 to 85, green above 85). The screenshot figures (178 active, 28 lapsed, 84%) are consistent with retention = (active - lapsed) / active.",
+      "id": 6,
+      "type": "stat",
+      "title": "Lapsed 90+ days",
+      "description": "v1 Metabase card 169. Last session more than 90 days ago.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -196,71 +251,7 @@
       "gridPos": {
         "x": 12,
         "y": 5,
-        "w": 6,
-        "h": 6
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT round(100.0 * (count(*) - count(*) FILTER (WHERE last_session < now() - interval '30 days'))\n              / NULLIF(count(*), 0), 0) AS \"Retention (%)\"\nFROM controller_activity_summary\nWHERE last_session >= now() - interval '90 days'"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "showThresholdMarkers": true
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 50,
-          "max": 100,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 65
-              },
-              {
-                "color": "green",
-                "value": 85
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 6,
-      "type": "stat",
-      "title": "Reactivated in the last 30 days after 60+ days lapsed",
-      "description": "UNVERIFIED (screenshot only; showed 74). Assumed: controllers with a session in the last 30 days whose previous session ended more than 60 days before it started.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 18,
-        "y": 5,
-        "w": 6,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -273,7 +264,63 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT count(*) AS \"Reactivated\" FROM controller_activity_summary\nWHERE recent_sessions > 0 AND gap_days_before_recent > 60"
+          "rawSql": "-- Card 4: Lost Controllers\nSELECT COUNT(DISTINCT cid) as count\nFROM (\n    SELECT cid\n    FROM controller_summaries\n    GROUP BY cid\n    HAVING MAX(session_start_time) < NOW() - INTERVAL '90 days'\n) sub"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Reactivated in the last 30 days after 60+ days lapsed",
+      "description": "v1 Metabase card 171. A session in the last 30 days and none 30 to 90 days ago. As in v1 this does not require an earlier session, so a brand-new controller counts.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 5,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- Reactivated: Active now after 60+ day gap\nWITH controller_activity AS (\n    SELECT \n        cid,\n        -- Active in last 30 days\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') as sessions_last_30d,\n        -- Sessions 30-90 days ago (the gap period)\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '90 days' \n                          AND session_start_time < NOW() - INTERVAL '30 days') as sessions_30_90d_ago\n    FROM controller_summaries\n    GROUP BY cid\n)\nSELECT COUNT(*) as count\nFROM controller_activity\nWHERE sessions_last_30d >= 1          -- Currently active\n  AND sessions_30_90d_ago = 0  -- Was NOT active 30-90 days ago (60+ day gap)"
         }
       ],
       "options": {
@@ -305,17 +352,167 @@
       }
     },
     {
-      "id": 7,
-      "type": "table",
-      "title": "Who might need help reactivating?",
-      "description": "UNVERIFIED (screenshot only). Assumed: controllers who started sessions in the last 30 days but were online for under 1 hour in total with no session longer than 30 minutes, newest first. Columns follow the screenshot.",
+      "id": 8,
+      "type": "gauge",
+      "title": "Controller retention rate",
+      "description": "v1 Metabase card 163. Active (30 days, sessions over 60 minutes) divided by active plus lapsed (a session 30 to 90 days ago and none in the last 30 days).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 5,
+        "w": 4,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- Active vs Lapsed Ratio for Gauge Chart\n-- Returns single percentage value (0-100) for gauge visualization\nWITH active_controllers AS (\n    SELECT COUNT(DISTINCT cid) as count\n    FROM controller_summaries\n    WHERE session_start_time >= NOW() - INTERVAL '30 days'\n      AND session_duration_minutes > 60\n),\nlapsed_controllers AS (\n    -- Controllers last seen 30-90 days ago\n    SELECT COUNT(DISTINCT cs1.cid) as count\n    FROM controller_summaries cs1\n    WHERE cs1.session_start_time >= NOW() - INTERVAL '90 days'\n      AND cs1.session_start_time < NOW() - INTERVAL '30 days'\n      AND NOT EXISTS (\n          SELECT 1 FROM controller_summaries cs2\n          WHERE cs2.cid = cs1.cid\n            AND cs2.session_start_time >= NOW() - INTERVAL '30 days'\n      )\n)\nSELECT \n    ROUND(ac.count * 100.0 / NULLIF(ac.count + lc.count, 0), 1) as percentage\nFROM active_controllers ac\nCROSS JOIN lapsed_controllers lc"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 65
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "piechart",
+      "title": "Activity levels of controllers",
+      "description": "v1 Metabase card 164. Current stage: Active Regular (4+ sessions in 30 days), Active Casual (1 to 3), Lapsing (last session 30 to 60 days ago), At Risk (60 to 90), Lost (90+).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
       },
       "gridPos": {
         "x": 0,
-        "y": 11,
+        "y": 9,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- Controller Stage Distribution (Current State)\nWITH controller_current_stage AS (\n    SELECT \n        cid,\n        CASE\n            -- Active Regular: 4+ sessions in last 30 days\n            WHEN COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') >= 4 \n            THEN 'Active Regular'\n            \n            -- Active Casual: 1-3 sessions in last 30 days\n            WHEN COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') BETWEEN 1 AND 3 \n            THEN 'Active Casual'\n            \n            -- Lapsing: Last session 30-60 days ago\n            WHEN MAX(session_start_time) >= NOW() - INTERVAL '60 days' \n             AND MAX(session_start_time) < NOW() - INTERVAL '30 days' \n            THEN 'Lapsing'\n            \n            -- At Risk: Last session 60-90 days ago\n            WHEN MAX(session_start_time) >= NOW() - INTERVAL '90 days' \n             AND MAX(session_start_time) < NOW() - INTERVAL '60 days' \n            THEN 'At Risk'\n            \n            -- Lost: Last session 90+ days ago\n            WHEN MAX(session_start_time) < NOW() - INTERVAL '90 days' \n            THEN 'Lost'\n            \n            ELSE 'Unknown'\n        END as stage\n    FROM controller_summaries\n    GROUP BY cid\n)\nSELECT \n    stage,\n    COUNT(*) as controller_count,\n    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) as percentage\nFROM controller_current_stage\nWHERE stage != 'Unknown'\nGROUP BY stage\nORDER BY \n    CASE stage\n        WHEN 'Active Regular' THEN 1\n        WHEN 'Active Casual' THEN 2\n        WHEN 'Lapsing' THEN 3\n        WHEN 'At Risk' THEN 4\n        WHEN 'Lost' THEN 5\n    END"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^controller_count$/"
+        },
+        "pieType": "pie",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "S1 new controller retention by cohort",
+      "description": "v1 Metabase card 173. Controllers first seen in the last 12 months whose first session was S1 (rating 2), by first-session month: share with a session 25 to 35, 55 to 65 and 85 to 95 days later. v1 drew a line chart; this is a table of the same figures.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 9,
+        "w": 16,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- S1 Cohort Retention (v1 card 173)\nWITH cohort_definition AS (\n    SELECT\n        cid,\n        DATE_TRUNC('month', MIN(session_start_time)) as cohort_month,\n        MIN(session_start_time) as first_session\n    FROM controller_summaries\n    GROUP BY cid\n    HAVING MIN(session_start_time) >= NOW() - INTERVAL '12 months'\n),\ns1_cohorts AS (\n    SELECT cd.*\n    FROM cohort_definition cd\n    WHERE EXISTS (\n        SELECT 1 FROM controller_summaries cs\n        WHERE cs.cid = cd.cid\n          AND cs.session_start_time = cd.first_session\n          AND cs.rating = 2\n    )\n),\ncohort_retention AS (\n    SELECT\n        cd.cohort_month,\n        cd.cid,\n        cd.first_session,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '30 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '25 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '35 days'\n            )\n        ELSE NULL END as active_day_30,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '60 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '55 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '65 days'\n            )\n        ELSE NULL END as active_day_60,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '90 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '85 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '95 days'\n            )\n        ELSE NULL END as active_day_90\n    FROM s1_cohorts cd\n),\ncohort_stats AS (\n    SELECT\n        cohort_month,\n        COUNT(*) as cohort_size,\n        ROUND(SUM(CASE WHEN active_day_30 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_30 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_30,\n        ROUND(SUM(CASE WHEN active_day_60 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_60 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_60,\n        ROUND(SUM(CASE WHEN active_day_90 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_90 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_90\n    FROM cohort_retention\n    GROUP BY cohort_month\n)\nSELECT TO_CHAR(cohort_month, 'YYYY-MM') AS cohort, cohort_size,\n       retention_rate_30 AS \"Day 30 (%)\", retention_rate_60 AS \"Day 60 (%)\", retention_rate_90 AS \"Day 90 (%)\"\nFROM cohort_stats\nORDER BY cohort"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Who might need help reactivating?",
+      "description": "v1 Metabase card 177. Reactivated controllers (see the reactivated count) whose sessions in the last 30 days were all under 18 minutes.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 18,
         "w": 24,
         "h": 9
       },
@@ -329,7 +526,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT cid, name, rank_group,\n       first_recent_session::date AS first_session,\n       last_recent_session::date AS last_session,\n       recent_sessions, hours_last_30d AS hours_last_30d, longest_session_minutes\nFROM controller_activity_summary\nWHERE recent_sessions > 0\n  AND hours_last_30d < 1\n  AND longest_session_minutes < 30\nORDER BY last_recent_session DESC\nLIMIT 50"
+          "rawSql": "SELECT * FROM (\nWITH controller_activity AS (\n    SELECT \n        cid,\n        MAX(name) as name,\n        MAX(CASE \n            WHEN rating = 2 THEN 'S1'\n            WHEN rating = 3 THEN 'S2'\n            WHEN rating = 4 THEN 'S3'\n            WHEN rating = 5 THEN 'C1'\n            WHEN rating = 7 THEN 'C3'\n            WHEN rating >= 8 THEN 'I1+'\n        END) as rank_group,\n        MIN(session_start_time) as first_session,\n        MAX(session_start_time) as last_session,\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') as sessions_last_30d,\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days' \n                          AND session_duration_minutes < 18) as short_sessions_last_30d,\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '90 days' \n                          AND session_start_time < NOW() - INTERVAL '30 days') as sessions_30_90d_ago,\n        SUM(session_duration_minutes) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') as total_minutes_since_return,\n        MAX(session_duration_minutes) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') as longest_session_minutes\n    FROM controller_summaries\n    GROUP BY cid\n)\nSELECT \n    cid,\n    name,\n    rank_group,\n    first_session::date as first_session,\n    last_session::date as last_session,\n    sessions_last_30d as recent_sessions,\n    ROUND(total_minutes_since_return / 60.0, 1) as hours_last_30d,\n    longest_session_minutes\nFROM controller_activity\nWHERE sessions_last_30d >= 1          -- Currently active\n  AND sessions_30_90d_ago = 0         -- Was NOT active 30-90 days ago (60+ day gap)\n  AND sessions_last_30d = short_sessions_last_30d  -- ALL sessions are < 18 minutes\nORDER BY last_session DESC\n) q LIMIT 500"
         }
       ],
       "options": {},
@@ -339,19 +536,19 @@
       }
     },
     {
-      "id": 8,
+      "id": 12,
       "type": "table",
       "title": "Who reactivated after being away for more than 60 days?",
-      "description": "UNVERIFIED (screenshot only). Controllers with a session in the last 30 days whose previous session ended more than 60 days earlier. Columns follow the screenshot.",
+      "description": "v1 Metabase card 172. The controllers behind the reactivated count.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
       },
       "gridPos": {
         "x": 0,
-        "y": 20,
+        "y": 27,
         "w": 24,
-        "h": 8
+        "h": 9
       },
       "targets": [
         {
@@ -363,7 +560,75 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT cid, name, rank_group,\n       first_recent_session::date AS first_session,\n       last_recent_session::date AS last_session,\n       recent_sessions, hours_last_30d, gap_days_before_recent AS days_away\nFROM controller_activity_summary\nWHERE recent_sessions > 0 AND gap_days_before_recent > 60\nORDER BY first_recent_session DESC\nLIMIT 50"
+          "rawSql": "SELECT * FROM (\n-- List of Reactivated Controllers (EXACT SAME LOGIC as count query)\nWITH controller_activity AS (\n    SELECT \n        cid,\n        MAX(name) as name,\n        MAX(CASE \n            WHEN rating = 2 THEN 'S1'\n            WHEN rating = 3 THEN 'S2'\n            WHEN rating = 4 THEN 'S3'\n            WHEN rating = 5 THEN 'C1'\n            WHEN rating = 7 THEN 'C3'\n            WHEN rating >= 8 THEN 'I1+'\n        END) as rank_group,\n        MIN(session_start_time) as first_session,\n        MAX(session_start_time) as last_session,\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') as sessions_last_30d,\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '90 days' \n                          AND session_start_time < NOW() - INTERVAL '30 days') as sessions_30_90d_ago,\n        SUM(session_duration_minutes) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') as total_minutes_since_return\n    FROM controller_summaries\n    GROUP BY cid\n)\nSELECT \n    cid,\n    name,\n    rank_group,\n    first_session::date as first_session,\n    last_session::date as last_session,\n    sessions_last_30d as recent_sessions,\n    ROUND(total_minutes_since_return / 60.0, 1) as hours_last_30d\nFROM controller_activity\nWHERE sessions_last_30d >= 1          -- Currently active\n  AND sessions_30_90d_ago = 0         -- Was NOT active 30-90 days ago (60+ day gap)\nORDER BY last_session DESC\n) q LIMIT 500"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Lapsing controllers (30+ days inactive)",
+      "description": "v1 Metabase card 167. Controllers with no session for 30 or more days, most lapsed first.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT * FROM (\n-- Most Lapsed Controllers (30+ days inactive, sorted by days lapsed)\nWITH controller_last_session AS (\n    SELECT \n        cid,\n        MAX(name) as name,\n        CASE \n            WHEN MAX(rating) = 2 THEN 'S1'\n            WHEN MAX(rating) = 3 THEN 'S2'\n            WHEN MAX(rating) = 4 THEN 'S3'\n            WHEN MAX(rating) = 5 THEN 'C1'\n            WHEN MAX(rating) = 7 THEN 'C3'\n            WHEN MAX(rating) >= 8 THEN 'I1+'\n        END AS rank_group,\n        MAX(session_start_time) as last_session,\n        MIN(session_start_time) as first_session,\n        COUNT(*) as total_sessions,\n        SUM(session_duration_minutes) as total_minutes\n    FROM controller_summaries\n    GROUP BY cid\n)\nSELECT \n    cid,\n    name,\n    rank_group,\n    last_session::date as last_active,\n    EXTRACT(DAY FROM NOW() - last_session)::INTEGER as days_since_last_session,\n    first_session::date as first_ever_session,\n    total_sessions,\n    ROUND(total_minutes / 60.0, 1) as total_hours_ever,\n    -- Lapse category\n    CASE \n        WHEN EXTRACT(DAY FROM NOW() - last_session) >= 90 THEN 'Lost (90+ days)'\n        WHEN EXTRACT(DAY FROM NOW() - last_session) >= 60 THEN 'At Risk (60-89 days)'\n        WHEN EXTRACT(DAY FROM NOW() - last_session) >= 30 THEN 'Lapsing (30-59 days)'\n        ELSE 'Recent (0-29 days)'\n    END as lapse_category\nFROM controller_last_session\nWHERE EXTRACT(DAY FROM NOW() - last_session) >= 30  -- 30+ days inactive\nORDER BY days_since_last_session DESC  -- Most lapsed first\n) q LIMIT 500"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Controller engagement index (last 90 days)",
+      "description": "v1 Metabase card 174. Sessions and average session length per controller over 90 days, with quadrant and lapse risk. v1 drew a scatter plot; this is a table of the same figures.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 45,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT * FROM (\n-- Engagement Matrix: Frequency vs Duration (FIXED - No Duplicates)\nWITH controller_metrics AS (\n    SELECT \n        cid,\n        MAX(name) as name,  -- Use MAX to avoid grouping issues\n        CASE \n            WHEN MAX(rating) = 2 THEN 'S1'\n            WHEN MAX(rating) = 3 THEN 'S2'\n            WHEN MAX(rating) = 4 THEN 'S3'\n            WHEN MAX(rating) = 5 THEN 'C1'\n            WHEN MAX(rating) = 7 THEN 'C3'\n            WHEN MAX(rating) >= 8 THEN 'I1+'\n        END AS rank_group,\n        COUNT(*) AS session_frequency,  -- X-axis\n        ROUND(AVG(session_duration_minutes) / 60.0, 2) AS avg_session_duration_hours,  -- Y-axis\n        ROUND(SUM(session_duration_minutes) / 60.0, 1) AS total_hours  -- Bubble size\n    FROM controller_summaries\n    WHERE session_start_time >= NOW() - INTERVAL '90 days'\n    GROUP BY cid  -- ONLY group by cid to avoid duplicates\n)\nSELECT \n    cid,\n    name,\n    rank_group,\n    session_frequency,\n    avg_session_duration_hours,\n    total_hours,\n    CASE \n        WHEN session_frequency >= 12 AND avg_session_duration_hours >= 1.5 THEN 'Super Engaged'\n        WHEN session_frequency < 12 AND avg_session_duration_hours >= 1.5 THEN 'Casual but Committed'\n        WHEN session_frequency >= 12 AND avg_session_duration_hours < 1.5 THEN 'Frequent but Brief'\n        ELSE 'At Risk'\n    END AS engagement_quadrant,\n    CASE \n        WHEN session_frequency < 4 AND avg_session_duration_hours < 1.5 THEN 'High Risk'\n        WHEN session_frequency < 10 AND avg_session_duration_hours < 1.5 THEN 'Medium Risk'\n        ELSE 'Low Risk'\n    END AS risk_of_lapsing,\n    -- Numeric field for coloring\n    CASE \n        WHEN session_frequency >= 12 AND avg_session_duration_hours >= 1.5 THEN 4  -- Super Engaged = Green\n        WHEN session_frequency < 12 AND avg_session_duration_hours >= 1.5 THEN 3  -- Casual = Light Green\n        WHEN session_frequency >= 8 AND avg_session_duration_hours < 1.5 THEN 2  -- Frequent Brief = Yellow\n        ELSE 1  -- At Risk = Red\n    END AS color_value\nFROM controller_metrics\nORDER BY total_hours DESC\n) q LIMIT 500"
         }
       ],
       "options": {},
