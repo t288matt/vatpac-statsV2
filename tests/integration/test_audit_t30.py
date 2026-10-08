@@ -438,3 +438,13 @@ def test_vfr_routes_need_three_distinct_pilots(conn) -> None:
         conn.execute("UPDATE pilot_session SET flight_rules = 'V' WHERE id = %s", (sid,))
     rows = _run(conn, p14.TRAFFIC, "Most popular VFR routes (last 30 days)")
     assert [(r["route"], r["pilots"]) for r in rows] == [("YSSY-YBBN", 3)]
+
+
+
+def test_popular_callsigns_need_two_distinct_pilots(conn) -> None:
+    """Mutant P24 (minimum 2 pilots -> 1)."""
+    p14.add_flight(conn, 9860040, callsign="QFA1")
+    p14.add_flight(conn, 9860041, callsign="QFA1")
+    p14.add_flight(conn, 9860042, callsign="QFA2")
+    rows = _run(conn, p14.TRAFFIC, "Most popular callsigns (last 30 days)")
+    assert [(r["callsign"], r["unique_pilots"]) for r in rows] == [("QFA1", 2)]
