@@ -27,7 +27,7 @@ from .health import Stats
 from .settings import Settings
 
 log = logging.getLogger(__name__)
-FUTURE_S, ANOMALY_REPEAT_S, PRUNE_EVERY_S, STALE_TMP_S = 120.0, 300.0, 600.0, 600.0
+FUTURE_S, ANOMALY_REPEAT_S, STALE_TMP_S = 120.0, 300.0, 600.0
 PRECISION_DROP, PRECISION_MIN_VALUES = 0.2, 50  # a fall of 20 points or more over at least 50 logon_time values
 _LOGON_RE = re.compile(rb'"logon_time"\s*:\s*"([^"]*)"')
 PILOT_KEYS = ("cid", "callsign", "logon_time", "latitude", "longitude", "groundspeed", "altitude")
@@ -157,7 +157,8 @@ class Archive:
                 self._slot["full"] = int(epoch // s.archive_full_every_s)
         if baseline and raw is not None and snap_ts is not None:
             self._last_ts, self._share, self._prev = snap_ts, fraction_share(raw), raw
-        if time.time() - self._last_prune > PRUNE_EVERY_S or self.size > s.archive_max_mb * 1_048_576:
+        # prune every two compact intervals (10 minutes by default) or at once when over the cap
+        if time.time() - self._last_prune > 2 * s.archive_compact_every_s or self.size > s.archive_max_mb * 1_048_576:
             self._prune()
 
     def _anomaly(self, reasons: list[str], raw: bytes | None, snap_ts: datetime | None, http: int | None,
