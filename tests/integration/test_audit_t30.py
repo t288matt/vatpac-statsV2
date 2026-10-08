@@ -486,3 +486,13 @@ def test_busiest_days_shows_five_rows(conn) -> None:
     for i in range(7):
         p14.add_flight(conn, 9860080 + i, days_ago=1 + i)
     assert len(_run(conn, p14.TRAFFIC, "Busiest days by flights (last 6 months)")) == 5
+
+
+
+def test_servers_panel_counts_home_region_pilots_only(conn) -> None:
+    """Mutant P31 (filter on pilot_is_local removed)."""
+    for cid, home, server in ((9860090, "YSSY", "SYDNEY"), (9860091, "EGLL", "LONDON")):
+        sid = p14.add_flight(conn, cid, days_ago=0.2)
+        conn.execute("UPDATE pilot_session SET home_icao = %s, server = %s WHERE id = %s", (home, server, sid))
+    rows = _run(conn, p14.ORIGINS, "Servers used by home-region pilots (last 24 hours)")
+    assert [(r["server"], r["pilots"]) for r in rows] == [("SYDNEY", 1)]
