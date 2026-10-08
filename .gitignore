@@ -35,3 +35,6 @@ Thumbs.db
 
 # claude local state
 .claude/settings.local.json
+
+# git worktrees for branch work live here
+.worktrees/
