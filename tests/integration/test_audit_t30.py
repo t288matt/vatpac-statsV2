@@ -195,3 +195,24 @@ def test_reconnect_after_exactly_five_minutes_is_one_session(conn) -> None:
     assert one[0]["start_time"] == a and one[0]["end_time"] == a + timedelta(minutes=60)
     assert len(_merged(conn, 9720002)) == 2
     assert len(_merged(conn, 9720003)) == 2
+
+
+
+# ------------------------------------------------------------------ online_now windows
+def _snap(conn, ts: datetime) -> None:
+    conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (ts,))
+
+
+def test_online_now_means_seen_in_the_last_two_snapshots(conn) -> None:
+    """Mutants V06 and V08 (30 s window widened to 30 min): SPEC section 5, online = seen within the last 2
+    snapshots (30 s before the newest). Pilots and controllers 10 s old are online, 45 s old are not."""
+    now = datetime.now(timezone.utc)
+    _snap(conn, now - timedelta(seconds=5))
+    for cid, age in ((9730001, 10), (9730002, 45)):
+        t = now - timedelta(seconds=age)
+        conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "
+                     "VALUES (%s,%s,%s,%s,%s)", (cid, f"ON{cid}", t - timedelta(hours=1), t - timedelta(hours=1), t))
+        conn.execute("INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen) "
+                     "VALUES (%s,%s,%s,%s,%s)", (cid, f"ON{cid}_TWR", t - timedelta(hours=1), t - timedelta(hours=1), t))
+    rows = conn.execute("SELECT kind, cid FROM online_now ORDER BY kind, cid").fetchall()
+    assert [(r["kind"], r["cid"]) for r in rows] == [("controller", 9730001), ("pilot", 9730001)]
