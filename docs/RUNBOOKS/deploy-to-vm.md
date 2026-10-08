@@ -52,6 +52,9 @@ make up                      # = check_env + docker compose up -d --build
 docker compose ps            # migrate shows "exited (0)"; everything else healthy within about 2 minutes
 ```
 
+## 4b. Special case: migration 20261008000100 (whole-second logon_time, T36 / ADR-021)
+This migration merges duplicate sessions and rewrites `logon_time` in both session tables. It cannot be undone by its down half (the fractions are gone), so **take a fresh dump first** (`docker compose exec backup backup.sh once`, then check the new file in `/backups`) and keep a copy of the VM's current tree. Stop the old collector before the migration runs (`docker compose stop collector`), so nothing writes while sessions are merged, then `docker compose up -d --build`. Afterwards run `psql -X -f ops/check_identity_flap.sql` in the db container (every count must be 0). Roll-back is the restore of the pre-deploy dump (restore.md).
+
 ## 5. Network exposure and firewall
 Only Grafana is published, and by default **only on loopback**: `127.0.0.1:${GRAFANA_PORT:-3300}`. The database is not published. To reach Grafana from the LAN, opt in explicitly in `.env`:
 ```sh
