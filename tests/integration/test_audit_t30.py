@@ -95,3 +95,10 @@ def test_samples_121_minutes_apart_add_no_airborne_time(conn) -> None:
     rows = flights(conn, 9700003)
     assert len(rows) == 2
     assert [float(r["airborne_minutes"]) for r in rows] == [0.0, 0.0]
+
+
+
+def test_airborne_minutes_keep_two_decimals(conn) -> None:
+    """Mutant S08 (round to 0 places): 7 gaps of 15 s = 105 s = 1.75 minutes."""
+    make_session(conn, 9700004, run(8, gs=250))
+    assert float(flights(conn, 9700004)[0]["airborne_minutes"]) == 1.75
