@@ -9,7 +9,7 @@
   "editable": false,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "version": 4,
+  "version": 5,
   "refresh": "5m",
   "time": {
     "from": "now-30d",
@@ -635,6 +635,75 @@
       "fieldConfig": {
         "defaults": {},
         "overrides": []
+      }
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Controller activity trends",
+      "description": "v1 Metabase card 176. By month: controllers active, reactivations (active this month but not the month before; as in v1 this includes controllers seen for the first time) and lapsed (active last month, not this month). v1 drew a combo chart; here bars for the first two and a line for lapsed.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 55,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH monthly_controllers AS (\n    SELECT DISTINCT\n        DATE_TRUNC('month', session_start_time) as month,\n        cid\n    FROM controller_summaries\n    WHERE session_start_time IS NOT NULL\n        AND cid IS NOT NULL\n),\ncontroller_history AS (\n    SELECT \n        mc.month,\n        mc.cid,\n        CASE \n            WHEN prev.cid IS NULL THEN 1 \n            ELSE 0 \n        END as is_reactivation\n    FROM monthly_controllers mc\n    LEFT JOIN monthly_controllers prev \n        ON mc.cid = prev.cid \n        AND prev.month = mc.month - INTERVAL '1 month'\n),\nlapsed_controllers AS (\n    SELECT \n        prev.month + INTERVAL '1 month' as month,\n        COUNT(*) as lapsed_count\n    FROM monthly_controllers prev\n    LEFT JOIN monthly_controllers curr \n        ON prev.cid = curr.cid \n        AND curr.month = prev.month + INTERVAL '1 month'\n    WHERE curr.cid IS NULL\n    GROUP BY prev.month + INTERVAL '1 month'\n)\nSELECT \n    ch.month,\n    SUM(ch.is_reactivation) as reactivations,\n    COUNT(*) as total_active_controllers,\n    COALESCE(MAX(lc.lapsed_count), 0) as lapsed\nFROM controller_history ch\nLEFT JOIN lapsed_controllers lc ON ch.month = lc.month\nGROUP BY ch.month\nORDER BY ch.month"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lapsed"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
       }
     }
   ]

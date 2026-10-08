@@ -98,6 +98,31 @@ def test_a_brand_new_controller_counts_as_reactivated(conn):
     assert scalar(conn, "Reactivated in the last 30 days after 60+ days lapsed") == 1
 
 
+def add_session_on(conn, cid: int, day: str, minutes: int = 30) -> None:
+    start = datetime.fromisoformat(day).replace(tzinfo=timezone.utc)
+    conn.execute(
+        "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
+        "VALUES (%s, %s, %s, %s, 3, %s, %s)",
+        (cid, f"TEST{cid}_TWR", start, f"Controller {cid}", start, start + timedelta(minutes=minutes)),
+    )
+
+
+def test_activity_trends_by_month(conn):
+    """Card 176: X is active in Jan and Mar; Y in Jan and Feb (fixed dates, so the month rule is exact)."""
+    add_session_on(conn, 9000001, "2026-01-10")
+    add_session_on(conn, 9000001, "2026-03-10")
+    add_session_on(conn, 9000002, "2026-01-12")
+    add_session_on(conn, 9000002, "2026-02-12")
+    rows = conn.execute(panel_sql("Controller activity trends")).fetchall()
+    by_month = {r["month"].strftime("%Y-%m"): (int(r["reactivations"]), int(r["total_active_controllers"]), int(r["lapsed"]))
+                for r in rows}
+    assert by_month == {
+        "2026-01": (2, 2, 0),   # nobody the month before, so both count as reactivations (v1 rule)
+        "2026-02": (0, 1, 1),   # Y continues; X lapsed
+        "2026-03": (1, 1, 1),   # X returns after a gap; Y lapsed
+    }
+
+
 def test_every_panel_query_runs(populated):
     for p in json.loads(DASHBOARD.read_text(encoding="utf-8"))["panels"]:
         for t in p.get("targets", []):
