@@ -41,7 +41,7 @@ def run_panel(conn, dashboard, title_start: str, start: datetime, end: datetime)
     return conn.execute(sql.rstrip().rstrip(";")).fetchall()
 
 
-def add_flight(conn, cid: int, start: datetime, end: datetime, airborne: float, dep="YSSY", arr="YMML",
+def add_flight(conn, cid: int, start: datetime, end: datetime, airborne: float = 60.0, dep="YSSY", arr="YMML",
                remarks: str | None = None, aircraft: str = "B738", home: str | None = "YSSY",
                segments: int = 1) -> None:
     """One pilot_session with `segments` flight_summary rows (segments > 1 mimics a gap or span split)."""

@@ -227,8 +227,8 @@
     {
       "id": 5,
       "type": "trend",
-      "title": "When are pilots and controllers online: weekdays (UTC, last 90 days)",
-      "description": "v1 card 94. Average number online by UTC hour of day, Monday to Friday, from snapshots. Changed from v1, which counted distinct sessions touching each hour (and used Sun/Mon/Sat as 'weekdays').",
+      "title": "When are people online on weekdays (last 30 days)",
+      "description": "v1 card 94. For each UTC clock hour, the number of distinct callsigns online at some point in that hour, over the last 30 days: pilots (flights with airborne time) and ATC (sessions of at least 20 minutes). Monday to Friday (v1 used Sunday, Monday and Saturday as a data workaround). Flights and sessions that cross midnight wrap into the early hours. This is a count over the whole period, not an average of concurrent users.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -249,7 +249,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT extract(hour FROM observed_at AT TIME ZONE 'UTC')::int AS hour_utc,\n       round(avg(pilots_in_region)::numeric, 1) AS \"Pilots\",\n       round(avg(controllers_in_region)::numeric, 1) AS \"Controllers\"\nFROM network_history\nWHERE $__timeFilter(observed_at)\n  AND extract(isodow FROM observed_at AT TIME ZONE 'UTC') BETWEEN 1 AND 5\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "-- v1 card 94: callsigns online in each UTC clock hour over the last 30 days.\nWITH flight_hours AS (\n    SELECT f.callsign,\n           generate_series(\n               EXTRACT(HOUR FROM f.logon_time AT TIME ZONE 'UTC')::int,\n               CASE WHEN EXTRACT(HOUR FROM f.end_time AT TIME ZONE 'UTC')::int >= EXTRACT(HOUR FROM f.logon_time AT TIME ZONE 'UTC')::int THEN EXTRACT(HOUR FROM f.end_time AT TIME ZONE 'UTC')::int ELSE EXTRACT(HOUR FROM f.end_time AT TIME ZONE 'UTC')::int + 24 END\n           ) % 24 AS active_hour\n    FROM flight f\n    WHERE f.end_time >= now() - interval '30 days'\n      AND f.airborne_minutes > 0\n      AND EXTRACT(ISODOW FROM f.logon_time AT TIME ZONE 'UTC') BETWEEN 1 AND 5\n      AND f.logon_time IS NOT NULL\n      AND f.end_time IS NOT NULL\n),\natc_hours AS (\n    SELECT cs.callsign,\n           generate_series(\n               EXTRACT(HOUR FROM cs.session_start_time AT TIME ZONE 'UTC')::int,\n               CASE WHEN EXTRACT(HOUR FROM COALESCE(cs.session_end_time, now()) AT TIME ZONE 'UTC')::int >= EXTRACT(HOUR FROM cs.session_start_time AT TIME ZONE 'UTC')::int THEN EXTRACT(HOUR FROM COALESCE(cs.session_end_time, now()) AT TIME ZONE 'UTC')::int ELSE EXTRACT(HOUR FROM COALESCE(cs.session_end_time, now()) AT TIME ZONE 'UTC')::int + 24 END\n           ) % 24 AS active_hour\n    FROM controller_summaries cs\n    WHERE (cs.session_start_time >= now() - interval '30 days'\n           OR cs.session_end_time >= now() - interval '30 days')\n      AND cs.session_duration_minutes >= 20\n      AND EXTRACT(ISODOW FROM cs.session_start_time AT TIME ZONE 'UTC') BETWEEN 1 AND 5\n      AND cs.session_start_time IS NOT NULL\n)\nSELECT COALESCE(fh.active_hour, ah.active_hour)::int AS hour_utc,\n       COUNT(DISTINCT fh.callsign) AS \"Pilots (callsigns)\",\n       COUNT(DISTINCT ah.callsign) AS \"ATC (callsigns)\"\nFROM flight_hours fh\nFULL OUTER JOIN atc_hours ah ON fh.active_hour = ah.active_hour\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "options": {
@@ -263,14 +263,13 @@
           }
         },
         "overrides": []
-      },
-      "timeFrom": "90d"
+      }
     },
     {
       "id": 6,
       "type": "trend",
-      "title": "When are pilots and controllers online: weekends (UTC, last 90 days)",
-      "description": "v1 card 95. Average number online by UTC hour of day, Saturday and Sunday, from snapshots. Changed from v1 (session-overlap counts) to average concurrent users.",
+      "title": "When are people online on weekends (last 30 days)",
+      "description": "v1 card 95. For each UTC clock hour, the number of distinct callsigns online at some point in that hour, over the last 30 days: pilots (flights with airborne time) and ATC (sessions of at least 30 minutes). Saturday and Sunday. As in v1, a flight or session that crosses midnight is not counted for the hours after midnight (v1 quirk kept). This is a count over the whole period, not an average of concurrent users.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -291,7 +290,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT extract(hour FROM observed_at AT TIME ZONE 'UTC')::int AS hour_utc,\n       round(avg(pilots_in_region)::numeric, 1) AS \"Pilots\",\n       round(avg(controllers_in_region)::numeric, 1) AS \"Controllers\"\nFROM network_history\nWHERE $__timeFilter(observed_at)\n  AND extract(isodow FROM observed_at AT TIME ZONE 'UTC') IN (6, 7)\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "-- v1 card 95: callsigns online in each UTC clock hour over the last 30 days.\nWITH flight_hours AS (\n    SELECT f.callsign,\n           generate_series(\n               EXTRACT(HOUR FROM f.logon_time AT TIME ZONE 'UTC')::int,\n               EXTRACT(HOUR FROM f.end_time AT TIME ZONE 'UTC')::int\n           ) AS active_hour\n    FROM flight f\n    WHERE f.end_time >= now() - interval '30 days'\n      AND f.airborne_minutes > 0\n      AND EXTRACT(ISODOW FROM f.logon_time AT TIME ZONE 'UTC') IN (6, 7)\n      AND f.logon_time IS NOT NULL\n      AND f.end_time IS NOT NULL\n),\natc_hours AS (\n    SELECT cs.callsign,\n           generate_series(\n               EXTRACT(HOUR FROM cs.session_start_time AT TIME ZONE 'UTC')::int,\n               EXTRACT(HOUR FROM COALESCE(cs.session_end_time, now()) AT TIME ZONE 'UTC')::int\n           ) AS active_hour\n    FROM controller_summaries cs\n    WHERE (cs.session_start_time >= now() - interval '30 days'\n           OR cs.session_end_time >= now() - interval '30 days')\n      AND cs.session_duration_minutes >= 30\n      AND EXTRACT(ISODOW FROM cs.session_start_time AT TIME ZONE 'UTC') IN (6, 7)\n      AND cs.session_start_time IS NOT NULL\n)\nSELECT COALESCE(fh.active_hour, ah.active_hour)::int AS hour_utc,\n       COUNT(DISTINCT fh.callsign) AS \"Pilots (callsigns)\",\n       COUNT(DISTINCT ah.callsign) AS \"ATC (callsigns)\"\nFROM flight_hours fh\nFULL OUTER JOIN atc_hours ah ON fh.active_hour = ah.active_hour\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "options": {
@@ -305,8 +304,7 @@
           }
         },
         "overrides": []
-      },
-      "timeFrom": "90d"
+      }
     },
     {
       "id": 7,
