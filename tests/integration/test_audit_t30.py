@@ -319,3 +319,13 @@ def test_monday_attendance_edges_for_controllers_and_unplanned_pilots(conn) -> N
     ev14.add_flight(conn, 9810003, h(8), h(9))                  # counted
     rows = ev14.run_panel(conn, ev14.EVENTS, "Monday event attendance", mon - timedelta(days=1), mon + timedelta(days=1))
     assert [(r["Pilots"], r["Controllers"]) for r in rows] == [(1, 1)]
+
+
+
+def test_monday_attendance_includes_the_current_weeks_monday(conn) -> None:
+    """Mutant S19 (series stops a week early)."""
+    now = datetime.now(timezone.utc)
+    _monday_snapshot(conn, now - timedelta(days=21))
+    this_monday = now.date() - timedelta(days=now.weekday())
+    got = conn.execute("SELECT max(monday_date) AS d FROM monday_attendance").fetchone()["d"]
+    assert got == this_monday
