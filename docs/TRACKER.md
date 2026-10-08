@@ -5,7 +5,7 @@ Times are UTC. Statuses: TODO, IN PROGRESS, BLOCKED (owner), WAITING (time), DON
 
 Resume note for a cold start (usage-limit reset): docs/RESUME.md
 
-Last updated: 08-10-2026 08:40 UTC (VM clock)
+Last updated: 08-10-2026 (VM clock)
 
 | ID | Item | Status | Detail / next step |
 |----|------|--------|--------------------|
@@ -17,7 +17,7 @@ Last updated: 08-10-2026 08:40 UTC (VM clock)
 | T6 | Names/CIDs retention rule | DONE | 07-10-2026: owner chose to keep names and CIDs forever, no rule (ADR-019). |
 | T7 | Deploy 6e3d131 and 7f5641a to the VM | WAITING | Do after T1 passes (a redeploy would break the soak). Method: `git archive HEAD \| ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'` then `docker compose up -d --build`. |
 | T8 | Read-only deploy key so the VM can `git pull` | TODO | Optional; needs the owner to add the key in GitHub settings. |
-| T9 | Triage seven Dependabot PRs | TODO | Hold until main is green. Grafana 11 to 13 needs dashboard testing first. Review action bumps before merging. |
+| T9 | Triage seven Dependabot PRs | IN PROGRESS | 08-10-2026: the first pull-request runs (Dependabot PRs 7, 8, 9, 3, 2) pass every job except secret-scan; attempted fix: job-level permission pull-requests: read for secret-scan in ci.yml (cause not confirmed from the log). Ask Dependabot to rebase (comment "@dependabot rebase" on a PR) to retest. Do not merge any bump before reviewing it. Hold until main is green. Grafana 11 to 13 needs dashboard testing first. Review action bumps before merging. |
 | T10 | Pin workflow actions to commit SHAs | DONE | 08-10-2026: all seven third-party actions pinned to verified SHAs (commit 9090925, each checked twice against the GitHub API; four re-checked by the coordinator). CI run with the pinned actions confirmed green by the owner 08-10-2026. Dependabot notes: checkout 4 to 7 is a major jump (breaking changes concern pull_request_target and fork PRs; our triggers are push and pull_request, so likely harmless, review before merging); gitleaks 2 to 3 moves to Node 24 and is likely needed soon; docker/login 3 to 4 needs runner 2.327.1 or later (fine on GitHub-hosted). Also tidy the stale TODO comment at the top of .github/dependabot.yml. |
 | T11 | Record soak evidence in docs/ARCHITECTURE.md | TODO | Only after T1, T2, T3 and T4 are all met; then tell the owner the goal is met. |
 | T12 | Data retention rules for all data (LOW priority) | TODO | Owner request 07-10-2026: define retention for every data set, not only names/CIDs (ADR-019 covers those). Scope to cover: position snapshots, sessions, poll log, near-miss and reference-change records, flights archive, backups (count, age, location) and Grafana's own data. Needs a decision per data set (keep, age out, or aggregate), a new ADR, and numbered migrations for any purge job. Disk growth figures from the soak will help size it. No deadline. |
