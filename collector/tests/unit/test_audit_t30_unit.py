@@ -27,3 +27,16 @@ def test_heading_of_360_is_kept(fixture_payload: dict) -> None:
     p["pilots"][0]["heading"] = 360
     snap = parse_snapshot(p)
     assert next(x for x in snap.pilots if x.cid == p["pilots"][0]["cid"]).heading == 360
+
+
+
+def test_global_pilot_count_includes_malformed_entries(fixture_payload: dict) -> None:
+    """Mutant C25: pilots_global is the feed's own count (network-wide), whatever the collector could parse."""
+    from vatpac.model import parse_snapshot
+
+    p = _payload(fixture_payload)
+    broken = dict(p["pilots"][0])
+    del broken["callsign"]
+    p["pilots"].append(broken)
+    snap = parse_snapshot(p)
+    assert snap.malformed == 1 and snap.pilots_global == len(p["pilots"])
