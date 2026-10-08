@@ -1,12 +1,12 @@
 # Definitions
 
-Last updated 07-10-2026. Each definition is taken from SPEC.md section 5 and checked against the SQL in `db/migrations/` and the collector code. "v1" means the previous system (t288matt/vatpac-stats); its behaviour is described only as far as ADR-001, ADR-006, ADR-007 and its `docker-compose.yml` document it. Where this page says "not documented" the v1 behaviour was not checked.
+Last reviewed 08-10-2026. Each definition is taken from SPEC.md section 5 and checked against the SQL in `db/migrations/` and the collector code. "v1" means the previous system (t288matt/vatpac-stats); its behaviour is described only as far as ADR-001, ADR-006, ADR-007 and its `docker-compose.yml` document it. Where this page says "not documented" the v1 behaviour was not checked.
 
 ## 1. Flight (pilot session)
 
 **v3.** A pilot session is identified by `(cid, callsign, logon_time)`. A new `logon_time` for the same CID and callsign is a new session. Departure, arrival, aircraft and route are attributes, never part of the key.
 
-A session becomes one or more **flights** in the `flight` view:
+A session becomes one or more **flights**, computed into the table `flight_summary` (refreshed every 5 minutes, so flight numbers lag live data by up to 5 minutes) and exposed by the `flight` view:
 
 - **Gap split (exact):** a gap of more than 120 minutes between consecutive stored samples starts a new flight.
 - **Span split (approximate):** within a gap segment, flights are cut into fixed 8-hour buckets measured from the segment's first sample. This approximates "restart after 8 hours" without a recursive query, so a split falls on a bucket boundary rather than on the exact 8-hour mark.
@@ -57,8 +57,10 @@ Frequency handling is the controller-side equivalent: `121.700` becomes 12170000
 
 **v3.** Seen within the last 2 snapshots. Two forms exist in the database:
 
-- `online_now` (core view): `last_seen` within 30 seconds of the newest stored snapshot. This is relative to the data, so it still returns rows if the collector has stopped; read it together with `data_freshness`.
-- `pilot_online_now` and `controller_online_now` (analytics views): within the last two stored snapshots **and** within the last 5 minutes of wall-clock time, which guards against a dead collector showing stale people as online.
+- `online_now` (core view): `last_seen` within 30 seconds of the newest stored snapshot, and only while that newest snapshot is itself under 5 minutes old (migration 24), so a dead collector shows nobody online rather than the last people seen. Read it together with `data_freshness`.
+- `pilot_online_now` and `controller_online_now` (analytics views): within the last two stored snapshots **and** within the last 5 minutes of wall-clock time, the same guard.
+
+The two forms differ only slightly: 30 seconds of the newest snapshot against the last two stored snapshots, which on a healthy 15-second feed are the same people.
 
 Which one a panel uses is recorded in [CHART_DEFINITIONS.md](CHART_DEFINITIONS.md).
 
@@ -88,4 +90,4 @@ Handling: the callsign is not stored as a session. It is upserted into `controll
 
 ## 10. Verification status of these definitions
 
-Checked against the code and SQL on 07-10-2026, and exercised by the integration tests (94 against a real PostgreSQL 16.4, as part of 288 passing tests). The live filter counts were cross-checked against an independent count of the live feed on 07-10-2026 (15 pilots inside the polygon, 14 with a flight plan; no whitelisted controllers were online at the time). Not yet verified on real, long-running data: airborne minutes over full flights, the 8-hour span split, controller merging across real reconnects, and any chart that depends on weeks of history.
+Checked against the code and SQL on 07-10-2026 and again on 08-10-2026, and exercised by the integration tests (166 exist; the suite is run against a real PostgreSQL 16.4 and in CI). The live filter counts were cross-checked against independent counts of the live feed on 07-10-2026 (15 pilots inside the polygon, 14 with a flight plan; no whitelisted controllers were online at the time) and on 08-10-2026 (6 of 6 samples matched exactly at two times of day; only 2 whitelisted controllers were online, so the controller filter is still lightly tested; see docs/TRACKER.md, T16 and T21). Not yet verified on real, long-running data: airborne minutes over full flights, the 8-hour span split, controller merging across real reconnects, and any chart that depends on weeks of history.
