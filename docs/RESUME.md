@@ -49,5 +49,7 @@ Already done and evidenced (08-10-2026): VM reboot test passed (all five contain
 - Do not push in rapid bursts: batch pushes (CI no longer cancels runs on main, but each push still starts a run). The owner reads CI results on GitHub and reports them (private repo, no `gh`).
 - Metabase exports live outside git on the owner's PC (`C:\Users\mdora\Claude\metabase_cards.csv`, `metabase_cards_extra.csv`) and were taken from the Metabase application database on the owner's Docker host. Re-export commands are in the tracker history (T23).
 
+- **Deadline:** 19-10-2026, tracker T28: pin CI jobs to ubuntu-24.04 before `ubuntu-latest` moves to Ubuntu 26.
+
 ## 6. Rules to keep
 British English, DD-MM-YYYY, no emoji, state UTC. New numbered migrations only (never edit an applied one). The v1 box is the owner's: read-only queries only, ask first. Cloudflare and the Docker socket proxy are the owner's to add later. Do not expose Grafana publicly. Commit new commits only (never amend).
