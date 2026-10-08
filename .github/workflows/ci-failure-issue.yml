@@ -1,0 +1,72 @@
+# Keeps one GitHub issue ("CI failing on main", label ci-failure) in step with the ci workflow on main:
+# opened or commented on when ci fails, closed when ci passes again. Runs from the default branch after ci
+# completes, so ci.yml and release.yml (which calls ci.yml) need no extra permissions. No third-party actions:
+# the gh CLI is preinstalled on GitHub-hosted runners. Event values reach the script through env variables, never
+# by inline interpolation, because commit titles are untrusted text.
+name: ci-failure-issue
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:  # one-off test from the Actions tab: choose failure or success, it files or closes a TEST issue
+    inputs:
+      simulate:
+        description: "Simulate a ci result"
+        type: choice
+        options: [failure, success]
+        default: failure
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ci-failure-issue
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.event == 'push'
+    steps:
+      - name: Open, update or close the CI issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          CONCLUSION: ${{ github.event_name == 'workflow_dispatch' && inputs.simulate || github.event.workflow_run.conclusion }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url || format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+          RUN_TITLE: ${{ github.event.workflow_run.display_title || 'manual test of ci-failure-issue' }}
+          SIMULATED: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -eu
+          SHORT=$(printf '%s' "$SHA" | cut -c1-7)
+          TITLE="CI failing on main"
+          [ "$SIMULATED" = "true" ] && TITLE="TEST: CI failing on main (simulated)"
+          gh label create ci-failure --repo "$REPO" --color B60205 \
+            --description "Opened automatically when ci fails on main" 2>/dev/null || true
+          EXISTING=$(gh issue list --repo "$REPO" --label ci-failure --state open \
+            --search "\"$TITLE\" in:title" --json number,title \
+            --jq "[.[] | select(.title == \"$TITLE\")][0].number // empty")
+          case "$CONCLUSION" in
+            failure|timed_out)
+              BODY=$(printf 'ci failed on main.\n\n- Commit: %s\n- Title: %s\n- Run: %s\n\nThis issue closes by itself when ci passes on main again.' \
+                "$SHORT" "$RUN_TITLE" "$RUN_URL")
+              if [ -n "$EXISTING" ]; then
+                gh issue comment "$EXISTING" --repo "$REPO" --body "Still failing. $BODY"
+              else
+                gh issue create --repo "$REPO" --title "$TITLE" --label ci-failure --body "$BODY"
+              fi
+              ;;
+            success)
+              if [ -n "$EXISTING" ]; then
+                gh issue close "$EXISTING" --repo "$REPO" \
+                  --comment "ci is green again on main at $SHORT. Run: $RUN_URL"
+              fi
+              ;;
+            *)
+              echo "ci conclusion is '$CONCLUSION': nothing to do"
+              ;;
+          esac

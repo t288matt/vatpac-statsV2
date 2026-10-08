@@ -48,7 +48,7 @@ def add_flight(conn, cid: int, start: datetime, end: datetime, airborne: float =
     sid = conn.execute(
         "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival, "
         "aircraft_icao, remarks, home_icao) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-        (cid, f"TST{cid}", start, start, end, dep, arr, aircraft, remarks, home),
+        (cid, f"TST{cid}", start.replace(microsecond=0), start, end, dep, arr, aircraft, remarks, home),
     ).fetchone()["id"]
     for seg in range(1, segments + 1):
         seg_end = end - timedelta(minutes=10 * (segments - seg))
@@ -62,7 +62,7 @@ def add_flight(conn, cid: int, start: datetime, end: datetime, airborne: float =
 def add_controller(conn, cid: int, start: datetime, end: datetime) -> None:
     conn.execute(
         "INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen) "
-        "VALUES (%s,%s,%s,%s,%s)", (cid, f"TST{cid}_CTR", start, start, end))
+        "VALUES (%s,%s,%s,%s,%s)", (cid, f"TST{cid}_CTR", start.replace(microsecond=0), start, end))
 
 
 def monday_utc(weeks_back: int) -> datetime:

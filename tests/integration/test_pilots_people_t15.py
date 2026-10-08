@@ -62,7 +62,7 @@ def add_flight(conn, cid: int, name: str, end: datetime, airborne: float | None 
     sid = conn.execute(
         "INSERT INTO pilot_session (cid, callsign, logon_time, name, first_seen, last_seen, departure, arrival) "
         "VALUES (%s,%s,%s,%s,%s,%s,'YSSY','YMML') RETURNING id",
-        (cid, f"TP{_n['i']:05d}", logon, name, start, end),
+        (cid, f"TP{_n['i']:05d}", logon.replace(microsecond=0), name, start, end),
     ).fetchone()["id"]
     conn.execute(
         "INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count, "
@@ -75,7 +75,7 @@ def add_controller(conn, cid: int, start: datetime, minutes: int = 30) -> None:
     conn.execute(
         "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
         "VALUES (%s,%s,%s,'Test Controller',3,%s,%s)",
-        (cid, f"TEST{cid}_TWR", start, start, start + timedelta(minutes=minutes)),
+        (cid, f"TEST{cid}_TWR", start.replace(microsecond=0), start, start + timedelta(minutes=minutes)),
     )
 
 
