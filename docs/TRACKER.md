@@ -5,6 +5,8 @@ Times are UTC. Statuses: TODO, IN PROGRESS, BLOCKED (owner), WAITING (time), DON
 
 Resume note for a cold start (usage-limit reset): docs/RESUME.md
 
+Deploy policy (owner, 08-10-2026): when the soak prints PASS, stop and report; deploy only after the owner says go.
+
 Last updated: 08-10-2026 (VM clock)
 
 | ID | Item | Status | Detail / next step |
@@ -36,7 +38,7 @@ Last updated: 08-10-2026 (VM clock)
 | T25 | Repair Docker Desktop on the owner's PC (LOW) | TODO | Engine returns HTTP 500, so local integration tests cannot run; CI covers them meanwhile. |
 | T26 | Independent review of changes since the retention rebuild | DONE | Reviewer reported 08-10-2026: no high-severity defects, no secrets, migrations and CI change correct. Fixed same day: (1) cards 94 and 95 join multiplied pilot rows by ATC rows per hour, now each side is counted before the join; (3) card 93 could show several bars labelled Unknown, now grouped by label. Integration suite after the fixes: 117 passed, 1 skipped. Remaining findings are in T27. |
 | T27 | Review follow-ups (LOW) | PARTLY DONE | Item 2 done 08-10-2026 (merged 5b02552): 15 stale rows in CHART_DEFINITIONS.md rewritten to match the current panels; 68 cited panel titles all exist, cited tests exist; summary KEPT 18, CHANGED 18, DROPPED 21 = 57. Still open: (4) atc-retention.json panels 10 to 15 rely on the database timezone being UTC (add AT TIME ZONE UTC or ALTER ROLE grafana_ro SET timezone in db/roles.sql); (5) known v1 quirks, documented, not to fix; tidy the stale TODO note at the top of .github/dependabot.yml; confirm no hand-made controller_summaries exists on the VM before deploying migration 30. |
-| T28 | CI runner image: ubuntu-latest moves to Ubuntu 26 on 19-10-2026 | TODO (before 19-10-2026) | GitHub notice seen on every job (owner screenshot 08-10-2026, runner-images issue 14748). Our jobs use `runs-on: ubuntu-latest`, so from 19-10-2026 they would silently run on a new OS. Recommended fix: pin every job in .github/workflows/ci.yml and release.yml to `ubuntu-24.04`, then move to Ubuntu 26 deliberately later after a test run. Check in the same change that setup-python 3.12, the Postgres service container and docker compose still behave. Small (about 5 minutes) and low risk; needs a green CI run afterwards. |
+| T28 | CI runner image: ubuntu-latest moves to Ubuntu 26 on 19-10-2026 | ACCEPTED RISK, check after 19-10-2026 | Owner decided 08-10-2026 to keep `ubuntu-latest` (not pin to ubuntu-24.04). From 19-10-2026 the CI jobs run on Ubuntu 26. Action: after that date look at the next ci run; if any job goes red, pin to `ubuntu-24.04` in .github/workflows/ci.yml and release.yml (about 5 minutes) and investigate Python 3.12, the Postgres service container and docker compose on the new image. |
 
 ## Goal-met checklist (verbatim gate)
 - [ ] Soak PASS (T1)
