@@ -40,3 +40,15 @@ def test_global_pilot_count_includes_malformed_entries(fixture_payload: dict) ->
     p["pilots"].append(broken)
     snap = parse_snapshot(p)
     assert snap.malformed == 1 and snap.pilots_global == len(p["pilots"])
+
+
+
+def test_update_timestamp_with_an_offset_is_converted_to_utc(fixture_payload: dict) -> None:
+    """Mutant C26 (offset ignored and the wall-clock time labelled UTC)."""
+    from datetime import UTC, datetime
+
+    from vatpac.model import parse_snapshot
+
+    p = _payload(fixture_payload)
+    p["general"]["update_timestamp"] = "2026-10-07T18:11:19+02:00"
+    assert parse_snapshot(p).observed_at == datetime(2026, 10, 7, 16, 11, 19, tzinfo=UTC)
