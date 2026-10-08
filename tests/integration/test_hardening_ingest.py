@@ -43,3 +43,20 @@ def test_values_of_pilots_outside_the_polygon_are_not_counted(db, payload, refda
     outside = next(q for q in snap["pilots"] if (q["latitude"] or 0) > 0)   # northern hemisphere: outside Australia
     outside["altitude"] = 3_000_000_000
     assert apply(db, snap, refdata).rejected_values == base
+
+
+# issue 43 (F11): free text is capped before it is stored
+def test_long_text_is_stored_cut_and_counted(db, payload, refdata) -> None:
+    base = apply(db, at(payload), refdata).rejected_values
+    snap = at(payload, 15)
+    p = pilot(snap, "TESTCIRCUIT")
+    p["name"] = "N" * 100_000
+    p["flight_plan"] = {**(p.get("flight_plan") or {}), "route": "R" * 4000, "remarks": "M" * 2001}
+    ctrl(snap, "ML_APP")["name"] = "C" * 100_000
+    res = apply(db, snap, refdata)
+    assert res.rejected_values == base + 4
+    row = db.execute("SELECT length(name) AS n, length(route) AS r, length(remarks) AS m FROM pilot_session "
+                     "WHERE callsign = 'TESTCIRCUIT'").fetchone()
+    assert (row["n"], row["r"], row["m"]) == (2000, 2000, 2000)
+    row = db.execute("SELECT length(name) AS n FROM controller_session WHERE callsign = 'ML_APP'").fetchone()
+    assert row["n"] == 2000

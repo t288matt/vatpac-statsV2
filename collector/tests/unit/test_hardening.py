@@ -1,11 +1,37 @@
 """Collector hardening from the T30 data-integrity audit (GitHub issues 34, 36, 37, 41, 43)."""
 from __future__ import annotations
 
+import asyncio
 import copy
+from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
+from vatpac.feed import FetchResult
+from vatpac.filters import load_reference
+from vatpac.main import Collector
 from vatpac.model import parse_snapshot
+from vatpac.settings import Settings
+from vatpac.store import ApplyResult
+
+
+class _Feed:
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self.payload = payload
+
+    async def fetch(self) -> FetchResult:
+        return FetchResult(self.payload, 200)
+
+
+def _collector(settings: Settings, payload: dict[str, Any]) -> Collector:
+    repo = Path(__file__).resolve().parents[3]
+    ref = load_reference(repo / "config" / "australian_airspace_polygon.json",
+                         repo / "config" / "controller_callsigns_list.txt")
+    col = Collector(settings, ref, MagicMock(), _Feed(payload))  # type: ignore[arg-type]
+    col._log_poll = lambda *_a, **_k: None  # type: ignore[method-assign]
+    return col
 
 
 def _payload(fixture_payload: dict, **pilot_changes: object) -> dict:
@@ -55,3 +81,40 @@ def test_controller_values_dropped_are_counted(fixture_payload: dict) -> None:
     payload = copy.deepcopy(fixture_payload)
     payload["controllers"][0].update(rating=2**40, facility="x", visual_range=None)
     assert parse_snapshot(payload).controllers[0].rejected == 2
+
+
+# issue 43 (F11): free text is cut to a length cap at ingest and each cut is counted
+def _long(fixture_payload: dict) -> dict:
+    payload = _payload(fixture_payload, name="N" * 100_000)
+    payload["pilots"][0]["flight_plan"] = {**(payload["pilots"][0].get("flight_plan") or {}),
+                                           "route": "R" * 5000, "remarks": "M" * 3000, "departure": "YSSY"}
+    payload["controllers"][0]["name"] = "C" * 50_000
+    return payload
+
+
+def test_long_text_is_truncated_and_counted(fixture_payload: dict) -> None:
+    snap = parse_snapshot(_long(fixture_payload), 2000)
+    p, c = snap.pilots[0], snap.controllers[0]
+    assert len(p.name or "") == 2000 and len(p.route or "") == 2000 and len(p.remarks or "") == 2000
+    assert p.departure == "YSSY" and p.rejected == 3          # three fields cut, the short one untouched
+    assert len(c.name or "") == 2000 and c.rejected == 1
+
+
+def test_default_cap_is_2000_and_a_short_text_is_unchanged(fixture_payload: dict) -> None:
+    assert len(parse_snapshot(_long(fixture_payload)).pilots[0].name or "") == 2000
+    exact = parse_snapshot(_payload(fixture_payload, name="x" * 2000)).pilots[0]
+    assert len(exact.name or "") == 2000 and exact.rejected == 0
+
+
+def test_cap_is_the_setting(fixture_payload: dict) -> None:
+    seen: list[Any] = []
+    col = _collector(Settings(text_max_length=150), _long(fixture_payload))
+    col._apply = lambda snap, _ref: seen.append(snap) or ApplyResult()  # type: ignore[method-assign]
+    asyncio.run(col.poll_once())
+    assert len(seen[0].pilots[0].name or "") == 150
+
+
+def test_cap_setting_bounds() -> None:
+    assert Settings().text_max_length == 2000
+    with pytest.raises(ValueError):
+        Settings(text_max_length=10)
