@@ -77,3 +77,13 @@ def test_groundspeed_of_exactly_60_kt_is_airborne(conn) -> None:
     make_session(conn, 9700001, run(5, gs=60))
     row = flights(conn, 9700001)[0]
     assert float(row["airborne_minutes"]) == pytest.approx(4 * 15 / 60, abs=0.01)  # 1.0
+
+
+
+def test_samples_exactly_120_minutes_apart_still_count_as_airborne_time(conn) -> None:
+    """Mutant S03 (`<` instead of `<=` on the 120 minute pair rule): two samples exactly 120 minutes apart are in the
+    same gap segment, so the earlier one contributes its capped gap (40 s)."""
+    make_session(conn, 9700002, [(T0, 250), (T0 + timedelta(minutes=120), 250)])
+    rows = flights(conn, 9700002)
+    assert len(rows) == 1
+    assert float(rows[0]["airborne_minutes"]) == pytest.approx(40 / 60, abs=0.01)
