@@ -347,8 +347,8 @@
     {
       "id": 10,
       "type": "piechart",
-      "title": "Most popular aircraft by flights (last 30 days)",
-      "description": "v1 card 90. Flights per aircraft category from the aircraft_type lookup (codes not in the lookup are 'Other / uncategorised'). Changed from v1: categories come from a lookup table instead of a LIKE ladder that mis-classified many types.",
+      "title": "Most popular aircraft by flights (last 6 months)",
+      "description": "v1 card 90. Flights per aircraft category from the aircraft_type lookup (codes not in the lookup are 'Other / uncategorised'). Changed from v1: categories come from a lookup table instead of a LIKE ladder that mis-classified many types. v1 card 90: flights per aircraft category over 6 months, flights with an aircraft type and airborne time only; categories come from the aircraft_type lookup (owner decision 08-10-2026), not v1 pattern ladder. v1 average-time-with-ATC column stays dropped (ADR-002).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -369,7 +369,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(aircraft_category, 'Other / uncategorised') AS category,\n       count(*) AS flights\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1\nORDER BY flights DESC"
+          "rawSql": "SELECT COALESCE(aircraft_category, 'Other / uncategorised') AS category,\n       count(*) AS flights,\n       count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.aircraft_icao IS NOT NULL AND f.aircraft_icao <> ''\n  AND f.airborne_minutes > 0\nGROUP BY 1\nORDER BY flights DESC"
         }
       ],
       "options": {
@@ -394,7 +394,8 @@
       "fieldConfig": {
         "defaults": {},
         "overrides": []
-      }
+      },
+      "timeFrom": "180d"
     },
     {
       "id": 11,
