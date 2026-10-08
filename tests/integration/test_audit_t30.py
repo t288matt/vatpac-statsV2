@@ -548,3 +548,13 @@ def test_pilots_online_now_shows_the_newest_snapshot(conn) -> None:
     pn = p14.TRAFFIC.parent / "pilots-now.json"
     assert _run(conn, pn, "Pilots online now (in region)")[0]["Pilots"] == 7
     assert _run(conn, pn, "Pilots online now (network-wide)")[0]["Pilots"] == 70
+
+
+
+# ------------------------------------------------------------------ ATC panels
+def test_controllers_logged_on_needs_more_than_sixty_minutes(conn) -> None:
+    """Mutant P05 (60 -> 6 minutes) on card 115."""
+    atc15.add(conn, 9880001, atc15.days_ago(3), 45, rating=2)
+    atc15.add(conn, 9880002, atc15.days_ago(3), 90, rating=2)
+    rows = {r["rank_group"]: r["controllers"] for r in atc15.run(conn, "Controllers logged on (last 30 days)")}
+    assert rows["S1"] == 1
