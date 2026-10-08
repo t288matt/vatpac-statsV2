@@ -417,3 +417,14 @@ def test_card_93_a_pilot_with_exactly_30_airborne_minutes_counts(conn) -> None:
     p14.add_flight(conn, 9860010, airborne=30, days_ago=10)
     p14.add_flight(conn, 9860011, airborne=29.9, days_ago=10)
     assert p14.people(conn)["Pilots"] == 1
+
+
+
+def test_international_and_domestic_routes_are_separated(conn) -> None:
+    """Mutant P23 (domestic routes leak into the international panel)."""
+    p14.add_flight(conn, 9860020, dep="YSSY", arr="YMML")
+    p14.add_flight(conn, 9860021, dep="YSSY", arr="EGLL")
+    p14.add_flight(conn, 9860022, dep="EGLL", arr="KJFK")
+    intl = {r["route"] for r in _run(conn, p14.TRAFFIC, "Most popular international routes (last 30 days)")}
+    dom = {r["route"] for r in _run(conn, p14.TRAFFIC, "Most popular domestic routes (last 30 days)")}
+    assert intl == {"YSSY-EGLL", "EGLL-KJFK"} and dom == {"YSSY-YMML"}
