@@ -99,7 +99,7 @@ def test_a_brand_new_controller_counts_as_reactivated(conn):
 
 
 def add_session_on(conn, cid: int, day: str, minutes: int = 30) -> None:
-    start = datetime.fromisoformat(day).replace(tzinfo=timezone.utc)
+    start = datetime.fromisoformat(day).replace(tzinfo=UTC)
     conn.execute(
         "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
         "VALUES (%s, %s, %s, %s, 3, %s, %s)",
