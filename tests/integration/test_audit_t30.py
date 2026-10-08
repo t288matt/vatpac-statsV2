@@ -102,3 +102,34 @@ def test_airborne_minutes_keep_two_decimals(conn) -> None:
     """Mutant S08 (round to 0 places): 7 gaps of 15 s = 105 s = 1.75 minutes."""
     make_session(conn, 9700004, run(8, gs=250))
     assert float(flights(conn, 9700004)[0]["airborne_minutes"]) == 1.75
+
+
+
+# ------------------------------------------------------------------ partition retention boundaries
+SESSION_SQL = ("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "
+               "VALUES (%s,%s,%s,%s,%s) RETURNING id")
+
+
+def _partitions(conn) -> set[str]:
+    return {r["p"] for r in conn.execute(
+        "SELECT c.relname AS p FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid "
+        "WHERE i.inhparent = 'pilot_position'::regclass").fetchall()}
+
+
+def _session_with_position(conn, cid: int, day: datetime, last_seen: datetime) -> None:
+    partition_for(conn, day)
+    sid = conn.execute(SESSION_SQL, (cid, f"RET{cid}", day, day, max(day, last_seen))).fetchone()["id"]
+    conn.execute("INSERT INTO pilot_position (observed_at, session_id, gs_kt) VALUES (%s,%s,250)", (day, sid))
+
+
+def test_retention_drops_exactly_the_days_older_than_ninety(conn) -> None:
+    """Mutants S20 (`>=`) and S22 (retention counted in 12 hour days). Today 07-10-2026, retention 90 days:
+    the cut-off is 09-07-2026 00:00 UTC. The partition for 08-07-2026 ends exactly at the cut-off and goes; the
+    one for 09-07-2026 stays; so does one 60 days old (a halved retention would drop it)."""
+    cases = {9710001: date(2026, 7, 8), 9710002: date(2026, 7, 9), 9710003: date(2026, 8, 8)}
+    for cid, d in cases.items():
+        day = datetime(d.year, d.month, d.day, 10, tzinfo=timezone.utc)
+        _session_with_position(conn, cid, day, day + timedelta(minutes=5))
+    dropped = conn.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07') AS n").fetchone()["n"]
+    assert dropped == 1
+    assert _partitions(conn) == {"pilot_position_20260709", "pilot_position_20260808"}
