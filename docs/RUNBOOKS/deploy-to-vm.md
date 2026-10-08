@@ -1,6 +1,6 @@
 # Runbook: deploy to the Linux VM
 
-Last reviewed: 07-10-2026. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD**.
+Last reviewed: 08-10-2026. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD**. The production VM is reached as `ssh vatpac-v3` (an alias in the owner's `~/.ssh/config`) and the stack lives in `~/vatpac-statsV2`. That VM has no git and no GitHub credentials, so code is deployed with `git archive` (section 2c). Times in this runbook are UTC.
 
 Disk sizing: about 2 to 3 GB of positions at 90 days, plus WAL (up to 2 GB), plus `BACKUP_RETENTION_DAYS` (default 14) dumps on the same disk, plus Docker images, logs and build cache. 20 GB is too tight. Provision 40 GB or more, or set `BACKUP_RETENTION_DAYS=7` and copy dumps off-box (`restore.md`, "Off-box copies"). The watchdog checks the filesystems listed in `WATCHDOG_DISK_PATHS` (default `/backups,/`, which is the Docker data-root filesystem that holds the `pgdata` and `backups` named volumes) and warns at `WATCHDOG_DISK_PCT` (80%). If you move a volume onto its own mount, mount that path into the watchdog and add it to the list.
 
@@ -25,6 +25,13 @@ Alternative: HTTPS with a fine-grained personal access token (Contents: read-onl
 ```sh
 git fetch --tags && git checkout v1.0.0   # deploy tags, not a moving branch
 ```
+
+## 2c. Copy the code without git (the method in use on the production VM)
+Run from the repository root on the PC, with the commit you want to deploy checked out and committed (`git archive` ships committed files only):
+```sh
+git archive --format=tar HEAD | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'
+```
+The VM's `.env` is not in git, so it is kept. `tar -x` overwrites files but never deletes: if a file was removed or renamed in git, delete it on the VM too (a stale module under `collector/src` would still be baked into the image, and a stale migration file would still be applied). For a first install, create the folder first (`ssh vatpac-v3 'mkdir -p ~/vatpac-statsV2'`), copy, then continue at section 3.
 
 ## 3. Configure
 `.env.example` has **blank secrets on purpose**: the stack will not start with trivial credentials.
@@ -65,23 +72,61 @@ Grafana is also hardened with: external snapshots disabled, Gravatar disabled, v
 
 ## 6. Verify
 ```sh
-make smoke                                   # PASS/FAIL per check, non-zero on failure
+make smoke                                   # PASS/FAIL per check, non-zero on failure (without make: sh ops/smoke.sh)
 docker compose logs --tail=50 collector      # polls every ~15 s
 docker compose exec backup backup.sh once    # first backup, then `ls` the volume (see restore.md)
 ```
+`python3 ops/check_panels.py` runs every dashboard query through Grafana's own API; expect `0 errors` (empty panels are fine while data is young). It reads `.env` and never prints the password.
+
 Open `http://localhost:3300` on the VM (or `http://<GRAFANA_BIND>:3300` from the LAN), log in as the admin user from `.env`. Charts start empty (no backfill).
 
 ## 7. Reboot test
 `sudo reboot`; after boot `docker compose ps` should show everything back (restart: unless-stopped).
 
 ## Updating
+Before deploying read [daily-checks.md](daily-checks.md): **a redeploy restarts the collector, which costs about 45 seconds of snapshots, and breaks a 24 hour soak that is in progress.** Do not redeploy while a soak is running unless it is necessary, and say so if you do.
+
+With git on the host:
 ```sh
 git fetch --tags && git checkout <new tag>
 sh ops/check_env.sh                # new releases may add secrets (see .env.example); add any blank ones
 docker compose up -d --build     # migrate runs first; collector waits for it
 make smoke
 ```
-Roll back by checking out the previous tag. Migrations are forward-only: if one must be undone, restore from backup (`restore.md`).
+Without git (production VM), from the PC:
+```sh
+git archive --format=tar HEAD | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'
+ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/check_env.sh && docker compose up -d --build'
+ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/smoke.sh && python3 ops/check_panels.py'
+```
+`docker compose up -d --build` rebuilds the images whose inputs changed, recreates only the services whose image or configuration changed, and starts the `migrate` job before the services that wait for it. Confirm the migrations ran: `docker compose ps -a migrate` shows `exited (0)`, and `docker compose logs --tail=20 migrate` ends with `migrate: done`. If a new migration did not run, `docker compose up migrate` runs the job on its own (it is idempotent).
+
+## What a change needs (rebuild, restart or reload)
+
+| What changed | What to do | Interrupts polling? |
+|---|---|---|
+| `collector/src/**`, `collector/requirements.txt`, `collector/Dockerfile` | `docker compose up -d --build` (rebuilds the collector image and recreates the container) | Yes, about 45 s |
+| `db/migrations/*.sql` (new numbered file; never edit an applied one) | `docker compose up -d`: `migrate` applies it (`./db` is mounted, no rebuild); if it did not run, `docker compose up migrate`. Then `sh ops/smoke.sh` | No |
+| `db/roles.sql` (mounted like the migrations) | `docker compose up -d`: `migrate` re-applies the roles and grants. **Never run this file by hand against the live database**: it resets the live role passwords to whatever you pass | No |
+| `ops/migrate/**` (the migrate image itself) | `docker compose up -d --build` | No |
+| `grafana/dashboards/**/*.json` | Nothing to restart: the provider rescans the read-only mount every 30 seconds. Reload the browser page | No |
+| `grafana/provisioning/**` (datasource or provider settings) | `docker compose restart grafana` (provisioning is read at start-up) | No |
+| `config/*.json`, `config/*.txt` (polygon, whitelist) | No rebuild: `docker compose kill -s HUP collector` (see [update-reference-files.md](update-reference-files.md)) | No |
+| `.env` (a password) | `docker compose up -d` (the `migrate` job runs `ALTER ROLE`; `POSTGRES_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` only apply at first start, see section 3) | The services using the changed value are recreated |
+| `.env` (a collector setting) | `docker compose up -d collector` | Yes, about 45 s |
+| `docker-compose.yml` | `docker compose up -d` (recreates the services whose definition changed) | Only for those services |
+| `ops/postgres/postgresql.conf` | `docker compose restart db` | Yes, the database restarts; the collector retries |
+| `ops/watchdog/**`, `ops/backup/**` | `docker compose up -d --build watchdog` or `backup` | No |
+| `ops/*.sh`, `ops/*.py`, `grafana/*.py`, `docs/`, `tests/`, `Makefile` | Nothing: they run from the host or are only documentation | No |
+
+## Roll back
+Code, dashboards and configuration go back by deploying the previous commit; the database does not go back by itself.
+1. Note the commit that was deployed before (`git log --oneline`), then deploy it: `git archive --format=tar <previous commit> | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'`, then `docker compose up -d --build` on the VM.
+2. Delete files the newer commit added, because `tar -x` leaves them behind. In particular delete a newer migration file you do not want applied **before** running `docker compose up -d`, or `migrate` will apply it.
+3. Migrations are forward-only. A migration that already ran stays applied after a code rollback; additive migrations (a new view, an index) are harmless to older code. If a migration must be undone, add a new corrective numbered migration, or restore from backup (`restore.md`); never edit an applied migration.
+4. Verify with `sh ops/smoke.sh` and `python3 ops/check_panels.py`.
+
+With git on the host, check out the previous tag instead and run `docker compose up -d --build`.
 
 ## Image pinning
 Third-party images (`postgres`, `grafana`, `dbmate`, `python`) are pinned by exact version tag. Digest pinning (`image:tag@sha256:...`) is the stricter policy; add digests when you can resolve them with `docker buildx imagetools inspect <image>:<tag>`. Dependabot (docker and docker-compose ecosystems) proposes bumps.
