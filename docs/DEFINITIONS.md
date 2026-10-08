@@ -76,7 +76,7 @@ Handling: the callsign is not stored as a session. It is upserted into `controll
 
 ## 8. In-region pilot (polygon filter)
 
-**v3.** A pilot is stored from the first snapshot in which they are inside the polygon `config/australian_airspace_polygon.json` (GeoJSON, lon,lat order), tested with shapely `contains`: a point exactly on the edge is outside. A pilot with no position passes. Pilots outside are never stored, so a flight is recorded only from the moment it enters the polygon and stops when it leaves; it can re-enter as the same session.
+**v3.** A pilot is stored from the first snapshot in which they are inside the polygon `config/australian_airspace_polygon.json` (GeoJSON, lon,lat order), tested with shapely `contains`: a point exactly on the edge is outside. A pilot with no position (latitude or longitude absent or null) passes; one whose latitude or longitude is present but unparsable is a malformed record and is skipped and counted. Pilots outside are never stored, so a flight is recorded only from the moment it enters the polygon and stops when it leaves; it can re-enter as the same session.
 
 **Difference from v1.** The polygon filter itself is kept from v1 (`ENABLE_BOUNDARY_FILTER` in the v1 compose). The edge rule and the no-position rule follow SPEC section 4; whether v1 treated an edge point the same way was not checked.
 

@@ -144,10 +144,8 @@ def _callsign(value: Any) -> str:
 
 
 def _f(value: Any) -> float | None:
-    try:
-        return None if value is None else float(value)
-    except (TypeError, ValueError):
-        return None
+    """A coordinate: None means no position; anything unparsable raises, so the pilot is a malformed record."""
+    return None if value is None else float(value)
 
 
 def _heading(value: Any) -> int | None:
