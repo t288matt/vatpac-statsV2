@@ -478,3 +478,11 @@ def test_diverse_routes_only_count_flights_over_sixty_minutes(conn) -> None:
         p14.add_flight(conn, 9860071, dep="YSSY", arr=arr, minutes=90, days_ago=1 + i)
     rows = _run(conn, p14.TRAFFIC, "Pilots with the most diverse routes (last 14 days)")
     assert [(r["pilot"], r["unique_routes"]) for r in rows] == [("Pilot 9860071", 2)]
+
+
+
+def test_busiest_days_shows_five_rows(conn) -> None:
+    """Mutant P25 (top 5 -> top 50)."""
+    for i in range(7):
+        p14.add_flight(conn, 9860080 + i, days_ago=1 + i)
+    assert len(_run(conn, p14.TRAFFIC, "Busiest days by flights (last 6 months)")) == 5
