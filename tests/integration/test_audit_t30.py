@@ -607,3 +607,32 @@ def test_panel_windows_match_their_titles() -> None:
             if want not in ([got] + lits):
                 bad.append(f"{f.parent.name}/{f.name}: {p['title']} (title {want} h, window {got} h, sql {lits})")
     assert not bad, "\n".join(bad)
+
+
+def _expand_macros(sql: str) -> str:
+    """Grafana macros as the PostgreSQL data source expands them, for a 30 day range ending now."""
+    sql = sql.replace("$__timeFrom()", "(now() - interval '30 days')").replace("$__timeTo()", "now()")
+    sql = re.sub(r"\$__timeFilter\((\w+)\)", r"\1 BETWEEN (now() - interval '30 days') AND now()", sql)
+    sql = re.sub(r"\$__timeGroupAlias\((\w+), \$__interval\)", r"date_trunc('minute', \1) AS time", sql)
+    return sql.replace("${airport:sqlstring}", "'YSSY'")
+
+
+def test_every_panel_query_runs_as_grafana_ro(conn) -> None:
+    """Gap: 40 of the 84 query panels were never executed by any test (only parsed by validate_dashboards.py), and the
+    ones that were ran as the superuser. Run all of them as the real read-only role, so a missing grant, a base-table
+    reference or a runtime SQL error fails here instead of on the live dashboards. Empty data is fine (smoke test)."""
+    conn.execute("SET ROLE grafana_ro")
+    failures = []
+    try:
+        for f in sorted((REPO / "grafana" / "dashboards").glob("*/*.json")):
+            for p in json.loads(f.read_text(encoding="utf-8"))["panels"]:
+                for t in p.get("targets", []):
+                    if "rawSql" not in t:
+                        continue
+                    try:
+                        conn.execute(_expand_macros(t["rawSql"])).fetchall()
+                    except Exception as exc:  # noqa: BLE001 - report every broken panel, not just the first
+                        failures.append(f"{f.parent.name}/{f.name}: {p['title']}: {str(exc).splitlines()[0]}")
+    finally:
+        conn.execute("RESET ROLE")
+    assert not failures, "\n".join(failures)
