@@ -87,3 +87,11 @@ def test_samples_exactly_120_minutes_apart_still_count_as_airborne_time(conn) ->
     rows = flights(conn, 9700002)
     assert len(rows) == 1
     assert float(rows[0]["airborne_minutes"]) == pytest.approx(40 / 60, abs=0.01)
+
+
+
+def test_samples_121_minutes_apart_add_no_airborne_time(conn) -> None:
+    make_session(conn, 9700003, [(T0, 250), (T0 + timedelta(minutes=121), 250)])
+    rows = flights(conn, 9700003)
+    assert len(rows) == 2
+    assert [float(r["airborne_minutes"]) for r in rows] == [0.0, 0.0]
