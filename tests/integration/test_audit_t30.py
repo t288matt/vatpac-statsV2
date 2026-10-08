@@ -261,3 +261,19 @@ def test_flight_refresh_covers_sessions_seen_in_the_last_twelve_hours(conn) -> N
     assert refresh_flights(conn) == 1
     got = [r["cid"] for r in conn.execute("SELECT cid FROM flight_summary WHERE cid IN (9740001, 9740002)").fetchall()]
     assert got == [9740001]
+
+
+
+def test_sync_settings_publishes_the_values_the_views_read(conn) -> None:
+    """The flight view reads app_setting (home prefixes, airborne gap cap); sync_settings must write the configured
+    values, not defaults. Custom values are used so a hard-coded default would fail."""
+    from vatpac.maintenance import sync_settings
+    from vatpac.settings import Settings
+
+    try:
+        sync_settings(conn, Settings(home_icao_prefixes="y,nz", airborne_gap_cap_seconds=55))
+        rows = {r["key"]: r["value"] for r in conn.execute(
+            "SELECT key, value FROM app_setting WHERE key IN ('home_icao_prefixes', 'airborne_gap_cap_seconds')").fetchall()}
+        assert rows == {"home_icao_prefixes": "Y,NZ", "airborne_gap_cap_seconds": "55"}
+    finally:
+        conn.execute("DELETE FROM app_setting WHERE key IN ('home_icao_prefixes', 'airborne_gap_cap_seconds')")
