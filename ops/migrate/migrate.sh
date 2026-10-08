@@ -3,7 +3,8 @@
 # `docker compose up`.
 #   - grafana_ro, collector, backup_ro : created and granted by /db/roles.sql (passwords passed as
 #     psql variables grafana_ro_password, collector_password, backup_password)
-#   - watchdog_ro : created here (pg_monitor + SELECT on the few tables the watchdog reads)
+#   - watchdog_ro : created here (pg_monitor + SELECT on the few tables the watchdog reads; the two session tables are
+#     for the identity-flap check)
 # This job is the only place the owner/superuser password is used for schema work.
 # Passwords never leave this container's environment and are not echoed.
 set -eu
@@ -32,7 +33,7 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public FROM watchdog_ro;
 GRANT USAGE ON SCHEMA public TO watchdog_ro;
 GRANT pg_monitor TO watchdog_ro;
 SELECT format('GRANT SELECT ON %I TO watchdog_ro', t)
-  FROM unnest(ARRAY['poll_log', 'network_snapshot', 'controller_unlisted_sighting']) AS t
+  FROM unnest(ARRAY['poll_log', 'network_snapshot', 'controller_unlisted_sighting', 'pilot_session', 'controller_session']) AS t
  WHERE to_regclass('public.' || t) IS NOT NULL \gexec
 SQL
 
