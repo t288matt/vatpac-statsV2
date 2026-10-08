@@ -193,14 +193,15 @@ def apply_snapshot(
 ) -> ApplyResult:
     """Write one snapshot in a single transaction. Replaying it inserts zero rows."""
     ts = snapshot.observed_at
-    res = ApplyResult(pilots_seen=snapshot.pilots_global, controllers_seen=snapshot.controllers_global)
+    res = ApplyResult(pilots_seen=snapshot.pilots_global, controllers_seen=snapshot.controllers_global,
+                      rejected_values=snapshot.malformed)  # malformed feed entries count as rejected too
 
     pilots: dict[tuple[int, str, datetime], dict[str, Any]] = {}
     for p in snapshot.pilots:
         if not inside_polygon(polygon, p.latitude, p.longitude):
             continue
         gs, alt, rejected = clamp_pilot(p.groundspeed, p.altitude)
-        res.rejected_values += rejected
+        res.rejected_values += rejected + p.rejected
         pilots[(p.cid, p.callsign, p.logon_time)] = {
             **asdict(p), "home_icao": home_icao(p.name), "gs_kt": gs, "alt_ft": alt,
             "lat": p.latitude, "lon": p.longitude, "hdg": p.heading,
@@ -213,6 +214,7 @@ def apply_snapshot(
     near_miss: dict[str, int] = {}
     for c in snapshot.controllers:
         if c.callsign in whitelist:
+            res.rejected_values += c.rejected
             controllers[(c.cid, c.callsign, c.logon_time)] = {
                 **asdict(c), "frequency_hz": parse_frequency_hz(c.frequency_text)}
         elif is_near_miss(c.callsign, whitelist):

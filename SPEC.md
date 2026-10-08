@@ -39,7 +39,7 @@ Reproduce the VATPAC pilot/controller graphs, live and available 24/7, fully doc
 - **Flight start** = first stored sample; **end** = last sample; **duration** = end - start. **Airborne minutes** = sum over consecutive sample pairs of the gap where groundspeed >= 60 kt at the earlier sample, each gap capped at `AIRBORNE_GAP_CAP_SECONDS` (default 40, about 2.5 x the 15 s interval).
 - **Controller session**: `(cid, callsign, logon_time)` with `logon_time` in whole seconds as for pilots (ADR-021). Start = `logon_time`, end = last sighting. Reconnect of the same cid+callsign within 5 minutes merges (in the `controller_session_merged` view). "Closed" is derived (last seen older than 2 polls), never written.
 - **Online now** = seen within the last 2 snapshots.
-- **Plausibility caps** (ingest): groundspeed 0..700 kt, altitude -1500..65000 ft; values outside are stored as NULL and counted in `poll_log.rejected_values`.
+- **Plausibility caps** (ingest): groundspeed 0..700 kt, altitude -1500..65000 ft; values outside are stored as NULL and counted in `poll_log.rejected_values`. The same counter also takes the other values parsing drops (an integer outside int32, an unparsable number, a heading outside 0..360) for stored pilots and controllers, and every malformed feed entry that was skipped.
 - Frequency is stored as integer Hz (`121.700` -> 121700000). `199.998` MHz means "no frequency" and is stored as NULL.
 
 ## 6. Database (PostgreSQL 16)
