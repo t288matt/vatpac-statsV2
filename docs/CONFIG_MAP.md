@@ -34,6 +34,7 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `CIRCUIT_FAILURE_THRESHOLD` | `5` | collector | Consecutive upstream failures that open the circuit breaker (1 to 1000). Polling never stops. |
 | `CIRCUIT_SLOW_INTERVAL_SECONDS` | `60` | collector | Poll cadence in seconds while the breaker is open (5 to 3600). |
 | `TEXT_MAX_LENGTH` | `2000` | collector | Free-text fields of a pilot or controller (name, route, remarks, server and so on) are cut to this many characters at ingest; each cut field counts once in `poll_log.rejected_values`. Valid 100 to 100000. |
+| `FEED_MAX_FUTURE_SECONDS` | `120` | collector | A feed snapshot whose `update_timestamp` is more than this many seconds ahead of the collector's clock is rejected as a feed error (`error` poll, nothing stored, `last seen` unchanged), so one future-dated snapshot cannot make every later real update look unchanged. Valid 15 to 3600. The collector host's clock must be correct to well within this bound. |
 | `HEALTH_PORT` | `8080` | collector, watchdog | Port of the collector's `/health` and `/metrics` inside the container. |
 | `VATPAC_VERSION` | `dev` | collector build arg | Version label baked into the image (the release workflow sets it from the git tag). |
 | `BACKUP_RETENTION_DAYS` | `14` | backup | Days of dumps kept. |

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -118,3 +119,52 @@ def test_cap_setting_bounds() -> None:
     assert Settings().text_max_length == 2000
     with pytest.raises(ValueError):
         Settings(text_max_length=10)
+
+
+# issue 34 (F2): a snapshot dated well ahead of the wall clock is a feed error and must not freeze ingestion
+def _stamped(fixture_payload: dict, offset_s: float) -> dict:
+    payload = copy.deepcopy(fixture_payload)
+    when = datetime.now(UTC) + timedelta(seconds=offset_s)
+    payload["general"]["update_timestamp"] = when.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+    return payload
+
+
+def _poll_sequence(col: Collector, feed: _Feed, payloads: list[dict]) -> tuple[list[str], list[dict], list[Any]]:
+    applied: list[Any] = []
+    rows: list[dict] = []
+    col._apply = lambda snap, _ref: applied.append(snap) or ApplyResult()  # type: ignore[method-assign]
+    col._log_poll = lambda status, _ref, **kw: rows.append({"status": status, **kw})  # type: ignore[method-assign]
+    statuses = []
+    for payload in payloads:
+        feed.payload = payload
+        statuses.append(asyncio.run(col.poll_once()).status)
+    return statuses, rows, applied
+
+
+def test_future_dated_snapshot_is_an_error_and_does_not_freeze_ingestion(fixture_payload: dict) -> None:
+    feed = _Feed(fixture_payload)
+    col = _collector(Settings(), fixture_payload)
+    col.feed = feed  # type: ignore[assignment]
+    future = _stamped(fixture_payload, 3 * 86400)
+    genuine = _stamped(fixture_payload, 0)
+    statuses, rows, applied = _poll_sequence(col, feed, [future, genuine])
+    assert statuses == ["error", "ok"]                       # the old code: ok, then skipped_unchanged
+    assert len(applied) == 1 and applied[0].observed_at < datetime.now(UTC) + timedelta(seconds=5)
+    assert "ahead of the clock" in rows[0]["error"] and rows[0]["snapshot_ts"] is None
+    assert col.last_ts == applied[0].observed_at
+
+
+@pytest.mark.parametrize(("offset", "expected"),
+                         [(-3600, "ok"), (60, "ok"), (110, "ok"), (150, "error"), (600, "error")])
+def test_future_bound_defaults_to_120_seconds(fixture_payload: dict, offset: float, expected: str) -> None:
+    col = _collector(Settings(), fixture_payload)
+    statuses, *_ = _poll_sequence(col, col.feed, [_stamped(fixture_payload, offset)])  # type: ignore[arg-type]
+    assert statuses == [expected]
+
+
+def test_future_bound_is_the_setting(fixture_payload: dict) -> None:
+    col = _collector(Settings(feed_max_future_seconds=600), fixture_payload)
+    assert _poll_sequence(col, col.feed, [_stamped(fixture_payload, 500)])[0] == ["ok"]  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        Settings(feed_max_future_seconds=1)
+    assert Settings().feed_max_future_seconds == 120

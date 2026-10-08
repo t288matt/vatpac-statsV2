@@ -10,7 +10,7 @@ import signal
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -95,7 +95,10 @@ class Collector:
             fetched = await self.feed.fetch()
             http, payload = fetched.http_status, fetched.payload
             if payload is not None:
-                snap_ts = update_timestamp(payload)
+                ts, bound = update_timestamp(payload), self.settings.feed_max_future_seconds
+                if ts - datetime.now(UTC) > timedelta(seconds=bound):  # one future stamp would skip every real update
+                    raise FeedError(f"snapshot time {ts:%Y-%m-%dT%H:%M:%SZ} is over {bound} s ahead of the clock", 200)
+                snap_ts = ts
             if payload is None or (self.last_ts is not None and snap_ts is not None and snap_ts <= self.last_ts):
                 status, retry_in = "skipped_unchanged", max(UNCHANGED_RETRY_S, min(fetched.max_age or 0, 5.0))
             else:

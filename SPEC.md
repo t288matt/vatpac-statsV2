@@ -18,7 +18,7 @@ Reproduce the VATPAC pilot/controller graphs, live and available 24/7, fully doc
 
 ## 3. Feed and polling
 - URL: `https://data.vatsim.net/v3/vatsim-data.json` (discover through `https://status.vatsim.net/status.json`, key `data.v3[0]`; fall back to the hard-coded URL if discovery fails).
-- The feed refreshes every 15 s; `general.update_timestamp` (ISO-8601 UTC) is the **snapshot time** and is used as `observed_at` for every row from that snapshot.
+- The feed refreshes every 15 s; `general.update_timestamp` (ISO-8601 UTC) is the **snapshot time** and is used as `observed_at` for every row from that snapshot. A snapshot time more than `FEED_MAX_FUTURE_SECONDS` (default 120) ahead of the collector clock is not accepted: the poll is an `error` (message "snapshot time ... ahead of the clock", nothing stored, the last processed time unchanged), so a single future-dated snapshot cannot make every later genuine update look unchanged.
 - Poll loop (monotonic scheduler, no drift): fetch; if `update_timestamp` equals the last processed one, skip and retry in about 2 s; else process. Use `If-Modified-Since`, `Accept-Encoding: gzip`, honour `Cache-Control`, User-Agent `vatpac-stats/<version>`, timeout 10 s (connect 5 s), 3 retries with jittered exponential backoff, honour 429/`Retry-After`, circuit breaker after N consecutive failures (poll continues at a slower cadence, never exits).
 - Only `pilots` and `controllers` are read. `atis`, `prefiles`, `servers`, `facilities`, `ratings`, `pilot_ratings` (the lookup arrays) are ignored; the lookup tables are seeded by migrations 3 and 11, not from the feed.
 - The transceivers feed is NOT fetched.
