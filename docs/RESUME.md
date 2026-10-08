@@ -55,5 +55,7 @@ Update 08-10-2026: the owner decided to ship all 16 T15 cards as built (branch t
 
 - **Queued task T30 (owner request 08-10-2026):** independent audit of the tests (assertion strength, mutation checks, date dependence, coverage against CHART_DEFINITIONS.md) PLUS a data-integrity audit the owner asked to weigh equally: is incoming data filtered correctly (polygon, whitelist, malformed, duplicates, outages) and do the reports reflect the API data (lineage from raw feed to dashboard numbers, independent recomputation). Details in tracker T30. Output docs/TEST_AUDIT.md. Start after the usage reset.
 
+- **Folder names (T32, after the deploy):** on the owner's PC `VATPAC-Stats V2` is the old v1 system and `vatpac-statsV2` is the new v3 rebuild; do not confuse them and do not delete the old one. Renaming to `VATPAC-Stats-v1-old` and `vatpac-stats-v3` is planned after the deploy.
+
 ## 6. Rules to keep
 British English, DD-MM-YYYY, no emoji, state UTC. New numbered migrations only (never edit an applied one). The v1 box is the owner's: read-only queries only, ask first. Cloudflare and the Docker socket proxy are the owner's to add later. Do not expose Grafana publicly. Commit new commits only (never amend).
