@@ -598,3 +598,11 @@ def test_retention_active_window_is_thirty_days(conn) -> None:
     """Mutant P08 (30 -> 31 days)."""
     ret.add_session(conn, 9000001, 30.5, 10)
     assert ret.scalar(conn, "Active controllers") == 0
+
+
+
+def test_retention_rate_needs_sessions_over_sixty_minutes(conn) -> None:
+    """Mutant P10 (`>= 60`): a controller whose only recent session is exactly 60 minutes is not in the numerator."""
+    ret.add_session(conn, 9000001, 5, 60)
+    ret.add_session(conn, 9000002, 45, 30)
+    assert float(ret.scalar(conn, "Controller retention rate")) == 0.0
