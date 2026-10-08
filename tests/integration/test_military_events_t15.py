@@ -175,7 +175,7 @@ def _latest_monday_start() -> datetime:
 
 
 def _add_samples(conn, cid: int, samples: list[tuple[datetime, int | None]]) -> int:
-    first, last = samples[0][0], samples[-1][0]
+    first, last = min(t for t, _ in samples), max(t for t, _ in samples)
     for t, _ in samples:
         partition_for(conn, t)
     sid = conn.execute(
