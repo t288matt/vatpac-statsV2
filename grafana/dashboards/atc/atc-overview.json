@@ -231,9 +231,9 @@
     },
     {
       "id": 6,
-      "type": "barchart",
-      "title": "Controllers logged on (last 3 months)",
-      "description": "v1 card 116. As the 30-day chart, over 3 months.",
+      "type": "timeseries",
+      "title": "Controllers logged on each month, by rating group",
+      "description": "v1 card 116 (v1 query edited 18-10-2025: was the last 3 months as one bar chart, now month by month). For each calendar month (UTC), distinct controllers per rating group whose sessions that month total more than 60 minutes at that rating (as v1, a controller who changed rating inside a month is judged separately at each rating). Observer and C2 are not shown, as in v1. Starts at go-live (no backfill).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -252,29 +252,30 @@
           },
           "refId": "A",
           "editorMode": "code",
-          "format": "table",
+          "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH ranks(sort, rank_group) AS (VALUES (2, 'S1'), (3, 'S2'), (4, 'S3'), (5, 'C1'), (7, 'C3'), (8, 'I1+')),\nper_controller AS (\n  SELECT cid, rank_group, sum(duration_minutes) AS minutes\n  FROM controller_session_ranked\n  WHERE session_start BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY cid, rank_group\n  HAVING sum(duration_minutes) > 60\n)\nSELECT r.rank_group, count(p.cid) AS controllers\nFROM ranks r\nLEFT JOIN per_controller p ON p.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
+          "rawSql": "WITH bounds AS (\n  SELECT date_trunc('month', min(session_start) AT TIME ZONE 'UTC') AS first_month,\n         date_trunc('month', max(session_start) AT TIME ZONE 'UTC') AS last_month\n  FROM controller_session_ranked\n),\nmonths AS (\n  SELECT g.m AS month_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_month, date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_month, date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 month') AS g(m)\n  WHERE b.first_month IS NOT NULL\n),\nper_controller AS (\n  SELECT m.month_start, s.cid, s.rating\n  FROM months m\n  JOIN controller_session_ranked s\n    ON (s.session_start AT TIME ZONE 'UTC') >= m.month_start\n   AND (s.session_start AT TIME ZONE 'UTC') <  m.month_start + interval '1 month'\n  GROUP BY m.month_start, s.cid, s.rating\n  HAVING sum(s.duration_minutes) > 60\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S1')  AS \"S1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S2')  AS \"S2\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S3')  AS \"S3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C1')  AS \"C1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C3')  AS \"C3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'I1+') AS \"I1+\"\nFROM months m\nLEFT JOIN per_controller p ON p.month_start = m.month_start\nGROUP BY m.month_start\nORDER BY 1"
         }
       ],
-      "options": {
-        "xField": "rank_group",
-        "showValue": "always",
-        "legend": {
-          "showLegend": false
-        }
-      },
+      "options": {},
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
         "overrides": []
       },
-      "timeFrom": "3M"
+      "timeFrom": "12M"
     },
     {
       "id": 7,
       "type": "timeseries",
-      "title": "CTR and FSS controllers active (rolling 30 days, weekly)",
-      "description": "v1 card 63. For each week, distinct controllers who started a CTR or FSS session of more than 60 minutes in the 30 days up to the end of that week. The v1 chart plotted weeks with zero as gaps; zeros are drawn here.",
+      "title": "CTR and FSS controllers active (30 days to month end, monthly)",
+      "description": "v1 card 63 (v1 query edited 17-10-2025: monthly). For each calendar month (UTC), distinct controllers who started a CTR or FSS session of more than 60 minutes in the 30 days before the end of that month. The point is drawn at the start of the month. The latest month is partial. v1 hid months with no controllers; zeros are drawn here. Starts at go-live (no backfill).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -295,7 +296,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT w.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM generate_series(\n       date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n       date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC'),\n       interval '1 week') AS w(week_start)\nLEFT JOIN controller_session_ranked s\n       ON s.session_start >= (w.week_start + interval '1 week' - interval '30 days') AT TIME ZONE 'UTC'\n      AND s.session_start <  (w.week_start + interval '1 week') AT TIME ZONE 'UTC'\n      AND s.duration_minutes > 60\n      AND s.is_ctr_fss\nGROUP BY w.week_start\nORDER BY 1"
+          "rawSql": "WITH bounds AS (\n  SELECT date_trunc('month', min(session_start) AT TIME ZONE 'UTC') AS first_month,\n         date_trunc('month', max(session_start) AT TIME ZONE 'UTC') AS last_month\n  FROM controller_session_ranked\n),\nmonths AS (\n  SELECT g.m AS month_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_month, date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_month, date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 month') AS g(m)\n  WHERE b.first_month IS NOT NULL\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM months m\nLEFT JOIN controller_session_ranked s\n       ON (s.session_start AT TIME ZONE 'UTC') >= m.month_start + interval '1 month' - interval '30 days'\n      AND (s.session_start AT TIME ZONE 'UTC') <  m.month_start + interval '1 month'\n      AND s.duration_minutes > 60\n      AND s.is_ctr_fss\nGROUP BY m.month_start\nORDER BY 1"
         }
       ],
       "options": {},
@@ -310,13 +311,13 @@
         },
         "overrides": []
       },
-      "timeFrom": "180d"
+      "timeFrom": "12M"
     },
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Controllers active (rolling 30 days, weekly)",
-      "description": "v1 card 137. As the CTR/FSS chart, for all positions.",
+      "title": "Controllers active (30 days to month end, monthly)",
+      "description": "v1 card 137 (v1 query edited 17-10-2025: monthly, minimum 30 minutes). For each calendar month (UTC), distinct controllers (any position) who started a session of more than 30 minutes in the 30 days before the end of that month. The point is drawn at the start of the month. The latest month is partial. v1 hid months with no controllers; zeros are drawn here. Starts at go-live (no backfill).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -337,7 +338,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT w.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM generate_series(\n       date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n       date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC'),\n       interval '1 week') AS w(week_start)\nLEFT JOIN controller_session_ranked s\n       ON s.session_start >= (w.week_start + interval '1 week' - interval '30 days') AT TIME ZONE 'UTC'\n      AND s.session_start <  (w.week_start + interval '1 week') AT TIME ZONE 'UTC'\n      AND s.duration_minutes > 60\n      \nGROUP BY w.week_start\nORDER BY 1"
+          "rawSql": "WITH bounds AS (\n  SELECT date_trunc('month', min(session_start) AT TIME ZONE 'UTC') AS first_month,\n         date_trunc('month', max(session_start) AT TIME ZONE 'UTC') AS last_month\n  FROM controller_session_ranked\n),\nmonths AS (\n  SELECT g.m AS month_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_month, date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_month, date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 month') AS g(m)\n  WHERE b.first_month IS NOT NULL\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM months m\nLEFT JOIN controller_session_ranked s\n       ON (s.session_start AT TIME ZONE 'UTC') >= m.month_start + interval '1 month' - interval '30 days'\n      AND (s.session_start AT TIME ZONE 'UTC') <  m.month_start + interval '1 month'\n      AND s.duration_minutes > 30\nGROUP BY m.month_start\nORDER BY 1"
         }
       ],
       "options": {},
@@ -352,7 +353,7 @@
         },
         "overrides": []
       },
-      "timeFrom": "180d"
+      "timeFrom": "12M"
     },
     {
       "id": 9,
