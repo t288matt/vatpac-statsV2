@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 psycopg = pytest.importorskip("psycopg")
+import psycopg.rows  # noqa: E402
 pytestmark = pytest.mark.integration
 
 REPO = Path(__file__).resolve().parents[2]
@@ -26,7 +27,7 @@ CTRL = PILOT.replace("pilot_session", "controller_session")
 
 
 def run(conn) -> tuple[str, str]:
-    with conn.cursor() as cur:
+    with conn.cursor(row_factory=psycopg.rows.tuple_row) as cur:  # the watchdog's own connection returns tuples
         return wd.check_identity_flap(cur)
 
 
