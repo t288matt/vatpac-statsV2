@@ -436,6 +436,206 @@
         "defaults": {},
         "overrides": []
       }
+    },
+    {
+      "id": 11,
+      "type": "barchart",
+      "title": "Top S1 service providers (last 30 days)",
+      "description": "v1 card 144 (updated 22-09-2025). S1 controllers ranked by hours online over the last 30 days (UTC), top 50. Changed from v1: the score is hours online only. v1 ranked by 5 points per hour plus aircraft handled, and aircraft handled needs controller-to-flight matching, which ADR-002 puts out of scope; this follows the existing 'Top 50 service providers' panel (card 108). The window is a fixed 30 days to now (UTC), as v1, not the dashboard time picker. Only sessions that were at the stated rating count, as v1 (rating on the session).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 54,
+        "w": 12,
+        "h": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\n  AND rating = 2\nGROUP BY cid\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 50"
+        }
+      ],
+      "options": {
+        "xField": "controller",
+        "xTickLabelRotation": -45,
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "barchart",
+      "title": "Top S2 service providers (last 30 days)",
+      "description": "v1 card 146 (updated 22-09-2025). S2 controllers ranked by hours online over the last 30 days (UTC), top 50. Changed from v1: the score is hours online only. v1 ranked by 5 points per hour plus aircraft handled, and aircraft handled needs controller-to-flight matching, which ADR-002 puts out of scope; this follows the existing 'Top 50 service providers' panel (card 108). The window is a fixed 30 days to now (UTC), as v1, not the dashboard time picker. Only sessions that were at the stated rating count, as v1 (rating on the session).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 54,
+        "w": 12,
+        "h": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\n  AND rating = 3\nGROUP BY cid\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 50"
+        }
+      ],
+      "options": {
+        "xField": "controller",
+        "xTickLabelRotation": -45,
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "barchart",
+      "title": "Controllers with the longest median session (last 90 days)",
+      "description": "v1 card 153 (updated 02-10-2025; titled 'longest avg session duration' but v1 uses the MEDIAN session length in hours). The 15 controllers with the longest median session in the last 90 days (UTC), at least 3 sessions. The label shows the name, CID and highest rating seen, mapped as in v1 (observer and C2 show as Unknown). Reconnects within 5 minutes are one session in v3 (v1 counted them twice).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 66,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH per_controller AS (\n  SELECT cid,\n         name,\n         CASE\n           WHEN MAX(rating) = 2 THEN 'S1'\n           WHEN MAX(rating) = 3 THEN 'S2'\n           WHEN MAX(rating) = 4 THEN 'S3'\n           WHEN MAX(rating) = 5 THEN 'C1'\n           WHEN MAX(rating) = 7 THEN 'C3'\n           WHEN MAX(rating) >= 8 THEN 'I1+'\n           ELSE 'Unknown'\n         END AS rating,\n         ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY session_duration_minutes) / 60.0)::numeric, 2) AS median_hours\n  FROM controller_summaries\n  WHERE cid IS NOT NULL\n    AND name IS NOT NULL\n    AND session_duration_minutes > 0\n    AND session_start_time >= now() - interval '90 days'\n  GROUP BY cid, name\n  HAVING COUNT(*) >= 3\n  ORDER BY median_hours DESC, cid\n  LIMIT 15\n)\nSELECT name || ' (' || cid || ', ' || rating || ')' AS controller,\n       median_hours AS \"Median session (hours)\"\nFROM per_controller\nORDER BY median_hours DESC, cid"
+        }
+      ],
+      "options": {
+        "xField": "controller",
+        "xTickLabelRotation": -45,
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "type": "barchart",
+      "title": "Controllers with the shortest median session (last 90 days)",
+      "description": "v1 card 154 (updated 02-10-2025; titled 'shortest avg session duration' but v1 uses the MEDIAN in minutes; the v1 comment says 900 days but its code says 90, 90 is used). The 15 controllers with the shortest median session in the last 90 days (UTC), at least 3 sessions, named controllers only. Supersedes the unverified average-based panel above, which is left in place. Reconnects within 5 minutes are one session in v3.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 66,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH per_controller AS (\n  SELECT cid,\n         name,\n         MAX(rating) AS rating,\n         ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY session_duration_minutes)::numeric, 2) AS median_minutes\n  FROM controller_summaries\n  WHERE cid IS NOT NULL\n    AND name IS NOT NULL\n    AND name <> ''\n    AND session_duration_minutes > 0\n    AND session_start_time >= now() - interval '90 days'\n  GROUP BY cid, name\n  HAVING COUNT(*) >= 3\n  ORDER BY median_minutes ASC, cid\n  LIMIT 15\n)\nSELECT name || ' (' || cid || ', rating ' || COALESCE(rating::text, '?') || ')' AS controller,\n       median_minutes AS \"Median session (minutes)\"\nFROM per_controller\nORDER BY median_minutes ASC, cid"
+        }
+      ],
+      "options": {
+        "xField": "controller",
+        "xTickLabelRotation": -45,
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Controllers on for more than 4 hours in any 8-hour window",
+      "description": "v1 card 186 (updated 14-02-2026). Controllers whose sessions add up to more than 4 hours (240 minutes, strictly more) of wall-clock time inside some 8-hour window; ATIS callsigns excluded; where one controller has overlapping sessions the earlier one is cut off when the next starts, so no time is counted twice. One summary row per controller (their busiest window, UTC) followed by one detail row per session in that window. Changed from v1: only sessions starting inside the dashboard time range (plus 8 hours before it) are examined, and at most the 100 controllers with the most recent busiest window are listed; v1 scanned all time with no limit. Reconnects within 5 minutes are one session in v3, so the gap counts as time on.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 76,
+        "w": 24,
+        "h": 14
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- Controllers with more than 4 hours controlling in any 8-hour period (ATIS excluded, unique wall-clock time, UTC).\n-- Where one cid has overlapping sessions, the earlier one is cut off at the start of the next so time is not counted twice.\nWITH controller_sessions AS (\n  SELECT cid,\n         name,\n         callsign,\n         session_start_time AS s_start,\n         COALESCE(session_end_time, session_start_time + session_duration_minutes * interval '1 minute') AS s_end\n  FROM controller_summaries\n  WHERE session_duration_minutes > 0\n    AND session_start_time IS NOT NULL\n    AND cid IS NOT NULL\n    AND callsign NOT ILIKE '%ATIS%'\n    AND session_start_time >= $__timeFrom()::timestamptz - interval '8 hours'\n    AND session_start_time <= $__timeTo()::timestamptz\n),\n-- Clip overlaps: end a session at the next later start of the same cid (v1 used a correlated subquery; the window gives the same answer)\ncontroller_sessions_adjusted AS (\n  SELECT cs.cid,\n         cs.name,\n         cs.callsign,\n         cs.s_start,\n         LEAST(\n           cs.s_end,\n           MIN(cs.s_start) OVER (\n             PARTITION BY cs.cid ORDER BY cs.s_start\n             RANGE BETWEEN interval '1 microsecond' FOLLOWING AND UNBOUNDED FOLLOWING)\n         ) AS s_end\n  FROM controller_sessions cs\n),\ncandidate_windows AS (\n  SELECT DISTINCT cid, window_start\n  FROM controller_sessions_adjusted,\n  LATERAL (VALUES\n    (s_start - interval '8 hours'),\n    (s_start),\n    (s_end - interval '8 hours')\n  ) AS v(window_start)\n),\nevents AS (\n  SELECT cw.cid,\n         cw.window_start,\n         GREATEST(cs.s_start, cw.window_start) AS t,\n         1 AS delta\n  FROM candidate_windows cw\n  JOIN controller_sessions_adjusted cs\n    ON cs.cid = cw.cid\n   AND cs.s_end > cw.window_start\n   AND cs.s_start < cw.window_start + interval '8 hours'\n  UNION ALL\n  SELECT cw.cid,\n         cw.window_start,\n         LEAST(cs.s_end, cw.window_start + interval '8 hours') AS t,\n         -1 AS delta\n  FROM candidate_windows cw\n  JOIN controller_sessions_adjusted cs\n    ON cs.cid = cw.cid\n   AND cs.s_end > cw.window_start\n   AND cs.s_start < cw.window_start + interval '8 hours'\n),\nordered_events AS (\n  SELECT cid,\n         window_start,\n         t,\n         delta,\n         SUM(delta) OVER (PARTITION BY cid, window_start ORDER BY t, delta ASC) AS running,\n         LEAD(t) OVER (PARTITION BY cid, window_start ORDER BY t, delta ASC) AS t_next\n  FROM events\n),\nwindow_totals AS (\n  SELECT cid,\n         window_start,\n         (window_start + interval '8 hours') AS window_end,\n         (SUM(EXTRACT(epoch FROM (t_next - t)) / 60) FILTER (WHERE running > 0))::numeric(12,2) AS total_minutes\n  FROM ordered_events\n  WHERE t_next IS NOT NULL\n  GROUP BY cid, window_start\n  HAVING (SUM(EXTRACT(epoch FROM (t_next - t)) / 60) FILTER (WHERE running > 0)) > 240\n),\n-- The busiest window per cid (v1: DISTINCT ON, replaced by ROW_NUMBER; ties go to the earliest window).\n-- Added: only the 100 controllers with the most recent busiest window are kept.\nviolations AS (\n  SELECT cid, window_start, window_end, total_minutes\n  FROM (\n    SELECT wt.cid,\n           wt.window_start,\n           wt.window_end,\n           wt.total_minutes,\n           ROW_NUMBER() OVER (PARTITION BY wt.cid ORDER BY wt.total_minutes DESC, wt.window_start) AS rn\n    FROM window_totals wt\n  ) ranked\n  WHERE rn = 1\n  ORDER BY window_start DESC, cid\n  LIMIT 100\n),\nsummary_rows AS (\n  SELECT v.cid,\n         (SELECT MAX(cs.name) FROM controller_sessions cs WHERE cs.cid = v.cid) AS name,\n         v.window_start AS period_start_utc,\n         v.window_end AS period_end_utc,\n         ROUND(v.total_minutes / 60.0, 2) AS hours_controlled_in_8_hr_period\n  FROM violations v\n),\nsession_rows AS (\n  SELECT v.cid,\n         cs.name,\n         v.window_start AS period_start_utc,\n         v.window_end AS period_end_utc,\n         ROUND(v.total_minutes / 60.0, 2) AS hours_controlled_in_8_hr_period,\n         cs.callsign AS session_callsign,\n         cs.s_start AS session_start_utc,\n         cs.s_end AS session_end_utc,\n         ROUND(EXTRACT(epoch FROM (cs.s_end - cs.s_start)) / 3600.0, 2) AS session_hours\n  FROM violations v\n  JOIN controller_sessions_adjusted cs\n    ON cs.cid = v.cid\n   AND cs.s_end > v.window_start\n   AND cs.s_start < v.window_end\n)\nSELECT row_type,\n       cid,\n       name,\n       CASE WHEN row_type = 'summary' THEN period_start_utc END AS period_start_utc,\n       CASE WHEN row_type = 'summary' THEN period_end_utc END AS period_end_utc,\n       CASE WHEN row_type = 'summary' THEN hours_controlled_in_8_hr_period END AS hours_controlled_in_8_hr_period,\n       session_callsign,\n       session_start_utc,\n       session_end_utc,\n       session_hours\nFROM (\n  SELECT 'summary' AS row_type,\n         cid,\n         name,\n         period_start_utc,\n         period_end_utc,\n         hours_controlled_in_8_hr_period,\n         NULL::text AS session_callsign,\n         NULL::timestamptz AS session_start_utc,\n         NULL::timestamptz AS session_end_utc,\n         NULL::numeric AS session_hours\n  FROM summary_rows\n  UNION ALL\n  SELECT 'detail' AS row_type,\n         cid,\n         name,\n         period_start_utc,\n         period_end_utc,\n         hours_controlled_in_8_hr_period,\n         session_callsign,\n         session_start_utc,\n         session_end_utc,\n         session_hours\n  FROM session_rows\n) sub\nORDER BY sub.period_start_utc DESC NULLS LAST, sub.cid, sub.row_type DESC, sub.session_start_utc NULLS FIRST"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
     }
   ]
 }
