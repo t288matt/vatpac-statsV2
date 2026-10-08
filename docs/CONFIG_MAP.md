@@ -1,8 +1,8 @@
 # Configuration map
 
-Last updated 07-10-2026. Part A lists every environment variable v3 reads. Part B maps every variable in v1's `docker-compose.yml` to KEPT, CHANGED or DROPPED.
+Last reviewed 08-10-2026 against `docker-compose.yml`, `.env.example` and the code (`python ops/check_config_drift.py` enforces the collector part). Part A lists every environment variable v3 reads. Part B maps every variable in v1's `docker-compose.yml` to KEPT, CHANGED or DROPPED.
 
-Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker-compose.yml`, `.env.example`. Secrets live only in `.env` (git-ignored); copy `.env.example` to `.env` and replace every `change-me` value. Passwords are placed inside connection URLs, so use URL-safe values (letters and digits, for example `openssl rand -hex 24`).
+Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker-compose.yml`, `.env.example`. Secrets live only in `.env` (git-ignored). `.env.example` has blank secrets on purpose: run `sh ops/gen_env.sh` to write a `.env` with random values, then `sh ops/check_env.sh` to check it (blank, `change-me*`, under 16 characters, repeated, or non letter/digit values are rejected). Passwords are placed inside connection URLs, so they must be letters and digits only (for example `openssl rand -hex 24`).
 
 ## Part A: v3 variables
 
@@ -11,13 +11,17 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | Variable | Default | Used by | Meaning |
 |---|---|---|---|
 | `POSTGRES_DB` | `vatpac` | db, migrate, collector, grafana, watchdog, backup | Database name. |
-| `POSTGRES_USER` | `vatpac` | db, migrate, collector, backup | Owner role. |
-| `POSTGRES_PASSWORD` | none, **required** | db, migrate, collector, backup | Owner password. Compose refuses to start without it. |
+| `POSTGRES_USER` | `vatpac` | db, migrate, backup (restore only) | Owner role. The collector does not use it: it connects as the role `collector`. |
+| `POSTGRES_PASSWORD` | none, **required** | db, migrate, backup (restore only) | Owner password. Compose refuses to start without it. Read by Postgres only at first initialisation. |
 | `GRAFANA_RO_PASSWORD` | none, **required** | migrate, grafana | Password of the read-only role `grafana_ro` (set on every `migrate` run). |
+| `COLLECTOR_DB_PASSWORD` | none, **required** | migrate, collector | Password of the role `collector` (DML on its tables only). |
+| `BACKUP_DB_PASSWORD` | none, **required** | migrate, backup | Password of the read-only role `backup_ro` used by `pg_dump`. |
 | `WATCHDOG_DB_PASSWORD` | none, **required** | migrate, watchdog | Password of the read-only role `watchdog_ro`. |
 | `GRAFANA_ADMIN_USER` | `admin` | grafana | Admin login. |
 | `GRAFANA_ADMIN_PASSWORD` | none, **required** | grafana | Admin password. |
 | `GRAFANA_PORT` | `3300` | grafana | Host port mapped to Grafana's 3000. |
+| `GRAFANA_BIND` | `127.0.0.1` | grafana | Interface Grafana is published on. Loopback by default; set the VM's LAN address (preferred) or `0.0.0.0` for LAN access, then firewall it. |
+| `GRAFANA_COOKIE_SECURE` | `false` | grafana | Set `true` only when users reach Grafana over https; with plain http a secure cookie stops logins working. |
 | `GRAFANA_ROOT_URL` | `http://localhost:3300/` | grafana | External URL; set it when served through a proxy or tunnel. |
 | `VATSIM_FEED_URL` | `https://data.vatsim.net/v3/vatsim-data.json` | collector | Fallback feed URL, used if discovery fails. |
 | `VATSIM_STATUS_URL` | `https://status.vatsim.net/status.json` | collector | Discovery document (`data.v3[0]`). |
@@ -26,31 +30,38 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `POSITION_RETENTION_DAYS` | `90` | collector | Raw positions kept this long (whole daily partitions). Valid 2 to 3650. |
 | `AIRBORNE_GAP_CAP_SECONDS` | `40` | collector | Cap per sample gap in airborne minutes. Valid 15 to 600. Published to `app_setting` for the views. |
 | `HOME_ICAO_PREFIXES` | `Y` | collector | Comma-separated letter prefixes defining the home region (for example `Y` or `Y,NZ`). Published to `app_setting`. |
-| `LOG_LEVEL` | `INFO` | collector | `DEBUG`, `INFO`, `WARNING` or `ERROR` (case-insensitive). Also read by the watchdog. |
+| `LOG_LEVEL` | `INFO` | collector | `DEBUG`, `INFO`, `WARNING` or `ERROR` (case-insensitive). The watchdog also reads it, but compose does not pass it on, so the watchdog stays at `INFO`. |
+| `CIRCUIT_FAILURE_THRESHOLD` | `5` | collector | Consecutive upstream failures that open the circuit breaker (1 to 1000). Polling never stops. |
+| `CIRCUIT_SLOW_INTERVAL_SECONDS` | `60` | collector | Poll cadence in seconds while the breaker is open (5 to 3600). |
 | `HEALTH_PORT` | `8080` | collector, watchdog | Port of the collector's `/health` and `/metrics` inside the container. |
 | `VATPAC_VERSION` | `dev` | collector build arg | Version label baked into the image (the release workflow sets it from the git tag). |
 | `BACKUP_RETENTION_DAYS` | `14` | backup | Days of dumps kept. |
 | `BACKUP_TIME_UTC` | `02:00` | backup | Nightly backup time (HH:MM, UTC). |
-| `BACKUP_RESTORE_TEST_DAY` | `7` | backup | ISO weekday (1 Monday to 7 Sunday) on which the backup is restore-tested; `0` disables. |
-| `TELEGRAM_BOT_TOKEN` | empty | watchdog | Optional. If empty, alerts are logged only (as at the 07-10-2026 verification). Delivery to Telegram is not yet verified. |
+| `BACKUP_RESTORE_TEST_DAY` | `7` | backup | ISO weekday (1 Monday to 7 Sunday) on which the backup is restore-tested; `0` disables (then set `WATCHDOG_RESTORE_TEST_MAX_DAYS=0` too). |
+| `BACKUP_REMOTE` | empty | backup | Optional off-box copy: a shell command run after every successful nightly dump with `$BACKUP_FILE` set. See [restore runbook](RUNBOOKS/restore.md), "Off-box copies". |
+| `BACKUP_EXTRA_APT_PACKAGES` | empty | backup (build argument) | Debian packages added to the backup image for the `BACKUP_REMOTE` command (for example `rclone`); rebuild to apply. |
+| `TELEGRAM_BOT_TOKEN` | empty | watchdog | Optional. If empty, alerts are logged only. Delivery to Telegram from the VM was verified on 07-10-2026 (docs/TRACKER.md, T4). Secret: keep out of git, chat and logs. |
 | `TELEGRAM_CHAT_ID` | empty | watchdog | Optional, as above. |
 | `UPTIME_KUMA_PUSH_URL` | empty | watchdog | Optional heartbeat push URL. |
 | `WATCHDOG_INTERVAL_SECONDS` | `60` | watchdog | Check cadence. |
 | `WATCHDOG_WARN_SECONDS` | `60` | watchdog | Age of newest ok poll or snapshot that raises a warning. |
 | `WATCHDOG_PAGE_SECONDS` | `300` | watchdog | Age that raises a critical alert. |
 | `WATCHDOG_CONFIRM_CYCLES` | `2` | watchdog | A state change must persist this many cycles before it is alerted. |
-| `WATCHDOG_DISK_PCT` | `80` | watchdog | Disk usage percentage that alerts (critical 10 points higher, per `.env.example`). |
+| `WATCHDOG_DISK_PCT` | `80` | watchdog | Disk usage percentage that warns (critical 10 points higher). |
+| `WATCHDOG_DISK_PATHS` | `/backups,/` | watchdog | Comma-separated paths (inside the watchdog container) whose filesystems are checked. |
 | `WATCHDOG_DB_MAX_GB` | `20` | watchdog | Database size that raises a warning. |
-| `WATCHDOG_BACKUP_MAX_HOURS` | `26` | watchdog | Newest-backup age that alerts. |
+| `WATCHDOG_BACKUP_MAX_HOURS` | `26` | watchdog | Newest-backup age that alerts (critical). |
+| `WATCHDOG_RESTORE_TEST_MAX_DAYS` | `9` | watchdog | Warn if the last successful weekly restore test is older than this many days; `0` disables the age check. |
 
 ### A2. Set by `docker-compose.yml` itself (not intended for `.env`)
 
 | Variable | Value | Meaning |
 |---|---|---|
-| `DATABASE_URL` (collector) | built from the `POSTGRES_*` values, host `db` | Overrides the five `POSTGRES_*` connection settings inside the collector. |
+| `DATABASE_URL` (collector) | built from `COLLECTOR_DB_PASSWORD` and `POSTGRES_DB`, role `collector`, host `db` | Overrides the five `POSTGRES_*` connection settings inside the collector. |
 | `GF_*` (grafana) | anonymous access off, sign-up off, analytics and update checks off, default timezone UTC | Grafana hardening. |
 | `GRAFANA_RO_DB_PASSWORD` (grafana) | `${GRAFANA_RO_PASSWORD}` | Referenced by the provisioned datasource. |
-| `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` (backup) | from the `POSTGRES_*` values | Connection for `pg_dump`. |
+| `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` (backup) | `db`, `5432`, `backup_ro`, `BACKUP_DB_PASSWORD`, `POSTGRES_DB` | Connection for `pg_dump`. |
+| `RESTORE_PGUSER`, `RESTORE_PGPASSWORD` (backup) | `POSTGRES_USER`, `POSTGRES_PASSWORD` | Owner login used only by `restore.sh` and `restore-test.sh`, which need to create, drop and rename databases (ADR-017). |
 | `DOCKER_HOST_URL` (watchdog) | empty | Empty means no Docker access: the watchdog only alerts. Set it only to an endpoint provided outside this repository (ADR-012). |
 | `COMPOSE_PROJECT` (watchdog) | `vatpac` | Compose project name used when Docker access exists. |
 | `COLLECTOR_HEALTH_URL`, `GRAFANA_HEALTH_URL` (watchdog) | `http://collector:${HEALTH_PORT}/health`, `http://grafana:3000/api/health` | Health endpoints it polls. |
@@ -59,14 +70,12 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 
 ### A3. Read by the code but not wired through compose
 
-These have defaults and work as documented, but changing them needs a compose edit (an `environment:` line) or a different deployment.
+These have defaults and work as documented, but changing them needs a compose edit (an `environment:` line) or a different deployment. `ops/check_config_drift.py` records the two path variables as intentionally fixed.
 
 | Variable | Default | Read by | Meaning |
 |---|---|---|---|
 | `POLYGON_PATH` | `/app/config/australian_airspace_polygon.json` | collector | Polygon file. |
 | `WHITELIST_PATH` | `/app/config/controller_callsigns_list.txt` | collector | Controller whitelist. |
-| `CIRCUIT_FAILURE_THRESHOLD` | `5` | collector | Consecutive failures that open the circuit breaker (1 to 1000). |
-| `CIRCUIT_SLOW_INTERVAL_SECONDS` | `60` | collector | Poll cadence while the breaker is open (5 to 3600). |
 | `POSTGRES_HOST` / `POSTGRES_PORT` | `db` / `5432` | collector | Used only if `DATABASE_URL` is not set. |
 | `WATCHDOG_RESTART_CAP_PER_HOUR` | `3` | watchdog | Restart cap per container per hour; only relevant with `DOCKER_HOST_URL`. |
 | `WATCHDOG_RESTART_AFTER_CYCLES` | `3` | watchdog | Unhealthy cycles before a restart; only with `DOCKER_HOST_URL`. |
@@ -86,7 +95,7 @@ The collector validates its settings at start-up and exits with code 2 and an "i
 | `config/australian_airspace_polygon.json` | Pilot boundary (GeoJSON Polygon, lon,lat). | SIGHUP, or restart. |
 | `config/controller_callsigns_list.txt` | Controller whitelist (`CALLSIGN, FREQ` or bare `CALLSIGN`; `#` comments). | SIGHUP, or restart. |
 
-`config/australian_airspace_sectors.geojson` also exists in the repository folder but is not read by v3 (sector matching is out of scope, ADR-002).
+`config/australian_airspace_sectors.geojson` also exists in the repository folder but is not read by v3 (sector matching is out of scope, ADR-002). A rejected SIGHUP reload (invalid file, or a whitelist smaller than 70% of the old one) leaves the old data in use; see [runbook: update reference files](RUNBOOKS/update-reference-files.md).
 
 ## Part B: v1 `docker-compose.yml` variables
 
@@ -119,11 +128,11 @@ Source: `C:\Users\mdora\Claude\VATPAC-Stats V2\docker-compose.yml`. Several v1 v
 
 | v1 variable | v1 value | Status | v3 equivalent and reason |
 |---|---|---|---|
-| `FLIGHT_SUMMARY_ENABLED` | true | DROPPED | No summary tables; flights are a view over sessions. |
-| `FLIGHT_COMPLETION_HOURS` | 8 | CHANGED | Fixed 8-hour span split inside the `flight` view (not configurable). |
+| `FLIGHT_SUMMARY_ENABLED` | true | CHANGED | v1's summariser jobs are gone. One table, `flight_summary`, is recomputed every 5 minutes by a database function the collector calls (ADR-016); the `flight` view reads it. Not configurable. |
+| `FLIGHT_COMPLETION_HOURS` | 8 | CHANGED | Fixed 8-hour span split in the `flight_summary` refresh function (not configurable). |
 | `FLIGHT_RETENTION_HOURS` | 168000000 | DROPPED | Effectively unlimited in v1. v3: raw positions 90 days (`POSITION_RETENTION_DAYS`), sessions kept forever (ADR-008). |
 | `FLIGHT_DAYS_BEFORE_ARCHIVE` | 90 | CHANGED | No archive tables; replaced by dropping daily partitions after `POSITION_RETENTION_DAYS` (90). |
-| `FLIGHT_SUMMARY_POLL_INTERVAL_SHORT`, `FLIGHT_SUMMARY_POLL_INTERVAL_LONG` | 60 / 900 | DROPPED | No summary scheduler. |
+| `FLIGHT_SUMMARY_POLL_INTERVAL_SHORT`, `FLIGHT_SUMMARY_POLL_INTERVAL_LONG` | 60 / 900 | DROPPED | Replaced by one fixed 5-minute refresh loop in the collector. |
 | `CONTROLLER_SUMMARY_ENABLED` | true | DROPPED | No summariser; controller sessions are written directly and merged in a view. |
 | `CONTROLLER_COMPLETION_MINUTES` | 15 | DROPPED | "Closed" is derived at query time (`is_open`). |
 | `CONTROLLER_RETENTION_HOURS` | 1680000000 | DROPPED | Sessions are kept forever. |
@@ -157,4 +166,4 @@ Source: `C:\Users\mdora\Claude\VATPAC-Stats V2\docker-compose.yml`. Several v1 v
 
 ### B6. New in v3 (no v1 counterpart)
 
-`GRAFANA_*`, `WATCHDOG_*`, `BACKUP_*`, `TELEGRAM_*`, `UPTIME_KUMA_PUSH_URL`, `HTTP_TIMEOUT_SECONDS`, `POSITION_RETENTION_DAYS`, `AIRBORNE_GAP_CAP_SECONDS`, `HOME_ICAO_PREFIXES`, `CIRCUIT_*`, `HEALTH_PORT`, `VATPAC_VERSION`.
+`GRAFANA_*`, `WATCHDOG_*`, `BACKUP_*`, `COLLECTOR_DB_PASSWORD`, `TELEGRAM_*`, `UPTIME_KUMA_PUSH_URL`, `HTTP_TIMEOUT_SECONDS`, `POSITION_RETENTION_DAYS`, `AIRBORNE_GAP_CAP_SECONDS`, `HOME_ICAO_PREFIXES`, `CIRCUIT_*`, `HEALTH_PORT`, `VATPAC_VERSION`.
