@@ -457,3 +457,13 @@ def test_airlines_need_three_letters_and_a_digit(conn) -> None:
     p14.add_flight(conn, 9860051, callsign="VHABC")
     rows = _run(conn, p14.TRAFFIC, "Most popular airlines (last 30 days)")
     assert [r["flights"] for r in rows] == [1]
+
+
+
+def test_selcal_percentage_uses_flights_with_remarks_and_the_sel_slash_marker(conn) -> None:
+    """Mutants P27 (denominator includes flights without remarks) and V15 (`SEL` instead of `SEL/`)."""
+    for cid, remarks in ((9860060, "RMK/ABC SEL/ABCD"), (9860061, "RMK/SELF TEST"), (9860062, "RMK/OK"), (9860063, None)):
+        sid = p14.add_flight(conn, cid)
+        conn.execute("UPDATE pilot_session SET remarks = %s WHERE id = %s", (remarks, sid))
+    rows = _run(conn, p14.TRAFFIC, "Flights with SELCAL in the remarks")
+    assert float(rows[0]["SELCAL (%)"]) == 33.33
