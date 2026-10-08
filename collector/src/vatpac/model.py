@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, replace
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, TypeVar
@@ -13,9 +13,9 @@ from typing import Any, TypeVar
 from .errors import FeedError
 
 log = logging.getLogger(__name__)
-_T = TypeVar("_T")
 
 NO_FREQUENCY_HZ = 199_998_000
+MAX_TEXT = 2000  # default free-text cap in characters (settings.TEXT_MAX_LENGTH)
 GS_RANGE = (0, 700)
 ALT_RANGE = (-1500, 65000)
 _HOME_RE = re.compile(r"\s([A-Z]{4})$")
@@ -62,6 +62,9 @@ class Controller:
     visual_range: int | None
     logon_time: datetime
     rejected: int = 0
+
+
+_R = TypeVar("_R", Pilot, Controller)
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,19 +191,25 @@ def _controller(raw: dict[str, Any]) -> Controller:
     )
 
 
-def parse_snapshot(payload: dict[str, Any]) -> Snapshot:
-    """Parse pilots and controllers only. Malformed entries are skipped, counted and logged."""
+def cap_text(rec: _R, limit: int) -> _R:
+    """Cut every text field of a parsed record to `limit` characters; each cut counts as one rejected value."""
+    cut: dict[str, Any] = {f.name: v[:limit] for f in fields(rec) if isinstance(v := getattr(rec, f.name), str) and len(v) > limit}
+    return replace(rec, rejected=rec.rejected + len(cut), **cut) if cut else rec
+
+
+def parse_snapshot(payload: dict[str, Any], max_text: int = MAX_TEXT) -> Snapshot:
+    """Parse pilots and controllers only. Malformed entries are skipped, counted and logged; text is capped."""
     observed_at = update_timestamp(payload)
     raw_pilots = payload.get("pilots") or []
     raw_ctrls = payload.get("controllers") or []
     malformed = 0
 
-    def parse_all(raws: list[Any], build: Callable[[dict[str, Any]], _T]) -> list[_T]:
+    def parse_all(raws: list[Any], build: Callable[[dict[str, Any]], _R]) -> list[_R]:
         nonlocal malformed
-        out: list[_T] = []
+        out: list[_R] = []
         for raw in raws:
             try:
-                out.append(build(raw))
+                out.append(cap_text(build(raw), max_text))
             except (KeyError, TypeError, ValueError):
                 malformed += 1
         return out

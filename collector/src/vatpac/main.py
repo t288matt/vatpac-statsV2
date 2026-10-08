@@ -99,7 +99,7 @@ class Collector:
             if payload is None or (self.last_ts is not None and snap_ts is not None and snap_ts <= self.last_ts):
                 status, retry_in = "skipped_unchanged", max(UNCHANGED_RETRY_S, min(fetched.max_age or 0, 5.0))
             else:
-                snapshot = parse_snapshot(payload)
+                snapshot = parse_snapshot(payload, self.settings.text_max_length)
                 if not snapshot.pilots_global and not snapshot.controllers_global:
                     raise FeedError("feed has no pilots or controllers (treated as an outage)", 200)
                 total = snapshot.pilots_global + snapshot.controllers_global

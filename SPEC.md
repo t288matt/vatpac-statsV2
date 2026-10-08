@@ -40,6 +40,7 @@ Reproduce the VATPAC pilot/controller graphs, live and available 24/7, fully doc
 - **Controller session**: `(cid, callsign, logon_time)` with `logon_time` in whole seconds as for pilots (ADR-021). Start = `logon_time`, end = last sighting. Reconnect of the same cid+callsign within 5 minutes merges (in the `controller_session_merged` view). "Closed" is derived (last seen older than 2 polls), never written.
 - **Online now** = seen within the last 2 snapshots.
 - **Plausibility caps** (ingest): groundspeed 0..700 kt, altitude -1500..65000 ft; values outside are stored as NULL and counted in `poll_log.rejected_values`. The same counter also takes the other values parsing drops (an integer outside int32, an unparsable number, a heading outside 0..360) for stored pilots and controllers, and every malformed feed entry that was skipped.
+- **Text length cap** (ingest, issue 43): every free-text field of a pilot or controller (name, route, remarks, server, flight-plan fields and so on) is cut to `TEXT_MAX_LENGTH` characters (default 2000, valid 100 to 100000) after sanitising; each cut field counts once in `poll_log.rejected_values`. `vatpac.model.parse_snapshot(payload, max_text=2000)` applies it.
 - Frequency is stored as integer Hz (`121.700` -> 121700000). `199.998` MHz means "no frequency" and is stored as NULL.
 
 ## 6. Database (PostgreSQL 16)
