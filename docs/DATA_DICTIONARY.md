@@ -20,7 +20,7 @@ One row per pilot connection. Identity is `(cid, callsign, logon_time)`; flight-
 | Column | Meaning |
 |---|---|
 | `id` | PK (bigserial). |
-| `cid`, `callsign`, `logon_time` | Identity; unique together (`pilot_session_identity`). `callsign` must be non-empty. |
+| `cid`, `callsign`, `logon_time` | Identity; unique together (`pilot_session_identity`). `callsign` must be non-empty. `logon_time` is always a whole second (truncated at parse; CHECK `pilot_session_logon_whole_second`; ADR-021). |
 | `name` | Name as in the feed (stored and shown, ADR-009). |
 | `home_icao` | Trailing 4-letter uppercase token of `name` (for example a home airport); CHECK `^[A-Z]{4}$`; otherwise NULL. |
 | `server` | VATSIM server name. |
@@ -50,7 +50,7 @@ One row per controller connection on a whitelisted callsign. Identity `(cid, cal
 | Column | Meaning |
 |---|---|
 | `id` | PK. |
-| `cid`, `callsign`, `logon_time` | Identity. |
+| `cid`, `callsign`, `logon_time` | Identity. `logon_time` is always a whole second (CHECK `controller_session_logon_whole_second`; ADR-021). |
 | `name`, `rating`, `facility`, `server`, `visual_range` | Feed values at the latest sighting (`rating` joins to `controller_rating.id`, `facility` to `facility.id`). |
 | `frequency_hz` | Frequency in integer Hz (`121.700` MHz is `121700000`); NULL when the feed says `199.998`. |
 | `first_seen`, `last_seen` | First and latest snapshot. CHECK `last_seen >= first_seen`. Index on `last_seen`. |

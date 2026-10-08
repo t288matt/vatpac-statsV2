@@ -104,6 +104,12 @@ def _ts(value: Any) -> datetime:
     return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
 
 
+def _logon(value: Any) -> datetime:
+    """logon_time identifies a session, so it is kept to whole seconds (truncated, never rounded): the feed
+    sometimes sends the fraction and sometimes not (ADR-021, T36). The fraction is dropped on purpose."""
+    return _ts(value).replace(microsecond=0)
+
+
 def update_timestamp(payload: dict[str, Any]) -> datetime:
     """The snapshot time (general.update_timestamp). Raises FeedError if absent or invalid."""
     try:
@@ -153,7 +159,7 @@ def _pilot(raw: dict[str, Any]) -> Pilot:
     fp = raw.get("flight_plan") or {}
     return Pilot(
         cid=int(raw["cid"]), name=_s(raw.get("name")), callsign=_callsign(raw["callsign"]),
-        server=_s(raw.get("server")), logon_time=_ts(raw["logon_time"]),
+        server=_s(raw.get("server")), logon_time=_logon(raw["logon_time"]),
         latitude=_f(raw.get("latitude")), longitude=_f(raw.get("longitude")),
         altitude=_i(raw.get("altitude")), groundspeed=_i(raw.get("groundspeed")),
         heading=_heading(raw.get("heading")),
@@ -170,7 +176,7 @@ def _controller(raw: dict[str, Any]) -> Controller:
         cid=int(raw["cid"]), name=_s(raw.get("name")), callsign=_callsign(raw["callsign"]),
         frequency_text=_s(raw.get("frequency")), facility=_i(raw.get("facility")),
         rating=_i(raw.get("rating")), server=_s(raw.get("server")),
-        visual_range=_i(raw.get("visual_range")), logon_time=_ts(raw["logon_time"]),
+        visual_range=_i(raw.get("visual_range")), logon_time=_logon(raw["logon_time"]),
     )
 
 
