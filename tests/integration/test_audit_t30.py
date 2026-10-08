@@ -166,3 +166,32 @@ def test_daily_maintenance_creates_seven_partitions_ahead_by_default(conn) -> No
     assert out["failed"] == 0
     today = datetime.now(timezone.utc).date()
     assert f"pilot_position_{today + timedelta(days=7):%Y%m%d}" in _partitions(conn)
+
+
+
+# ------------------------------------------------------------------ controller reconnect merge
+def _ctrl_session(conn, first: datetime, last: datetime, cid: int = 9720001, callsign: str = "TEST_TWR") -> None:
+    conn.execute("INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen, rating) "
+                 "VALUES (%s,%s,%s,%s,%s,3)", (cid, callsign, first, first, last))
+
+
+def _merged(conn, cid: int = 9720001) -> list[dict]:
+    return conn.execute("SELECT start_time, end_time, session_count FROM controller_session_merged "
+                        "WHERE cid = %s ORDER BY start_time", (cid,)).fetchall()
+
+
+def test_reconnect_after_exactly_five_minutes_is_one_session(conn) -> None:
+    """Mutants V01 (window 10 min) and V02 (`>=`). SPEC: reconnects within 5 minutes of the previous last sighting
+    are merged. 5:00 exactly merges; 5:01 does not; 7 minutes does not."""
+    a = datetime(2026, 9, 1, 10, 0, tzinfo=timezone.utc)
+    _ctrl_session(conn, a, a + timedelta(minutes=30), 9720001)
+    _ctrl_session(conn, a + timedelta(minutes=35), a + timedelta(minutes=60), 9720001)        # exactly 5:00
+    _ctrl_session(conn, a, a + timedelta(minutes=30), 9720002)
+    _ctrl_session(conn, a + timedelta(minutes=35, seconds=1), a + timedelta(minutes=60), 9720002)  # 5:01
+    _ctrl_session(conn, a, a + timedelta(minutes=30), 9720003)
+    _ctrl_session(conn, a + timedelta(minutes=37), a + timedelta(minutes=60), 9720003)        # 7:00
+    one = _merged(conn, 9720001)
+    assert len(one) == 1 and one[0]["session_count"] == 2
+    assert one[0]["start_time"] == a and one[0]["end_time"] == a + timedelta(minutes=60)
+    assert len(_merged(conn, 9720002)) == 2
+    assert len(_merged(conn, 9720003)) == 2
