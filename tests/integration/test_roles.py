@@ -61,6 +61,20 @@ def test_grafana_ro_limits(conn) -> None:
     assert row["rolconnlimit"] == 10 and "work_mem=16MB" in row["rolconfig"]
 
 
+def test_grafana_ro_timezone_is_pinned_to_utc(conn) -> None:
+    """T27 item 4: `ALTER ROLE grafana_ro SET timezone = 'UTC'` is stored in pg_db_role_setting and applies to a
+    fresh session of the role. Skips when the role is absent (db/roles.sql not applied); CI applies roles.sql."""
+    if not role_exists(conn, "grafana_ro"):
+        pytest.skip("role grafana_ro not created (apply db/roles.sql)")
+    row = conn.execute("SELECT rolconfig FROM pg_roles WHERE rolname = 'grafana_ro'").fetchone()
+    assert "timezone=UTC" in row["rolconfig"]
+    # Same catalog the task names: the setting is a role-level default (setdatabase = 0), not per-database.
+    n = conn.execute("SELECT count(*) AS n FROM pg_db_role_setting s JOIN pg_roles r ON r.oid = s.setrole "
+                     "WHERE r.rolname = 'grafana_ro' AND s.setdatabase = 0 "
+                     "AND 'timezone=UTC' = ANY (s.setconfig)").fetchone()["n"]
+    assert n == 1
+
+
 def test_collector_can_write_data_and_run_maintenance(as_collector) -> None:
     c = as_collector
     c.execute("SELECT ensure_pilot_position_partitions(2, DATE '2026-10-07')")

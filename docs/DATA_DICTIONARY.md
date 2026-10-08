@@ -181,7 +181,7 @@ The dashboards read these 17 relations and no others (checked by `python grafana
 | `vatpac` (owner, from `POSTGRES_USER`) | Postgres image | Owns everything; used by `migrate` and, for restores only, by the `backup` service's restore scripts (ADR-017). Not used by the collector. |
 | `collector` | `db/roles.sql` | Login; SELECT, INSERT, UPDATE and DELETE on the tables it writes (`pilot_session`, `pilot_position`, `controller_session`, the two event tables, `network_snapshot`, `poll_log`, `controller_unlisted_sighting`, `reference_data_change`, `app_setting`); USAGE on sequences; EXECUTE on `ensure_pilot_position_partitions`, `drop_old_pilot_position_partitions`, `refresh_flight_summary` and `refresh_materialized_views`. No DDL, no access to `flight_summary` or the views. |
 | `backup_ro` | `db/roles.sql` | Login; member of `pg_read_all_data`; read-only by default. Used by the nightly `pg_dump`. |
-| `grafana_ro` | `db/roles.sql` | Login; connection limit 10; read-only by default; `statement_timeout` 30 s; SELECT on all views and the six lookup tables; no base-table access; cannot create. |
+| `grafana_ro` | `db/roles.sql` | Login; connection limit 10; read-only by default; `statement_timeout` 30 s; session `timezone` pinned to UTC (`ALTER ROLE ... SET timezone`, T27); SELECT on all views and the six lookup tables; no base-table access; cannot create. |
 | `watchdog_ro` | `ops/migrate/migrate.sh` | Login; read-only by default; `statement_timeout` 10 s; `pg_monitor`; SELECT on `poll_log`, `network_snapshot`, `controller_unlisted_sighting` only. |
 
 ## 6. Known gaps

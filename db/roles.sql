@@ -41,6 +41,9 @@ ALTER ROLE grafana_ro CONNECTION LIMIT 10;
 ALTER ROLE grafana_ro SET default_transaction_read_only = on;
 ALTER ROLE grafana_ro SET statement_timeout = '30s';
 ALTER ROLE grafana_ro SET work_mem = '16MB';
+-- Pin the session time zone so date_trunc / ::date in dashboard SQL (retention panels) never depend on the
+-- server default (T27 item 4).
+ALTER ROLE grafana_ro SET timezone = 'UTC';
 
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM grafana_ro;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM grafana_ro;
