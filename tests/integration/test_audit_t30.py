@@ -377,3 +377,35 @@ def test_pilot_latest_ignores_sessions_older_than_three_hours(conn) -> None:
     sid = conn.execute(SESSION_SQL, (9850001, "OLD1", old, old, old)).fetchone()["id"]
     conn.execute("INSERT INTO pilot_position (observed_at, session_id, gs_kt) VALUES (%s,%s,250)", (old, sid))
     assert conn.execute("SELECT count(*) AS n FROM pilot_latest").fetchone()["n"] == 0
+
+
+
+# ------------------------------------------------------------------ pilot panels
+def _panel(path, title: str) -> dict:
+    return next(p for p in json.loads(path.read_text(encoding="utf-8"))["panels"] if p.get("title") == title)
+
+
+def _days(spec: str | None) -> float:
+    if not spec:
+        return 30
+    n, unit = int(spec[:-1]), spec[-1]
+    return {"d": n, "h": n / 24, "M": n * 30}[unit]
+
+
+def _run(conn, path, title: str) -> list[dict]:
+    """Panel SQL with Grafana's macros expanded from the panel's own timeFrom (default 30 days)."""
+    p = _panel(path, title)
+    days = _days(p.get("timeFrom"))
+    sql = (p["targets"][0]["rawSql"].replace("$__timeFrom()", f"(now() - interval '{days} days')")
+           .replace("$__timeTo()", "now()"))
+    return conn.execute(sql).fetchall()
+
+
+def test_card_61_speed_and_altitude_boundaries(conn) -> None:
+    """Mutants P19 (cap 750 -> 850 kt) and P20 (altitude `>=`): peak above 100 kt and not above 750 kt, highest
+    altitude above 1000 ft."""
+    p14.add_flight(conn, 9860001, callsign="OK1", aircraft="A388", gs=101, alt=1001)
+    p14.add_flight(conn, 9860002, callsign="GS100", aircraft="A388", gs=100, alt=35000)
+    p14.add_flight(conn, 9860003, callsign="ALT1000", aircraft="A388", gs=500, alt=1000)
+    p14.add_flight(conn, 9860004, callsign="TOOFAST", aircraft="A388", gs=800, alt=35000)
+    assert [r["callsign"] for r in _run(conn, p14.TRAFFIC, p14.SPEED)] == ["OK1"]
