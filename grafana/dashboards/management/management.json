@@ -1,0 +1,227 @@
+{
+  "uid": "vatpac-management",
+  "title": "Management: people online",
+  "tags": [
+    "vatpac",
+    "management"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "vatpac"
+        },
+        "definition": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "query": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Data since",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+      }
+    },
+    {
+      "id": 2,
+      "type": "text",
+      "title": "About these panels",
+      "gridPos": {
+        "x": 0,
+        "y": 2,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Definitions are copied from the v1 Metabase cards 175 and 183 (exported 08-10-2026). Months are UTC calendar months. 'Pilots with Y' uses the v1 name rule (the fourth character from the end of the pilot's name is 'Y'). Pilots are those who filed a flight plan (the v3 flight gate). Pilot hours are time online per flight, from the first to the last stored position inside the Australian airspace polygon. There is no backfill, so the charts start at go-live."
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Australian-based pilots and ATC online each month",
+      "description": "v1 Metabase card 175 (v1 drew a bar chart). Per UTC month: distinct pilots whose name ends in a Y airport (v1 rule), all distinct pilots, and distinct controllers. Pilots are counted in the month of the session logon, controllers in the month the session started.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table (see docs/t15_notes/a_pilots_people.md): one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n),\npilot_stats AS (\n    SELECT\n        DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC') as month,\n        COUNT(DISTINCT cid) FILTER (WHERE LENGTH(name) >= 4 AND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y') as unique_pilots_with_Y,\n        COUNT(DISTINCT cid) as total_unique_pilots\n    FROM flight_summaries\n    WHERE logon_time IS NOT NULL\n    GROUP BY DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC')\n),\natc_stats AS (\n    SELECT\n        DATE_TRUNC('month', session_start_time AT TIME ZONE 'UTC') as month,\n        COUNT(DISTINCT cid) as total_unique_atc\n    FROM controller_summaries\n    WHERE session_start_time IS NOT NULL\n    GROUP BY DATE_TRUNC('month', session_start_time AT TIME ZONE 'UTC')\n)\nSELECT\n    COALESCE(p.month, a.month) as month,\n    COALESCE(p.unique_pilots_with_Y, 0) as unique_pilots_with_Y,\n    COALESCE(p.total_unique_pilots, 0) as total_unique_pilots,\n    COALESCE(a.total_unique_atc, 0) as total_unique_atc\nFROM pilot_stats p\nFULL OUTER JOIN atc_stats a ON p.month = a.month\nORDER BY month"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "barAlignment": 0,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unique_pilots_with_y"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Pilots with Y in name"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_unique_pilots"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "All pilots"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_unique_atc"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Controllers"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "type": "barchart",
+      "title": "Pilot hours per month (names with Y)",
+      "description": "v1 Metabase card 183. Hours online (sum of flight time online) per UTC month of flight completion, for pilots with a Y-suffixed name, from 1 September of the current year (v1 hard-coded this: from January to August the chart is empty).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table (see docs/t15_notes/a_pilots_people.md): one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n)\nSELECT\n  to_char(date_trunc('month', completion_time AT TIME ZONE 'UTC'), 'YYYY-MM') AS month,\n  ROUND(SUM(time_online_minutes) / 60.0, 2) AS total_hours\nFROM flight_summaries\nWHERE\n  name IS NOT NULL\n  AND length(name) >= 4\n  AND SUBSTRING(name, LENGTH(name) - 3, 1) = 'Y'\n  AND completion_time >= (date_trunc('year', now() AT TIME ZONE 'UTC') + interval '8 months') AT TIME ZONE 'UTC'  -- 1 September (UTC) of the current year\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {
+        "xField": "month",
+        "showValue": "auto",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_hours"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Pilot hours"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
