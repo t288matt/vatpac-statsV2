@@ -467,3 +467,14 @@ def test_selcal_percentage_uses_flights_with_remarks_and_the_sel_slash_marker(co
         conn.execute("UPDATE pilot_session SET remarks = %s WHERE id = %s", (remarks, sid))
     rows = _run(conn, p14.TRAFFIC, "Flights with SELCAL in the remarks")
     assert float(rows[0]["SELCAL (%)"]) == 33.33
+
+
+
+def test_diverse_routes_only_count_flights_over_sixty_minutes(conn) -> None:
+    """Mutant P28 (60 -> 6 minutes)."""
+    for i, arr in enumerate(("YMML", "YBBN", "YPPH")):
+        p14.add_flight(conn, 9860070, dep="YSSY", arr=arr, minutes=30, days_ago=1 + i)     # short hops: ignored
+    for i, arr in enumerate(("YMML", "YBBN")):
+        p14.add_flight(conn, 9860071, dep="YSSY", arr=arr, minutes=90, days_ago=1 + i)
+    rows = _run(conn, p14.TRAFFIC, "Pilots with the most diverse routes (last 14 days)")
+    assert [(r["pilot"], r["unique_routes"]) for r in rows] == [("Pilot 9860071", 2)]
