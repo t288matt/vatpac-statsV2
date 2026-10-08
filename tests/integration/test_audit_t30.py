@@ -591,3 +591,10 @@ def test_card_116_exactly_sixty_minutes_does_not_count(conn) -> None:
     """Mutant P04 (`>= 60`)."""
     atc14.add_session(conn, 9890003, atc14.M1, 60, rating=3)
     assert atc14.by_month(conn, atc14.RATING_TITLE)[atc14.M1]["S2"] == 0
+
+
+
+def test_retention_active_window_is_thirty_days(conn) -> None:
+    """Mutant P08 (30 -> 31 days)."""
+    ret.add_session(conn, 9000001, 30.5, 10)
+    assert ret.scalar(conn, "Active controllers") == 0
