@@ -409,3 +409,11 @@ def test_card_61_speed_and_altitude_boundaries(conn) -> None:
     p14.add_flight(conn, 9860003, callsign="ALT1000", aircraft="A388", gs=500, alt=1000)
     p14.add_flight(conn, 9860004, callsign="TOOFAST", aircraft="A388", gs=800, alt=35000)
     assert [r["callsign"] for r in _run(conn, p14.TRAFFIC, p14.SPEED)] == ["OK1"]
+
+
+
+def test_card_93_a_pilot_with_exactly_30_airborne_minutes_counts(conn) -> None:
+    """Mutant P30 (`>= 31`)."""
+    p14.add_flight(conn, 9860010, airborne=30, days_ago=10)
+    p14.add_flight(conn, 9860011, airborne=29.9, days_ago=10)
+    assert p14.people(conn)["Pilots"] == 1
