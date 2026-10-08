@@ -4,9 +4,9 @@ Every in-scope v1 chart and what replaced it, for the Grafana dashboards in `gra
 
 Status key: **KEPT** same question and definition (SQL rewritten against the v3 views); **CHANGED** same question, definition altered (see the difference column); **UNVERIFIED** the definition is the analytics agent's best reading and awaits the owner's Metabase export; **DROPPED** not rebuilt (reason given).
 
-Panels read views and lookups only: `flight`, `controller_session_merged`, `online_now` and `data_freshness` from migration `20261007000004_views.sql`, the rest from migration `20261007000010_analytics_views.sql` (the `flight` view is now a thin view over the incrementally maintained `flight_summary` table, migration `20261007000020`). There is no backfill, so every chart starts empty at go-live.
+Panels read views and lookups only: `flight`, `controller_session_merged`, `online_now` and `data_freshness` from migration `20261007000004_views.sql`, most of the rest from migration `20261007000010_analytics_views.sql`, and `controller_summaries` from migrations `20261008000030` and `20261008000031` (the `flight` view is now a thin view over the incrementally maintained `flight_summary` table, migration `20261007000020`). There is no backfill, so every chart starts empty at go-live.
 
-Verification on 07-10-2026: every panel query was run against the live local stack through Grafana's own API (`ops/check_panels.py`): 61 queries, 0 errors, 45 returned rows and 16 were empty because the data was only minutes old (no controllers online, no history for weekly or 30-day charts). They are also parsed with sqlglot and every column resolved against the view definitions (`grafana/validate_dashboards.py`, `grafana/check_columns.py`). "Runs without error" is not the same as "answers the question correctly": the Test column says what to check once enough data exists.
+Verification: on 07-10-2026 every panel query then existing (61) was run against the live local stack through Grafana's own API (`ops/check_panels.py`) with 0 errors (45 returned rows, 16 were empty because the data was only minutes old). The dashboards now hold 68 query panels; the extra ones were checked statically (`python grafana/validate_dashboards.py` parses every query with sqlglot and resolves the views read, `grafana/check_columns.py` resolves columns) and by integration tests on synthetic rows, and the retention panel queries were run on the VM database through a temporary view (docs/TRACKER.md, T13). Running `ops/check_panels.py` on the VM after the next deploy is the remaining step. "Runs without error" is not the same as "answers the question correctly": the Test column says what to check once enough data exists.
 
 ## Summary of the 57 non-archived v1 cards
 
@@ -18,7 +18,7 @@ Verification on 07-10-2026: every panel query was run against the live local sta
 | DROPPED | 21 |
 | Total | 57 |
 
-Charts seen only in screenshots (no v1 SQL recovered) are listed separately below: 11 panels, all UNVERIFIED, plus panels that are new in v3.
+Charts without a recovered v1 SQL for the 28-09-2025 snapshot are listed separately below: 5 panels seen only in screenshots (UNVERIFIED) and the 13 retention panels, which were later rebuilt from the owner's Metabase export (cards 163 to 177), plus panels that are new in v3.
 
 ## v1 cards rebuilt
 
@@ -84,12 +84,12 @@ Charts seen only in screenshots (no v1 SQL recovered) are listed separately belo
 | 125 Is there data integrity (Flight→controller mismatches)? | data integrity, flight to controller mismatches | v1 pipeline monitor of matching; nothing to mismatch in v3 | DROPPED |
 | 126 Is there data integrity (Controller → Flight mismatches)? | data integrity, controller to flight mismatches | v1 pipeline monitor of matching; nothing to mismatch in v3 | DROPPED |
 | 132 Slowest YMML-YSSY Milkrun Monday | slowest Milk Run Monday YMML-YSSY | fastest/slowest Milk Run Monday dropped by decision | DROPPED |
-| 133 How many pilots were on the same freq as a controller? (0800-1200z monday) | pilots on the same frequency as a controller (Monday window) | needs frequency matching | DROPPED | T14 08-10-2026: v1 only changed the title to 0700-1200z; stays dropped (frequency matching, ADR-002).
+| 133 How many pilots were on the same freq as a controller? (0800-1200z monday; the v1 title now says 0700-1200z) | pilots on the same frequency as a controller (Monday window) | needs frequency matching | DROPPED | T14 08-10-2026: v1 only changed the title to 0700-1200z; stays dropped (frequency matching, ADR-002).
 | 139 How healthy is enrichment last 24 hours? | enrichment health, last 24 hours | v1 enrichment monitor; replaced by the Monitoring dashboard (poll_log, freshness) | DROPPED |
 
 Cards 118 and 120 (freshness gauges) are listed above as CHANGED because the Monitoring dashboard replaces them. Aircraft-handled metrics (a column of card 108 and others) go with frequency matching; see `docs/DASHBOARDS_SIMPLIFIED.md`.
 
-## Screenshot-only charts (no v1 SQL recovered)
+## Charts without a v1 SQL in the original snapshot
 
 | Chart | Definition (analytics agent's reading) | Source view | Panel (file, title) | Status | Test |
 |---|---|---|---|---|---|
