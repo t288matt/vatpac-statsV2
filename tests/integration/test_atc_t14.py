@@ -55,7 +55,7 @@ def add_session(conn, cid: int, month: datetime, minutes: int, *, callsign: str 
     conn.execute(
         "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
         "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        (cid, callsign or f"TEST{cid}_TWR", start, f"Controller {cid}", rating, start,
+        (cid, callsign or f"TEST{cid}_TWR", start.replace(microsecond=0), f"Controller {cid}", rating, start,
          start + timedelta(minutes=minutes)),
     )
 
@@ -136,7 +136,7 @@ def test_a_session_counts_in_the_month_it_started(conn):
     conn.execute(
         "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
         "VALUES (9100030, 'TEST_CTR', %s, 'Controller 9100030', 3, %s, %s)",
-        (start, start, start + timedelta(minutes=120)),
+        (start.replace(microsecond=0), start, start + timedelta(minutes=120)),
     )
     add_session(conn, 9100031, M1, 90, rating=3)                            # makes M1 appear
     rows = by_month(conn, RATING_TITLE)

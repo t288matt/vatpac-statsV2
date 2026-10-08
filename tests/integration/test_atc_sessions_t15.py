@@ -51,6 +51,7 @@ def add(conn, cid: int, start: datetime, minutes: float, *, callsign: str | None
         rating: int = 3, name: str | None = "default") -> None:
     if name == "default":
         name = f"Controller {cid}"
+    start = start.replace(microsecond=0)  # logon_time is kept to whole seconds (T36)
     conn.execute(
         "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
         "VALUES (%s, %s, %s, %s, %s, %s, %s)",
