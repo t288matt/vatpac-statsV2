@@ -111,8 +111,8 @@
     {
       "id": 3,
       "type": "table",
-      "title": "Most popular military routes (last 7 days)",
-      "description": "v1 card 78. Routes flown by military aircraft types, with share of military flights and pilots.",
+      "title": "Most popular RAAFv routes (last month)",
+      "description": "v1 card 78 ('What were the most popular RAAFv routes last month?', edited 07-10-2025). RAAFv flights are those whose flight-plan remarks contain RAAFVIRTUAL.ORG (case-insensitive), not an aircraft-type list. Window is the last month (UTC), not 7 days. Each session is counted once (v1 de-duplicated on callsign and logon time). Shows share of RAAFv flights and pilots; top 25 routes.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -133,20 +133,21 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT route_label AS route,\n       count(*) AS total_flights,\n       count(DISTINCT cid) AS unique_pilots,\n       round(100.0 * count(*) / sum(count(*)) OVER (), 1) AS \"% of military flights\",\n       round(100.0 * count(DISTINCT cid) / sum(count(DISTINCT cid)) OVER (), 1) AS \"% of military pilots\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.is_military\nGROUP BY route_label\nORDER BY total_flights DESC, unique_pilots DESC\nLIMIT 25"
+          "rawSql": "SELECT r.route_label AS route,\n       count(*) AS total_flights,\n       count(DISTINCT r.cid) AS unique_pilots,\n       round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS \"% of RAAFv flights\",\n       round(100.0 * count(DISTINCT r.cid) / sum(count(DISTINCT r.cid)) OVER (), 2) AS \"% of RAAFv pilots\"\nFROM (\n  SELECT f.cid, f.route_label,\n         row_number() OVER (PARTITION BY f.session_id ORDER BY f.end_time DESC) AS rn\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\n    AND f.departure <> '' AND f.arrival <> ''\n) r\nWHERE r.rn = 1\nGROUP BY r.route_label\nORDER BY total_flights DESC, unique_pilots DESC\nLIMIT 25"
         }
       ],
       "options": {},
       "fieldConfig": {
         "defaults": {},
         "overrides": []
-      }
+      },
+      "timeFrom": "1M"
     },
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Hours flown by military aircraft per week (last 14 weeks)",
-      "description": "v1 card 66. Airborne hours by military aircraft types per UTC week (v1 summed time online). Weeks start on Monday.",
+      "title": "Hours flown by RAAFv aircraft per week (last 14 weeks)",
+      "description": "v1 card 66 ('Hours flown by RAAFv aircraft per week', edited 18-10-2025). RAAFv flights are those whose flight-plan remarks contain RAAFVIRTUAL.ORG (case-insensitive), not an aircraft-type list. Airborne hours per UTC week (v1 summed time online); last 98 days. Weeks start on Monday (UTC).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -167,7 +168,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT date_trunc('week', f.end_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       round((sum(f.airborne_minutes) / 60.0)::numeric, 1) AS \"Military hours\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.is_military\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "SELECT date_trunc('week', f.end_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       round((sum(f.airborne_minutes) / 60.0)::numeric, 1) AS \"RAAFv hours\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "options": {},
