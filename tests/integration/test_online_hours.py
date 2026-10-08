@@ -42,7 +42,7 @@ def add_flight(conn, day: datetime, start_hm: tuple[int, int], end: datetime, ai
     sid = conn.execute(
         "INSERT INTO pilot_session (cid, callsign, logon_time, name, first_seen, last_seen, departure, arrival) "
         "VALUES (%s,%s,%s,%s,%s,%s,'YSSY','YMML') RETURNING id",
-        (9400000 + _n["i"], f"HR{_n['i']:03d}", start, "Pilot", start, end),
+        (9400000 + _n["i"], f"HR{_n['i']:03d}", start.replace(microsecond=0), "Pilot", start, end),
     ).fetchone()["id"]
     conn.execute(
         "INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count, "
@@ -57,7 +57,7 @@ def add_controller(conn, day: datetime, start_hm: tuple[int, int], minutes: int)
     conn.execute(
         "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
         "VALUES (%s,%s,%s,'Controller',3,%s,%s)",
-        (9500000 + _n["i"], f"HRC{_n['i']:03d}_TWR", start, start, start + timedelta(minutes=minutes)),
+        (9500000 + _n["i"], f"HRC{_n['i']:03d}_TWR", start.replace(microsecond=0), start, start + timedelta(minutes=minutes)),
     )
 
 

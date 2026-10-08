@@ -34,7 +34,7 @@ def add_session(conn, cid: int, days_ago: float, minutes: int, rating: int = 3, 
     conn.execute(
         "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
         "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        (cid, f"TEST{cid}_TWR", start, name or f"Controller {cid}", rating, start, end),
+        (cid, f"TEST{cid}_TWR", start.replace(microsecond=0), name or f"Controller {cid}", rating, start, end),
     )
 
 
@@ -104,7 +104,7 @@ def add_session_on(conn, cid: int, day: str, minutes: int = 30) -> None:
     conn.execute(
         "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
         "VALUES (%s, %s, %s, %s, 3, %s, %s)",
-        (cid, f"TEST{cid}_TWR", start, f"Controller {cid}", start, start + timedelta(minutes=minutes)),
+        (cid, f"TEST{cid}_TWR", start.replace(microsecond=0), f"Controller {cid}", start, start + timedelta(minutes=minutes)),
     )
 
 

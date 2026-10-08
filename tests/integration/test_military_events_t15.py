@@ -47,7 +47,7 @@ def add_flight(conn, cid: int, start: datetime, end: datetime, airborne: float =
     sid = conn.execute(
         "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival, "
         "aircraft_icao, remarks, name) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-        (cid, f"TST{cid}", start, start, end, dep, arr, aircraft, remarks, name),
+        (cid, f"TST{cid}", start.replace(microsecond=0), start, end, dep, arr, aircraft, remarks, name),
     ).fetchone()["id"]
     for seg in range(1, segments + 1):
         seg_end = end - timedelta(minutes=10 * (segments - seg))
@@ -180,7 +180,7 @@ def _add_samples(conn, cid: int, samples: list[tuple[datetime, int | None]]) -> 
         partition_for(conn, t)
     sid = conn.execute(
         "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "
-        "VALUES (%s,%s,%s,%s,%s) RETURNING id", (cid, f"TST{cid}", first, first, last)).fetchone()["id"]
+        "VALUES (%s,%s,%s,%s,%s) RETURNING id", (cid, f"TST{cid}", first.replace(microsecond=0), first, last)).fetchone()["id"]
     for t, alt in samples:
         conn.execute("INSERT INTO pilot_position (observed_at, session_id, alt_ft, gs_kt) VALUES (%s,%s,%s,250)",
                      (t, sid, alt))
