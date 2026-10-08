@@ -1,5 +1,7 @@
 # T14 notes: pilot and demographic cards (branch t14-pilots)
 
+> Working note from 08-10-2026, kept as a record of the T14 re-check. Statements such as "not run" or "owner question open" describe that moment; the current position is in [../TRACKER.md](../TRACKER.md) and [../CHART_DEFINITIONS.md](../CHART_DEFINITIONS.md), which win where they differ.
+
 Re-check on 08-10-2026 of v1 cards 55, 61, 93, 129 and 135 against the owner's current Metabase SQL (card 55 updated 13-02-2026, 61 on 04-10-2025, 93 on 02-01-2026, 129 on 09-12-2025, 135 on 30-09-2025). The coordinator merges this into `docs/CHART_DEFINITIONS.md` and `docs/TRACKER.md`. All times UTC.
 
 | Card | Name | What the repo said | What v1 says now | Classification | Action taken |
