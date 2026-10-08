@@ -172,3 +172,38 @@ def test_unknown_top_level_keys_ignored(fixture_payload: dict) -> None:
     payload["something_new"] = {"a": 1}
     payload["prefiles"] = [{"cid": 1, "name": "x"}]
     assert len(parse_snapshot(payload).pilots) == len(fixture_payload["pilots"])
+
+
+# T36 / ADR-021: logon_time is session identity, kept to whole seconds (truncated, never rounded).
+@pytest.mark.parametrize(
+    ("raw", "expected_second"),
+    [
+        ("2026-10-07T03:30:22Z", 22),
+        ("2026-10-07T03:30:22.516991Z", 22),     # 6 digits
+        ("2026-10-07T03:30:22.5169912Z", 22),    # 7 digits, as the feed sends
+        ("2026-10-07T03:30:22.9999999Z", 22),    # truncate, not round: never 23
+        ("2026-10-07T03:30:22.000000Z", 22),
+        ("2026-10-07T03:30:22.5+00:00", 22),
+    ],
+)
+def test_logon_time_is_truncated_to_whole_seconds_utc(fixture_payload: dict, raw: str, expected_second: int) -> None:
+    payload = copy.deepcopy(fixture_payload)
+    payload["pilots"][0]["logon_time"] = raw
+    payload["controllers"][0]["logon_time"] = raw
+    s = parse_snapshot(payload)
+    for item in (s.pilots[0], s.controllers[0]):
+        assert item.logon_time == datetime(2026, 10, 7, 3, 30, expected_second, tzinfo=UTC)
+        assert item.logon_time.microsecond == 0
+        assert item.logon_time.utcoffset() == timedelta(0)
+
+
+def test_logon_time_truncation_leaves_snapshot_time_alone() -> None:
+    s = parse_snapshot({"general": {"update_timestamp": "2026-10-07T16:11:19.5Z"}, "pilots": [], "controllers": []})
+    assert s.observed_at.microsecond == 500_000
+
+
+def test_both_payload_shapes_give_the_same_session_key(fixture_payload: dict) -> None:
+    a, b = copy.deepcopy(fixture_payload), copy.deepcopy(fixture_payload)
+    a["pilots"][0]["logon_time"] = "2026-10-07T03:30:22.516991Z"
+    b["pilots"][0]["logon_time"] = "2026-10-07T03:30:22Z"
+    assert parse_snapshot(a).pilots[0].logon_time == parse_snapshot(b).pilots[0].logon_time
