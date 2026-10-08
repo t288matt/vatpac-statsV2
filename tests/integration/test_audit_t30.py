@@ -359,3 +359,11 @@ def test_movements_ignore_zzzz_and_cohorts_ignore_cids_below_100000(conn) -> Non
     p14.add_flight(conn, 50000, dep="YSSY", arr="YMML")
     p14.add_flight(conn, 150000, dep="YSSY", arr="YMML")
     assert [r["cohort"] for r in conn.execute("SELECT DISTINCT cohort FROM cohorts WHERE cid IN (50000, 150000)").fetchall()] == ["100000-199999"]
+
+
+
+def test_data_freshness_counts_only_the_last_hour(conn) -> None:
+    """Mutant V18 (hour -> day)."""
+    conn.execute("INSERT INTO poll_log (status, polled_at) VALUES ('ok', now() - interval '2 hours')")
+    conn.execute("INSERT INTO poll_log (status, polled_at) VALUES ('ok', now())")
+    assert conn.execute("SELECT ok_last_hour FROM data_freshness").fetchone()["ok_last_hour"] == 1
