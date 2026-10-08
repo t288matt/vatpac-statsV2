@@ -448,3 +448,12 @@ def test_popular_callsigns_need_two_distinct_pilots(conn) -> None:
     p14.add_flight(conn, 9860042, callsign="QFA2")
     rows = _run(conn, p14.TRAFFIC, "Most popular callsigns (last 30 days)")
     assert [(r["callsign"], r["unique_pilots"]) for r in rows] == [("QFA1", 2)]
+
+
+
+def test_airlines_need_three_letters_and_a_digit(conn) -> None:
+    """Mutants P26 and V14: a private registration such as VHABC must not appear as an airline (card 58)."""
+    p14.add_flight(conn, 9860050, callsign="QFA123")
+    p14.add_flight(conn, 9860051, callsign="VHABC")
+    rows = _run(conn, p14.TRAFFIC, "Most popular airlines (last 30 days)")
+    assert [r["flights"] for r in rows] == [1]
