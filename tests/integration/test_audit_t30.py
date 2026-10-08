@@ -298,3 +298,24 @@ def test_run_maintenance_uses_the_configured_retention(conn) -> None:
     out = run_maintenance(conn, Settings(position_retention_days=60))
     assert out["failed"] == 0
     assert name in _partitions(conn)
+
+
+
+# ------------------------------------------------------------------ Monday attendance, controller open flag, views
+def _monday_snapshot(conn, mon: datetime) -> None:
+    conn.execute("INSERT INTO network_snapshot VALUES (%s,0,0,0,0)", (mon,))
+
+
+def test_monday_attendance_edges_for_controllers_and_unplanned_pilots(conn) -> None:
+    """Mutants S17 (controller ending exactly 0700 dropped) and S18 (pilot gate ignores an empty arrival)."""
+    mon = ev14.monday_utc(2)
+    _monday_snapshot(conn, mon)
+
+    def h(x: float) -> datetime:
+        return mon + timedelta(hours=x)
+
+    ev14.add_controller(conn, 9810001, h(5), h(7))              # ends exactly 0700: present
+    ev14.add_flight(conn, 9810002, h(8), h(9), arr="")          # no arrival filed: not a flight, not counted
+    ev14.add_flight(conn, 9810003, h(8), h(9))                  # counted
+    rows = ev14.run_panel(conn, ev14.EVENTS, "Monday event attendance", mon - timedelta(days=1), mon + timedelta(days=1))
+    assert [(r["Pilots"], r["Controllers"]) for r in rows] == [(1, 1)]
