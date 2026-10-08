@@ -428,3 +428,13 @@ def test_international_and_domestic_routes_are_separated(conn) -> None:
     intl = {r["route"] for r in _run(conn, p14.TRAFFIC, "Most popular international routes (last 30 days)")}
     dom = {r["route"] for r in _run(conn, p14.TRAFFIC, "Most popular domestic routes (last 30 days)")}
     assert intl == {"YSSY-EGLL", "EGLL-KJFK"} and dom == {"YSSY-YMML"}
+
+
+
+def test_vfr_routes_need_three_distinct_pilots(conn) -> None:
+    """Mutant P22 (minimum 3 pilots -> 2)."""
+    for cid, arr in ((9860030, "YBBN"), (9860031, "YBBN"), (9860032, "YBBN"), (9860033, "YMML"), (9860034, "YMML")):
+        sid = p14.add_flight(conn, cid, dep="YSSY", arr=arr)
+        conn.execute("UPDATE pilot_session SET flight_rules = 'V' WHERE id = %s", (sid,))
+    rows = _run(conn, p14.TRAFFIC, "Most popular VFR routes (last 30 days)")
+    assert [(r["route"], r["pilots"]) for r in rows] == [("YSSY-YBBN", 3)]
