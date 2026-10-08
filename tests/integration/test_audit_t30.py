@@ -632,3 +632,28 @@ def test_online_hours_ignore_flights_older_than_thirty_days(conn) -> None:
     old = hours.last_day(3) - timedelta(days=42)
     hours.add_flight(conn, old, (10, 0), old.replace(hour=11))
     assert hours.run(conn, hours.WEEKDAYS) == {}
+
+
+
+def test_panel_windows_match_their_titles() -> None:
+    """Mutant P39 (the RAAFv 7 day panel overridden to 70 days in JSON): no existing test reads the panel's
+    timeFrom except card 61. For every panel titled '(last N days|hours)', the window actually applied (panel
+    timeFrom, else the dashboard range, else an interval literal in the SQL) must be N."""
+    unit_hours = {"day": 24, "days": 24, "hour": 1, "hours": 1}
+    bad = []
+    for f in sorted((REPO / "grafana" / "dashboards").glob("*/*.json")):
+        d = json.loads(f.read_text(encoding="utf-8"))
+        dash_from = d.get("time", {}).get("from", "")
+        for p in d["panels"]:
+            m = re.search(r"\(last (\d+) (days?|hours?)\b", p.get("title", ""))
+            if not m or not p.get("targets"):
+                continue
+            want = int(m.group(1)) * unit_hours[m.group(2)]
+            spec = p.get("timeFrom") or dash_from.replace("now-", "")
+            sql = " ".join(t.get("rawSql", "") for t in p["targets"])
+            lits = [int(n) * 24 for n in re.findall(r"interval '(\d+) days'", sql, re.I)]
+            lits += [int(n) for n in re.findall(r"interval '(\d+) hours?'", sql, re.I)]
+            got = {"d": 24, "h": 1}.get(spec[-1:], 0) * int(spec[:-1]) if spec[:-1].isdigit() else 0
+            if want not in ([got] + lits):
+                bad.append(f"{f.parent.name}/{f.name}: {p['title']} (title {want} h, window {got} h, sql {lits})")
+    assert not bad, "\n".join(bad)
