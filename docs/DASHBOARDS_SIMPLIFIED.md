@@ -2,7 +2,7 @@
 
 Decision (SPEC sections 1, 10 and 13): **frequency matching and sector matching are not required in v3.** The v3 collector stores pilots inside the Australian boundary polygon and whitelisted controllers, with their sessions and positions. It does not work out which pilot was talking to which controller, nor which sector an aircraft was in. Every v1 chart that depended on either was dropped rather than approximated, because an approximation would show numbers that look authoritative and are not.
 
-Full per-chart detail is in `docs/CHART_DEFINITIONS.md`. In total, 22 of the 57 non-archived v1 cards are dropped (card 65 added by owner decision 08-10-2026); the other 35 are rebuilt (18 kept, 17 changed).
+Full per-chart detail is in `docs/CHART_DEFINITIONS.md`. In total, 21 of the 57 non-archived v1 cards are dropped; the other 36 are rebuilt (18 kept, 18 changed).
 
 ## Dropped: needs frequency matching (ATC interaction)
 
@@ -58,7 +58,7 @@ These watched v1's enrichment and matching jobs, which do not exist in v3. They 
 ## Simplifications that are not drops
 
 - Pilot "online" and "active" counts come from `network_snapshot` and the `flight` view, not from enrichment tables.
-- Military aircraft are a boolean in the `aircraft_type` lookup instead of a long hard-coded list in each query (card 65 is now dropped, owner decision 08-10-2026, so only the existing as-built panel uses it). Cards 66 and 78 identify RAAFv flights by the flight-plan remarks instead, as v1 now does.
+- Military aircraft are a boolean in the `aircraft_type` lookup instead of a long hard-coded list in each query (card 65). Cards 66 and 78 identify RAAFv flights by the flight-plan remarks instead, as v1 now does.
 - Airline, aircraft category and pilot home region are lookups (`airline`, `aircraft_type`, `region_map`), seeded by migration `20261007000011_seed_analytics_lookups.sql`. Unlisted codes show as Other or Unknown instead of being silently dropped.
 - Home-region tests use the `home_icao_prefixes` setting (default `Y`) rather than a hard-coded `Y`.
 - No backfill: every chart starts empty at go-live, and each dashboard says "Data since" the first stored snapshot.
