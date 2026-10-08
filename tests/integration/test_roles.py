@@ -147,7 +147,7 @@ def test_online_now_is_empty_when_the_newest_snapshot_is_stale(conn) -> None:
     conn.execute("INSERT INTO network_snapshot VALUES (now() - interval '10 minutes',1,1,1,1)")
     conn.execute(
         "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "
-        "VALUES (9400002,'STALE', now() - interval '1 hour', now() - interval '1 hour', now() - interval '10 minutes')")
+        "VALUES (9400002,'STALE', date_trunc('second', now() - interval '1 hour'), now() - interval '1 hour', now() - interval '10 minutes')")
     assert conn.execute("SELECT count(*) AS n FROM online_now").fetchone()["n"] == 0
     conn.execute("INSERT INTO network_snapshot VALUES (now() - interval '10 seconds',1,1,1,1)")
     conn.execute("UPDATE pilot_session SET last_seen = now() - interval '10 seconds'")

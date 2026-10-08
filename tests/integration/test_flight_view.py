@@ -26,7 +26,7 @@ def make_session(conn, cid: int, samples: list[tuple[datetime, int | None]], dep
     sid = conn.execute(
         "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
         "VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-        (cid, f"TEST{cid}", first, first, last, dep, arr),
+        (cid, f"TEST{cid}", first.replace(microsecond=0), first, last, dep, arr),
     ).fetchone()["id"]
     with conn.cursor() as cur:
         cur.executemany(
