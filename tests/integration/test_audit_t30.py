@@ -143,3 +143,14 @@ def test_session_last_seen_exactly_at_the_cutoff_pins_its_partition(conn) -> Non
     _session_with_position(conn, 9710010, old, cutoff)
     assert conn.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07') AS n").fetchone()["n"] == 0
     assert "pilot_position_20260601" in _partitions(conn)
+
+
+
+def test_ensure_partitions_creates_yesterday_and_seven_days_ahead(conn) -> None:
+    """Mutants S24 and S25: the docstring promises yesterday..today+7 (yesterday covers a snapshot that straddles
+    midnight). The existing test only checks today..today+7."""
+    from vatpac.maintenance import ensure_partitions
+
+    ensure_partitions(conn, date(2026, 10, 7), 7)
+    got = {p for p in _partitions(conn) if p.startswith("pilot_position_2026")}
+    assert got == {f"pilot_position_202610{d:02d}" for d in range(6, 15)}
