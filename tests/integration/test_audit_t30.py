@@ -584,3 +584,10 @@ def test_card_63_window_is_30_days_to_month_end(conn) -> None:
     length = calendar.monthrange(atc14.M1.year, atc14.M1.month)[1]
     atc14.add_session(conn, 9890002, atc14.M1, 90, callsign="TEST_CTR", day_offset=length - 28)
     assert atc14.by_month(conn, atc14.CTR_TITLE)[atc14.M1]["Controllers"] == 1
+
+
+
+def test_card_116_exactly_sixty_minutes_does_not_count(conn) -> None:
+    """Mutant P04 (`>= 60`)."""
+    atc14.add_session(conn, 9890003, atc14.M1, 60, rating=3)
+    assert atc14.by_month(conn, atc14.RATING_TITLE)[atc14.M1]["S2"] == 0
