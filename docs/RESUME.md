@@ -30,7 +30,9 @@ Already done and evidenced (08-10-2026): VM reboot test passed (all five contain
 - **To merge a single T15 branch instead:** `git merge t15-a` in the main worktree, then run the checks (section 5), update CHART_DEFINITIONS.md and the tracker, push. Merge only after the owner approves scope.
 - Worktrees can be removed when finished: `git worktree remove ../vatpac-wt-t15a` (and the t14 ones).
 
-## 4. Open owner questions (ask one at a time, give a recommendation first)
+## 4. Open owner questions
+Update 08-10-2026: the owner decided to ship all 16 T15 cards as built (branch t15-integration) and, with "keep all", to keep every open card question at its current behaviour (no changes). Treat the list below as resolved unless the owner reopens an item. Deploy order is now: merge docs-audit, merge t15-integration, add the CHART_DEFINITIONS rows and the DATA_DICTIONARY entry for pilot_sample, rerun the full integration suite on a throwaway database, confirm CI green, then deploy once.
+ (ask one at a time, give a recommendation first)
 1. Card 66 hours basis: airborne hours to 1 decimal (current) or v1 connected time in whole hours?
 2. Card 131: add a CID table per Monday (v1 had CID lists; repo dropped them)?
 3. Card 134: local-share chart window 0700-1200Z (current) or v1's 0800-1200Z?
