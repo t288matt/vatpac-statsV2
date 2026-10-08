@@ -340,3 +340,12 @@ def test_controller_is_open_only_when_seen_in_the_newest_snapshot(conn) -> None:
     _ctrl_session(conn, now - timedelta(hours=2), now - timedelta(minutes=10), 9820002, "SHUT_TWR")
     got = {r["cid"]: r["is_open"] for r in conn.execute("SELECT cid, is_open FROM controller_session_merged").fetchall()}
     assert got == {9820001: True, 9820002: False}
+
+
+
+def test_rating_groups_s3_and_c3_have_their_own_columns(conn) -> None:
+    """Mutants V11 and V12 (rank_group_of mislabels ratings 7 and 4): the existing test only asserts S3 and C3 are 0."""
+    atc14.add_session(conn, 9830001, atc14.M1, 90, rating=4)
+    atc14.add_session(conn, 9830002, atc14.M1, 90, rating=7)
+    row = atc14.by_month(conn, atc14.RATING_TITLE)[atc14.M1]
+    assert {k: v for k, v in row.items() if k != "time"} == {"S1": 0, "S2": 0, "S3": 1, "C1": 0, "C3": 1, "I1+": 0}
