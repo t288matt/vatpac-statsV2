@@ -72,7 +72,7 @@ Do not tell the owner the goal is met before 4 and 5 are done. The owner has bee
 |---|---|---|---|
 | 1 | 24 h soak on the VM | time | Use `sh ops/soak_report.sh 24`. PASS needs: full window covered (98% of requested), at least 99% of expected snapshots, p95 cadence at most 17 s. A short run says INCOMPLETE, never PASS. Restarts/rebuilds during the window create gaps: do not redeploy during the soak unless necessary (a redeploy costs about 45 s of snapshots) |
 | 2 | VM reboot test | owner (`sudo reboot`) | *Update 08-10-2026: DONE 07-10-2026 21:48 UTC (TRACKER T2).* After reboot everything must return by itself (`restart: unless-stopped`); then re-check smoke |
-| 3 | GitHub Actions CI | owner reports result | *Update 08-10-2026: DONE, green (TRACKER T3, T10).* Never run when written. Jobs: lint, unit-tests, integration-tests (Postgres service), config-drift, dashboards, compose-config, size-budget, fixture-pii, secret-scan (gitleaks), image-build. Likely first-run problems: gitleaks needs a licence for orgs (personal repos fine), the integration job applies migrations with plain psql (the `-- migrate:down` half stripped), actions pinned by tag |
+| 3 | GitHub Actions CI | owner reports result | *Update 08-10-2026: DONE, green (TRACKER T3, T10).* Never run when written. Jobs: lint, unit-tests, integration-tests (Postgres service), config-drift, dashboards, compose-config, size-budget, fixture-pii (removed 08-10-2026, TRACKER T29), secret-scan (gitleaks), image-build. Likely first-run problems: gitleaks needs a licence for orgs (personal repos fine), the integration job applies migrations with plain psql (the `-- migrate:down` half stripped), actions pinned by tag |
 | 4 | Telegram alerts | owner: bot token + chat id into the VM `.env` | *Update 08-10-2026: DONE, test alert delivered (TRACKER T4).* Currently the watchdog only LOGS alerts. After adding, test by stopping the collector for a few minutes and confirm a message arrives and a RECOVERED follows. Remember the owner's rule: plain text, no emoji (emoji caused UTF-8 errors) |
 | 5 | Retention charts | owner: Metabase export | *Update 08-10-2026: DONE, rebuilt from the v1 SQL (TRACKER T13); the screenshot-based guesses below are superseded.* Active controllers (178 in screenshot), Lapsed 30 days (28), Controller Retention Rate gauge (84%), Reactivated in last 30 days after 60+ days lapsed (74), "Who reactivated after being away >60 days?", "Who might need help reactivating?". Layout and columns are known from screenshots; exact definitions are not (178/(178+28) is 86.4%, not 84%). Port them exactly into a migration (views) and `grafana/dashboards/atc/atc-retention.json`, update `docs/CHART_DEFINITIONS.md`, then remove the UNVERIFIED marks. Note: the 60-day lapse can't be observed until 60 days after go-live (no backfill) |
 
@@ -283,7 +283,7 @@ docs/reference/v1_metabase_cards.json   recovered v1 card SQL (118 cards)
 collector/                   Dockerfile, pyproject.toml, requirements.txt (numpy pinned), src/vatpac/, tests/unit/
 db/                          migrations/ (dbmate, forward-only, 20261007000001..24; now ..20261008000031), roles.sql
 grafana/                     provisioning/ (datasource, dashboards), dashboards/<folder>/*.json, validate_dashboards.py, check_columns.py
-ops/                         check_env.sh gen_env.sh smoke.sh soak_report.sh/.sql check_panels.py check_config_drift.py check_size_budget.py check_fixture_pii.py ruff.toml; backup/ migrate/ watchdog/ postgres/
+ops/                         check_env.sh gen_env.sh smoke.sh soak_report.sh/.sql check_panels.py check_config_drift.py check_size_budget.py ruff.toml (check_fixture_pii.py was removed 08-10-2026, TRACKER T29); backup/ migrate/ watchdog/ postgres/
 tests/                       integration/ (needs Postgres), fixtures/ (anonymised feed snapshot + expected.json), tools/make_fixture.py, README.md
 config/                      australian_airspace_polygon.json, controller_callsigns_list.txt, australian_airspace_sectors.geojson (unused by v3)
 .github/workflows/           ci.yml, release.yml (tags vX.Y.Z, gated on CI), dependabot.yml
@@ -301,7 +301,7 @@ His global instructions say scheduled/routine tasks should use the Haiku 4.5 mod
 
 ## 19. Things you must NOT do
 - Do not touch v1 (original VM or its repo) or the owner's Uptime Kuma, Proxmox, Unraid or PBS.
-- Do not commit `.env`, tokens, dumps, backups, real names/CIDs (fixtures are anonymised: names `Pilot NNNN`/`Controller NNNN`, CIDs 9000000 to 9999999; `ops/check_fixture_pii.py` enforces), or internal IP addresses.
+- Do not commit `.env`, tokens, dumps, backups or internal IP addresses. *Update 08-10-2026: names and CIDs are public and kept forever (ADR-019), so the anonymisation rule and its check `ops/check_fixture_pii.py` were removed (TRACKER T29); the existing fixtures stay anonymised (names `Pilot NNNN`/`Controller NNNN`, CIDs 9000000 to 9999999).*
 - Do not expose Grafana to the internet; do not add Cloudflare or a Docker socket proxy to the repo (owner's choice).
 - Do not edit applied migrations; add new ones. Do not rename the public interfaces in `SPEC.md` section 7 without updating the tests.
 - Do not claim the goal is met before section 1 items 4 and 5 have evidence.
