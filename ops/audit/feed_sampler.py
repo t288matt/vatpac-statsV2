@@ -13,7 +13,6 @@ import time
 from pathlib import Path
 
 import requests
-
 from independent import analyse, load_ring, load_whitelist
 
 URL = "https://data.vatsim.net/v3/vatsim-data.json"

@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-
 from recompute_flights import recompute
 
 HOME = ("Y",)

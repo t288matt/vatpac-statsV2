@@ -15,7 +15,6 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-
 from panel_recompute import build_flights, is_home, load
 
 

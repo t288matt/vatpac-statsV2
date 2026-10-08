@@ -13,9 +13,8 @@ from fractions import Fraction
 from pathlib import Path
 
 import shapely
-from shapely.geometry import Point, Polygon
-
 from independent import classify, load_ring
+from shapely.geometry import Point, Polygon
 
 ROOT = Path(__file__).resolve().parents[2]
 ring = load_ring(ROOT / "config/australian_airspace_polygon.json")
