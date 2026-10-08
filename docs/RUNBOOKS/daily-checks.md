@@ -34,7 +34,7 @@ The watchdog already alerts by Telegram on the worst failures ([alerts.md](alert
    docker compose exec backup ls -lh /backups
    docker compose exec backup cat /backups/.last_success /backups/.last_restore_test
    ```
-   Expect a dump from the last night (taken at `BACKUP_TIME_UTC`, 02:00 by default), up to `BACKUP_RETENTION_DAYS` (14) dumps, and a `.last_restore_test` line ending `OK` that is under 9 days old (the automated restore test runs after the Sunday backup). If there is no off-box copy yet, say so: dumps on the same disk are lost with the VM (see [restore.md](restore.md), "Off-box copies").
+   Expect a dump from the last night (taken at `BACKUP_TIME_UTC`, 02:00 by default), up to `BACKUP_RETENTION_DAYS` (14) dumps, and a `.last_restore_test` line ending `OK` that is under 9 days old (the automated restore test runs after the Sunday backup, so that file does not exist until the first Sunday after a fresh install). If there is no off-box copy yet, say so: dumps on the same disk are lost with the VM (see [restore.md](restore.md), "Off-box copies").
 2. **Disk and database size.**
    ```sh
    df -h /var/lib/docker

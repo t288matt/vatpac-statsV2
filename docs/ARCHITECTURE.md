@@ -128,7 +128,7 @@ The goal gate is the checklist at the foot of [TRACKER.md](TRACKER.md). This tab
 
 | Gate | Status on 08-10-2026 | Evidence |
 |---|---|---|
-| 24 h gap-free soak on the VM | Not yet met | To be recorded here: output of `sh ops/soak_report.sh 24` showing `PASS`. |
+| 24 h soak on the VM (verdict PASS) | Not yet met | To be recorded here: output of `sh ops/soak_report.sh 24` showing `PASS`. |
 | Reboot test | Met | 07-10-2026 21:48 UTC, all five long-running containers returned unaided, smoke passed, 0 panel errors (TRACKER T2). |
 | CI green on GitHub | Met | Owner confirmed all jobs green for commit e5816af and again with the pinned actions (TRACKER T3, T10). |
 | Telegram alert delivered | Met | Test alert accepted by Telegram and confirmed by the owner, 07-10-2026 (TRACKER T4). |
