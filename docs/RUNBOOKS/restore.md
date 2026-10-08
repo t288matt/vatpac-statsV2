@@ -26,6 +26,18 @@ make backup-test   # restores the newest dump into scratch DB vatpac_restore_tes
 ```
 The scratch database is dropped on every exit path, including failure.
 
+## Check a dump by hand without touching the live database (the restore drill)
+`make backup-test` only checks that `pilot_session`, `poll_log` and `schema_migrations` exist and are readable. For a fuller check, restore the newest dump into a scratch database inside the running Postgres container and compare it with the live one. The first such drill, 08-10-2026, passed; its method, row counts and findings are in [../RESTORE_DRILL.md](../RESTORE_DRILL.md). Repeat monthly, and after any migration that changes tables or partitioning. Run from the stack folder (`~/vatpac-statsV2` on the VM); no passwords are typed, the `sh -c` arguments are in single quotes so the container's own `$POSTGRES_USER` is used:
+```sh
+docker compose exec -T backup ls -la /backups                      # pick the newest .dump
+docker compose exec -T backup cat /backups/<file>.dump | docker compose exec -T db sh -c 'cat > /tmp/restore_drill.dump'
+docker compose exec -T db sh -c 'psql -X -q -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE vatpac_restore_test"'
+docker compose exec -T db sh -c 'pg_restore --no-owner --no-acl --exit-on-error -U "$POSTGRES_USER" -d vatpac_restore_test /tmp/restore_drill.dump'
+# compare: run the same read-only SELECTs (row counts, newest timestamps) against -d vatpac and -d vatpac_restore_test
+docker compose exec -T db sh -c 'rm -f /tmp/restore_drill.dump; psql -X -q -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE vatpac_restore_test WITH (FORCE)"'
+```
+These are the options `restore-test.sh` and `restore.sh` use. Never restore into the live database name this way; use `make restore` (above), which takes a safety dump first.
+
 ## How `restore.sh` protects you
 `RESTORE_CONFIRM=<target> restore.sh FILE [TARGET]` (default target `vatpac_restore`):
 1. Refuses the system databases `postgres`, `template0`, `template1`, and names that are not letters, digits and underscores.
