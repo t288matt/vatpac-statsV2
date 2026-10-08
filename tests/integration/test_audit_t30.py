@@ -154,3 +154,15 @@ def test_ensure_partitions_creates_yesterday_and_seven_days_ahead(conn) -> None:
     ensure_partitions(conn, date(2026, 10, 7), 7)
     got = {p for p in _partitions(conn) if p.startswith("pilot_position_2026")}
     assert got == {f"pilot_position_202610{d:02d}" for d in range(6, 15)}
+
+
+
+def test_daily_maintenance_creates_seven_partitions_ahead_by_default(conn) -> None:
+    """Mutant C27 (PARTITIONS_AHEAD = 1): `run_maintenance` relies on the default, which no test exercised."""
+    from vatpac.maintenance import run_maintenance
+    from vatpac.settings import Settings
+
+    out = run_maintenance(conn, Settings())
+    assert out["failed"] == 0
+    today = datetime.now(timezone.utc).date()
+    assert f"pilot_position_{today + timedelta(days=7):%Y%m%d}" in _partitions(conn)
