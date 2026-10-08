@@ -161,7 +161,7 @@ def test_daily_maintenance_creates_seven_partitions_ahead_by_default(conn) -> No
 # ------------------------------------------------------------------ controller reconnect merge
 def _ctrl_session(conn, first: datetime, last: datetime, cid: int = 9720001, callsign: str = "TEST_TWR") -> None:
     conn.execute("INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen, rating) "
-                 "VALUES (%s,%s,%s,%s,%s,3)", (cid, callsign, first, first, last))
+                 "VALUES (%s,%s,%s,%s,%s,3)", (cid, callsign, first.replace(microsecond=0), first, last))
 
 
 def _merged(conn, cid: int = 9720001) -> list[dict]:
@@ -199,9 +199,9 @@ def test_online_now_means_seen_in_the_last_two_snapshots(conn) -> None:
     for cid, age in ((9730001, 10), (9730002, 45)):
         t = now - timedelta(seconds=age)
         conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "
-                     "VALUES (%s,%s,%s,%s,%s)", (cid, f"ON{cid}", t - timedelta(hours=1), t - timedelta(hours=1), t))
+                     "VALUES (%s,%s,%s,%s,%s)", (cid, f"ON{cid}", (t - timedelta(hours=1)).replace(microsecond=0), t - timedelta(hours=1), t))
         conn.execute("INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen) "
-                     "VALUES (%s,%s,%s,%s,%s)", (cid, f"ON{cid}_TWR", t - timedelta(hours=1), t - timedelta(hours=1), t))
+                     "VALUES (%s,%s,%s,%s,%s)", (cid, f"ON{cid}_TWR", (t - timedelta(hours=1)).replace(microsecond=0), t - timedelta(hours=1), t))
     rows = conn.execute("SELECT kind, cid FROM online_now ORDER BY kind, cid").fetchall()
     assert [(r["kind"], r["cid"]) for r in rows] == [("controller", 9730001), ("pilot", 9730001)]
 
@@ -213,11 +213,12 @@ def test_online_lists_exclude_sessions_when_the_collector_has_been_silent(conn) 
     _snap(conn, old - timedelta(seconds=15))
     _snap(conn, old)
     partition_for(conn, old)
-    sid = conn.execute(SESSION_SQL, (9730010, "SILENT", old - timedelta(hours=1), old - timedelta(hours=1), old)).fetchone()["id"]
+    sid = conn.execute(SESSION_SQL, (9730010, "SILENT", (old - timedelta(hours=1)).replace(microsecond=0),
+                                     old - timedelta(hours=1), old)).fetchone()["id"]
     conn.execute("INSERT INTO pilot_position (observed_at, session_id, lat, lon, alt_ft, gs_kt) "
                  "VALUES (%s,%s,-33.9,151.2,5000,250)", (old, sid))
     conn.execute("INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen) "
-                 "VALUES (9730011,'SILENT_TWR',%s,%s,%s)", (old - timedelta(hours=1), old - timedelta(hours=1), old))
+                 "VALUES (9730011,'SILENT_TWR',%s,%s,%s)", ((old - timedelta(hours=1)).replace(microsecond=0), old - timedelta(hours=1), old))
     assert conn.execute("SELECT count(*) AS n FROM pilot_online_now").fetchone()["n"] == 0
     assert conn.execute("SELECT count(*) AS n FROM controller_online_now").fetchone()["n"] == 0
 
@@ -349,7 +350,7 @@ def test_pilot_latest_ignores_sessions_older_than_three_hours(conn) -> None:
     """Mutant V23 (3 h -> 30 h)."""
     old = datetime.now(timezone.utc) - timedelta(hours=5)
     partition_for(conn, old)
-    sid = conn.execute(SESSION_SQL, (9850001, "OLD1", old, old, old)).fetchone()["id"]
+    sid = conn.execute(SESSION_SQL, (9850001, "OLD1", old.replace(microsecond=0), old, old)).fetchone()["id"]
     conn.execute("INSERT INTO pilot_position (observed_at, session_id, gs_kt) VALUES (%s,%s,250)", (old, sid))
     assert conn.execute("SELECT count(*) AS n FROM pilot_latest").fetchone()["n"] == 0
 
@@ -492,7 +493,7 @@ def test_departure_board_airborne_starts_at_60_kt(conn) -> None:
         sid = conn.execute(
             "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
             "VALUES (%s,%s,%s,%s,%s,'YSSY','YMML') RETURNING id",
-            (cid, cs, now - timedelta(hours=1), now - timedelta(hours=1), now)).fetchone()["id"]
+            (cid, cs, (now - timedelta(hours=1)).replace(microsecond=0), now - timedelta(hours=1), now)).fetchone()["id"]
         conn.execute("INSERT INTO pilot_position (observed_at, session_id, lat, lon, alt_ft, gs_kt) "
                      "VALUES (%s,%s,-33.9,151.2,100,%s)", (now, sid, gs))
     sql = _panel(p14.TRAFFIC.parent / "pilots-now.json", "Departure board")["targets"][0]["rawSql"].replace(
@@ -557,7 +558,10 @@ def test_retention_active_window_is_thirty_days(conn) -> None:
 
 def test_retention_rate_needs_sessions_over_sixty_minutes(conn) -> None:
     """Mutant P10 (`>= 60`): a controller whose only recent session is exactly 60 minutes is not in the numerator."""
-    ret.add_session(conn, 9000001, 5, 60)
+    start = (datetime.now(timezone.utc) - timedelta(days=5)).replace(microsecond=0)   # whole seconds: exact 60.0 minutes
+    conn.execute("INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
+                 "VALUES (9000001,'TEST9000001_TWR',%s,'Controller 9000001',3,%s,%s)",
+                 (start, start, start + timedelta(minutes=60)))
     ret.add_session(conn, 9000002, 45, 30)
     assert float(ret.scalar(conn, "Controller retention rate")) == 0.0
 
