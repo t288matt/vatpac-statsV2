@@ -175,3 +175,61 @@ def test_future_dated_snapshot_is_flagged_and_not_a_baseline(tmp_path: Path) -> 
     assert a._last_ts is None
     assert any("ts_future" in p.name for p in (tmp_path / "arc").rglob("*.gz"))
     assert gzip.decompress(next((tmp_path / "arc").rglob("*ts_future.json.gz")).read_bytes()) == raw
+
+
+# ---- survivors of the mutation check (M27, M28, M32, M36) ----
+def raw_with_fractions(ts: datetime, fractional: int) -> bytes:
+    """The fixture stamped ts with exactly `fractional` of its 85 logon_time values carrying a fractional second."""
+    p = copy.deepcopy(FIXTURE)
+    p["general"]["update_timestamp"] = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+    rows = [r for key in ("pilots", "controllers") for r in p[key]]
+    for i, r in enumerate(rows):
+        base = r["logon_time"].split(".")[0].rstrip("Z")
+        r["logon_time"] = base + (".1234567Z" if i < fractional else "Z")
+    return json.dumps(p).encode()
+
+
+@pytest.mark.parametrize(("second", "expect"), [(85, False), (75, False), (60, True), (30, True), (0, True)])
+def test_precision_anomaly_needs_a_drop_of_twenty_points(tmp_path: Path, second: int, expect: bool) -> None:
+    a = make(tmp_path)
+    t = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=1)
+    a._process(raw_with_fractions(t, 85), t, "ok", 200, None)
+    t2 = t + timedelta(seconds=15)
+    a._process(raw_with_fractions(t2, second), t2, "ok", 200, None)
+    assert any("precision" in p.name for p in (tmp_path / "arc" / "anomaly").rglob("*.gz")) is expect
+
+
+def test_anomaly_with_the_same_reason_is_kept_once_per_five_minutes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    a = make(tmp_path)
+    clock = [time.time()]
+    monkeypatch.setattr(arc.time, "time", lambda: clock[0])
+    for _ in range(3):
+        a._process(b'{"x":1}', None, "error", 200, "boom")
+        clock[0] += 60
+    assert a.anomalies == 1
+    clock[0] += 300
+    a._process(b'{"x":1}', None, "error", 200, "boom")
+    assert a.anomalies == 2
+
+
+def test_hard_cap_prunes_at_once_even_when_the_last_prune_was_recent(tmp_path: Path) -> None:
+    a = make(tmp_path, archive_max_mb=1)
+    root = tmp_path / "arc"
+    old = root / "compact" / "20260101" / "000000.json.gz"
+    old.parent.mkdir(parents=True)
+    old.write_bytes(os.urandom(1_200_000))
+    age(old, 100)
+    a._last_prune, a.size = time.time(), 2_000_000  # pruned a moment ago, and the counted size is now over the cap
+    t = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=1)
+    a._process(raw_with_fractions(t, 0), t, "ok", 200, None)
+    assert not old.exists()
+
+
+def test_a_write_that_cannot_be_renamed_never_leaves_a_final_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*a: Any) -> None:
+        raise OSError("rename failed")
+
+    monkeypatch.setattr(arc.os, "replace", boom)
+    with pytest.raises(OSError):
+        arc.write_gz(tmp_path / "d" / "x.json.gz", b"payload")
+    assert not (tmp_path / "d" / "x.json.gz").exists()
