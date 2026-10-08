@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
+from psycopg.rows import tuple_row
 from psycopg_pool import ConnectionPool
 
 from . import __version__
@@ -61,6 +62,19 @@ class Collector:
         with self.pool.connection() as conn:
             return apply_snapshot(conn, snapshot, ref.polygon, ref.whitelist,
                                   polygon_sha=ref.polygon_sha, whitelist_sha=ref.whitelist_sha)
+
+    def _db_last_ts(self) -> datetime | None:
+        sql = "SELECT max(observed_at) FROM network_snapshot WHERE observed_at <= now() + make_interval(secs => %s)"
+        with self.pool.connection() as conn, conn.cursor(row_factory=tuple_row) as cur:  # ignores a future-dated row
+            row = cur.execute(sql, (self.settings.feed_max_future_seconds,)).fetchone()
+        return row[0] if row else None
+
+    async def load_last_ts(self) -> None:
+        """Resume from the newest stored snapshot, so a replay after a restart is logged as skipped, not ok."""
+        try:
+            self.last_ts = await asyncio.to_thread(self._db_last_ts)
+        except Exception:
+            log.exception("could not read the newest stored snapshot time")
 
     def _log_poll(self, status: str, ref: ReferenceData, **kw: Any) -> None:
         try:
@@ -261,6 +275,7 @@ async def run(settings: Settings, ref: ReferenceData) -> None:
     try:
         await feed.discover()
         first_ok = await collector.maintain_once()  # partitions must exist before the first poll
+        await collector.load_last_ts()
         log.info("collector started", extra={"version": __version__, **collector.stats.reference})
         await asyncio.gather(collector.poll_loop(), collector.maintenance_loop(first_ok),
                              collector.flight_summary_loop())
