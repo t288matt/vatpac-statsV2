@@ -569,3 +569,10 @@ def test_top_50_providers_includes_short_sessions_and_stops_at_fifty(conn) -> No
     for i in range(51):
         atc15.add(conn, 9881000 + i, atc15.days_ago(3), 10 + i)
     assert len(atc15.run(conn, title)) == 50
+
+
+
+def test_card_63_exactly_sixty_minutes_does_not_count(conn) -> None:
+    """Mutant P02 (`>= 60`)."""
+    atc14.add_session(conn, 9890001, atc14.M1, 60, callsign="TEST_CTR")
+    assert atc14.by_month(conn, atc14.CTR_TITLE)[atc14.M1]["Controllers"] == 0
