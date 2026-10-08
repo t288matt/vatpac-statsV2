@@ -7,7 +7,8 @@ POSITION_RETENTION_DAYS [90]. AIRBORNE_GAP_CAP_SECONDS [40] and HOME_ICAO_PREFIX
 to app_setting for the SQL views. LOG_LEVEL [INFO]. POLYGON_PATH / WHITELIST_PATH: reference files [/app/config/...].
 HEALTH_PORT [8080]. CIRCUIT_FAILURE_THRESHOLD [5] consecutive failures open the breaker; CIRCUIT_SLOW_INTERVAL_SECONDS
 [60] is the cadence while open (polling never stops). TEXT_MAX_LENGTH [2000]: free-text fields are cut to this many
-characters at ingest, each cut counted in poll_log.rejected_values.
+characters at ingest, each cut counted in poll_log.rejected_values. FEED_MAX_FUTURE_SECONDS [120]: a snapshot dated
+more than this far ahead of the clock is rejected as a feed error.
 """
 
 from __future__ import annotations
@@ -41,6 +42,7 @@ class Settings(BaseSettings):
     circuit_failure_threshold: int = Field(5, ge=1, le=1000)
     circuit_slow_interval_seconds: float = Field(60.0, ge=5, le=3600)
     text_max_length: int = Field(2000, ge=100, le=100_000)
+    feed_max_future_seconds: int = Field(120, ge=15, le=3600)
 
     @field_validator("log_level", mode="before")
     @classmethod

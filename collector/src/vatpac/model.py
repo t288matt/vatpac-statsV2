@@ -193,7 +193,8 @@ def _controller(raw: dict[str, Any]) -> Controller:
 
 def cap_text(rec: _R, limit: int) -> _R:
     """Cut every text field of a parsed record to `limit` characters; each cut counts as one rejected value."""
-    cut: dict[str, Any] = {f.name: v[:limit] for f in fields(rec) if isinstance(v := getattr(rec, f.name), str) and len(v) > limit}
+    cut: dict[str, Any] = {
+        f.name: v[:limit] for f in fields(rec) if isinstance(v := getattr(rec, f.name), str) and len(v) > limit}
     return replace(rec, rejected=rec.rejected + len(cut), **cut) if cut else rec
 
 
