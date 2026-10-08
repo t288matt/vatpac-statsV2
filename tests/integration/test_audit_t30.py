@@ -614,3 +614,13 @@ def test_help_list_threshold_is_under_18_minutes(conn) -> None:
     ret.add_session(conn, 9000003, 5, 20)
     assert ret.cids(conn, "Who might need help reactivating?") == set()
     assert ret.cids(conn, "Who reactivated after being away for more than 60 days?") == {9000003}
+
+
+
+def test_online_hours_atc_minimums_are_inclusive(conn) -> None:
+    """Mutants P14 and P16 (20 -> 21 and 30 -> 31 minutes): exactly the minimum counts (v1 uses >=)."""
+    wed, sat = hours.last_day(3), hours.last_day(6)
+    hours.add_controller(conn, wed, (11, 0), 20)
+    hours.add_controller(conn, sat, (9, 0), 30)
+    assert hours.run(conn, hours.WEEKDAYS) == {11: (0, 1)}
+    assert hours.run(conn, hours.WEEKENDS) == {9: (0, 1)}
