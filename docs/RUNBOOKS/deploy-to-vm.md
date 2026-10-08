@@ -117,7 +117,7 @@ ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/smoke.sh && python3 ops/check_panel
 | `config/*.json`, `config/*.txt` (polygon, whitelist) | No rebuild: `docker compose kill -s HUP collector` (see [update-reference-files.md](update-reference-files.md)) | No |
 | `.env` (a password) | `docker compose up -d` (the `migrate` job runs `ALTER ROLE`; `POSTGRES_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` only apply at first start, see section 3) | The services using the changed value are recreated |
 | `.env` (a collector setting) | `docker compose up -d collector` | Yes, about 45 s |
-| `docker-compose.yml` | `docker compose up -d` (recreates the services whose definition changed) | Only for those services |
+| `docker-compose.yml` | `docker compose up -d` (recreates the services whose definition changed; a new named volume, such as `archive`, is created by the same command) | Only for those services |
 | `ops/postgres/postgresql.conf` | `docker compose restart db` | Yes, the database restarts; the collector retries |
 | `ops/watchdog/**`, `ops/backup/**` | `docker compose up -d --build watchdog` or `backup` | No |
 | `ops/*.sh`, `ops/*.py`, `grafana/*.py`, `docs/`, `tests/`, `Makefile` | Nothing: they run from the host or are only documentation | No |
