@@ -47,6 +47,7 @@ class Pilot:
     deptime: str | None
     pilot_rating: int | None
     military_rating: int | None
+    rejected: int = 0  # values the feed sent that parsing dropped or cut (counted into poll_log.rejected_values)
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +61,7 @@ class Controller:
     server: str | None
     visual_range: int | None
     logon_time: datetime
+    rejected: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,28 +155,36 @@ def _heading(value: Any) -> int | None:
     return h if h is not None and 0 <= h <= 360 else None
 
 
+def _nulled(raw: dict[str, Any], **parsed: object) -> int:
+    """How many values the feed sent that parsing turned into None (outside int32, unparsable, bad heading)."""
+    return sum(v is None and raw.get(k) is not None for k, v in parsed.items())
+
+
 def _pilot(raw: dict[str, Any]) -> Pilot:
     fp = raw.get("flight_plan") or {}
+    alt, gs, hdg = _i(raw.get("altitude")), _i(raw.get("groundspeed")), _heading(raw.get("heading"))
+    prat, mrat = _i(raw.get("pilot_rating")), _i(raw.get("military_rating"))
     return Pilot(
         cid=int(raw["cid"]), name=_s(raw.get("name")), callsign=_callsign(raw["callsign"]),
         server=_s(raw.get("server")), logon_time=_logon(raw["logon_time"]),
         latitude=_f(raw.get("latitude")), longitude=_f(raw.get("longitude")),
-        altitude=_i(raw.get("altitude")), groundspeed=_i(raw.get("groundspeed")),
-        heading=_heading(raw.get("heading")),
+        altitude=alt, groundspeed=gs, heading=hdg,
         departure=_s(fp.get("departure")), arrival=_s(fp.get("arrival")),
         aircraft_icao=_s(fp.get("aircraft_short")), aircraft_faa=_s(fp.get("aircraft_faa")),
         flight_rules=_s(fp.get("flight_rules")), route=_s(fp.get("route")),
         remarks=_s(fp.get("remarks")), planned_alt=_s(fp.get("altitude")), deptime=_s(fp.get("deptime")),
-        pilot_rating=_i(raw.get("pilot_rating")), military_rating=_i(raw.get("military_rating")),
+        pilot_rating=prat, military_rating=mrat,
+        rejected=_nulled(raw, altitude=alt, groundspeed=gs, heading=hdg, pilot_rating=prat, military_rating=mrat),
     )
 
 
 def _controller(raw: dict[str, Any]) -> Controller:
+    fac, rat, vis = _i(raw.get("facility")), _i(raw.get("rating")), _i(raw.get("visual_range"))
     return Controller(
         cid=int(raw["cid"]), name=_s(raw.get("name")), callsign=_callsign(raw["callsign"]),
-        frequency_text=_s(raw.get("frequency")), facility=_i(raw.get("facility")),
-        rating=_i(raw.get("rating")), server=_s(raw.get("server")),
-        visual_range=_i(raw.get("visual_range")), logon_time=_logon(raw["logon_time"]),
+        frequency_text=_s(raw.get("frequency")), facility=fac, rating=rat, server=_s(raw.get("server")),
+        visual_range=vis, logon_time=_logon(raw["logon_time"]),
+        rejected=_nulled(raw, facility=fac, rating=rat, visual_range=vis),
     )
 
 
