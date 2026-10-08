@@ -19,7 +19,7 @@ Already done and evidenced (08-10-2026): VM reboot test passed (all five contain
 
 ## 3. State of the work in flight (all unmerged and undeployed unless stated)
 - **Merged to main, not deployed:** T13 retention dashboard (13 cards), T14 re-check (agents' branches t14-atc, t14-events, t14-pilots merged), cards 94, 95, 90, CI change (no cancel on main).
-- **Agents launched 08-10-2026 about 13:20 UTC (results may be waiting):**
+- **Agents launched 08-10-2026 (all reported; branches below):**
   - Builders on unmerged branches in sibling worktrees next to the repo: `t15-a` (`../vatpac-wt-t15a`: cards 180, 181, 182, 175, 183, 155), `t15-b` (`../vatpac-wt-t15b`: 142, 143, 161, 184, 156), `t15-c` (`../vatpac-wt-t15c`: 144, 146, 148, 153, 154, 186). Each writes notes to docs/t15_notes/ on its branch. The agents cannot run integration tests; the coordinator must.
   - Independent reviewer (T26) finished: no high-severity findings; the two real defects (94/95 join cost, card 93 duplicate labels) are fixed. Remaining low findings are tracker T27. Before deploying, confirm on the VM that no real table or view named controller_summaries exists (`\d controller_summaries` in the live database); the earlier checks used a temporary view only.
   - **t15-b finished** (08-10-2026): commit 2b57b35 on branch t15-b, five cards (142, 143, 161, 184, 156). Before merging: run tests/integration/test_military_events_t15.py on a throwaway database, run its panel SQL against real data, and check that the 156 query over positions (new view `pilot_sample`, migration 20261008000080) prunes partitions and is fast. Owner questions on card 156 are in the tracker. Add rows for these cards to CHART_DEFINITIONS.md and `pilot_sample` to DATA_DICTIONARY.md when merging.
