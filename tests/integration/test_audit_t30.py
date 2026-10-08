@@ -624,3 +624,11 @@ def test_online_hours_atc_minimums_are_inclusive(conn) -> None:
     hours.add_controller(conn, sat, (9, 0), 30)
     assert hours.run(conn, hours.WEEKDAYS) == {11: (0, 1)}
     assert hours.run(conn, hours.WEEKENDS) == {9: (0, 1)}
+
+
+
+def test_online_hours_ignore_flights_older_than_thirty_days(conn) -> None:
+    """Mutant P15 (window 30 -> 90 days)."""
+    old = hours.last_day(3) - timedelta(days=42)
+    hours.add_flight(conn, old, (10, 0), old.replace(hour=11))
+    assert hours.run(conn, hours.WEEKDAYS) == {}
