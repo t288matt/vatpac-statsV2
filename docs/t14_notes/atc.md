@@ -1,5 +1,7 @@
 # T14 ATC card re-check (08-10-2026)
 
+> Working note from 08-10-2026, kept as a record of the T14 re-check. Statements such as "not run" or "owner question open" describe that moment; the current position is in [../TRACKER.md](../TRACKER.md) and [../CHART_DEFINITIONS.md](../CHART_DEFINITIONS.md), which win where they differ.
+
 Input: the current v1 Metabase SQL for nine ATC cards (owner's live Metabase; cards last updated 30-09-2025 to 18-10-2025). Dashboard owned: `grafana/dashboards/atc/atc-overview.json`. Tests: `tests/integration/test_atc_t14.py` (written, NOT run: no throwaway `_test` Postgres on this PC).
 
 | Card | Name | Repo said | v1 says now | Class | Action |

@@ -33,7 +33,7 @@ docker compose exec -T db sh -c "pg_restore --no-owner --no-acl --exit-on-error 
 docker compose exec -T db sh -c "rm -f /tmp/restore_drill.dump; psql -X -tA -U $POSTGRES_USER -d postgres -c 'DROP DATABASE vatpac_restore_test WITH (FORCE)'"
 ```
 
-`$POSTGRES_USER` is expanded inside the container. The restore options (`--no-owner --no-acl --exit-on-error`) are those used by `ops/backup/restore-test.sh` and `restore.sh`. No roles were created and `db/roles.sql` was not run. No warnings or errors were printed.
+`$POSTGRES_USER` must be expanded inside the container, so the `sh -c` argument has to be in single quotes when typed on a shell (the repeatable, correctly quoted form is in [RUNBOOKS/restore.md](RUNBOOKS/restore.md), "Check a dump by hand"). The restore options (`--no-owner --no-acl --exit-on-error`) are those used by `ops/backup/restore-test.sh` and `restore.sh`. No roles were created and `db/roles.sql` was not run. No warnings or errors were printed.
 
 ## Comparison (live read at 08:29 UTC; dump taken 02:00 UTC)
 
@@ -74,7 +74,7 @@ Reading the numbers: the newest restored row of each table is 6 s to about 1 min
 3. Re-time the restore once there are weeks of data; the 90-day `pilot_position` volume will dominate. Record the duration here.
 4. A full-disaster restore needs more than the dump contains: roles and passwords (`db/roles.sql` and the secrets in the environment file; dumps omit roles and ACLs), the `migrate` job to re-apply grants (see `docs/RUNBOOKS/restore.md`), the compose and `.env` configuration, rebuilt or pulled container images, and the Grafana volume (dashboards are provisioned from the repo, but users, UI-only changes and data-source secrets are not in the dump).
 5. T17 remains the real exposure: dumps exist only on the VM's `backups` volume, so losing the VM loses the database and its backups together. Arrange the off-box copy before treating this drill as a disaster-recovery claim, and keep the destination private (dumps contain real names and CIDs, ADR-019).
-6. Add the safe drill commands above to `docs/RUNBOOKS/restore.md` so the next drill is repeatable.
+6. Add the safe drill commands above to `docs/RUNBOOKS/restore.md` so the next drill is repeatable. *Done 08-10-2026 (documentation audit).*
 
 ## Cleanup confirmed (08:29:35 UTC)
 

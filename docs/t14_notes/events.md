@@ -1,5 +1,7 @@
 # T14 notes: Monday event and military (RAAFv) cards, re-checked 08-10-2026
 
+> Working note from 08-10-2026, kept as a record of the T14 re-check. Statements such as "not run" or "owner question open" describe that moment; the current position is in [../TRACKER.md](../TRACKER.md) and [../CHART_DEFINITIONS.md](../CHART_DEFINITIONS.md), which win where they differ.
+
 Source of "v1 now": the owner's current Metabase SQL for cards 66, 78, 131, 133, 134 (card `updated_at` dates: 66 = 18-10-2025, 78 = 07-10-2025, 131 = 06-10-2025, 133 = 06-10-2025, 134 = 08-10-2025). All times are UTC. Branch `t14-events`.
 
 | Card | Name (v1 now) | What the repo said | What v1 says now | Classification | Action taken |

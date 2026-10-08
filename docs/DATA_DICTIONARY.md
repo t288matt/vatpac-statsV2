@@ -1,6 +1,6 @@
 # Data dictionary
 
-Last updated 07-10-2026. Source: `db/migrations/*.sql` (six migrations, all applied cleanly on PostgreSQL 16.4 on 07-10-2026) and `db/roles.sql`. All timestamps are `timestamptz` (UTC). Ids are `bigint`. Definitions of the derived measures are in [DEFINITIONS.md](DEFINITIONS.md).
+Last reviewed 08-10-2026 against the repository. Source: `db/migrations/*.sql` (13 migrations, `20261007000001` to `20261008000031`; applied by the `migrate` service with dbmate, tested on PostgreSQL 16.4) and `db/roles.sql`. All timestamps are `timestamptz` (UTC). Ids are `bigint`. Definitions of the derived measures are in [DEFINITIONS.md](DEFINITIONS.md).
 
 Dashboards read **views and lookups only** through the role `grafana_ro`.
 
@@ -84,7 +84,7 @@ One row per poll attempt, including failures. Trimmed to 400 days by maintenance
 | `pilots_seen` | Pilots in the whole feed. |
 | `pilots_inside` | Pilots inside the polygon. |
 | `pilots_with_plan` | Of those, pilots with non-empty departure and arrival (the flight gate, informational). |
-| `pilots_kept` | Pilots stored (equals `pilots_inside`). |
+| `pilots_kept` | Pilots actually written; equals `pilots_inside` unless a malformed record was skipped. |
 | `controllers_seen` | Controllers in the whole feed. |
 | `controllers_kept` | Controllers on the whitelist. |
 | `rejected_values` | Speed/altitude values nulled by the plausibility caps. |
@@ -98,6 +98,19 @@ Near-miss controller callsigns (see DEFINITIONS). PK `callsign`; columns `cid`, 
 
 ### reference_data_change
 Audit of reference-file changes: `id`, `changed_at` (default `now()`), `file` (`australian_airspace_polygon.json` or `controller_callsigns_list.txt`), `old_sha`, `new_sha`. A row is inserted only when the hash differs from the last recorded one.
+
+### flight_summary
+Per-flight aggregates computed from `pilot_position` (migration 20, ADR-016). One row per `(session_id, gap_segment, span_part)`, primary key on those three columns; `session_id` references `pilot_session` with `ON DELETE CASCADE`. Maintained by `refresh_flight_summary()`, which the collector calls every 5 minutes for sessions seen in the last 12 hours; a row is marked `final` and finalised before its raw-position partition is dropped, so flights survive the 90-day position retention. Read through the `flight` view, never directly by Grafana.
+
+| Column | Meaning |
+|---|---|
+| `session_id`, `gap_segment`, `span_part` | Identity: the session, the segment after splitting on gaps over 120 minutes, and the 8-hour bucket within the segment. |
+| `cid` | Copied from the session. |
+| `start_time`, `end_time`, `sample_count` | First and last stored sample, and the number of samples. Indexed on `start_time` and on `end_time`. |
+| `airborne_minutes` | See [DEFINITIONS.md](DEFINITIONS.md), section 3. NULL for sessions whose raw positions were already gone when the table was introduced. |
+| `max_gs_kt`, `max_alt_ft` | Maxima for this part. |
+| `final` | True when the session is dead and fully summarised, so its raw partitions may be dropped. |
+| `computed_at` | When the row was last recomputed. |
 
 ## 2. Lookup tables
 
@@ -116,23 +129,27 @@ Granted SELECT to `grafana_ro`. Seeded by migrations 3 and 11 (`ON CONFLICT DO N
 
 | Function | Returns | Purpose |
 |---|---|---|
-| `ensure_pilot_position_partitions(days_ahead int DEFAULT 7, p_today date DEFAULT NULL)` | int | Creates daily partitions for yesterday through today + `days_ahead` (UTC). Returns the number created. Run once by migration 2 and by the collector at start-up and daily. |
-| `drop_old_pilot_position_partitions(retention_days int, p_today date DEFAULT NULL)` | int | Drops partitions that end before today minus `retention_days`, unless they hold positions of a session whose `last_seen` is inside the window. Returns the number dropped. `retention_days` must be at least 1. |
+| `ensure_pilot_position_partitions(days_ahead int DEFAULT 7, p_today date DEFAULT NULL)` | int | Creates daily partitions for yesterday through today + `days_ahead` (UTC). Returns the number created. Run by the collector at start-up and daily (migration 21 made it `SECURITY DEFINER`). |
+| `drop_old_pilot_position_partitions(retention_days int, p_today date DEFAULT NULL)` | int | Drops partitions that end before today minus `retention_days`, unless they hold positions of a session whose `last_seen` is inside the window. Returns the number dropped. `retention_days` must be at least 1. Before dropping, it finalises the flights of the partition's sessions in `flight_summary`; it keeps the partition if that fails (migration 21). |
+| `refresh_flight_summary(p_since interval DEFAULT '12 hours')` | int | Recomputes `flight_summary` for every non-final session seen within `p_since` (NULL means every session on or after the oldest partition). Idempotent, `SECURITY DEFINER`, called by the collector every 5 minutes and by the maintenance task. Returns the rows changed. Its helper `refresh_flight_summary_sessions(bigint[], boolean)` is internal and not granted to the collector. |
+| `refresh_materialized_views()` | int | Refreshes every materialized view in `public` (concurrently where possible); none exist today. `SECURITY DEFINER`. |
 | `icao_is_home(code text)` | boolean | True when the code starts with any prefix in `home_icao_prefixes`. |
 | `icao_region(code text)` | text | Region from `region_map` by longest matching prefix, else `Unknown`. |
 | `rank_group_of(rating int)` | text | 1 OBS, 2 S1, 3 S2, 4 S3, 5 C1, 6 C2, 7 C3, 8 or above `I1+`, else `Unknown`. |
 
 ## 4. Views
 
-Created in migration 4 (core) and migration 10 (analytics). No materialized views exist at present (the maintenance task refreshes any that are added later).
+Created in migration 4 (core) and migration 10 (analytics); migration 20 redefines `flight` and `monday_attendance` over `flight_summary`, migration 24 adds the wall-clock guard to `online_now`, and migrations 30 and 31 add `controller_summaries`. No materialized views exist at present (the maintenance task refreshes any that are added later).
+
+The dashboards read these 16 relations and no others (checked by `python grafana/validate_dashboards.py`): `cohorts`, `controller_online_now`, `controller_session_ranked`, `controller_summaries`, `data_freshness`, `data_since`, `flight`, `flight_ext`, `monday_attendance`, `monitor_freshness`, `movements`, `near_miss_controllers`, `network_history`, `pilot_latest`, `pilot_online_now`, `poll_history`. The validator refuses base tables. Views no panel reads directly, but which others build on or which remain for ad-hoc use: `controller_session_merged`, `online_now`, `home_prefix`, `controller_activity_daily`, `controller_activity_summary`.
 
 ### Core (migration 4)
 
 | View | Meaning and key columns |
 |---|---|
-| `flight` | One row per flight: a pilot session after the gap/span split, with the flight gate applied. Columns: `session_id`, `gap_segment`, `span_part`, `cid`, `callsign`, `logon_time`, `name`, `home_icao`, `server`, `departure`, `arrival` (normalised: upper-case, trimmed), `aircraft_icao`, `aircraft_faa`, `flight_rules`, `route`, `remarks`, `planned_alt`, `deptime`, `pilot_rating`, `military_rating`, `start_time`, `end_time`, `duration`, `duration_minutes`, `airborne_minutes`, `max_gs_kt`, `max_alt_ft`, `sample_count`, `is_circuit`, `is_zzzz`, `touches_home_region`. Unique per `(session_id, gap_segment, span_part)`. |
+| `flight` | One row per flight: a thin view over `flight_summary` joined to `pilot_session` (plan fields are live; the numbers lag by up to 5 minutes), with the flight gate applied. Columns: `session_id`, `gap_segment`, `span_part`, `cid`, `callsign`, `logon_time`, `name`, `home_icao`, `server`, `departure`, `arrival` (normalised: upper-case, trimmed), `aircraft_icao`, `aircraft_faa`, `flight_rules`, `route`, `remarks`, `planned_alt`, `deptime`, `pilot_rating`, `military_rating`, `start_time`, `end_time`, `duration`, `duration_minutes`, `airborne_minutes`, `max_gs_kt`, `max_alt_ft`, `sample_count`, `is_circuit`, `is_zzzz`, `touches_home_region`. Unique per `(session_id, gap_segment, span_part)`. |
 | `controller_session_merged` | Controller sessions with reconnects merged. Columns: `cid`, `callsign`, `merge_group`, `first_session_id`, `session_count`, `name`, `rating`, `facility`, `server`, `frequency_hz` (latest values), `start_time` (earliest `logon_time`), `end_time` (last sighting), `duration`, `duration_hours`, `is_open`. |
-| `online_now` | Pilots and controllers seen within 30 seconds of the newest stored snapshot (`as_of`). Columns: `kind` (`pilot` or `controller`), `session_id`, `cid`, `callsign`, `name`, `logon_time`, `first_seen`, `last_seen`, `as_of`, then pilot fields (`departure`, `arrival`, `aircraft_icao`, `lat`, `lon`, `alt_ft`, `gs_kt`) or controller fields (`rating`, `facility`, `frequency_hz`). Relative to the newest snapshot, so check `data_freshness` to know whether that is itself stale. |
+| `online_now` | Pilots and controllers seen within 30 seconds of the newest stored snapshot (`as_of`), but only while that snapshot is itself under 5 minutes old (otherwise the view is empty). Columns: `kind` (`pilot` or `controller`), `session_id`, `cid`, `callsign`, `name`, `logon_time`, `first_seen`, `last_seen`, `as_of`, then pilot fields (`departure`, `arrival`, `aircraft_icao`, `lat`, `lon`, `alt_ft`, `gs_kt`) or controller fields (`rating`, `facility`, `frequency_hz`). Check `data_freshness` for how current the data is. |
 | `data_freshness` | One row: `checked_at`, `latest_snapshot_ts`, `snapshot_age_seconds`, `data_since`, `last_ok_poll_at`, `last_ok_age_seconds`, `ok_last_hour`, `skipped_last_hour`, `error_last_hour`. |
 
 ### Analytics (migration 10)
@@ -151,19 +168,23 @@ Created in migration 4 (core) and migration 10 (analytics). No materialized view
 | `flight_ext` | `flight` plus derived fields: `route_label`, `dep_is_home`, `arr_is_home`, `pilot_is_local`, `pilot_region`, `cid_group`, `airline_prefix`, `airline_name`, `aircraft_category`, `is_military`, `has_selcal`, `has_remarks`. |
 | `movements` | Departures (at `start_time`) and arrivals (at `end_time`) at home-region airports; ZZZZ excluded. Columns `airport`, `movement_type`, `movement_time`, `session_id`, `cid`, `callsign`. |
 | `cohorts` | Flights grouped by joining cohort: `cid_group` = `cid / 100000`, label such as `1000000-1099999`; group 0 excluded. |
-| `controller_session_ranked` | `controller_session_merged` with `rank_group`, `duration_minutes`, `is_ctr_fss` (callsign ends `_CTR` or `_FSS`). |
+| `controller_session_ranked` | `controller_session_merged` with `rank_group`, `session_start`, `session_end`, `duration_minutes` and `is_ctr_fss` (callsign ends `_CTR` or `_FSS`). Columns: `cid`, `callsign`, `name`, `rating`, `rank_group`, `facility`, `server`, `session_start`, `session_end`, `duration_minutes`, `is_ctr_fss`. |
+| `controller_summaries` | A v1-compatible view over `controller_session_ranked` so the recovered v1 Metabase SQL for the retention dashboard runs unchanged (migrations 30 and 31). Columns: `cid`, `name`, `rating`, `session_start_time`, `session_duration_minutes`, `callsign`, `session_end_time`. One row per merged controller session (a reconnect of the same CID and callsign within 5 minutes is one row; v1 counted such sessions twice). Read by `atc/atc-retention.json` and by the online-hours panels (cards 94 and 95) in `pilots/pilots-now.json`. |
 | `controller_activity_daily` | One row per controller per UTC day (session attributed to the day it started): `sessions`, `minutes`, `ctr_fss_minutes`, `rank_group`. |
-| `controller_activity_summary` | Per-controller summary behind the retention panels. **UNVERIFIED**: the definitions follow Metabase screenshots; the owner's Metabase export is still needed. |
-| `monday_attendance` | Per Monday since go-live, distinct pilot and controller CIDs present between 07:00Z and 12:00Z. |
+| `controller_activity_summary` | An earlier per-controller summary built from Metabase screenshots (**UNVERIFIED**). No dashboard reads it any more: the retention panels now use `controller_summaries`. Candidate for removal by a new migration. |
+| `monday_attendance` | Per Monday since go-live, distinct pilot and controller CIDs present between 07:00Z and 12:00Z. Columns: `monday_date`, `win_start`, `win_end`, `pilot_cids`, `controller_cids`. |
 
 ## 5. Roles
 
 | Role | Created by | Rights |
 |---|---|---|
-| `vatpac` (owner, from `POSTGRES_USER`) | Postgres image | Owns everything; used by `migrate`, `collector`, `backup`. |
-| `grafana_ro` | `db/roles.sql` | Login; read-only by default; `statement_timeout` 30 s; SELECT on all views and the six lookup tables; no base-table access; cannot create. |
+| `vatpac` (owner, from `POSTGRES_USER`) | Postgres image | Owns everything; used by `migrate` and, for restores only, by the `backup` service's restore scripts (ADR-017). Not used by the collector. |
+| `collector` | `db/roles.sql` | Login; SELECT, INSERT, UPDATE and DELETE on the tables it writes (`pilot_session`, `pilot_position`, `controller_session`, the two event tables, `network_snapshot`, `poll_log`, `controller_unlisted_sighting`, `reference_data_change`, `app_setting`); USAGE on sequences; EXECUTE on `ensure_pilot_position_partitions`, `drop_old_pilot_position_partitions`, `refresh_flight_summary` and `refresh_materialized_views`. No DDL, no access to `flight_summary` or the views. |
+| `backup_ro` | `db/roles.sql` | Login; member of `pg_read_all_data`; read-only by default. Used by the nightly `pg_dump`. |
+| `grafana_ro` | `db/roles.sql` | Login; connection limit 10; read-only by default; `statement_timeout` 30 s; SELECT on all views and the six lookup tables; no base-table access; cannot create. |
 | `watchdog_ro` | `ops/migrate/migrate.sh` | Login; read-only by default; `statement_timeout` 10 s; `pg_monitor`; SELECT on `poll_log`, `network_snapshot`, `controller_unlisted_sighting` only. |
 
 ## 6. Known gaps
 
-- The long-window and retention charts (and `controller_activity_summary`) are not verified against real data; only minutes of data existed on 07-10-2026.
+- The long-window and retention charts have no real history yet: there is no backfill (ADR-011), so 30 to 90 day measures say little until months after go-live, and the retention rule that counts every controller as reactivated holds until 60 days of history exist. They are tested on synthetic rows (`tests/integration/test_controller_retention.py`).
+- `controller_activity_summary` is unused and unverified (see above).

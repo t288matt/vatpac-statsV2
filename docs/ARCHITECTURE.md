@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated 07-10-2026. Authoritative sources: [SPEC.md](../SPEC.md) and [DECISIONS.md](DECISIONS.md). This page describes what the code in the repository does.
+Last reviewed 08-10-2026 against the repository. Authoritative sources: [SPEC.md](../SPEC.md) and [DECISIONS.md](DECISIONS.md). This page describes what the code in the repository does.
 
 ## 1. What it is
 
@@ -51,10 +51,10 @@ Defined in `docker-compose.yml` (project name `vatpac`, one internal network, `j
 | Service | Image / build | Role | Notes |
 |---|---|---|---|
 | `db` | `postgres:16.4-bookworm` | The database. | Named volume `pgdata`; `--data-checksums`; tuning in `ops/postgres/postgresql.conf`; healthcheck `pg_isready`; port not published (the dev overlay publishes `127.0.0.1:55432` only). |
-| `migrate` | `ops/migrate` (dbmate) | One-shot: applies `db/migrations/*.sql`, then `db/roles.sql` (`grafana_ro`) and creates `watchdog_ro`. | `restart: "no"`. Safe to re-run on every `up`. Other services wait for `service_completed_successfully`. |
-| `collector` | `collector/Dockerfile` | The only writer. Poll loop, daily maintenance, `/health` and `/metrics`. | Non-root, read-only filesystem, all capabilities dropped, `config/` mounted read-only at `/app/config`, 512 MB. |
-| `grafana` | `grafana/grafana-oss:11.2.2` | Dashboards, provisioned from `grafana/provisioning` and `grafana/dashboards` (read-only mounts). | Login required, anonymous access off, published on host port `GRAFANA_PORT` (default 3300). |
-| `backup` | `ops/backup` | Nightly `pg_dump` (custom format), rotation, restore test. | Volume `backups`; see [runbook: restore](RUNBOOKS/restore.md). |
+| `migrate` | `ops/migrate` (dbmate 2.21.0 and psql) | One-shot: applies new `db/migrations/*.sql`, then `db/roles.sql` (roles `grafana_ro`, `collector`, `backup_ro`) and creates `watchdog_ro`. | `restart: "no"`. Safe to re-run on every `up`. `./db` is mounted read-only, so new migration files need no image rebuild. Other services wait for `service_completed_successfully`. |
+| `collector` | `collector/Dockerfile` | The only writer. Poll loop, daily maintenance, `/health` and `/metrics`. | Connects as the least-privilege role `collector`. Non-root, read-only filesystem, all capabilities dropped, `config/` mounted read-only at `/app/config`, 512 MB. |
+| `grafana` | `grafana/grafana-oss:11.2.2` | Dashboards, provisioned from `grafana/provisioning` and `grafana/dashboards` (read-only mounts). | Login required, anonymous access off, published on `GRAFANA_BIND`:`GRAFANA_PORT` (default `127.0.0.1:3300`, loopback only; set `GRAFANA_BIND` for LAN access). Reads the database as `grafana_ro`. |
+| `backup` | `ops/backup` | Nightly `pg_dump` (custom format) as the read-only role `backup_ro`, rotation, weekly restore test, optional off-box hook (`BACKUP_REMOTE`). | Volume `backups`; see [runbook: restore](RUNBOOKS/restore.md). |
 | `watchdog` | `ops/watchdog` | Checks health and the database every 60 s and alerts. | Alert-only; see section 6. Writes a status file on volume `watchdog_status`. |
 
 All services except `migrate` use `restart: unless-stopped` and have healthchecks (the collector's calls its own `/health`).
@@ -72,22 +72,23 @@ Package `collector/src/vatpac/` (Python 3.12, asyncio):
 | `model.py` | Typed `Pilot`, `Controller`, `Snapshot`; parsing; plausibility caps; frequency conversion; `home_icao`. |
 | `filters.py` | The polygon filter, the controller whitelist, near-miss detection, reference-file loading and SHA-256 hashing. |
 | `store.py` | One transaction per snapshot; `poll_log` and `reference_data_change` writers. |
-| `maintenance.py` | Daily: publish settings to `app_setting`, create partitions, drop old partitions, trim `poll_log` (400 days), refresh any materialized views. |
-| `health.py` | aiohttp `/health` (200 when the last good poll is under 60 s old, else 503) and `/metrics` (Prometheus text). |
-| `main.py` | Supervisor: poll loop, maintenance loop, SIGHUP reload, signal handling. |
+| `maintenance.py` | At start-up and then daily: publish settings to `app_setting`, create partitions, refresh `flight_summary`, drop old partitions (finalising their flights first), trim `poll_log` (400 days), refresh any materialized views. `flight_summary` is also refreshed every 5 minutes by its own loop in `main.py`. |
+| `health.py` | aiohttp `/health` (200 only when the last `ok` poll is under 60 s old and the newest stored snapshot is under 120 s old, else 503; an unchanged feed does not count as progress) and `/metrics` (Prometheus text). |
+| `main.py` | Supervisor: poll loop, daily maintenance loop, 5-minute `flight_summary` refresh loop, SIGHUP reload, signal handling. |
 
 Behaviours worth knowing:
 
 - **Scheduling.** A monotonic scheduler: the next poll is due at the previous due time plus the interval, so there is no drift. If a poll overruns, missed ticks are skipped rather than fired in a burst.
-- **Reference files.** The polygon (`config/australian_airspace_polygon.json`) and whitelist (`config/controller_callsigns_list.txt`) are loaded once at start-up. A missing, unreadable or invalid file stops start-up with a non-zero exit (fail closed). On SIGHUP they are reloaded; an invalid new file is rejected, the previous one stays in use, and an error is logged. Their SHA-256 values are written to every `poll_log` row, and a change is recorded in `reference_data_change`.
+- **Reference files.** The polygon (`config/australian_airspace_polygon.json`) and whitelist (`config/controller_callsigns_list.txt`) are loaded once at start-up. A missing, unreadable or invalid file stops start-up with a non-zero exit (fail closed). On SIGHUP they are reloaded; an invalid new file, or a whitelist that shrinks to under 70% of its previous size, is rejected: the previous files stay in use, an error is logged and `/health` reports `reload_rejected` (the watchdog does not alert on this yet). Their SHA-256 values are written to every `poll_log` row, and a change is recorded in `reference_data_change`.
 - **Maintenance** runs once at start-up (partitions must exist before the first insert) and then every 24 hours; if a run has a failing task it is retried after 60 seconds. One failing task does not stop the others. If an insert is rejected because no partition covers the snapshot time, the collector runs maintenance immediately.
-- **Database connection** is a small pool (1 to 4 connections) that keeps retrying in the background if the database is not yet up.
+- **Database connection** is a small pool (1 to 4 connections) that keeps retrying in the background if the database is not yet up. Statement, lock and idle-in-transaction timeouts apply, and applying one snapshot is abandoned after 25 seconds.
+- **Bad records.** A single malformed or poisoned feed record is bisected out inside savepoints and counted; it never blocks the snapshot. A snapshot with more than 20% malformed entries is treated as an error.
 
 ## 5. Database layout in one paragraph
 
-Sessions (`pilot_session`, `controller_session`) are the identity tables, keyed `(cid, callsign, logon_time)`. Raw 15-second positions live in `pilot_position`, partitioned by day and kept 90 days. Controller rating and frequency changes are events. `network_snapshot` holds one row of headline counts per snapshot. `poll_log` holds one row per attempt. Views derive everything the dashboards need. Full detail in [DATA_DICTIONARY.md](DATA_DICTIONARY.md), definitions in [DEFINITIONS.md](DEFINITIONS.md).
+Sessions (`pilot_session`, `controller_session`) are the identity tables, keyed `(cid, callsign, logon_time)`. Raw 15-second positions live in `pilot_position`, partitioned by day and kept 90 days. `flight_summary` holds the per-flight aggregates, recomputed every 5 minutes and finalised before a partition is dropped, so flights outlive the raw positions (ADR-016). Controller rating and frequency changes are events. `network_snapshot` holds one row of headline counts per snapshot. `poll_log` holds one row per attempt. Views derive everything the dashboards need. Full detail in [DATA_DICTIONARY.md](DATA_DICTIONARY.md), definitions in [DEFINITIONS.md](DEFINITIONS.md).
 
-Grafana connects as `grafana_ro`: login role, `default_transaction_read_only = on`, 30 s statement timeout, SELECT on every view and the lookup tables, no access to base tables. Views run with their owner's privileges, which is why the role does not need table access.
+Grafana connects as `grafana_ro`: login role, connection limit 10, `default_transaction_read_only = on`, 30 s statement timeout, SELECT on every view and the lookup tables, no access to base tables. Views run with their owner's privileges, which is why the role does not need table access. A session can switch its own read-only default off, so the real protection is the lack of write privileges, which `ops/smoke.sh` proves.
 
 ## 6. Failure behaviour
 
@@ -98,12 +99,13 @@ Grafana connects as `grafana_ro`: login role, `default_transaction_read_only = o
 | Feed returns 429 | `Retry-After` is honoured. | Code path only; not exercised live. |
 | A bad poll (any exception) | Caught, logged, recorded in `poll_log`; the process never exits because of a poll. | By design (code); not separately demonstrated. |
 | Collector process crashes (for example an out-of-memory kill) | Docker restarts it (`unless-stopped`). | Yes, an OOM kill was restarted on 07-10-2026. Note: `docker kill` is treated by Docker as a manual stop and is not restarted; a genuine crash is. |
-| Collector running but unhealthy | Not restarted automatically. The watchdog alerts. Restarts need the external Docker endpoint (ADR-012). | Alerting verified; restart not in scope. |
+| The VM reboots | All containers come back by themselves (`unless-stopped`). | Yes, reboot test 07-10-2026 21:48 UTC: all five long-running containers returned unaided (docs/TRACKER.md, T2). |
+| Collector running but unhealthy | Not restarted automatically. The watchdog alerts. Restarts need the external Docker endpoint (ADR-012). | Alerting verified (see below); restart not in scope. |
 | Database down | Polls fail and are retried; the pool reconnects in the background; the `poll_log` row for those attempts cannot be written either (a failed write is logged, not raised). | Not separately verified. |
 | Reference file replaced with an invalid one | SIGHUP reload rejected, old file stays, error logged. A bad file at start-up stops the collector. | Loading and validation are unit tested; the SIGHUP path itself was not demonstrated. |
 | Near-miss controller callsign appears | Recorded in `controller_unlisted_sighting`, logged once at WARNING, watchdog alerts on the first sighting. | Detection logic is unit tested; the alert path was not demonstrated. |
 
-The watchdog (`ops/watchdog/watchdog.py`) checks the collector `/health`, the age of the newest `ok` poll and snapshot, database size, disk, newest backup age, Grafana `/api/health` and near-miss sightings, and alerts by Telegram on state change. It is **alert-only by default**: it has no Docker access, so container-state checks and capped restarts stay off unless `DOCKER_HOST_URL` points at an endpoint provided outside this repository (ADR-012). On 07-10-2026 it alerted and recovered correctly; Telegram was not configured, so alerts were logged only. Telegram delivery is **not yet verified**.
+The watchdog (`ops/watchdog/watchdog.py`) checks the collector `/health`, the age of the newest `ok` poll and snapshot, database size, disk, newest backup age, Grafana `/api/health` and near-miss sightings, and alerts by Telegram on state change. It is **alert-only by default**: it has no Docker access, so container-state checks and capped restarts stay off unless `DOCKER_HOST_URL` points at an endpoint provided outside this repository (ADR-012). On 07-10-2026 it alerted and recovered correctly while testing locally, and a Telegram test alert from the VM was delivered and confirmed by the owner (docs/TRACKER.md, T4). It also reads the weekly restore-test result. What each alert means and what to do is in [runbook: alerts](RUNBOOKS/alerts.md). It does not alert on a rejected reference-file reload (`/health` shows `reload_rejected`); that gap is known.
 
 ## 7. Deliberately out of scope
 
@@ -114,8 +116,19 @@ The watchdog (`ops/watchdog/watchdog.py`) checks the collector `/health`, the ag
 
 ## 8. Size and quality gates
 
-The collector package has a hard size budget of 1400 physical lines with no module over 300 (ADR-014), checked in CI by `ops/check_size_budget.py`. CI also runs ruff, mypy, the unit tests, `docker compose config`, image builds and a fixture PII check (`.github/workflows/ci.yml`).
+The collector package has a hard size budget of 1400 physical lines with no module over 300 (ADR-014), checked in CI by `ops/check_size_budget.py`. CI also runs ruff, mypy, the unit tests, the integration tests against a Postgres service, the config-drift and dashboard checks, `docker compose config`, image builds, a fixture PII check and a secret scan (`.github/workflows/ci.yml`).
 
 ## 9. Related documents
 
-[DATA_DICTIONARY.md](DATA_DICTIONARY.md), [DEFINITIONS.md](DEFINITIONS.md), [CONFIG_MAP.md](CONFIG_MAP.md), [CHART_DEFINITIONS.md](CHART_DEFINITIONS.md), [DASHBOARDS_SIMPLIFIED.md](DASHBOARDS_SIMPLIFIED.md), [DECISIONS.md](DECISIONS.md), [RUNBOOKS/](RUNBOOKS/).
+[DATA_DICTIONARY.md](DATA_DICTIONARY.md), [DEFINITIONS.md](DEFINITIONS.md), [CONFIG_MAP.md](CONFIG_MAP.md), [CHART_DEFINITIONS.md](CHART_DEFINITIONS.md), [DASHBOARDS_SIMPLIFIED.md](DASHBOARDS_SIMPLIFIED.md), [DECISIONS.md](DECISIONS.md), [RESUME.md](RESUME.md), [TRACKER.md](TRACKER.md), [RUNBOOKS/](RUNBOOKS/).
+
+## 10. Goal evidence
+
+The goal gate is the checklist at the foot of [TRACKER.md](TRACKER.md). This table records the evidence once it exists. Fill in the soak row (the full `ops/soak_report.sh 24` output, with the clock read from `ssh vatpac-v3 date -u`) and push, only after the soak has passed. Never record a result that was not produced in the session doing the recording.
+
+| Gate | Status on 08-10-2026 | Evidence |
+|---|---|---|
+| 24 h soak on the VM (verdict PASS) | Not yet met | To be recorded here: output of `sh ops/soak_report.sh 24` showing `PASS`. |
+| Reboot test | Met | 07-10-2026 21:48 UTC, all five long-running containers returned unaided, smoke passed, 0 panel errors (TRACKER T2). |
+| CI green on GitHub | Met | Owner confirmed all jobs green for commit e5816af and again with the pinned actions (TRACKER T3, T10). |
+| Telegram alert delivered | Met | Test alert accepted by Telegram and confirmed by the owner, 07-10-2026 (TRACKER T4). |

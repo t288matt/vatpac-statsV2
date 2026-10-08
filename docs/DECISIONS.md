@@ -59,5 +59,16 @@ Owner decision: the movements charts keep v1's definition. Every flight-gate ses
 ## ADR-019 Names and CIDs are retained indefinitely (07-10-2026)
 Owner decision, confirming ADR-009: no retention or anonymisation rule. Names and CIDs stay in the database and in backups for as long as the data is kept. The option of anonymising sessions older than 12 months (stable hash, so unique-person counts still work) was offered and declined. Consequence: backups hold real names and CIDs and must stay private; before any public exposure (Cloudflare), check the VATSIM data-use policy and put the dashboards behind login (see ADR-009). A later change needs a new ADR and a new numbered migration.
 
+## ADR-020 Chart rebuild decisions of 08-10-2026 (owner, in chat)
+Recorded here because SPEC.md says decisions belong in this log. Source: the owner's statements during the 08-10-2026 session, as written down in docs/RESUME.md section 2.
+- Cards 94 and 95 (when people are online) are rebuilt to match v1 counting; card 94 uses Monday to Friday (UTC), where v1 used Sunday, Monday and Saturday as a data workaround.
+- Cards 90 and 135 (most popular aircraft) keep the `aircraft_type` lookup categories, not v1's `LIKE` ladder.
+- The retention panels copy v1's rules exactly, including the quirk that "reactivated" needs no earlier session, so every controller counts as reactivated until 60 days of history exist.
+- Accepted risk (owner, 07-10-2026): the Telegram bot token appeared once in a session transcript and was not rotated.
+Consequence: the corresponding rows in CHART_DEFINITIONS.md describe these rules. A later change needs a new ADR.
+
 ## OPEN decisions for the owner
 - The backup container holds the owner password for the restore scripts (ADR-017); a dedicated restore-only role would be tighter.
+- Backfill of v1 history (ADR-011 says no backfill and stands until changed): the owner has not decided whether to load v1 sessions so the 30 to 90 day charts are meaningful immediately (docs/TRACKER.md, T22).
+- Data retention for every data set other than names and CIDs (docs/TRACKER.md, T12, low priority).
+- The chart questions listed in docs/RESUME.md section 4 (cards 66, 131, 134, 65, 41/43/98, 61, 93, 55 and others); they are definitions of individual charts and are answered there and in the tracker, not here.
