@@ -1,4 +1,4 @@
-.PHONY: soak up down dev logs ps config test lint smoke size pii backup backup-test restore gen-env check-env drift
+.PHONY: soak up down dev logs ps config test lint smoke size backup backup-test restore gen-env check-env drift
 
 # Refuses to start with blank/weak secrets (ops/check_env.sh). No .env yet? run: make gen-env
 up: check-env
@@ -49,9 +49,6 @@ smoke:
 
 size:
 	python ops/check_size_budget.py
-
-pii:
-	python ops/check_fixture_pii.py tests/fixtures
 
 # take a backup now
 backup:

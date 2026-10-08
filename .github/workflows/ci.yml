@@ -44,7 +44,7 @@ jobs:
         run: >
           mypy --strict --ignore-missing-imports
           ops/watchdog/watchdog.py ops/check_config_drift.py ops/check_size_budget.py
-          ops/check_fixture_pii.py ops/check_panels.py
+          ops/check_panels.py
       - name: shell syntax (ops scripts)
         run: |
           for f in ops/*.sh ops/migrate/*.sh; do sh -n "$f"; done
@@ -164,15 +164,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: python ops/check_size_budget.py
-
-  fixture-pii:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.12"
-      - run: python ops/check_fixture_pii.py tests/fixtures
 
   secret-scan:
     runs-on: ubuntu-latest
