@@ -216,3 +216,20 @@ def test_online_now_means_seen_in_the_last_two_snapshots(conn) -> None:
                      "VALUES (%s,%s,%s,%s,%s)", (cid, f"ON{cid}_TWR", t - timedelta(hours=1), t - timedelta(hours=1), t))
     rows = conn.execute("SELECT kind, cid FROM online_now ORDER BY kind, cid").fetchall()
     assert [(r["kind"], r["cid"]) for r in rows] == [("controller", 9730001), ("pilot", 9730001)]
+
+
+
+def test_online_lists_exclude_sessions_when_the_collector_has_been_silent(conn) -> None:
+    """Mutants V09 and V10 (5 minute wall-clock guard widened to 5 hours) on controller_online_now and
+    pilot_online_now: the newest snapshot and the sessions are 20 minutes old, so nobody is online."""
+    old = datetime.now(timezone.utc) - timedelta(minutes=20)
+    _snap(conn, old - timedelta(seconds=15))
+    _snap(conn, old)
+    partition_for(conn, old)
+    sid = conn.execute(SESSION_SQL, (9730010, "SILENT", old - timedelta(hours=1), old - timedelta(hours=1), old)).fetchone()["id"]
+    conn.execute("INSERT INTO pilot_position (observed_at, session_id, lat, lon, alt_ft, gs_kt) "
+                 "VALUES (%s,%s,-33.9,151.2,5000,250)", (old, sid))
+    conn.execute("INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen) "
+                 "VALUES (9730011,'SILENT_TWR',%s,%s,%s)", (old - timedelta(hours=1), old - timedelta(hours=1), old))
+    assert conn.execute("SELECT count(*) AS n FROM pilot_online_now").fetchone()["n"] == 0
+    assert conn.execute("SELECT count(*) AS n FROM controller_online_now").fetchone()["n"] == 0
