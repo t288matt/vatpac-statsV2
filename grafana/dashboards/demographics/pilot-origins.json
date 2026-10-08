@@ -310,7 +310,7 @@
       "id": 7,
       "type": "barchart",
       "title": "Active pilots and controllers (last 90 days, log scale)",
-      "description": "v1 card 93. Distinct pilots with at least 30 minutes airborne in a flight, and distinct controllers with sessions of at least 30 minutes by rating group. Log scale, as in v1. Changed from v1: pilots use airborne minutes (v1 used enroute minutes).",
+      "description": "v1 card 93 (SQL re-checked 08-10-2026). Distinct pilots with at least 30 minutes airborne in a flight, and distinct controllers with a session of at least 30 minutes that started or ended in the window, one bar per rating using v1's names (1 Obs to 11 Administrator, anything else Unknown). Log scale, as in v1. Changed from v1: pilots use airborne minutes (v1 used enroute minutes); reconnects within 5 minutes are one controller session.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -331,7 +331,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT label, people FROM (\n  SELECT 0 AS sort, 'Pilots' AS label, count(DISTINCT f.cid) AS people\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.airborne_minutes >= 30\n  UNION ALL\n  SELECT CASE c.rank_group WHEN 'OBS' THEN 1 WHEN 'S1' THEN 2 WHEN 'S2' THEN 3 WHEN 'S3' THEN 4 WHEN 'C1' THEN 5\n                           WHEN 'C2' THEN 6 WHEN 'C3' THEN 7 WHEN 'I1+' THEN 8 ELSE 9 END,\n         c.rank_group, count(DISTINCT c.cid)\n  FROM controller_session_ranked c\n  WHERE c.session_start BETWEEN $__timeFrom() AND $__timeTo()\n    AND c.duration_minutes >= 30\n  GROUP BY c.rank_group\n) x\nORDER BY sort"
+          "rawSql": "SELECT label, people FROM (\n  SELECT -100 AS sort, 'Pilots' AS label, count(DISTINCT f.cid) AS people\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.airborne_minutes >= 30\n  UNION ALL\n  SELECT c.rating,\n         CASE c.rating WHEN 1 THEN 'Obs' WHEN 2 THEN 'S1' WHEN 3 THEN 'S2' WHEN 4 THEN 'S3' WHEN 5 THEN 'C1'\n                       WHEN 6 THEN 'C2' WHEN 7 THEN 'C3' WHEN 8 THEN 'I1' WHEN 9 THEN 'I2' WHEN 10 THEN 'I3'\n                       WHEN 11 THEN 'Administrator' ELSE 'Unknown' END,\n         count(DISTINCT c.cid)\n  FROM controller_session_ranked c\n  WHERE (c.session_start BETWEEN $__timeFrom() AND $__timeTo() OR c.session_end BETWEEN $__timeFrom() AND $__timeTo())\n    AND c.duration_minutes >= 30\n  GROUP BY c.rating\n) x\nORDER BY sort"
         }
       ],
       "options": {
