@@ -367,3 +367,13 @@ def test_data_freshness_counts_only_the_last_hour(conn) -> None:
     conn.execute("INSERT INTO poll_log (status, polled_at) VALUES ('ok', now() - interval '2 hours')")
     conn.execute("INSERT INTO poll_log (status, polled_at) VALUES ('ok', now())")
     assert conn.execute("SELECT ok_last_hour FROM data_freshness").fetchone()["ok_last_hour"] == 1
+
+
+
+def test_pilot_latest_ignores_sessions_older_than_three_hours(conn) -> None:
+    """Mutant V23 (3 h -> 30 h)."""
+    old = datetime.now(timezone.utc) - timedelta(hours=5)
+    partition_for(conn, old)
+    sid = conn.execute(SESSION_SQL, (9850001, "OLD1", old, old, old)).fetchone()["id"]
+    conn.execute("INSERT INTO pilot_position (observed_at, session_id, gs_kt) VALUES (%s,%s,250)", (old, sid))
+    assert conn.execute("SELECT count(*) AS n FROM pilot_latest").fetchone()["n"] == 0
