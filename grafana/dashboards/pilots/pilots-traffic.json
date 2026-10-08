@@ -399,8 +399,8 @@
     {
       "id": 11,
       "type": "piechart",
-      "title": "Most popular aircraft by pilots (last 30 days)",
-      "description": "v1 card 135. Distinct pilots per aircraft category from the aircraft_type lookup. Same category change as the flights chart.",
+      "title": "Most popular aircraft by pilots (last 6 months)",
+      "description": "v1 card 135 (SQL re-checked 08-10-2026). Distinct pilots per aircraft category over the last 6 months, counting only flights with some airborne time and a filed aircraft type (v1: enroute minutes above 0, aircraft type not empty). Categories come from the aircraft_type lookup, not v1's LIKE ladder (open question for the owner). v1's average-time-with-ATC column is dropped (ATC matching is out of scope, ADR-002).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -421,7 +421,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(aircraft_category, 'Other / uncategorised') AS category,\n       count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1\nORDER BY pilots DESC"
+          "rawSql": "SELECT COALESCE(aircraft_category, 'Other / uncategorised') AS category,\n       count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.aircraft_icao IS NOT NULL AND f.aircraft_icao <> ''\n  AND f.airborne_minutes > 0\nGROUP BY 1\nORDER BY pilots DESC"
         }
       ],
       "options": {
@@ -446,13 +446,14 @@
       "fieldConfig": {
         "defaults": {},
         "overrides": []
-      }
+      },
+      "timeFrom": "180d"
     },
     {
       "id": 12,
       "type": "table",
       "title": "Highest groundspeeds (last 7 days)",
-      "description": "v1 card 61. Peak groundspeed per callsign (top 20). Excludes military, supersonic, business jets, turboprops and regional jets using the aircraft_type lookup. Changed from v1: uses the maximum groundspeed stored on the session (capped at 700 kt on ingest) and the highest altitude reached, not the altitude at the moment of peak speed.",
+      "description": "v1 card 61 (SQL re-checked 08-10-2026). Peak groundspeed per callsign (top 20) over the last 7 days. Flights need a destination, a peak above 100 kt and a highest altitude above 1000 ft. Excludes military (lookup), supersonic, business jets and turboprops (lookup) plus the v1 code list entries the lookup lacks, including the Embraer E-series; other regional jets are NOT excluded, as in v1. Changed from v1: uses the maximum groundspeed stored on the session (capped at 700 kt on ingest) and the highest altitude reached, not the altitude at the moment of peak speed.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -473,7 +474,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT callsign, pilot, aircraft_icao AS aircraft, departure, arrival,\n       max_gs_kt AS \"Peak groundspeed (kt)\", max_alt_ft AS \"Highest altitude (ft)\", end_time AS \"Flight ended\"\nFROM (\n  SELECT f.callsign, f.name AS pilot, f.aircraft_icao, f.departure, f.arrival, f.max_gs_kt, f.max_alt_ft, f.end_time,\n         row_number() OVER (PARTITION BY f.callsign ORDER BY f.max_gs_kt DESC, f.end_time DESC) AS rn\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.max_gs_kt IS NOT NULL\n    AND NOT f.is_military\n    AND COALESCE(f.aircraft_category, '') NOT IN ('Supersonic', 'Business jet', 'Turboprop', 'Regional jet')\n) ranked\nWHERE rn = 1\nORDER BY max_gs_kt DESC\nLIMIT 20"
+          "rawSql": "SELECT callsign, pilot, aircraft_icao AS aircraft, departure, arrival,\n       max_gs_kt AS \"Peak groundspeed (kt)\", max_alt_ft AS \"Highest altitude (ft)\", end_time AS \"Flight ended\"\nFROM (\n  SELECT f.callsign, f.name AS pilot, f.aircraft_icao, f.departure, f.arrival, f.max_gs_kt, f.max_alt_ft, f.end_time,\n         row_number() OVER (PARTITION BY f.callsign ORDER BY f.max_gs_kt DESC, f.end_time DESC) AS rn\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.max_gs_kt > 100 AND f.max_gs_kt <= 750\n    AND f.max_alt_ft > 1000\n    AND f.arrival IS NOT NULL AND f.arrival <> ''\n    AND f.aircraft_icao IS NOT NULL\n    AND NOT f.is_military\n    AND COALESCE(f.aircraft_category, '') NOT IN ('Supersonic', 'Business jet', 'Turboprop')\n    AND f.aircraft_icao <> ALL (ARRAY['E135', 'E145', 'E170', 'E175', 'E190', 'E195',\n         'F18H', 'VF35', 'BE90', 'GLF7', 'FAL7', 'FAL8', 'FAL9', 'FAL0',\n         'AT42', 'DH8Q', 'PC21', 'EMB1', 'EMB2', 'EMB3', 'EMB4', 'EMB5'])\n    AND f.aircraft_icao NOT LIKE 'MIG%' AND f.aircraft_icao NOT LIKE 'MIR%'\n    AND f.aircraft_icao NOT LIKE 'F-%' AND f.aircraft_icao NOT LIKE 'SU-%' AND f.aircraft_icao NOT LIKE 'TU-%'\n) ranked\nWHERE rn = 1\nORDER BY max_gs_kt DESC\nLIMIT 20"
         }
       ],
       "options": {},
@@ -522,7 +523,7 @@
       "id": 14,
       "type": "table",
       "title": "Busiest days by pilots online (last 6 months)",
-      "description": "v1 card 129. The five UTC dates with the most distinct pilots (by flight start).",
+      "description": "v1 card 129 (SQL re-checked 08-10-2026). The ten UTC dates with the most distinct pilots, counted by the date the pilot logged on (v1 used the session logon date, not the flight start), over the last 6 months, with weekday and rank.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -543,7 +544,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT (f.start_time AT TIME ZONE 'UTC')::date AS flight_date,\n       trim(to_char(f.start_time AT TIME ZONE 'UTC', 'Day')) AS day_name,\n       count(DISTINCT f.cid) AS unique_pilots\nFROM flight_ext f\nWHERE f.start_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1, 2\nORDER BY unique_pilots DESC, flight_date DESC\nLIMIT 5"
+          "rawSql": "SELECT (f.logon_time AT TIME ZONE 'UTC')::date AS member_date,\n       trim(to_char(f.logon_time AT TIME ZONE 'UTC', 'Day')) AS day_name,\n       count(DISTINCT f.cid) AS unique_pilots,\n       row_number() OVER (ORDER BY count(DISTINCT f.cid) DESC, (f.logon_time AT TIME ZONE 'UTC')::date DESC) AS rank\nFROM flight f\nWHERE f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1, 2\nORDER BY unique_pilots DESC, member_date DESC\nLIMIT 10"
         }
       ],
       "options": {},
