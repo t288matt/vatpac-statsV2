@@ -1,5 +1,5 @@
-# Keeps third-party GitHub Actions and base images current. Once the workflow actions are pinned to
-# commit SHAs (see TODO comments in .github/workflows), Dependabot updates the SHA and the tag comment.
+# Keeps third-party GitHub Actions and base images current. The workflow actions are pinned to full
+# commit SHAs with a tag comment (T10); Dependabot updates both the SHA and the tag comment.
 version: 2
 updates:
   - package-ecosystem: github-actions
