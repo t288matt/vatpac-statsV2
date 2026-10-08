@@ -247,3 +247,17 @@ def test_trim_poll_log_removes_only_rows_older_than_400_days(conn) -> None:
     ages = sorted(round(r["d"]) for r in conn.execute(
         "SELECT extract(epoch FROM now() - polled_at) / 86400 AS d FROM poll_log").fetchall())
     assert ages == [1, 399]
+
+
+
+def test_flight_refresh_covers_sessions_seen_in_the_last_twelve_hours(conn) -> None:
+    """Mutant C29 (window 12 h -> 1 minute): refresh_flights() with its default window refreshes a session last seen
+    11 hours ago but not one last seen 13 hours ago."""
+    from vatpac.maintenance import refresh_flights
+
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    make_session(conn, 9740001, run(10, start=now - timedelta(hours=11)))
+    make_session(conn, 9740002, run(10, start=now - timedelta(hours=13)))
+    assert refresh_flights(conn) == 1
+    got = [r["cid"] for r in conn.execute("SELECT cid FROM flight_summary WHERE cid IN (9740001, 9740002)").fetchall()]
+    assert got == [9740001]
