@@ -12,7 +12,6 @@ def test_zero_or_negative_frequency_is_none(text: str) -> None:
     assert parse_frequency_hz(text) is None
 
 
-
 def _payload(fixture_payload: dict) -> dict:
     import copy
 
@@ -29,7 +28,6 @@ def test_heading_of_360_is_kept(fixture_payload: dict) -> None:
     assert next(x for x in snap.pilots if x.cid == p["pilots"][0]["cid"]).heading == 360
 
 
-
 def test_global_pilot_count_includes_malformed_entries(fixture_payload: dict) -> None:
     """Mutant C25: pilots_global is the feed's own count (network-wide), whatever the collector could parse."""
     from vatpac.model import parse_snapshot
@@ -40,7 +38,6 @@ def test_global_pilot_count_includes_malformed_entries(fixture_payload: dict) ->
     p["pilots"].append(broken)
     snap = parse_snapshot(p)
     assert snap.malformed == 1 and snap.pilots_global == len(p["pilots"])
-
 
 
 def test_update_timestamp_with_an_offset_is_converted_to_utc(fixture_payload: dict) -> None:

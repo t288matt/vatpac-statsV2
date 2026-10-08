@@ -49,13 +49,11 @@ def test_controller_whitelist_is_an_exact_case_sensitive_match(db, payload, expe
     assert stored == expected["controllers_kept_callsigns"]
 
 
-
 def test_pilots_with_plan_needs_both_departure_and_arrival(db, payload, expected, refdata) -> None:
     """Mutant C11: pilots_with_plan counted a pilot with only one end filed. The fixture has pilots inside the
     polygon with a departure but an empty arrival (TESTNOARR1/2); they must not be counted."""
     res = apply(db, at(payload), refdata)
     assert res.pilots_with_plan == len(expected["pilots_passing_flight_gate_inside"])
-
 
 
 def test_replaying_a_snapshot_does_not_count_a_near_miss_poll_twice(db, payload, refdata) -> None:
@@ -68,7 +66,6 @@ def test_replaying_a_snapshot_does_not_count_a_near_miss_poll_twice(db, payload,
     assert [(r["callsign"], r["polls_seen"]) for r in rows] == [("AD_XYZ_TWR", 1), ("ML_XYZ_CTR", 1)]
 
 
-
 # ------------------------------------------------------------------ flight_summary boundaries
 
 def test_groundspeed_of_exactly_60_kt_is_airborne(conn) -> None:
@@ -77,7 +74,6 @@ def test_groundspeed_of_exactly_60_kt_is_airborne(conn) -> None:
     make_session(conn, 9700001, run(5, gs=60))
     row = flights(conn, 9700001)[0]
     assert float(row["airborne_minutes"]) == pytest.approx(4 * 15 / 60, abs=0.01)  # 1.0
-
 
 
 def test_samples_exactly_120_minutes_apart_still_count_as_airborne_time(conn) -> None:
@@ -89,7 +85,6 @@ def test_samples_exactly_120_minutes_apart_still_count_as_airborne_time(conn) ->
     assert float(rows[0]["airborne_minutes"]) == pytest.approx(40 / 60, abs=0.01)
 
 
-
 def test_samples_121_minutes_apart_add_no_airborne_time(conn) -> None:
     make_session(conn, 9700003, [(T0, 250), (T0 + timedelta(minutes=121), 250)])
     rows = flights(conn, 9700003)
@@ -97,12 +92,10 @@ def test_samples_121_minutes_apart_add_no_airborne_time(conn) -> None:
     assert [float(r["airborne_minutes"]) for r in rows] == [0.0, 0.0]
 
 
-
 def test_airborne_minutes_keep_two_decimals(conn) -> None:
     """Mutant S08 (round to 0 places): 7 gaps of 15 s = 105 s = 1.75 minutes."""
     make_session(conn, 9700004, run(8, gs=250))
     assert float(flights(conn, 9700004)[0]["airborne_minutes"]) == 1.75
-
 
 
 # ------------------------------------------------------------------ partition retention boundaries
@@ -135,7 +128,6 @@ def test_retention_drops_exactly_the_days_older_than_ninety(conn) -> None:
     assert _partitions(conn) == {"pilot_position_20260709", "pilot_position_20260808"}
 
 
-
 def test_session_last_seen_exactly_at_the_cutoff_pins_its_partition(conn) -> None:
     """Mutant S21 (`>` instead of `>=` in the pinning rule)."""
     old = datetime(2026, 6, 1, 10, tzinfo=timezone.utc)
@@ -143,7 +135,6 @@ def test_session_last_seen_exactly_at_the_cutoff_pins_its_partition(conn) -> Non
     _session_with_position(conn, 9710010, old, cutoff)
     assert conn.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07') AS n").fetchone()["n"] == 0
     assert "pilot_position_20260601" in _partitions(conn)
-
 
 
 def test_ensure_partitions_creates_yesterday_and_seven_days_ahead(conn) -> None:
@@ -156,7 +147,6 @@ def test_ensure_partitions_creates_yesterday_and_seven_days_ahead(conn) -> None:
     assert got == {f"pilot_position_202610{d:02d}" for d in range(6, 15)}
 
 
-
 def test_daily_maintenance_creates_seven_partitions_ahead_by_default(conn) -> None:
     """Mutant C27 (PARTITIONS_AHEAD = 1): `run_maintenance` relies on the default, which no test exercised."""
     from vatpac.maintenance import run_maintenance
@@ -166,7 +156,6 @@ def test_daily_maintenance_creates_seven_partitions_ahead_by_default(conn) -> No
     assert out["failed"] == 0
     today = datetime.now(timezone.utc).date()
     assert f"pilot_position_{today + timedelta(days=7):%Y%m%d}" in _partitions(conn)
-
 
 
 # ------------------------------------------------------------------ controller reconnect merge
@@ -197,7 +186,6 @@ def test_reconnect_after_exactly_five_minutes_is_one_session(conn) -> None:
     assert len(_merged(conn, 9720003)) == 2
 
 
-
 # ------------------------------------------------------------------ online_now windows
 def _snap(conn, ts: datetime) -> None:
     conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (ts,))
@@ -218,7 +206,6 @@ def test_online_now_means_seen_in_the_last_two_snapshots(conn) -> None:
     assert [(r["kind"], r["cid"]) for r in rows] == [("controller", 9730001), ("pilot", 9730001)]
 
 
-
 def test_online_lists_exclude_sessions_when_the_collector_has_been_silent(conn) -> None:
     """Mutants V09 and V10 (5 minute wall-clock guard widened to 5 hours) on controller_online_now and
     pilot_online_now: the newest snapshot and the sessions are 20 minutes old, so nobody is online."""
@@ -235,7 +222,6 @@ def test_online_lists_exclude_sessions_when_the_collector_has_been_silent(conn) 
     assert conn.execute("SELECT count(*) AS n FROM controller_online_now").fetchone()["n"] == 0
 
 
-
 # ------------------------------------------------------------------ maintenance housekeeping
 def test_trim_poll_log_removes_only_rows_older_than_400_days(conn) -> None:
     """Mutants C28 (4 days) and C31 (deletes recent rows): poll_log retention is 400 days (SPEC section 6)."""
@@ -249,7 +235,6 @@ def test_trim_poll_log_removes_only_rows_older_than_400_days(conn) -> None:
     assert ages == [1, 399]
 
 
-
 def test_flight_refresh_covers_sessions_seen_in_the_last_twelve_hours(conn) -> None:
     """Mutant C29 (window 12 h -> 1 minute): refresh_flights() with its default window refreshes a session last seen
     11 hours ago but not one last seen 13 hours ago."""
@@ -261,7 +246,6 @@ def test_flight_refresh_covers_sessions_seen_in_the_last_twelve_hours(conn) -> N
     assert refresh_flights(conn) == 1
     got = [r["cid"] for r in conn.execute("SELECT cid FROM flight_summary WHERE cid IN (9740001, 9740002)").fetchall()]
     assert got == [9740001]
-
 
 
 def test_sync_settings_publishes_the_values_the_views_read(conn) -> None:
@@ -279,13 +263,11 @@ def test_sync_settings_publishes_the_values_the_views_read(conn) -> None:
         conn.execute("DELETE FROM app_setting WHERE key IN ('home_icao_prefixes', 'airborne_gap_cap_seconds')")
 
 
-
 def test_a_zzzz_arrival_is_flagged_as_zzzz(conn) -> None:
     """Mutant S13 (`is_zzzz` looked only at the departure): the existing flag test only has ZZZZ as departure."""
     make_session(conn, 9700010, run(5), dep="YSSY", arr="ZZZZ")
     row = flights(conn, 9700010)[0]
     assert row["is_zzzz"] is True and row["is_circuit"] is False
-
 
 
 def test_run_maintenance_uses_the_configured_retention(conn) -> None:
@@ -298,7 +280,6 @@ def test_run_maintenance_uses_the_configured_retention(conn) -> None:
     out = run_maintenance(conn, Settings(position_retention_days=60))
     assert out["failed"] == 0
     assert name in _partitions(conn)
-
 
 
 # ------------------------------------------------------------------ Monday attendance, controller open flag, views
@@ -321,7 +302,6 @@ def test_monday_attendance_edges_for_controllers_and_unplanned_pilots(conn) -> N
     assert [(r["Pilots"], r["Controllers"]) for r in rows] == [(1, 1)]
 
 
-
 def test_monday_attendance_includes_the_current_weeks_monday(conn) -> None:
     """Mutant S19 (series stops a week early)."""
     now = datetime.now(timezone.utc)
@@ -329,7 +309,6 @@ def test_monday_attendance_includes_the_current_weeks_monday(conn) -> None:
     this_monday = now.date() - timedelta(days=now.weekday())
     got = conn.execute("SELECT max(monday_date) AS d FROM monday_attendance").fetchone()["d"]
     assert got == this_monday
-
 
 
 def test_controller_is_open_only_when_seen_in_the_newest_snapshot(conn) -> None:
@@ -342,14 +321,12 @@ def test_controller_is_open_only_when_seen_in_the_newest_snapshot(conn) -> None:
     assert got == {9820001: True, 9820002: False}
 
 
-
 def test_rating_groups_s3_and_c3_have_their_own_columns(conn) -> None:
     """Mutants V11 and V12 (rank_group_of mislabels ratings 7 and 4): the existing test only asserts S3 and C3 are 0."""
     atc14.add_session(conn, 9830001, atc14.M1, 90, rating=4)
     atc14.add_session(conn, 9830002, atc14.M1, 90, rating=7)
     row = atc14.by_month(conn, atc14.RATING_TITLE)[atc14.M1]
     assert {k: v for k, v in row.items() if k != "time"} == {"S1": 0, "S2": 0, "S3": 1, "C1": 0, "C3": 1, "I1+": 0}
-
 
 
 def test_movements_ignore_zzzz_and_cohorts_ignore_cids_below_100000(conn) -> None:
@@ -361,13 +338,11 @@ def test_movements_ignore_zzzz_and_cohorts_ignore_cids_below_100000(conn) -> Non
     assert [r["cohort"] for r in conn.execute("SELECT DISTINCT cohort FROM cohorts WHERE cid IN (50000, 150000)").fetchall()] == ["100000-199999"]
 
 
-
 def test_data_freshness_counts_only_the_last_hour(conn) -> None:
     """Mutant V18 (hour -> day)."""
     conn.execute("INSERT INTO poll_log (status, polled_at) VALUES ('ok', now() - interval '2 hours')")
     conn.execute("INSERT INTO poll_log (status, polled_at) VALUES ('ok', now())")
     assert conn.execute("SELECT ok_last_hour FROM data_freshness").fetchone()["ok_last_hour"] == 1
-
 
 
 def test_pilot_latest_ignores_sessions_older_than_three_hours(conn) -> None:
@@ -377,7 +352,6 @@ def test_pilot_latest_ignores_sessions_older_than_three_hours(conn) -> None:
     sid = conn.execute(SESSION_SQL, (9850001, "OLD1", old, old, old)).fetchone()["id"]
     conn.execute("INSERT INTO pilot_position (observed_at, session_id, gs_kt) VALUES (%s,%s,250)", (old, sid))
     assert conn.execute("SELECT count(*) AS n FROM pilot_latest").fetchone()["n"] == 0
-
 
 
 # ------------------------------------------------------------------ pilot panels
@@ -411,13 +385,11 @@ def test_card_61_speed_and_altitude_boundaries(conn) -> None:
     assert [r["callsign"] for r in _run(conn, p14.TRAFFIC, p14.SPEED)] == ["OK1"]
 
 
-
 def test_card_93_a_pilot_with_exactly_30_airborne_minutes_counts(conn) -> None:
     """Mutant P30 (`>= 31`)."""
     p14.add_flight(conn, 9860010, airborne=30, days_ago=10)
     p14.add_flight(conn, 9860011, airborne=29.9, days_ago=10)
     assert p14.people(conn)["Pilots"] == 1
-
 
 
 def test_international_and_domestic_routes_are_separated(conn) -> None:
@@ -430,7 +402,6 @@ def test_international_and_domestic_routes_are_separated(conn) -> None:
     assert intl == {"YSSY-EGLL", "EGLL-KJFK"} and dom == {"YSSY-YMML"}
 
 
-
 def test_vfr_routes_need_three_distinct_pilots(conn) -> None:
     """Mutant P22 (minimum 3 pilots -> 2)."""
     for cid, arr in ((9860030, "YBBN"), (9860031, "YBBN"), (9860032, "YBBN"), (9860033, "YMML"), (9860034, "YMML")):
@@ -438,7 +409,6 @@ def test_vfr_routes_need_three_distinct_pilots(conn) -> None:
         conn.execute("UPDATE pilot_session SET flight_rules = 'V' WHERE id = %s", (sid,))
     rows = _run(conn, p14.TRAFFIC, "Most popular VFR routes (last 30 days)")
     assert [(r["route"], r["pilots"]) for r in rows] == [("YSSY-YBBN", 3)]
-
 
 
 def test_popular_callsigns_need_two_distinct_pilots(conn) -> None:
@@ -450,14 +420,12 @@ def test_popular_callsigns_need_two_distinct_pilots(conn) -> None:
     assert [(r["callsign"], r["unique_pilots"]) for r in rows] == [("QFA1", 2)]
 
 
-
 def test_airlines_need_three_letters_and_a_digit(conn) -> None:
     """Mutants P26 and V14: a private registration such as VHABC must not appear as an airline (card 58)."""
     p14.add_flight(conn, 9860050, callsign="QFA123")
     p14.add_flight(conn, 9860051, callsign="VHABC")
     rows = _run(conn, p14.TRAFFIC, "Most popular airlines (last 30 days)")
     assert [r["flights"] for r in rows] == [1]
-
 
 
 def test_selcal_percentage_uses_flights_with_remarks_and_the_sel_slash_marker(conn) -> None:
@@ -467,7 +435,6 @@ def test_selcal_percentage_uses_flights_with_remarks_and_the_sel_slash_marker(co
         conn.execute("UPDATE pilot_session SET remarks = %s WHERE id = %s", (remarks, sid))
     rows = _run(conn, p14.TRAFFIC, "Flights with SELCAL in the remarks")
     assert float(rows[0]["SELCAL (%)"]) == 33.33
-
 
 
 def test_diverse_routes_only_count_flights_over_sixty_minutes(conn) -> None:
@@ -480,13 +447,11 @@ def test_diverse_routes_only_count_flights_over_sixty_minutes(conn) -> None:
     assert [(r["pilot"], r["unique_routes"]) for r in rows] == [("Pilot 9860071", 2)]
 
 
-
 def test_busiest_days_shows_five_rows(conn) -> None:
     """Mutant P25 (top 5 -> top 50)."""
     for i in range(7):
         p14.add_flight(conn, 9860080 + i, days_ago=1 + i)
     assert len(_run(conn, p14.TRAFFIC, "Busiest days by flights (last 6 months)")) == 5
-
 
 
 def test_servers_panel_counts_home_region_pilots_only(conn) -> None:
@@ -498,14 +463,12 @@ def test_servers_panel_counts_home_region_pilots_only(conn) -> None:
     assert [(r["server"], r["pilots"]) for r in rows] == [("SYDNEY", 1)]
 
 
-
 def test_military_aircraft_panel_lists_only_military_types(conn) -> None:
     """Mutant P37 (military flag inverted)."""
     p14.add_flight(conn, 9860100, aircraft="F16", days_ago=1)
     p14.add_flight(conn, 9860101, aircraft="B738", days_ago=1)
     rows = _run(conn, ev14.MILITARY, "Most popular military aircraft (unique pilots, last 7 days)")
     assert [r["aircraft"] for r in rows] == ["F16"]
-
 
 
 def test_raafv_routes_panel_shows_at_most_25_routes(conn) -> None:
@@ -517,7 +480,6 @@ def test_raafv_routes_panel_shows_at_most_25_routes(conn) -> None:
                         remarks=ev14.RAAFV_REMARKS)
     rows = ev14.run_panel(conn, ev14.MILITARY, "Most popular RAAFv routes", now - timedelta(days=30), now)
     assert len(rows) == 25
-
 
 
 def test_departure_board_airborne_starts_at_60_kt(conn) -> None:
@@ -539,7 +501,6 @@ def test_departure_board_airborne_starts_at_60_kt(conn) -> None:
     assert got == {"BRD60": "AIRBORNE", "BRD59": "TAXIING"}
 
 
-
 def test_pilots_online_now_shows_the_newest_snapshot(conn) -> None:
     """Mutant P18 (ORDER BY ... ASC): the 'now' tile must read the newest snapshot, not the oldest."""
     now = datetime.now(timezone.utc)
@@ -550,7 +511,6 @@ def test_pilots_online_now_shows_the_newest_snapshot(conn) -> None:
     assert _run(conn, pn, "Pilots online now (network-wide)")[0]["Pilots"] == 70
 
 
-
 # ------------------------------------------------------------------ ATC panels
 def test_controllers_logged_on_needs_more_than_sixty_minutes(conn) -> None:
     """Mutant P05 (60 -> 6 minutes) on card 115."""
@@ -558,7 +518,6 @@ def test_controllers_logged_on_needs_more_than_sixty_minutes(conn) -> None:
     atc15.add(conn, 9880002, atc15.days_ago(3), 90, rating=2)
     rows = {r["rank_group"]: r["controllers"] for r in atc15.run(conn, "Controllers logged on (last 30 days)")}
     assert rows["S1"] == 1
-
 
 
 def test_top_50_providers_includes_short_sessions_and_stops_at_fifty(conn) -> None:
@@ -571,12 +530,10 @@ def test_top_50_providers_includes_short_sessions_and_stops_at_fifty(conn) -> No
     assert len(atc15.run(conn, title)) == 50
 
 
-
 def test_card_63_exactly_sixty_minutes_does_not_count(conn) -> None:
     """Mutant P02 (`>= 60`)."""
     atc14.add_session(conn, 9890001, atc14.M1, 60, callsign="TEST_CTR")
     assert atc14.by_month(conn, atc14.CTR_TITLE)[atc14.M1]["Controllers"] == 0
-
 
 
 def test_card_63_window_is_30_days_to_month_end(conn) -> None:
@@ -586,19 +543,16 @@ def test_card_63_window_is_30_days_to_month_end(conn) -> None:
     assert atc14.by_month(conn, atc14.CTR_TITLE)[atc14.M1]["Controllers"] == 1
 
 
-
 def test_card_116_exactly_sixty_minutes_does_not_count(conn) -> None:
     """Mutant P04 (`>= 60`)."""
     atc14.add_session(conn, 9890003, atc14.M1, 60, rating=3)
     assert atc14.by_month(conn, atc14.RATING_TITLE)[atc14.M1]["S2"] == 0
 
 
-
 def test_retention_active_window_is_thirty_days(conn) -> None:
     """Mutant P08 (30 -> 31 days)."""
     ret.add_session(conn, 9000001, 30.5, 10)
     assert ret.scalar(conn, "Active controllers") == 0
-
 
 
 def test_retention_rate_needs_sessions_over_sixty_minutes(conn) -> None:
@@ -608,13 +562,11 @@ def test_retention_rate_needs_sessions_over_sixty_minutes(conn) -> None:
     assert float(ret.scalar(conn, "Controller retention rate")) == 0.0
 
 
-
 def test_help_list_threshold_is_under_18_minutes(conn) -> None:
     """Mutant P11 (18 -> 25 minutes): a 20 minute session is not 'short'."""
     ret.add_session(conn, 9000003, 5, 20)
     assert ret.cids(conn, "Who might need help reactivating?") == set()
     assert ret.cids(conn, "Who reactivated after being away for more than 60 days?") == {9000003}
-
 
 
 def test_online_hours_atc_minimums_are_inclusive(conn) -> None:
@@ -626,13 +578,11 @@ def test_online_hours_atc_minimums_are_inclusive(conn) -> None:
     assert hours.run(conn, hours.WEEKENDS) == {9: (0, 1)}
 
 
-
 def test_online_hours_ignore_flights_older_than_thirty_days(conn) -> None:
     """Mutant P15 (window 30 -> 90 days)."""
     old = hours.last_day(3) - timedelta(days=42)
     hours.add_flight(conn, old, (10, 0), old.replace(hour=11))
     assert hours.run(conn, hours.WEEKDAYS) == {}
-
 
 
 def test_panel_windows_match_their_titles() -> None:
