@@ -1,8 +1,5 @@
 name: ci
 
-# Third-party actions are referenced by tag. TODO pin each to a full commit SHA (the exact SHAs could
-# not be looked up offline); .github/dependabot.yml proposes SHA-pinned bumps once they are pinned.
-
 on:
   push:
     branches: [main, dev]
@@ -24,8 +21,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # TODO pin to SHA
-      - uses: actions/setup-python@v5 # TODO pin to SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
           cache: pip
@@ -56,8 +53,8 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # TODO pin to SHA
-      - uses: actions/setup-python@v5 # TODO pin to SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
           cache: pip
@@ -91,8 +88,8 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: ci-superuser-pw
     steps:
-      - uses: actions/checkout@v4 # TODO pin to SHA
-      - uses: actions/setup-python@v5 # TODO pin to SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
           cache: pip
@@ -125,8 +122,8 @@ jobs:
   config-drift:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # TODO pin to SHA
-      - uses: actions/setup-python@v5 # TODO pin to SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - run: pip install pyyaml==6.0.2
@@ -136,8 +133,8 @@ jobs:
   dashboards:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # TODO pin to SHA
-      - uses: actions/setup-python@v5 # TODO pin to SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - run: python grafana/validate_dashboards.py
@@ -145,7 +142,7 @@ jobs:
   compose-config:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # TODO pin to SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Validate compose files with a generated throwaway env
         # .env.example has blank secrets by design, so compose would fail on it
         run: |
@@ -162,8 +159,8 @@ jobs:
   size-budget:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # TODO pin to SHA
-      - uses: actions/setup-python@v5 # TODO pin to SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - run: python ops/check_size_budget.py
@@ -171,8 +168,8 @@ jobs:
   fixture-pii:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # TODO pin to SHA
-      - uses: actions/setup-python@v5 # TODO pin to SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - run: python ops/check_fixture_pii.py tests/fixtures
@@ -180,10 +177,10 @@ jobs:
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # TODO pin to SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2 # TODO pin to SHA
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -191,8 +188,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [compose-config]
     steps:
-      - uses: actions/checkout@v4 # TODO pin to SHA
-      - uses: docker/setup-buildx-action@v3 # TODO pin to SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Build all images (no push)
         run: |
           sh ops/gen_env.sh "$RUNNER_TEMP/ci.env"
