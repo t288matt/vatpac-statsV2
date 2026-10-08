@@ -12,7 +12,7 @@ Last updated: 08-10-2026 (VM clock)
 | ID | Item | Status | Detail / next step |
 |----|------|--------|--------------------|
 | T1 | 24 h gap-free soak on the VM | WAITING | Clock restarted by the reboot test (one 45 s gap). Earliest PASS about 21:50 UTC on 08-10-2026. Check: `sh ops/soak_report.sh 24` on the VM. |
-| T2 | VM reboot test | DONE | 07-10-2026 21:48 UTC: all five containers returned unaided, smoke passes, 0 panel errors, 0 restarts. |
+| T2 | VM reboot test | DONE (not repeated after the deploy, owner decision 08-10-2026: the restart policies are unchanged, so the first pass still applies) | 07-10-2026 21:48 UTC: all five containers returned unaided, smoke passes, 0 panel errors, 0 restarts. |
 | T3 | CI green on main | DONE | Re-confirmed by the owner 08-10-2026 for commit e5816af (all jobs green, including the new integration tests). 07-10-2026: lint fixed in 6e3d131, size-budget fixed in 7f5641a; owner confirmed the newest ci run on main is green. |
 | T4 | Telegram alert delivery | DONE | 07-10-2026: credentials set on the VM, watchdog recreated, test alert accepted by Telegram (HTTP 200) and confirmed received by the owner. Accepted risk (owner, 07-10-2026): the bot token appeared in a session transcript via a debug script and was not rotated; rotate via BotFather if in doubt. |
 | T5 | Retention and reactivation charts | IN PROGRESS | 08-10-2026: live Metabase found on the owner's docker host; card SQL exported (161 cards, ids to 186). Real definitions differ from the v3 assumptions (active = session in last 30 days; reactivated = session in last 30 days and none 30-90 days ago; help = all recent sessions under 18 min; lapsed 30/60/90+ bands). Rebuild pending, see T13. |
