@@ -329,3 +329,14 @@ def test_monday_attendance_includes_the_current_weeks_monday(conn) -> None:
     this_monday = now.date() - timedelta(days=now.weekday())
     got = conn.execute("SELECT max(monday_date) AS d FROM monday_attendance").fetchone()["d"]
     assert got == this_monday
+
+
+
+def test_controller_is_open_only_when_seen_in_the_newest_snapshot(conn) -> None:
+    """Mutant V05 (is_open window 30 s -> 30 min)."""
+    now = datetime.now(timezone.utc)
+    _snap(conn, now)
+    _ctrl_session(conn, now - timedelta(hours=1), now - timedelta(seconds=5), 9820001, "OPEN_TWR")
+    _ctrl_session(conn, now - timedelta(hours=2), now - timedelta(minutes=10), 9820002, "SHUT_TWR")
+    got = {r["cid"]: r["is_open"] for r in conn.execute("SELECT cid, is_open FROM controller_session_merged").fetchall()}
+    assert got == {9820001: True, 9820002: False}
