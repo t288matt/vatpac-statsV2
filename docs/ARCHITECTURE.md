@@ -36,7 +36,7 @@ VATPAC Stats v3 polls the public VATSIM data feed every 15 seconds, keeps the pi
 Step by step, per poll (`collector/src/vatpac/main.py`, `Collector.poll_once`):
 
 1. Fetch the feed. The feed URL is discovered from `https://status.vatsim.net/status.json` (`data.v3[0]`) at start-up, with `VATSIM_FEED_URL` as the fallback.
-2. Read `general.update_timestamp`. If it is not newer than the last processed snapshot, the poll is recorded as `skipped_unchanged` and retried in about 2 seconds (never less than 2 s, at most 5 s, depending on `Cache-Control`).
+2. Read `general.update_timestamp`. If it is not newer than the last processed snapshot (after a restart: the newest stored one, read from the database at start-up), the poll is recorded as `skipped_unchanged` and retried in about 2 seconds (never less than 2 s, at most 5 s, depending on `Cache-Control`). A timestamp more than `FEED_MAX_FUTURE_SECONDS` (default 120) ahead of the collector clock is rejected first, as an `error` poll (audit F2, issue 34); this needs the VM clock to be right (NTP).
 3. Otherwise parse the snapshot. A snapshot with no pilots and no controllers at all is treated as an outage (an error), not as data.
 4. `apply_snapshot` runs in one database transaction: pilot upserts and position inserts, controller upserts and rating/frequency events, near-miss controller sightings, and the `network_snapshot` row. Every row uses the snapshot's own timestamp as `observed_at`.
 5. A `poll_log` row is written for every attempt, including failures. This write is separate from the snapshot transaction, so a failed snapshot still leaves its error row.
