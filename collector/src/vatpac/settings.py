@@ -7,6 +7,9 @@ POSITION_RETENTION_DAYS [90]. AIRBORNE_GAP_CAP_SECONDS [40] and HOME_ICAO_PREFIX
 to app_setting for the SQL views. LOG_LEVEL [INFO]. POLYGON_PATH / WHITELIST_PATH: reference files [/app/config/...].
 HEALTH_PORT [8080]. CIRCUIT_FAILURE_THRESHOLD [5] consecutive failures open the breaker; CIRCUIT_SLOW_INTERVAL_SECONDS
 [60] is the cadence while open (polling never stops).
+ARCHIVE_ENABLED [true] ARCHIVE_DIR [/archive] ARCHIVE_COMPACT_EVERY_S [300] ARCHIVE_FULL_EVERY_S [3600]
+ARCHIVE_COMPACT_KEEP_DAYS [30] ARCHIVE_FULL_KEEP_DAYS [7] ARCHIVE_ANOMALY_KEEP_DAYS [90] ARCHIVE_MAX_MB [1024]
+ARCHIVE_GAP_S [35]: the rolling raw-feed archive (archive.py, docs/RUNBOOKS/feed-archive.md).
 """
 
 from __future__ import annotations
@@ -39,6 +42,15 @@ class Settings(BaseSettings):
     health_port: int = Field(8080, ge=1, le=65535)
     circuit_failure_threshold: int = Field(5, ge=1, le=1000)
     circuit_slow_interval_seconds: float = Field(60.0, ge=5, le=3600)
+    archive_enabled: bool = True
+    archive_dir: str = "/archive"
+    archive_compact_every_s: int = Field(300, ge=1, le=86400)
+    archive_full_every_s: int = Field(3600, ge=1, le=604800)
+    archive_compact_keep_days: float = Field(30.0, gt=0, le=3650)
+    archive_full_keep_days: float = Field(7.0, gt=0, le=3650)
+    archive_anomaly_keep_days: float = Field(90.0, gt=0, le=3650)
+    archive_max_mb: int = Field(1024, ge=1, le=1_000_000)
+    archive_gap_s: float = Field(35.0, ge=16, le=3600)
 
     @field_validator("log_level", mode="before")
     @classmethod

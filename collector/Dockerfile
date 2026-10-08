@@ -23,7 +23,8 @@ LABEL org.opencontainers.image.title="vatpac-stats-collector" \
       org.opencontainers.image.version="${VERSION}"
 
 RUN groupadd --system --gid 10001 vatpac \
- && useradd --system --uid 10001 --gid vatpac --no-create-home --shell /usr/sbin/nologin vatpac
+ && useradd --system --uid 10001 --gid vatpac --no-create-home --shell /usr/sbin/nologin vatpac \
+ && mkdir /archive && chown vatpac:vatpac /archive
 
 COPY --from=build /opt/venv /opt/venv
 WORKDIR /app
