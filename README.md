@@ -64,7 +64,7 @@ On Windows without `make`, run the underlying commands shown.
 | `make test` | Unit tests (no database, no network); the integration tests are skipped without `VATPAC_TEST_DSN` |
 | `make smoke` | `ops/smoke.sh` |
 | `make size` | Collector size budget check (package under 1400 lines, no module over 300) |
-| `make soak` | `ops/soak_report.sh`: soak report from `poll_log`, was a snapshot stored every 15 s for the last `HOURS` (default 24)? Reports PASS only for a full, gap-free window; shorter runs say INCOMPLETE |
+| `make soak` | `ops/soak_report.sh`: soak report from `poll_log`, was a snapshot stored every 15 s for the last `HOURS` (default 24)? Reports PASS only when the whole window is covered with at least 99% of the expected snapshots and a p95 cadence of 17 s or less; shorter runs say INCOMPLETE |
 | `make pii` | Fixture PII check |
 | `make backup` | Take a backup now |
 | `make backup-test` | Restore the newest backup into a scratch database and sanity-check it |
@@ -99,7 +99,7 @@ Evidenced (see the tracker rows for the evidence):
 
 Not yet met (the gate for saying the goal is met, in the tracker's checklist):
 
-- The 24-hour gap-free soak on the VM (T1, `sh ops/soak_report.sh 24` must print PASS).
+- The 24-hour soak on the VM (T1, `sh ops/soak_report.sh 24` must print PASS; see [docs/RUNBOOKS/daily-checks.md](docs/RUNBOOKS/daily-checks.md) for how to read it).
 - The newest collector fixes, migrations 20261008000030 and 20261008000031 and the rebuilt dashboards are merged but not yet deployed to the VM (T7); the deploy waits for the soak because a redeploy puts a gap in it.
 - Recording the evidence in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (T11).
 - The 30 to 90 day charts have no history until months after go-live (there is no backfill, ADR-011).

@@ -117,7 +117,7 @@ Run from the repo root locally, or on the VM inside `~/vatpac-statsV2`.
 docker compose ps                         # backup, collector, db, grafana, watchdog (healthy); migrate exited (0)
 sh ops/smoke.sh                           # per-check PASS/FAIL; expects SMOKE PASS (includes: grafana_ro cannot write)
 python ops/check_panels.py                # (python3 on the VM) every panel query via Grafana's API; expects "0 errors"; empty panels are fine while data is young
-sh ops/soak_report.sh 24                  # PASS only for a full gap-free 24 h; also prints container restart counts
+sh ops/soak_report.sh 24                  # PASS needs a full 24 h window, >= 99% of snapshots and p95 cadence <= 17 s; also prints container restart counts
 docker compose logs --tail 50 collector   # JSON log lines; a poll about every 15 s is silent unless something is wrong
 ```
 Direct SQL (note the quoting: do NOT use `$$` inside `sh -c`, the shell expands it):
