@@ -1,6 +1,6 @@
 # Data dictionary
 
-Last reviewed 08-10-2026 against the repository. Source: `db/migrations/*.sql` (14 migrations, `20261007000001` to `20261008000080`; applied by the `migrate` service with dbmate, tested on PostgreSQL 16.4) and `db/roles.sql`. All timestamps are `timestamptz` (UTC). Ids are `bigint`. Definitions of the derived measures are in [DEFINITIONS.md](DEFINITIONS.md).
+Last reviewed 08-10-2026 against the repository. Source: `db/migrations/*.sql` (15 migrations, `20261007000001` to `20261008000090`; applied by the `migrate` service with dbmate, tested on PostgreSQL 16.4) and `db/roles.sql`. All timestamps are `timestamptz` (UTC). Ids are `bigint`. Definitions of the derived measures are in [DEFINITIONS.md](DEFINITIONS.md).
 
 Dashboards read **views and lookups only** through the role `grafana_ro`.
 
@@ -139,9 +139,9 @@ Granted SELECT to `grafana_ro`. Seeded by migrations 3 and 11 (`ON CONFLICT DO N
 
 ## 4. Views
 
-Created in migration 4 (core) and migration 10 (analytics); migration 20 redefines `flight` and `monday_attendance` over `flight_summary`, migration 24 adds the wall-clock guard to `online_now`, migrations 30 and 31 add `controller_summaries`, and migration 80 adds `pilot_sample`. No materialized views exist at present (the maintenance task refreshes any that are added later).
+Created in migration 4 (core) and migration 10 (analytics); migration 20 redefines `flight` and `monday_attendance` over `flight_summary`, migration 24 adds the wall-clock guard to `online_now`, migrations 30 and 31 add `controller_summaries`, migration 80 adds `pilot_sample`, and migration 90 drops the unused view `controller_activity_summary` (owner decision 08-10-2026). No materialized views exist at present (the maintenance task refreshes any that are added later).
 
-The dashboards read these 17 relations and no others (checked by `python grafana/validate_dashboards.py`): `cohorts`, `controller_online_now`, `controller_session_ranked`, `controller_summaries`, `data_freshness`, `data_since`, `flight`, `flight_ext`, `monday_attendance`, `monitor_freshness`, `movements`, `near_miss_controllers`, `network_history`, `pilot_latest`, `pilot_online_now`, `pilot_sample`, `poll_history`. The validator refuses base tables. Views no panel reads directly, but which others build on or which remain for ad-hoc use: `controller_session_merged`, `online_now`, `home_prefix`, `controller_activity_daily`, `controller_activity_summary`.
+The dashboards read these 17 relations and no others (checked by `python grafana/validate_dashboards.py`): `cohorts`, `controller_online_now`, `controller_session_ranked`, `controller_summaries`, `data_freshness`, `data_since`, `flight`, `flight_ext`, `monday_attendance`, `monitor_freshness`, `movements`, `near_miss_controllers`, `network_history`, `pilot_latest`, `pilot_online_now`, `pilot_sample`, `poll_history`. The validator refuses base tables. Views no panel reads directly, but which others build on or which remain for ad-hoc use: `controller_session_merged`, `online_now`, `home_prefix`, `controller_activity_daily`.
 
 ### Core (migration 4)
 
@@ -172,7 +172,6 @@ The dashboards read these 17 relations and no others (checked by `python grafana
 | `controller_summaries` | A v1-compatible view over `controller_session_ranked` so the recovered v1 Metabase SQL for the retention dashboard runs unchanged (migrations 30 and 31). Columns: `cid`, `name`, `rating`, `session_start_time`, `session_duration_minutes`, `callsign`, `session_end_time`. One row per merged controller session (a reconnect of the same CID and callsign within 5 minutes is one row; v1 counted such sessions twice). Read by `atc/atc-retention.json` and by the online-hours panels (cards 94 and 95) in `pilots/pilots-now.json`. |
 | `pilot_sample` | A plain column-subset view over `pilot_position` (migration 80, 08-10-2026): `observed_at`, `session_id`, `alt_ft`, `gs_kt`. No filter, no aggregation and no join, so a predicate on `observed_at` still prunes the daily partitions. It exists because dashboards may read views only (`grafana_ro` has no base-table access) and card 156 (airborne aircraft per 5-minute slot during the latest Monday event, `events/monday-events.json`) needs raw altitude samples. It carries no sector or frequency logic (ADR-002). Retention is that of `pilot_position` (90 days); `alt_ft` and `gs_kt` are NULL where the collector rejected an out-of-range value. `grafana_ro` receives SELECT through the all-views grant in `db/roles.sql`. |
 | `controller_activity_daily` | One row per controller per UTC day (session attributed to the day it started): `sessions`, `minutes`, `ctr_fss_minutes`, `rank_group`. |
-| `controller_activity_summary` | An earlier per-controller summary built from Metabase screenshots (**UNVERIFIED**). No dashboard reads it any more: the retention panels now use `controller_summaries`. Candidate for removal by a new migration. |
 | `monday_attendance` | Per Monday since go-live, distinct pilot and controller CIDs present between 07:00Z and 12:00Z. Columns: `monday_date`, `win_start`, `win_end`, `pilot_cids`, `controller_cids`. |
 
 ## 5. Roles
@@ -188,4 +187,3 @@ The dashboards read these 17 relations and no others (checked by `python grafana
 ## 6. Known gaps
 
 - The long-window and retention charts have no real history yet: there is no backfill (ADR-011), so 30 to 90 day measures say little until months after go-live, and the retention rule that counts every controller as reactivated holds until 60 days of history exist. They are tested on synthetic rows (`tests/integration/test_controller_retention.py`).
-- `controller_activity_summary` is unused and unverified (see above).

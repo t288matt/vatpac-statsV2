@@ -55,7 +55,7 @@ These are disagreements or gaps that the code cannot settle. The documents were 
 3. **Card 134 window (and other chart questions).** SPEC section 10 and card 131 use the Monday event window 0700-1200Z; v1 still uses 0800-1200Z for card 134 while the repo uses 0700 for both (`docs/CHART_DEFINITIONS.md`, `docs/RESUME.md` section 4 item 3). The rest of the chart questions in RESUME section 4 (cards 66, 131, 65, 41/43/98, 61, 93, the meaning of v1 enroute time, card 55 total column) are the same kind: definitions only you can settle. They are tracked in RESUME and the tracker, and ADR-020 points to them.
 4. **Backup container holds the owner password** (ADR-017, already listed as open): a restore-only role would be tighter.
 5. **Data retention for all data sets** other than names and CIDs (T12, low priority) and the **off-box backup copy** (T17), **outside heartbeat** (T19): no documented decision yet. The alerts runbook lists the heartbeat gap under "What does not alert".
-6. **`controller_activity_summary` view.** It is unused by any dashboard and was built from screenshots (UNVERIFIED). Keep or remove by a new migration? (Low.)
+6. **`controller_activity_summary` view.** It is unused by any dashboard and was built from screenshots (UNVERIFIED). Keep or remove by a new migration? (Low.) **Resolved 08-10-2026 (owner): removed** by migration 20261008000090 (the down section recreates it).
 7. **Closing T5.** The audit changed T5 to "DONE (rebuilt in T13)" because its own text says the rebuild was pending on T13 and T13 is done. Confirm that the owner agrees T5 is closed.
 
 ## 3. Documents judged fine (after the edits above)
