@@ -606,3 +606,11 @@ def test_retention_rate_needs_sessions_over_sixty_minutes(conn) -> None:
     ret.add_session(conn, 9000001, 5, 60)
     ret.add_session(conn, 9000002, 45, 30)
     assert float(ret.scalar(conn, "Controller retention rate")) == 0.0
+
+
+
+def test_help_list_threshold_is_under_18_minutes(conn) -> None:
+    """Mutant P11 (18 -> 25 minutes): a 20 minute session is not 'short'."""
+    ret.add_session(conn, 9000003, 5, 20)
+    assert ret.cids(conn, "Who might need help reactivating?") == set()
+    assert ret.cids(conn, "Who reactivated after being away for more than 60 days?") == {9000003}
