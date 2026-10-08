@@ -558,3 +558,14 @@ def test_controllers_logged_on_needs_more_than_sixty_minutes(conn) -> None:
     atc15.add(conn, 9880002, atc15.days_ago(3), 90, rating=2)
     rows = {r["rank_group"]: r["controllers"] for r in atc15.run(conn, "Controllers logged on (last 30 days)")}
     assert rows["S1"] == 1
+
+
+
+def test_top_50_providers_includes_short_sessions_and_stops_at_fifty(conn) -> None:
+    """Mutants P07 (zero-length filter becomes 600 minutes) and P06 (limit 50 -> 5)."""
+    title = "Top 50 service providers (last 30 days)"
+    atc15.add(conn, 9880100, atc15.days_ago(3), 5)
+    assert len(atc15.run(conn, title)) == 1
+    for i in range(51):
+        atc15.add(conn, 9881000 + i, atc15.days_ago(3), 10 + i)
+    assert len(atc15.run(conn, title)) == 50
