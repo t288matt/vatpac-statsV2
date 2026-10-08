@@ -183,6 +183,170 @@
         "overrides": []
       },
       "timeFrom": "98d"
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "RAAFv flights (last 7 days)",
+      "description": "v1 card 142 ('Show RAAFVIRTUAL flights last 7 days', edited 22-09-2025). RAAFv flights are those whose flight-plan remarks contain RAAFVIRTUAL.ORG (case-insensitive). Window is logon time in the last 7 days (UTC). One row per distinct callsign, CID, name, aircraft type, route, remarks and logon time; flights without a filed departure and arrival are not listed (v3 flight gate); newest 500. Names and CIDs are shown by decision (ADR-009, ADR-019).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT f.callsign, f.cid, f.name,\n       upper(btrim(f.aircraft_icao)) AS aircraft_type,\n       f.departure, f.arrival, f.remarks, f.logon_time\nFROM flight f\nWHERE f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\n  AND f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\nORDER BY f.logon_time DESC, f.callsign\nLIMIT 500"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "7d"
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "RAAFv flights by aircraft type (last 30 days)",
+      "description": "v1 card 143 ('RAAFV flights by acft type - last 30 days', edited 18-10-2025). RAAFv = remarks contain RAAFVIRTUAL.ORG. Flights ending in the last 30 days (UTC), per aircraft type: distinct sessions, airborne minutes and hours (v1 summed total_enroute_time_minutes; v3 uses airborne minutes) and average airborne hours per flight. Top 50 types by hours. Shown as a table, as in v1.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(NULLIF(f.aircraft_icao, ''), '(none)') AS aircraft_type,\n       count(DISTINCT f.session_id) AS total_flights,\n       round(sum(COALESCE(f.airborne_minutes, 0))) AS total_airborne_minutes,\n       round(sum(COALESCE(f.airborne_minutes, 0)) / 60.0, 2) AS total_airborne_hours,\n       round(avg(COALESCE(f.airborne_minutes, 0)) / 60.0, 2) AS avg_airborne_hours_per_flight\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\nGROUP BY 1\nORDER BY total_airborne_hours DESC, aircraft_type\nLIMIT 50"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "30d"
+    },
+    {
+      "id": 7,
+      "type": "piechart",
+      "title": "Most popular RAAFv aircraft last month (flights)",
+      "description": "v1 card 161 ('What were the most popular RAAFv aircraft last month (flights)?', edited 07-10-2025). RAAFv = remarks contain RAAFVIRTUAL.ORG. Flights by aircraft type with logon in the last 30 days (UTC), one count per session (v1 de-duplicated on callsign and logon time, keeping the latest row). Top 25 types; the share column is of all RAAFv flights.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT t.aircraft AS aircraft,\n       count(*) AS \"Flights\",\n       round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS \"% of RAAFv flights\"\nFROM (\n  SELECT COALESCE(NULLIF(upper(btrim(f.aircraft_icao)), ''), '(none)') AS aircraft,\n         row_number() OVER (PARTITION BY f.session_id ORDER BY f.end_time DESC) AS rn\n  FROM flight f\n  WHERE f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\n    AND f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\n) t\nWHERE t.rn = 1\nGROUP BY t.aircraft\nORDER BY count(*) DESC, t.aircraft\nLIMIT 25"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^Flights$/"
+        },
+        "pieType": "pie",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "30d"
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Flights flown by RAAFv aircraft per week (last 14 weeks)",
+      "description": "v1 card 184 ('Flights flown by RAAFv aircraft per week', edited 02-01-2026). RAAFv = remarks contain RAAFVIRTUAL.ORG. Flights ending in each UTC week (weeks start Monday; v1 labelled the week start 'week_end'), last 98 days. Shown oldest to newest as bars; the current week is partial.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('week', f.end_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       count(*) AS \"RAAFv flights\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "98d"
     }
   ]
 }
