@@ -61,7 +61,8 @@ def populated(conn):
 def test_view_exposes_the_v1_columns(conn):
     add_session(conn, 9000001, 1, 20, rating=5, name="Controller 9000001")
     row = conn.execute("SELECT * FROM controller_summaries").fetchone()
-    assert set(row) == {"cid", "name", "rating", "session_start_time", "session_duration_minutes"}
+    assert set(row) == {"cid", "name", "rating", "session_start_time", "session_duration_minutes",
+                        "callsign", "session_end_time"}
     assert row["cid"] == 9000001 and row["rating"] == 5
     assert round(float(row["session_duration_minutes"])) == 20
 
