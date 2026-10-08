@@ -133,3 +133,13 @@ def test_retention_drops_exactly_the_days_older_than_ninety(conn) -> None:
     dropped = conn.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07') AS n").fetchone()["n"]
     assert dropped == 1
     assert _partitions(conn) == {"pilot_position_20260709", "pilot_position_20260808"}
+
+
+
+def test_session_last_seen_exactly_at_the_cutoff_pins_its_partition(conn) -> None:
+    """Mutant S21 (`>` instead of `>=` in the pinning rule)."""
+    old = datetime(2026, 6, 1, 10, tzinfo=timezone.utc)
+    cutoff = datetime(2026, 7, 9, tzinfo=timezone.utc)
+    _session_with_position(conn, 9710010, old, cutoff)
+    assert conn.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07') AS n").fetchone()["n"] == 0
+    assert "pilot_position_20260601" in _partitions(conn)
