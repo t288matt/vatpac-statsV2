@@ -4,7 +4,7 @@ Last reviewed 08-10-2026. Each definition is taken from SPEC.md section 5 and ch
 
 ## 1. Flight (pilot session)
 
-**v3.** A pilot session is identified by `(cid, callsign, logon_time)`. A new `logon_time` for the same CID and callsign is a new session. Departure, arrival, aircraft and route are attributes, never part of the key.
+**v3.** A pilot session is identified by `(cid, callsign, logon_time)`, where `logon_time` is in whole seconds (truncated, not rounded; the feed's fraction is dropped on purpose, ADR-021). A new whole-second `logon_time` for the same CID and callsign is a new session. Departure, arrival, aircraft and route are attributes, never part of the key.
 
 A session becomes one or more **flights**, computed into the table `flight_summary` (refreshed every 5 minutes, so flight numbers lag live data by up to 5 minutes) and exposed by the `flight` view:
 
@@ -45,7 +45,7 @@ Frequency handling is the controller-side equivalent: `121.700` becomes 12170000
 
 ## 5. Controller session
 
-**v3.** Identified by `(cid, callsign, logon_time)`. Start is `logon_time`; end is the last sighting (`last_seen`). A controller is stored only if their callsign is on the whitelist (exact, case-sensitive).
+**v3.** Identified by `(cid, callsign, logon_time)` with `logon_time` in whole seconds (ADR-021). Start is `logon_time`; end is the last sighting (`last_seen`). A controller is stored only if their callsign is on the whitelist (exact, case-sensitive).
 
 **Merging.** The view `controller_session_merged` merges reconnects: a session that starts within 5 minutes of the previous session's last sighting (same CID and callsign) joins the same group. Start = earliest `logon_time`, end = latest sighting.
 
