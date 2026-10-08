@@ -3,6 +3,8 @@
 Single source of truth for open work on the v3 goal. Update it in the same commit as the change it describes.
 Times are UTC. Statuses: TODO, IN PROGRESS, BLOCKED (owner), WAITING (time), DONE.
 
+Resume note for a cold start (usage-limit reset): docs/RESUME.md
+
 Last updated: 08-10-2026 13:30 UTC
 
 | ID | Item | Status | Detail / next step |
