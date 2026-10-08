@@ -349,3 +349,13 @@ def test_rating_groups_s3_and_c3_have_their_own_columns(conn) -> None:
     atc14.add_session(conn, 9830002, atc14.M1, 90, rating=7)
     row = atc14.by_month(conn, atc14.RATING_TITLE)[atc14.M1]
     assert {k: v for k, v in row.items() if k != "time"} == {"S1": 0, "S2": 0, "S3": 1, "C1": 0, "C3": 1, "I1+": 0}
+
+
+
+def test_movements_ignore_zzzz_and_cohorts_ignore_cids_below_100000(conn) -> None:
+    """Mutants V16 (ZZZZ departures counted as movements) and V17 (cohort 0 included)."""
+    p14.add_flight(conn, 9840001, dep="YSSY", arr="ZZZZ")
+    assert conn.execute("SELECT count(*) AS n FROM movements").fetchone()["n"] == 0
+    p14.add_flight(conn, 50000, dep="YSSY", arr="YMML")
+    p14.add_flight(conn, 150000, dep="YSSY", arr="YMML")
+    assert [r["cohort"] for r in conn.execute("SELECT DISTINCT cohort FROM cohorts WHERE cid IN (50000, 150000)").fetchall()] == ["100000-199999"]
