@@ -67,11 +67,12 @@ def test_grafana_ro_timezone_is_pinned_to_utc(conn) -> None:
     if not role_exists(conn, "grafana_ro"):
         pytest.skip("role grafana_ro not created (apply db/roles.sql)")
     row = conn.execute("SELECT rolconfig FROM pg_roles WHERE rolname = 'grafana_ro'").fetchone()
-    assert "timezone=UTC" in row["rolconfig"]
+    # Postgres stores the canonical GUC name ("TimeZone=UTC"), so compare case-insensitively.
+    assert "timezone=utc" in [c.lower() for c in row["rolconfig"]]
     # Same catalog the task names: the setting is a role-level default (setdatabase = 0), not per-database.
     n = conn.execute("SELECT count(*) AS n FROM pg_db_role_setting s JOIN pg_roles r ON r.oid = s.setrole "
                      "WHERE r.rolname = 'grafana_ro' AND s.setdatabase = 0 "
-                     "AND 'timezone=UTC' = ANY (s.setconfig)").fetchone()["n"]
+                     "AND 'timezone=utc' = ANY (SELECT lower(c) FROM unnest(s.setconfig) AS c)").fetchone()["n"]
     assert n == 1
 
 
