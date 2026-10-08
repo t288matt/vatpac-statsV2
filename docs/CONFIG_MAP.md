@@ -33,6 +33,15 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `LOG_LEVEL` | `INFO` | collector | `DEBUG`, `INFO`, `WARNING` or `ERROR` (case-insensitive). The watchdog also reads it, but compose does not pass it on, so the watchdog stays at `INFO`. |
 | `CIRCUIT_FAILURE_THRESHOLD` | `5` | collector | Consecutive upstream failures that open the circuit breaker (1 to 1000). Polling never stops. |
 | `CIRCUIT_SLOW_INTERVAL_SECONDS` | `60` | collector | Poll cadence in seconds while the breaker is open (5 to 3600). |
+| `ARCHIVE_ENABLED` | `true` | collector | Keep the rolling raw-feed archive (docs/RUNBOOKS/feed-archive.md). A failure of the archive never stops polling. |
+| `ARCHIVE_DIR` | `/archive` | collector | Archive directory inside the container: the named volume `archive` (the root filesystem is read-only). |
+| `ARCHIVE_COMPACT_EVERY_S` | `300` | collector | A compact gzipped record (all pilots and controllers, audit fields) is written when the feed timestamp enters a new slot of this many seconds (1 to 86400). |
+| `ARCHIVE_COMPACT_KEEP_DAYS` | `30` | collector | Days the compact records are kept. |
+| `ARCHIVE_FULL_EVERY_S` | `3600` | collector | The full raw payload, gzipped, is written once per slot of this many seconds. |
+| `ARCHIVE_FULL_KEEP_DAYS` | `7` | collector | Days the full payloads are kept. |
+| `ARCHIVE_ANOMALY_KEEP_DAYS` | `90` | collector | Days the anomaly payloads are kept (poll error, timestamp gap, older or future timestamp, `logon_time` precision change). |
+| `ARCHIVE_GAP_S` | `35` | collector | A gap between two feed timestamps above this is an anomaly. A single missed tick is 30 s and is normal (audit F10), so the default sits above it (16 to 3600). |
+| `ARCHIVE_MAX_MB` | `1024` | collector | Hard cap on the archive; the oldest files are deleted first when it is exceeded. |
 | `HEALTH_PORT` | `8080` | collector, watchdog | Port of the collector's `/health` and `/metrics` inside the container. |
 | `VATPAC_VERSION` | `dev` | collector build arg | Version label baked into the image (the release workflow sets it from the git tag). |
 | `BACKUP_RETENTION_DAYS` | `14` | backup | Days of dumps kept. |
@@ -166,4 +175,4 @@ Source: `C:\Users\mdora\Claude\VATPAC-Stats V2\docker-compose.yml`. Several v1 v
 
 ### B6. New in v3 (no v1 counterpart)
 
-`GRAFANA_*`, `WATCHDOG_*`, `BACKUP_*`, `COLLECTOR_DB_PASSWORD`, `TELEGRAM_*`, `UPTIME_KUMA_PUSH_URL`, `HTTP_TIMEOUT_SECONDS`, `POSITION_RETENTION_DAYS`, `AIRBORNE_GAP_CAP_SECONDS`, `HOME_ICAO_PREFIXES`, `CIRCUIT_*`, `HEALTH_PORT`, `VATPAC_VERSION`.
+`GRAFANA_*`, `WATCHDOG_*`, `BACKUP_*`, `COLLECTOR_DB_PASSWORD`, `TELEGRAM_*`, `UPTIME_KUMA_PUSH_URL`, `HTTP_TIMEOUT_SECONDS`, `POSITION_RETENTION_DAYS`, `AIRBORNE_GAP_CAP_SECONDS`, `HOME_ICAO_PREFIXES`, `CIRCUIT_*`, `ARCHIVE_*`, `HEALTH_PORT`, `VATPAC_VERSION`.
