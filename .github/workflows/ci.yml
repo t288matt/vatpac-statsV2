@@ -108,6 +108,9 @@ jobs:
             -v collector_password=ci-collector-pw \
             -v backup_password=ci-backup-pw \
             -f db/roles.sql
+          # watchdog_ro is created by the migrate job; run its SQL block here so its grants are tested too
+          sed -n "/<<'SQL'/,/^SQL$/p" ops/migrate/migrate.sh | sed '1d;$d' \
+            | psql -X -q -v ON_ERROR_STOP=1 -d vatpac_test -v wd_pw=ci-watchdog-pw
       - name: Install
         run: |
           pip install -r collector/requirements.txt

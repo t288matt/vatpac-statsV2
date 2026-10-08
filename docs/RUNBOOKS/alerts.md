@@ -1,6 +1,6 @@
 # Runbook: alerts (what each Telegram message means)
 
-Last reviewed: 08-10-2026, against `ops/watchdog/watchdog.py`. Times are UTC.
+Last reviewed: 08-10-2026 (identity_flap and feed_archive added), against `ops/watchdog/watchdog.py`. Times are UTC.
 
 ## How alerts work
 
@@ -29,6 +29,8 @@ The watchdog is **alert-only**: it has no Docker access, so it never restarts an
 | `disk` | WARN at `WATCHDOG_DISK_PCT` (80%), CRIT at 10 points more | A checked filesystem is filling (`WATCHDOG_DISK_PATHS`, default `/backups,/`) | [db-full.md](db-full.md). |
 | `backup_age` | CRIT when the newest dump is older than `WATCHDOG_BACKUP_MAX_HOURS` (26 h) | The nightly backup did not run or failed | `docker compose logs --tail=50 backup`; take one now with `make backup` (`docker compose exec backup backup.sh once`); [restore.md](restore.md). Directly after a first install the age counts from the watchdog's first run. |
 | `restore_test` | CRIT when the last weekly restore test failed; WARN when the last good one is older than `WATCHDOG_RESTORE_TEST_MAX_DAYS` (9 days), unreadable, or missing after that long | A recent dump may not restore | `make backup-test` and read its output; `docker compose exec backup cat /backups/.last_restore_test`; [restore.md](restore.md). With `BACKUP_RESTORE_TEST_DAY=0` also set `WATCHDOG_RESTORE_TEST_MAX_DAYS=0`. |
+| `identity_flap` | WARN when, in the last 24 hours, two sessions of one `cid` and callsign have a `logon_time` within 2 s of each other, or a `logon_time` has a fractional second (or the query fails). RECOVERED when none is left in the window | The feed changed how it writes `logon_time` again (issue 15, ADR-021) or the whole-second rule failed: one connection may be stored as two sessions and flights inflated | Run `docker compose exec -T db sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < ops/check_identity_flap.sql` (all counts 0 expected); find the pairs, read the collector log, and fetch the payloads around the first-seen time from the archive ([feed-archive.md](feed-archive.md), a `precision` or `gap` anomaly file should exist). One alert per occurrence; it clears by itself after 24 hours without a new pair. |
+| `feed_archive` | WARN when the collector reports the archive enabled and nothing was written for twice `ARCHIVE_COMPACT_EVERY_S` (10 minutes by default). Not checked while `collector_health` is bad | The archive volume is full or unwritable, or its thread is stuck. Polling is not affected | [feed-archive.md](feed-archive.md), "If it misbehaves": `df -h /`, the `archive` block of the collector `/health`, `docker compose logs --tail=200 collector` (look for `archive`). |
 | `NEAR-MISS ...` | One message per new callsign | A controller logged on with a callsign that is not on the whitelist but looks like one that is (a new position at a known airport) | [update-reference-files.md](update-reference-files.md): add it to `config/controller_callsigns_list.txt`, deploy, reload. Until then that controller is not recorded. |
 
 Checks that only exist when `DOCKER_HOST_URL` is set (it is empty in this deployment, so you will not see them): `container:<service>`, `docker_proxy`, `restart-cap:<service>` and `RESTARTED <service>` messages.

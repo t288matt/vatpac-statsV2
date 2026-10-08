@@ -19,6 +19,7 @@ from psycopg.rows import tuple_row
 from psycopg_pool import ConnectionPool
 
 from . import __version__
+from .archive import Archive
 from .errors import FeedError, RateLimitedError, ReferenceDataError
 from .feed import FeedClient
 from .filters import ReferenceData, load_reference
@@ -49,6 +50,7 @@ class Collector:
     def __init__(self, settings: Settings, ref: ReferenceData, pool: ConnectionPool, feed: FeedClient) -> None:
         self.settings, self.ref, self.pool, self.feed = settings, ref, pool, feed
         self.stats = Stats(reference=self._versions(ref))
+        self.archive = Archive(settings, self.stats)
         self.stop = asyncio.Event()
         self.last_ts: datetime | None = None
         self._tasks: set[asyncio.Task[None]] = set()  # strong refs so SIGHUP reload tasks are not collected
@@ -144,6 +146,8 @@ class Collector:
         await asyncio.to_thread(self._log_poll, status, ref, snapshot_ts=snap_ts, duration_ms=ms, http_status=http,
                                 result=result, error=err)
         self._update_stats(status, result, snap_ts, err)
+        # queued for the archive thread: never blocks or raises
+        self.archive.submit(getattr(self.feed, "last_raw", None), snap_ts, status, http, err)
         return PollOutcome(status, retry_in)
 
     def _update_stats(self, status: str, result: ApplyResult | None, snap_ts: datetime | None, err: str | None) -> None:

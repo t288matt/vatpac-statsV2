@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Size budget gate (SPEC sections 7 and 11): collector package under 1400 lines, no module over 300.
+"""Size budget gate (SPEC sections 7 and 11): collector package under 1700 lines, no module over 300.
 
 Counts physical lines of every .py file under collector/src/vatpac (blank and comment lines
 included, so the budget cannot be met by stripping whitespace). Exit 1 on breach.
@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-PACKAGE_LIMIT = 1400  # ADR-014: raised 900 -> 1300 -> 1400 as required behaviour landed (1325 today)
+PACKAGE_LIMIT = 1700  # ADR-014/ADR-022: raised 900 -> 1300 -> 1400 -> 1700 as required behaviour landed (1575 today)
 MODULE_LIMIT = 300
 
 
