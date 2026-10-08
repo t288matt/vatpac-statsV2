@@ -505,3 +505,15 @@ def test_military_aircraft_panel_lists_only_military_types(conn) -> None:
     p14.add_flight(conn, 9860101, aircraft="B738", days_ago=1)
     rows = _run(conn, ev14.MILITARY, "Most popular military aircraft (unique pilots, last 7 days)")
     assert [r["aircraft"] for r in rows] == ["F16"]
+
+
+
+def test_raafv_routes_panel_shows_at_most_25_routes(conn) -> None:
+    """Mutant P38 (limit 25 -> 2)."""
+    now = datetime.now(timezone.utc)
+    t = now - timedelta(days=2)
+    for i in range(26):
+        ev14.add_flight(conn, 9860200 + i, t - timedelta(hours=2), t, 60, dep=f"Y{i:03d}", arr="YMML",
+                        remarks=ev14.RAAFV_REMARKS)
+    rows = ev14.run_panel(conn, ev14.MILITARY, "Most popular RAAFv routes", now - timedelta(days=30), now)
+    assert len(rows) == 25
