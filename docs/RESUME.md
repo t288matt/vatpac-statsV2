@@ -53,5 +53,7 @@ Update 08-10-2026: the owner decided to ship all 16 T15 cards as built (branch t
 
 - **Deadline:** 19-10-2026, tracker T28: pin CI jobs to ubuntu-24.04 before `ubuntu-latest` moves to Ubuntu 26.
 
+- **Queued task T30 (owner request 08-10-2026):** independent audit of the tests (assertion strength, mutation checks, date dependence, coverage against CHART_DEFINITIONS.md). Output docs/TEST_AUDIT.md. Start after the usage reset.
+
 ## 6. Rules to keep
 British English, DD-MM-YYYY, no emoji, state UTC. New numbered migrations only (never edit an applied one). The v1 box is the owner's: read-only queries only, ask first. Cloudflare and the Docker socket proxy are the owner's to add later. Do not expose Grafana publicly. Commit new commits only (never amend).
