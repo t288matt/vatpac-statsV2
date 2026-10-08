@@ -496,3 +496,12 @@ def test_servers_panel_counts_home_region_pilots_only(conn) -> None:
         conn.execute("UPDATE pilot_session SET home_icao = %s, server = %s WHERE id = %s", (home, server, sid))
     rows = _run(conn, p14.ORIGINS, "Servers used by home-region pilots (last 24 hours)")
     assert [(r["server"], r["pilots"]) for r in rows] == [("SYDNEY", 1)]
+
+
+
+def test_military_aircraft_panel_lists_only_military_types(conn) -> None:
+    """Mutant P37 (military flag inverted)."""
+    p14.add_flight(conn, 9860100, aircraft="F16", days_ago=1)
+    p14.add_flight(conn, 9860101, aircraft="B738", days_ago=1)
+    rows = _run(conn, ev14.MILITARY, "Most popular military aircraft (unique pilots, last 7 days)")
+    assert [r["aircraft"] for r in rows] == ["F16"]
