@@ -9,7 +9,7 @@
   "editable": false,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "5m",
   "time": {
     "from": "now-30d",
@@ -610,6 +610,43 @@
             ]
           }
         },
+        "overrides": []
+      }
+    },
+    {
+      "id": 16,
+      "type": "table",
+      "title": "Which member spent the most time online? (last 7 days)",
+      "description": "v1 Metabase card 155. Top 10 pilots with a Y-suffixed name by hours with airborne time (v1: enroute time) over the last 7 days, counting only flights with more than 30 minutes airborne. The v1 title says 'online' but the figure is airborne time, as in v1. Fixed 7-day window (not the time picker).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 70,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table (see docs/t15_notes/a_pilots_people.md): one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n)\nSELECT\n    cid,\n    name,\n    ROUND(SUM(total_enroute_time_minutes) / 60.0) AS total_enroute_hours\nFROM flight_summaries\nWHERE\n    SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n    AND total_enroute_time_minutes > 30\n    AND completion_time >= NOW() - INTERVAL '7 days'\nGROUP BY cid, name\nORDER BY SUM(total_enroute_time_minutes) DESC, cid\nLIMIT 10"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {},
         "overrides": []
       }
     }

@@ -1,0 +1,372 @@
+{
+  "uid": "vatpac-pilot-onboarding",
+  "title": "Pilots: onboarding and lapsed pilots",
+  "tags": [
+    "vatpac",
+    "pilots"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "vatpac"
+        },
+        "definition": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "query": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Data since",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+      }
+    },
+    {
+      "id": 2,
+      "type": "text",
+      "title": "About these panels",
+      "gridPos": {
+        "x": 0,
+        "y": 2,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Definitions are copied from the v1 Metabase cards 180, 181 and 182 (exported 08-10-2026). Windows are fixed in the SQL (not the dashboard time picker) and months are UTC calendar months. A pilot counts as Australian-based as in v1: the fourth character from the end of the pilot's name is 'Y' (a home airport code starting with Y at the end of the name). 'Never flew' means no airborne time (groundspeed of 60 kt or more) on any flight in the period. v3 only sees pilots who filed a flight plan, because the flight gate needs a departure and an arrival. There is no backfill, so the monthly charts start at go-live and the latest month is incomplete."
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Pilots who logged on but never flew (90 days)",
+      "description": "v1 Metabase card 180. Pilots with a Y-suffixed name who completed at least one flight in the last 90 days, none with airborne time (v1: enroute time). Shows flights, their online minutes and totals. Most flights first, limited to 200 rows. Flights whose airborne time is unknown (raw positions already removed) are ignored.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table (see docs/t15_notes/a_pilots_people.md): one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n  WHERE airborne_minutes IS NOT NULL\n),\npilot_enroute_stats AS (\n  SELECT\n    cid,\n    name,\n    COUNT(*) as total_flights,\n    COUNT(CASE WHEN total_enroute_time_minutes > 0 THEN 1 END) as flights_with_enroute_time,\n    COUNT(CASE WHEN total_enroute_time_minutes = 0 THEN 1 END) as flights_with_zero_enroute_time,\n    AVG(time_online_minutes) as avg_time_online_minutes,\n    MIN(time_online_minutes) as min_time_online_minutes,\n    MAX(time_online_minutes) as max_time_online_minutes,\n    SUM(time_online_minutes) as total_time_online_minutes\n  FROM flight_summaries\n  WHERE cid IS NOT NULL\n  AND name IS NOT NULL\n  AND completion_time IS NOT NULL\n  AND completion_time >= NOW() - INTERVAL '90 days'\n  GROUP BY cid, name\n  HAVING COUNT(*) > 0\n)\nSELECT\n  cid,\n  name,\n  total_flights,\n  flights_with_zero_enroute_time,\n  ROUND(flights_with_zero_enroute_time * 100.0 / total_flights, 2) as zero_enroute_percentage,\n  ROUND(avg_time_online_minutes, 2) as avg_time_online_minutes,\n  min_time_online_minutes,\n  max_time_online_minutes,\n  total_time_online_minutes\nFROM pilot_enroute_stats\nWHERE flights_with_enroute_time = 0\nAND LENGTH(name) >= 4\nAND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\nORDER BY total_flights DESC, name\nLIMIT 200"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Pilots who logged on in a month but never flew that month",
+      "description": "v1 Metabase card 181 (v1 drew a bar chart). Per UTC month of logon: pilots with a Y-suffixed name, and how many of them had no airborne time on any of their flights that month (bars), and that as a percentage (line, right axis). Flights are placed in the month of the session logon, as in v1.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table (see docs/t15_notes/a_pilots_people.md): one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n  WHERE airborne_minutes IS NOT NULL\n),\nmonthly_pilot_stats AS (\n  SELECT\n    DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC') as month,\n    cid,\n    COUNT(*) as total_flights_in_month,\n    COUNT(CASE WHEN total_enroute_time_minutes > 0 THEN 1 END) as flights_with_enroute_time,\n    COUNT(CASE WHEN total_enroute_time_minutes = 0 THEN 1 END) as flights_with_zero_enroute_time\n  FROM flight_summaries\n  WHERE cid IS NOT NULL\n  AND completion_time IS NOT NULL\n  AND logon_time IS NOT NULL\n  AND name IS NOT NULL\n  AND LENGTH(name) >= 4\n  AND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n  GROUP BY DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC'), cid\n  HAVING COUNT(*) > 0\n),\nmonthly_zero_enroute_pilots AS (\n  SELECT\n    month,\n    COUNT(DISTINCT cid) as pilots_with_zero_enroute_time\n  FROM monthly_pilot_stats\n  WHERE flights_with_enroute_time = 0\n  GROUP BY month\n),\nmonthly_total_pilots AS (\n  SELECT\n    DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC') as month,\n    COUNT(DISTINCT cid) as total_pilots\n  FROM flight_summaries\n  WHERE cid IS NOT NULL\n  AND completion_time IS NOT NULL\n  AND logon_time IS NOT NULL\n  AND name IS NOT NULL\n  AND LENGTH(name) >= 4\n  AND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n  GROUP BY DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC')\n)\nSELECT\n  t.month,\n  TRIM(TO_CHAR(t.month, 'Month YYYY')) as month_label,\n  t.total_pilots,\n  COALESCE(z.pilots_with_zero_enroute_time, 0) as pilots_with_zero_enroute_time,\n  ROUND(COALESCE(z.pilots_with_zero_enroute_time, 0) * 100.0 / t.total_pilots, 2) as percentage_zero_enroute\nFROM monthly_total_pilots t\nLEFT JOIN monthly_zero_enroute_pilots z ON t.month = z.month\nORDER BY t.month"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "barAlignment": 0,
+            "axisPlacement": "auto",
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_pilots"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Pilots who logged on"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pilots_with_zero_enroute_time"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Never flew that month"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "percentage_zero_enroute"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Never flew (%)"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "always"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "month_label"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": true,
+                  "tooltip": true,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Pilots who flew last month but not this month (lapsed)",
+      "description": "v1 Metabase card 182. Per UTC month of flight completion: pilots with a Y-suffixed name who flew that month (pilots_current_month), how many of the previous month's pilots did not fly this month (lapsed), and that as a percentage of the previous month's pilots. v1 quirk kept: 'previous month' is the previous row, so a month with no flights is skipped.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table (see docs/t15_notes/a_pilots_people.md): one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n),\nmonthly_pilots AS (\n  SELECT\n    DATE_TRUNC('month', completion_time AT TIME ZONE 'UTC') as month,\n    cid\n  FROM flight_summaries\n  WHERE cid IS NOT NULL\n  AND completion_time IS NOT NULL\n  AND name IS NOT NULL\n  AND LENGTH(name) >= 4\n  AND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n  GROUP BY DATE_TRUNC('month', completion_time AT TIME ZONE 'UTC'), cid\n),\nmonthly_comparison AS (\n  SELECT\n    m1.month as current_month,\n    COUNT(DISTINCT m1.cid) as pilots_current_month,\n    COUNT(DISTINCT CASE WHEN m2.cid IS NULL THEN m1.cid END) as pilots_who_lapsed_next_month\n  FROM monthly_pilots m1\n  LEFT JOIN monthly_pilots m2 ON m1.cid = m2.cid\n    AND m2.month = m1.month + INTERVAL '1 month'\n  GROUP BY m1.month\n),\nretention_data AS (\n  SELECT\n    c.current_month,\n    TRIM(TO_CHAR(c.current_month, 'Month YYYY')) as month_label,\n    c.pilots_current_month,\n    c.pilots_who_lapsed_next_month,\n    LAG(c.pilots_current_month) OVER (ORDER BY c.current_month) as previous_month_pilots,\n    LAG(c.pilots_who_lapsed_next_month) OVER (ORDER BY c.current_month) as lapsed_from_previous_month\n  FROM monthly_comparison c\n)\nSELECT\n  current_month,\n  month_label,\n  pilots_current_month,\n  lapsed_from_previous_month as lapsed,\n  CASE\n    WHEN lapsed_from_previous_month IS NOT NULL AND previous_month_pilots IS NOT NULL\n    THEN ROUND(lapsed_from_previous_month * 100.0 / previous_month_pilots, 2)\n    ELSE NULL\n  END as percentage_lapsed,\n  CASE\n    WHEN previous_month_pilots IS NOT NULL\n    THEN CONCAT(month_label, ' - ', pilots_current_month, ' pilots, ', lapsed_from_previous_month, ' lapsed from ', TRIM(TO_CHAR(current_month - INTERVAL '1 month', 'Mon')))\n    ELSE CONCAT(month_label, ' - ', pilots_current_month, ' pilots')\n  END as retention_summary\nFROM retention_data\nORDER BY current_month"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "always",
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pilots_current_month"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Pilots who flew"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lapsed"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Lapsed from previous month"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "percentage_lapsed"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Lapsed (%)"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "month_label"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": true,
+                  "tooltip": true,
+                  "viz": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retention_summary"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": true,
+                  "tooltip": true,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
