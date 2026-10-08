@@ -233,3 +233,17 @@ def test_online_lists_exclude_sessions_when_the_collector_has_been_silent(conn) 
                  "VALUES (9730011,'SILENT_TWR',%s,%s,%s)", (old - timedelta(hours=1), old - timedelta(hours=1), old))
     assert conn.execute("SELECT count(*) AS n FROM pilot_online_now").fetchone()["n"] == 0
     assert conn.execute("SELECT count(*) AS n FROM controller_online_now").fetchone()["n"] == 0
+
+
+
+# ------------------------------------------------------------------ maintenance housekeeping
+def test_trim_poll_log_removes_only_rows_older_than_400_days(conn) -> None:
+    """Mutants C28 (4 days) and C31 (deletes recent rows): poll_log retention is 400 days (SPEC section 6)."""
+    from vatpac.maintenance import trim_poll_log
+
+    for days in (401, 399, 1):
+        conn.execute("INSERT INTO poll_log (status, polled_at) VALUES ('ok', now() - make_interval(days => %s))", (days,))
+    assert trim_poll_log(conn) == 1
+    ages = sorted(round(r["d"]) for r in conn.execute(
+        "SELECT extract(epoch FROM now() - polled_at) / 86400 AS d FROM poll_log").fetchall())
+    assert ages == [1, 399]
