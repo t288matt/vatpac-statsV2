@@ -66,3 +66,14 @@ def test_replaying_a_snapshot_does_not_count_a_near_miss_poll_twice(db, payload,
     apply(db, snap, refdata)
     rows = db.execute("SELECT callsign, polls_seen FROM controller_unlisted_sighting ORDER BY callsign").fetchall()
     assert [(r["callsign"], r["polls_seen"]) for r in rows] == [("AD_XYZ_TWR", 1), ("ML_XYZ_CTR", 1)]
+
+
+
+# ------------------------------------------------------------------ flight_summary boundaries
+
+def test_groundspeed_of_exactly_60_kt_is_airborne(conn) -> None:
+    """Mutant S01 (`gs_kt > 60`): SPEC section 5 says airborne = groundspeed of 60 kt or more at the earlier
+    sample. The existing tests use 59 and 250 but never 60 itself."""
+    make_session(conn, 9700001, run(5, gs=60))
+    row = flights(conn, 9700001)[0]
+    assert float(row["airborne_minutes"]) == pytest.approx(4 * 15 / 60, abs=0.01)  # 1.0
