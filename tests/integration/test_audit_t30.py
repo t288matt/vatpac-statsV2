@@ -537,3 +537,14 @@ def test_departure_board_airborne_starts_at_60_kt(conn) -> None:
         "${airport:sqlstring}", "'YSSY'")
     got = {r["Flight"]: r["Status"] for r in conn.execute(sql).fetchall()}
     assert got == {"BRD60": "AIRBORNE", "BRD59": "TAXIING"}
+
+
+
+def test_pilots_online_now_shows_the_newest_snapshot(conn) -> None:
+    """Mutant P18 (ORDER BY ... ASC): the 'now' tile must read the newest snapshot, not the oldest."""
+    now = datetime.now(timezone.utc)
+    conn.execute("INSERT INTO network_snapshot VALUES (%s,3,0,30,0)", (now - timedelta(hours=1),))
+    conn.execute("INSERT INTO network_snapshot VALUES (%s,7,0,70,0)", (now - timedelta(seconds=10),))
+    pn = p14.TRAFFIC.parent / "pilots-now.json"
+    assert _run(conn, pn, "Pilots online now (in region)")[0]["Pilots"] == 7
+    assert _run(conn, pn, "Pilots online now (network-wide)")[0]["Pilots"] == 70
