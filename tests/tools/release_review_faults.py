@@ -93,7 +93,7 @@ class Fake:
 
 
 def settings(**kw: object) -> Settings:
-    env = dict(DATABASE_URL=DSN, VATSIM_FEED_URL=f"http://127.0.0.1:{PORT}/feed", ARCHIVE_ENABLED="true",
+    env = dict(DATABASE_URL=DSN, VATSIM_FEED_URL=f"http://127.0.0.1:{PORT}/feed", ARCHIVE_ENABLED=os.environ.get("RR_ARCHIVE", "true"),
                ARCHIVE_DIR=os.environ.get("ARCHIVE_DIR") or tempfile.mkdtemp(prefix="vp-rev-arc-"), HEALTH_PORT="18080",
                HTTP_TIMEOUT_SECONDS="5", POLL_INTERVAL_SECONDS="15")
     env.update({k.upper(): str(v) for k, v in kw.items()})
@@ -315,7 +315,7 @@ async def s_slow() -> None:
     col.pool.close()
 
 
-async def s_memory(n: int = 500, scale: int = 17) -> None:
+async def s_memory(n: int = int(os.environ.get("RR_N", "500")), scale: int = 17) -> None:
     reset()
     fake, s = Fake(), settings(archive_compact_every_s=60, archive_full_every_s=300)
     await fake.start()
@@ -374,7 +374,7 @@ def s_sigterm() -> None:
     fp = subprocess.Popen([sys.executable, str(feed_script), str(body), str(PORT + 1)])
     time.sleep(1.5)
     env = dict(os.environ, DATABASE_URL=DSN, VATSIM_FEED_URL=f"http://127.0.0.1:{PORT + 1}/feed", VATSIM_STATUS_URL="http://127.0.0.1:1/x",
-               ARCHIVE_DIR=arc, ARCHIVE_ENABLED="true", HEALTH_PORT="18081", POLICY="x",
+               ARCHIVE_DIR=arc, ARCHIVE_ENABLED=os.environ.get("RR_ARCHIVE", "true"), HEALTH_PORT="18081", POLICY="x",
                POLYGON_PATH=str(REPO / "config/australian_airspace_polygon.json"),
                WHITELIST_PATH=str(REPO / "config/controller_callsigns_list.txt"))
     p = subprocess.Popen([sys.executable, str(wrapper)], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
