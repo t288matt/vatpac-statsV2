@@ -10,11 +10,12 @@ import signal
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import psycopg
+from psycopg.rows import tuple_row
 from psycopg_pool import ConnectionPool
 
 from . import __version__
@@ -62,6 +63,19 @@ class Collector:
             return apply_snapshot(conn, snapshot, ref.polygon, ref.whitelist,
                                   polygon_sha=ref.polygon_sha, whitelist_sha=ref.whitelist_sha)
 
+    def _db_last_ts(self) -> datetime | None:
+        sql = "SELECT max(observed_at) FROM network_snapshot WHERE observed_at <= now() + make_interval(secs => %s)"
+        with self.pool.connection() as conn, conn.cursor(row_factory=tuple_row) as cur:  # ignores a future-dated row
+            row = cur.execute(sql, (self.settings.feed_max_future_seconds,)).fetchone()
+        return row[0] if row else None
+
+    async def load_last_ts(self) -> None:
+        """Resume from the newest stored snapshot, so a replay after a restart is logged as skipped, not ok."""
+        try:
+            self.last_ts = await asyncio.to_thread(self._db_last_ts)
+        except Exception:
+            log.exception("could not read the newest stored snapshot time")
+
     def _log_poll(self, status: str, ref: ReferenceData, **kw: Any) -> None:
         try:
             with self.pool.connection() as conn:
@@ -95,11 +109,14 @@ class Collector:
             fetched = await self.feed.fetch()
             http, payload = fetched.http_status, fetched.payload
             if payload is not None:
-                snap_ts = update_timestamp(payload)
+                ts, bound = update_timestamp(payload), self.settings.feed_max_future_seconds
+                if ts - datetime.now(UTC) > timedelta(seconds=bound):  # one future stamp would skip every real update
+                    raise FeedError(f"snapshot time {ts:%Y-%m-%dT%H:%M:%SZ} is over {bound} s ahead of the clock", 200)
+                snap_ts = ts
             if payload is None or (self.last_ts is not None and snap_ts is not None and snap_ts <= self.last_ts):
                 status, retry_in = "skipped_unchanged", max(UNCHANGED_RETRY_S, min(fetched.max_age or 0, 5.0))
             else:
-                snapshot = parse_snapshot(payload)
+                snapshot = parse_snapshot(payload, self.settings.text_max_length)
                 if not snapshot.pilots_global and not snapshot.controllers_global:
                     raise FeedError("feed has no pilots or controllers (treated as an outage)", 200)
                 total = snapshot.pilots_global + snapshot.controllers_global
@@ -258,6 +275,7 @@ async def run(settings: Settings, ref: ReferenceData) -> None:
     try:
         await feed.discover()
         first_ok = await collector.maintain_once()  # partitions must exist before the first poll
+        await collector.load_last_ts()
         log.info("collector started", extra={"version": __version__, **collector.stats.reference})
         await asyncio.gather(collector.poll_loop(), collector.maintenance_loop(first_ok),
                              collector.flight_summary_loop())

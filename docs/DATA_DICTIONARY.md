@@ -87,7 +87,7 @@ One row per poll attempt, including failures. Trimmed to 400 days by maintenance
 | `pilots_kept` | Pilots actually written; equals `pilots_inside` unless a malformed record was skipped. |
 | `controllers_seen` | Controllers in the whole feed. |
 | `controllers_kept` | Controllers on the whitelist. |
-| `rejected_values` | Speed/altitude values nulled by the plausibility caps. |
+| `rejected_values` | Values dropped or cut at ingest: speed/altitude nulled by the plausibility caps, integers outside int32, unparsable numbers and headings outside 0 to 360 (stored records only), plus every malformed feed entry that was skipped (and, since issue 43, every text field cut to its length cap). A bad record bisected out of the insert counts once. |
 | `polygon_sha`, `whitelist_sha` | SHA-256 of the reference files in use. |
 | `error` | Message (truncated to 2000 characters) for `error` rows. |
 

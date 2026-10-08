@@ -18,7 +18,19 @@ from .model import Snapshot, clamp_pilot, home_icao, parse_frequency_hz
 
 log = logging.getLogger(__name__)
 
-_PILOT_SQL = """
+# An older snapshot never overwrites what a newer one stored (issue 41): the COALESCE'd fields only change when
+# EXCLUDED.last_seen >= ps.last_seen (a replay of the same snapshot is a no-op). first_seen/max_* stay order-free.
+_FIELDS = ("name", "home_icao", "server", "departure", "arrival", "aircraft_icao", "aircraft_faa", "flight_rules",
+           "route", "remarks", "planned_alt", "deptime", "pilot_rating", "military_rating")
+_NEWER = "EXCLUDED.last_seen >= ps.last_seen"
+_NEW = {c: f"CASE WHEN {_NEWER} THEN COALESCE(EXCLUDED.{c}, ps.{c}) ELSE ps.{c} END" for c in _FIELDS}
+_SET = ",\n    ".join(f"{c} = {_NEW[c]}" for c in _FIELDS)
+_OLD_ROW = ", ".join(f"ps.{c}" for c in ("first_seen", "last_seen", *_FIELDS, "max_gs_kt", "max_alt_ft"))
+_NEW_ROW = ", ".join(("LEAST(ps.first_seen, EXCLUDED.first_seen)", "GREATEST(ps.last_seen, EXCLUDED.last_seen)",
+                      *(_NEW[c] for c in _FIELDS), "GREATEST(ps.max_gs_kt, EXCLUDED.max_gs_kt)",
+                      "GREATEST(ps.max_alt_ft, EXCLUDED.max_alt_ft)"))
+
+_PILOT_SQL = f"""
 WITH x AS (
   SELECT * FROM jsonb_to_recordset(%(rows)s) AS r(
     cid bigint, callsign text, logon_time timestamptz, name text, home_icao text, server text,
@@ -35,38 +47,15 @@ WITH x AS (
   ON CONFLICT (cid, callsign, logon_time) DO UPDATE SET
     first_seen = LEAST(ps.first_seen, EXCLUDED.first_seen),
     last_seen = GREATEST(ps.last_seen, EXCLUDED.last_seen),
-    name = COALESCE(EXCLUDED.name, ps.name),
-    home_icao = COALESCE(EXCLUDED.home_icao, ps.home_icao),
-    server = COALESCE(EXCLUDED.server, ps.server),
     plan_changed_at = CASE
-      WHEN (EXCLUDED.departure IS NOT NULL AND EXCLUDED.departure IS DISTINCT FROM ps.departure)
-        OR (EXCLUDED.arrival IS NOT NULL AND EXCLUDED.arrival IS DISTINCT FROM ps.arrival)
+      WHEN {_NEWER} AND ((EXCLUDED.departure IS NOT NULL AND EXCLUDED.departure IS DISTINCT FROM ps.departure)
+        OR (EXCLUDED.arrival IS NOT NULL AND EXCLUDED.arrival IS DISTINCT FROM ps.arrival))
       THEN EXCLUDED.last_seen ELSE ps.plan_changed_at END,
-    departure = COALESCE(EXCLUDED.departure, ps.departure),
-    arrival = COALESCE(EXCLUDED.arrival, ps.arrival),
-    aircraft_icao = COALESCE(EXCLUDED.aircraft_icao, ps.aircraft_icao),
-    aircraft_faa = COALESCE(EXCLUDED.aircraft_faa, ps.aircraft_faa),
-    flight_rules = COALESCE(EXCLUDED.flight_rules, ps.flight_rules),
-    route = COALESCE(EXCLUDED.route, ps.route),
-    remarks = COALESCE(EXCLUDED.remarks, ps.remarks),
-    planned_alt = COALESCE(EXCLUDED.planned_alt, ps.planned_alt),
-    deptime = COALESCE(EXCLUDED.deptime, ps.deptime),
+    {_SET},
     max_gs_kt = GREATEST(ps.max_gs_kt, EXCLUDED.max_gs_kt),
-    max_alt_ft = GREATEST(ps.max_alt_ft, EXCLUDED.max_alt_ft),
-    pilot_rating = COALESCE(EXCLUDED.pilot_rating, ps.pilot_rating),
-    military_rating = COALESCE(EXCLUDED.military_rating, ps.military_rating)
-  WHERE (ps.first_seen, ps.last_seen, ps.name, ps.home_icao, ps.server, ps.departure, ps.arrival, ps.aircraft_icao,
-      ps.aircraft_faa, ps.flight_rules, ps.route, ps.remarks, ps.planned_alt, ps.deptime, ps.max_gs_kt, ps.max_alt_ft,
-      ps.pilot_rating, ps.military_rating) IS DISTINCT FROM (
-      LEAST(ps.first_seen, EXCLUDED.first_seen), GREATEST(ps.last_seen, EXCLUDED.last_seen),
-      COALESCE(EXCLUDED.name, ps.name), COALESCE(EXCLUDED.home_icao, ps.home_icao),
-      COALESCE(EXCLUDED.server, ps.server), COALESCE(EXCLUDED.departure, ps.departure),
-      COALESCE(EXCLUDED.arrival, ps.arrival), COALESCE(EXCLUDED.aircraft_icao, ps.aircraft_icao),
-      COALESCE(EXCLUDED.aircraft_faa, ps.aircraft_faa), COALESCE(EXCLUDED.flight_rules, ps.flight_rules),
-      COALESCE(EXCLUDED.route, ps.route), COALESCE(EXCLUDED.remarks, ps.remarks),
-      COALESCE(EXCLUDED.planned_alt, ps.planned_alt), COALESCE(EXCLUDED.deptime, ps.deptime),
-      GREATEST(ps.max_gs_kt, EXCLUDED.max_gs_kt), GREATEST(ps.max_alt_ft, EXCLUDED.max_alt_ft),
-      COALESCE(EXCLUDED.pilot_rating, ps.pilot_rating), COALESCE(EXCLUDED.military_rating, ps.military_rating))
+    max_alt_ft = GREATEST(ps.max_alt_ft, EXCLUDED.max_alt_ft)
+  WHERE ({_OLD_ROW}) IS DISTINCT FROM (
+      {_NEW_ROW})
   RETURNING id, cid, callsign, logon_time
 ), ids AS (  -- rows left untouched by the WHERE above are not returned, so read them from the table
   SELECT id, cid, callsign, logon_time FROM up
@@ -193,14 +182,15 @@ def apply_snapshot(
 ) -> ApplyResult:
     """Write one snapshot in a single transaction. Replaying it inserts zero rows."""
     ts = snapshot.observed_at
-    res = ApplyResult(pilots_seen=snapshot.pilots_global, controllers_seen=snapshot.controllers_global)
+    res = ApplyResult(pilots_seen=snapshot.pilots_global, controllers_seen=snapshot.controllers_global,
+                      rejected_values=snapshot.malformed)  # malformed feed entries count as rejected too
 
     pilots: dict[tuple[int, str, datetime], dict[str, Any]] = {}
     for p in snapshot.pilots:
         if not inside_polygon(polygon, p.latitude, p.longitude):
             continue
         gs, alt, rejected = clamp_pilot(p.groundspeed, p.altitude)
-        res.rejected_values += rejected
+        res.rejected_values += rejected + p.rejected
         pilots[(p.cid, p.callsign, p.logon_time)] = {
             **asdict(p), "home_icao": home_icao(p.name), "gs_kt": gs, "alt_ft": alt,
             "lat": p.latitude, "lon": p.longitude, "hdg": p.heading,
@@ -213,6 +203,7 @@ def apply_snapshot(
     near_miss: dict[str, int] = {}
     for c in snapshot.controllers:
         if c.callsign in whitelist:
+            res.rejected_values += c.rejected
             controllers[(c.cid, c.callsign, c.logon_time)] = {
                 **asdict(c), "frequency_hz": parse_frequency_hz(c.frequency_text)}
         elif is_near_miss(c.callsign, whitelist):
