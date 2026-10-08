@@ -60,3 +60,89 @@ def test_long_text_is_stored_cut_and_counted(db, payload, refdata) -> None:
     assert (row["n"], row["r"], row["m"]) == (2000, 2000, 2000)
     row = db.execute("SELECT length(name) AS n FROM controller_session WHERE callsign = 'ML_APP'").fetchone()
     assert row["n"] == 2000
+
+
+# issue 41 (F9): an older snapshot applied after a newer one must not overwrite its values
+def test_older_snapshot_does_not_overwrite_newer_plan_fields(db, payload, refdata) -> None:
+    newer = at(payload, 30)
+    p = pilot(newer, "TESTCIRCUIT")
+    p["name"] = "New Name YMML"
+    p["server"] = "NEWSERVER"
+    p["flight_plan"] = {**(p.get("flight_plan") or {}), "departure": "YMML", "arrival": "YBBN",
+                        "route": "NEW ROUTE", "remarks": "NEW REMARKS", "aircraft_short": "A333"}
+    apply(db, newer, refdata)
+    q = "SELECT * FROM pilot_session WHERE callsign = 'TESTCIRCUIT'"
+    after_newer = db.execute(q).fetchone()
+    assert after_newer["departure"] == "YMML"
+    apply(db, at(payload), refdata)                                    # 30 s older, original plan
+    row = db.execute(q).fetchone()
+    for col in ("name", "server", "departure", "arrival", "route", "remarks", "aircraft_icao", "plan_changed_at",
+                "home_icao", "last_seen"):
+        assert row[col] == after_newer[col], col
+    assert row["first_seen"] < after_newer["first_seen"]                 # first_seen still moves back
+
+
+def test_newer_snapshot_still_updates_and_replay_is_a_no_op(db, payload, refdata) -> None:
+    apply(db, at(payload), refdata)
+    newer = at(payload, 15)
+    pilot(newer, "TESTCIRCUIT")["flight_plan"] = {**(pilot(newer, "TESTCIRCUIT").get("flight_plan") or {}),
+                                                  "arrival": "YPAD"}
+    apply(db, newer, refdata)
+    q = "SELECT arrival, plan_changed_at, xmin::text AS x FROM pilot_session WHERE callsign = 'TESTCIRCUIT'"
+    first = db.execute(q).fetchone()
+    assert first["arrival"] == "YPAD" and first["plan_changed_at"] is not None
+    apply(db, newer, refdata)                                          # the same snapshot again
+    assert db.execute(q).fetchone() == first                            # untouched row, same xmin
+
+
+def _collector(dsn, payload, refdata):
+    from psycopg_pool import ConnectionPool
+
+    from vatpac.feed import FetchResult
+    from vatpac.filters import ReferenceData
+    from vatpac.main import Collector
+    from vatpac.settings import Settings
+
+    class Feed:
+        def __init__(self) -> None:
+            self.payload = payload
+
+        async def fetch(self):
+            return FetchResult(self.payload, 200)
+
+    pool = ConnectionPool(dsn, min_size=1, max_size=2, open=True, kwargs={"autocommit": True})
+    return Collector(Settings(), ReferenceData(*refdata, "p" * 64, "w" * 64), pool, Feed()), pool
+
+
+def test_replay_after_a_restart_is_logged_as_skipped(db, dsn, payload, refdata) -> None:
+    import asyncio
+
+    first, pool1 = _collector(dsn, at(payload), refdata)
+    second, pool2 = _collector(dsn, at(payload), refdata)               # a fresh process: last_ts starts empty
+    try:
+        assert asyncio.run(first.poll_once()).status == "ok"
+        asyncio.run(second.load_last_ts())                               # what run() does at startup
+        assert asyncio.run(second.poll_once()).status == "skipped_unchanged"
+        second.feed.payload = at(payload, 15)
+        assert asyncio.run(second.poll_once()).status == "ok"           # a genuinely newer snapshot is still applied
+    finally:
+        pool1.close()
+        pool2.close()
+    rows = db.execute("SELECT status FROM poll_log ORDER BY id").fetchall()
+    assert [r["status"] for r in rows] == ["ok", "skipped_unchanged", "ok"]
+
+
+def test_startup_ignores_a_future_dated_stored_snapshot_and_an_empty_database(db, dsn, payload, refdata) -> None:
+    import asyncio
+
+    col, pool = _collector(dsn, at(payload), refdata)
+    try:
+        asyncio.run(col.load_last_ts())
+        assert col.last_ts is None                                      # nothing stored yet
+        apply(db, at(payload), refdata)
+        db.execute("INSERT INTO network_snapshot (observed_at, pilots_in_region, controllers_in_region, "
+                   "pilots_global, controllers_global) VALUES (now() + interval '3 days', 1, 1, 1, 1)")
+        asyncio.run(col.load_last_ts())
+        assert col.last_ts == datetime(2026, 10, 7, 16, 11, 19, tzinfo=timezone.utc)  # not the poisoned row
+    finally:
+        pool.close()
