@@ -8,6 +8,7 @@ turns /health 503 although HTTP polls succeed. The body also has reload_rejected
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -42,6 +43,7 @@ class Stats:
     reload_rejected: int = 0
     last_reload_error: str | None = None
     reference: dict[str, str] = field(default_factory=dict)
+    archive_info: Callable[[], dict[str, Any]] | None = None  # set by archive.Archive
 
     def last_ok_age(self, now: float | None = None) -> float | None:
         return None if self.last_ok_wall is None else (now or time.time()) - self.last_ok_wall
@@ -68,6 +70,7 @@ def health_body(stats: Stats) -> dict[str, Any]:
         "reload_rejected": stats.reload_rejected,
         "last_reload_error": stats.last_reload_error,
         "reference": stats.reference,
+        "archive": stats.archive_info() if stats.archive_info else {"enabled": False},
     }
 
 
@@ -86,6 +89,12 @@ def render_metrics(stats: Stats) -> str:
         *((n, "gauge", "", getattr(stats, n)) for n in ("consecutive_failures", "pilots_seen", "pilots_inside",
                                                          "pilots_kept", "controllers_seen", "controllers_kept")),
     ]
+    arc = stats.archive_info() if stats.archive_info else {"enabled": False}
+    if arc["enabled"]:
+        rows += [("archive_size_bytes", "gauge", "", arc["size_bytes"]),
+                 ("archive_last_write_age_seconds", "gauge", "", arc["last_write_age_seconds"]),
+                 *((f"archive_{n}_total", "counter", "", arc[n])
+                   for n in ("files_written", "errors", "dropped", "anomalies"))]
     lines: list[str] = []
     typed: set[str] = set()
     for name, kind, labels, value in rows:

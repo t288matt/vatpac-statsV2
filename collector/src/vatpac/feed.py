@@ -49,6 +49,7 @@ class FeedClient:
         self.url = settings.vatsim_feed_url
         self._last_modified: str | None = None
         self._etag: str | None = None
+        self.last_raw: bytes | None = None  # body of the newest 200 response, for the archive; else None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(settings.http_timeout_seconds, connect=min(5.0, settings.http_timeout_seconds)),
             headers={"User-Agent": f"vatpac-stats/{__version__}", "Accept-Encoding": "gzip"},
@@ -77,6 +78,7 @@ class FeedClient:
     async def _get_once(self) -> FetchResult:
         conditional = (("If-Modified-Since", self._last_modified), ("If-None-Match", self._etag))
         headers = {k: v for k, v in conditional if v}
+        self.last_raw = None
         resp = await self._client.get(self.url, headers=headers)
         if resp.status_code == 304:
             return FetchResult(None, 304)
@@ -84,6 +86,7 @@ class FeedClient:
             raise RateLimitedError(parse_retry_after(resp.headers.get("Retry-After")))
         if resp.status_code != 200:
             raise FeedError(f"HTTP {resp.status_code}", resp.status_code)
+        self.last_raw = resp.content
         try:
             payload = resp.json()
         except ValueError as exc:
