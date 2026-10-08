@@ -47,3 +47,11 @@ def test_controller_whitelist_is_an_exact_case_sensitive_match(db, payload, expe
     apply(db, p, refdata)
     stored = sorted(r["callsign"] for r in db.execute("SELECT callsign FROM controller_session").fetchall())
     assert stored == expected["controllers_kept_callsigns"]
+
+
+
+def test_pilots_with_plan_needs_both_departure_and_arrival(db, payload, expected, refdata) -> None:
+    """Mutant C11: pilots_with_plan counted a pilot with only one end filed. The fixture has pilots inside the
+    polygon with a departure but an empty arrival (TESTNOARR1/2); they must not be counted."""
+    res = apply(db, at(payload), refdata)
+    assert res.pilots_with_plan == len(expected["pilots_passing_flight_gate_inside"])
