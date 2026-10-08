@@ -277,3 +277,11 @@ def test_sync_settings_publishes_the_values_the_views_read(conn) -> None:
         assert rows == {"home_icao_prefixes": "Y,NZ", "airborne_gap_cap_seconds": "55"}
     finally:
         conn.execute("DELETE FROM app_setting WHERE key IN ('home_icao_prefixes', 'airborne_gap_cap_seconds')")
+
+
+
+def test_a_zzzz_arrival_is_flagged_as_zzzz(conn) -> None:
+    """Mutant S13 (`is_zzzz` looked only at the departure): the existing flag test only has ZZZZ as departure."""
+    make_session(conn, 9700010, run(5), dep="YSSY", arr="ZZZZ")
+    row = flights(conn, 9700010)[0]
+    assert row["is_zzzz"] is True and row["is_circuit"] is False
