@@ -35,6 +35,11 @@ updates:
     directory: /collector
     schedule:
       interval: weekly
+    ignore:
+      # numpy 2.x needs the x86-64-v2 CPU baseline, which the VM's virtual CPU lacks: the collector
+      # crash-looped on import (07-10-2026, pinned in d5de461). CI cannot catch it (modern runners).
+      - dependency-name: numpy
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: pip
     directory: /ops/watchdog
     schedule:
