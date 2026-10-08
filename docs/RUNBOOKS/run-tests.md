@@ -16,7 +16,7 @@ PYTHONPATH=collector/src python -m pytest -q -m "not integration" tests collecto
 python grafana/validate_dashboards.py          # dashboard shape and SQL syntax; pip install sqlglot to parse SQL
 python grafana/check_columns.py                # every dashboard column exists in a view; expect "bad 0"
 python ops/check_config_drift.py               # collector settings, compose and .env.example agree (needs PyYAML)
-python ops/check_size_budget.py                # collector package under 1400 lines, no module over 300
+python ops/check_size_budget.py                # collector package under 1700 lines, no module over 300
 python ops/check_fixture_pii.py tests/fixtures # the committed fixture holds no real names or CIDs
 ruff check --config ops/ruff.toml ops          # lint of the ops scripts
 cd collector && ruff check . && mypy src       # lint and strict typing of the collector
