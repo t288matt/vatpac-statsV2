@@ -1,4 +1,4 @@
-"""Review fixes 87 (health ages follow the poll interval), 99 (near-miss prefixes precomputed), 100 (one read per file)."""
+"""Review fixes 87 (health ages follow the poll interval), 99 (prefixes precomputed), 100 (one read per file)."""
 from __future__ import annotations
 
 import hashlib
@@ -54,7 +54,7 @@ def test_near_miss_uses_the_given_prefixes_without_walking_the_whitelist() -> No
     assert is_near_miss("ML_APP", wl, frozenset({"ML"})) is False  # listed
 
 
-def test_reference_data_carries_the_prefixes_and_they_match_the_default_path(polygon_path: Path, whitelist_path: Path) -> None:
+def test_reference_prefixes_match_the_default_path(polygon_path: Path, whitelist_path: Path) -> None:
     ref = load_reference(polygon_path, whitelist_path)
     assert ref.prefixes == {c.split("_", 1)[0] for c in ref.whitelist if "_" in c}
     for cs in ("ML_FOO_CTR", "AD_XYZ_TWR", "PH_TWR", "SY_OBS", "UAE3", "ML_APP"):
