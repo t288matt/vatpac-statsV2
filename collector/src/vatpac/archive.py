@@ -17,7 +17,9 @@ import json
 import logging
 import os
 import re
+import threading
 import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,7 +29,7 @@ from .health import Stats
 from .settings import Settings
 
 log = logging.getLogger(__name__)
-FUTURE_S, ANOMALY_REPEAT_S, STALE_TMP_S = 120.0, 300.0, 600.0
+ANOMALY_REPEAT_S, STALE_TMP_S, BACKOFF_S = 300.0, 600.0, 60.0
 PRECISION_DROP, PRECISION_MIN_VALUES = 0.2, 50  # a fall of 20 points or more over at least 50 logon_time values
 _LOGON_RE = re.compile(rb'"logon_time"\s*:\s*"([^"]*)"')
 PILOT_KEYS = ("cid", "callsign", "logon_time", "latitude", "longitude", "groundspeed", "altitude")
@@ -55,8 +57,12 @@ def write_gz(path: Path, data: bytes) -> int:
     """Write data gzipped (level 6, no embedded time) to a temporary name, then rename. Returns the file size."""
     path.parent.mkdir(parents=True, exist_ok=True)
     blob, tmp = gzip.compress(data, 6, mtime=0), path.with_name(f".{path.name}.tmp")
-    tmp.write_bytes(blob)
-    os.replace(tmp, path)
+    try:
+        tmp.write_bytes(blob)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)  # a full disk must not keep the partial file
+        raise
     return len(blob)
 
 
@@ -67,6 +73,9 @@ class Archive:
         self.last_write: float | None = None
         self.size = self.files = self.errors = self.dropped = self.anomalies = 0
         self._busy = self._failing = False
+        self._lock, self._pending = threading.Lock(), deque[tuple[Any, ...]]()
+        self.stopping = threading.Event()  # set at shutdown: no further writes are started (issue 69)
+        self._retry_at = 0.0  # after a failed write nothing is attempted before this time
         self._last_ts: datetime | None = None  # the state below is touched by the worker thread only
         self._share: tuple[int, float] | None = None
         self._prev: bytes | None = None
@@ -90,16 +99,29 @@ class Archive:
         try:
             if self._pool is None or (raw is None and status != "error"):
                 return
-            if self._busy:
-                self.dropped += 1
-                return
-            self._busy = True
-            self._pool.submit(self._run, raw, snap_ts, status, http, err)
+            job = (raw, snap_ts, status, http, err)
+            with self._lock:  # an error poll waits its turn (at most 3 queued) instead of being dropped (issue 67)
+                if time.time() < self._retry_at or (self._busy and (status != "error" or len(self._pending) >= 3)):
+                    self.dropped += 1
+                    return
+                queued, self._busy = self._busy, True
+                if queued:
+                    self._pending.append(job)
+            if not queued:
+                self._pool.submit(self._run, *job)
         except Exception:
             self._busy = False
             self.errors += 1
 
-    def _run(self, raw: bytes | None, snap_ts: datetime | None, status: str, http: int | None, err: str | None) -> None:
+    def _run(self, *job: Any) -> None:
+        """Process the job, then any error polls that queued up meanwhile; _busy clears only when none are left."""
+        while job and not self.stopping.is_set():
+            self._one(*job)
+            with self._lock:
+                job = self._pending.popleft() if self._pending else ()
+                self._busy = bool(job)
+
+    def _one(self, raw: bytes | None, snap_ts: datetime | None, status: str, http: int | None, err: str | None) -> None:
         try:
             self._process(raw, snap_ts, status, http, err)
             if self._failing:
@@ -107,11 +129,10 @@ class Archive:
                 log.info("archive writes recovered")
         except Exception as exc:  # the archive must never affect polling
             self.errors += 1
+            self._retry_at = time.time() + BACKOFF_S  # back off: do not retry two gzips every poll on a full disk
             if not self._failing:
                 self._failing = True
                 log.error("archive failed, polling continues", extra={"error": f"{type(exc).__name__}: {exc}"})
-        finally:
-            self._busy = False
 
     def _put(self, path: Path, data: bytes) -> None:
         self.size += write_gz(path, data)
@@ -123,7 +144,7 @@ class Archive:
         out = ["poll_error"] if status == "error" else []
         if raw is None or snap_ts is None:
             return out, False
-        if snap_ts.timestamp() - time.time() > FUTURE_S:
+        if snap_ts.timestamp() - time.time() > self.s.feed_max_future_seconds:
             return [*out, "ts_future"], False
         last = self._last_ts
         if last is not None:
@@ -152,6 +173,8 @@ class Archive:
                 body = json.dumps(compact(json.loads(raw)), separators=(",", ":")).encode()
                 self._put(self.root / "compact" / f"{snap_ts:%Y%m%d}" / f"{snap_ts:%H%M%S}.json.gz", body)
                 self._slot["compact"] = int(epoch // s.archive_compact_every_s)
+            if self.stopping.is_set():
+                return  # shutting down: skip the full file rather than outlast Docker's grace period
             if self._slot.get("full") != int(epoch // s.archive_full_every_s):
                 self._put(self.root / "full" / f"{snap_ts:%Y%m%d}" / f"{snap_ts:%H%M%S}.json.gz", raw)
                 self._slot["full"] = int(epoch // s.archive_full_every_s)
@@ -184,7 +207,7 @@ class Archive:
         now, self._last_prune = time.time(), time.time()
         keep = {"compact": self.s.archive_compact_keep_days, "full": self.s.archive_full_keep_days,
                 "anomaly": self.s.archive_anomaly_keep_days}
-        files: list[tuple[float, int, Path]] = []
+        files: list[tuple[bool, float, int, Path]] = []  # (is anomaly, mtime, size, path)
         for kind, days in keep.items():
             for path in (self.root / kind).glob("*/*"):
                 try:
@@ -193,11 +216,11 @@ class Archive:
                     if now - st.st_mtime > limit:
                         path.unlink()
                     elif not path.name.startswith("."):
-                        files.append((st.st_mtime, st.st_size, path))
+                        files.append((kind == "anomaly", st.st_mtime, st.st_size, path))
                 except OSError:
                     continue
-        total, cap = sum(f[1] for f in files), self.s.archive_max_mb * 1_048_576
-        for _, size, path in sorted(files):
+        total, cap = sum(f[2] for f in files), self.s.archive_max_mb * 1_048_576
+        for _, _, size, path in sorted(files):  # routine files first, anomaly evidence last; oldest first within each
             if total <= cap:
                 break
             try:

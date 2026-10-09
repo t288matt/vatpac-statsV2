@@ -100,12 +100,14 @@ class Collector:
     async def poll_once(self) -> PollOutcome:
         t0, ref = time.monotonic(), self.ref
         status, http, snap_ts, result, err = "error", None, None, None, None
+        seen_ts = None  # the feed's own timestamp, kept even when rejected as too far ahead (for the archive only)
         retry_in: float | None = None
         try:
             fetched = await self.feed.fetch()
             http, payload = fetched.http_status, fetched.payload
             if payload is not None:
                 ts, bound = update_timestamp(payload), self.settings.feed_max_future_seconds
+                seen_ts = ts
                 if ts - datetime.now(UTC) > timedelta(seconds=bound):  # one future stamp would skip every real update
                     raise FeedError(f"snapshot time {ts:%Y-%m-%dT%H:%M:%SZ} is over {bound} s ahead of the clock", 200)
                 snap_ts = ts
@@ -141,7 +143,7 @@ class Collector:
                                 result=result, error=err)
         self._update_stats(status, result, snap_ts, err)
         # queued for the archive thread: never blocks or raises
-        self.archive.submit(getattr(self.feed, "last_raw", None), snap_ts, status, http, err)
+        self.archive.submit(getattr(self.feed, "last_raw", None), seen_ts, status, http, err)
         return PollOutcome(status, retry_in)
 
     def _update_stats(self, status: str, result: ApplyResult | None, snap_ts: datetime | None, err: str | None) -> None:
@@ -254,6 +256,7 @@ async def run(settings: Settings, ref: ReferenceData) -> None:
         await asyncio.gather(collector.poll_loop(), collector.maintenance_loop(first_ok),
                              collector.flight_summary_loop())
     finally:
+        collector.archive.stopping.set()  # an in-flight archive write must not hold the exit past the grace period
         await runner.cleanup()
         await feed.aclose()
         pool.close()
