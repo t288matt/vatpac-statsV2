@@ -162,7 +162,7 @@ def test_runs_once_then_waits_the_interval_and_survives_a_restart(calls: dict[st
     p = plan()
     res, _ = integrity.run_due(p, state, now=1000.0)
     assert len(calls["sweep"]) == 1 and len(calls["cross"]) == 1
-    assert res["data_integrity"][0] == integrity.OK and "checked 1970" in res["data_integrity"][1]
+    assert res["data_integrity"][0] == integrity.OK and "(checked 01-01-1970 00:16 UTC)" in res["data_integrity"][1]  # DD-MM-YYYY, not ISO (issue 102)
     for t in (1060.0, 1000.0 + 71 * HOUR):  # later cycles: nothing runs, the stored result is still reported
         res, _ = integrity.run_due(p, state, now=t)
         assert len(calls["sweep"]) == 1 and "data_integrity" in res
