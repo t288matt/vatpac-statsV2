@@ -50,7 +50,7 @@ Frequency handling is the controller-side equivalent: `121.700` becomes 12170000
 
 **Merging.** The view `controller_session_merged` merges reconnects: a session that starts within 5 minutes of the previous session's last sighting (same CID and callsign) joins the same group. Start = earliest `logon_time`, end = latest sighting.
 
-**Closed** is derived, never written: `is_open` is true when the end is within 30 seconds of the newest stored snapshot.
+**Closed** is derived, never written: `is_open` is true when the end is within 2 x the poll interval (60 s at the default 30 s polling, ADR-024) of the newest stored snapshot.
 
 **Difference from v1.** The 5-minute reconnect merge is kept (v1 `CONTROLLER_RECONNECTION_THRESHOLD_MINUTES: 5`). v1 considered a session complete after 15 minutes of inactivity (`CONTROLLER_COMPLETION_MINUTES`) and ran a background summariser to archive it; v3 has no summariser, derives open/closed at query time, and treats a controller as no longer online after about two missed snapshots. v1 also filtered by callsign pattern (`ATIS`, `_OBS`) and by frequency (122.800); v3 uses the whitelist only (ADR-007).
 
@@ -61,11 +61,11 @@ Frequency handling is the controller-side equivalent: `121.700` becomes 12170000
 - `online_now` (core view): `last_seen` within 2 x the poll interval (setting `poll_interval_seconds`, 60 s at the default of 30 s; ADR-024) of the newest stored snapshot, and only while that newest snapshot is itself under 5 minutes old (migration 24), so a dead collector shows nobody online rather than the last people seen. Read it together with `data_freshness`.
 - `pilot_online_now` and `controller_online_now` (analytics views): within the last two stored snapshots **and** within the last 5 minutes of wall-clock time, the same guard.
 
-The two forms differ only slightly: 30 seconds of the newest snapshot against the last two stored snapshots, which on a healthy 15-second feed are the same people.
+The two forms differ only slightly: 2 x the poll interval from the newest snapshot against the last two stored snapshots, which on a healthy feed polled every 30 s are the same people.
 
 Which one a panel uses is recorded in [CHART_DEFINITIONS.md](CHART_DEFINITIONS.md).
 
-**Difference from v1.** Not documented in v1 compose. With a 15 s feed, "two snapshots" is about 30 seconds; v1's 92 s poll cadence implies a coarser notion.
+**Difference from v1.** Not documented in v1 compose. With polling every 30 s (15 s before 09-10-2026), "two snapshots" is about 60 seconds; v1's 92 s poll cadence implies a coarser notion.
 
 ## 7. Near-miss controller
 
@@ -92,4 +92,4 @@ Handling: the callsign is not stored as a session. It is upserted into `controll
 
 ## 10. Verification status of these definitions
 
-Checked against the code and SQL on 07-10-2026 and again on 08-10-2026, and exercised by the integration tests (166 exist; the suite is run against a real PostgreSQL 16.4 and in CI). The live filter counts were cross-checked against independent counts of the live feed on 07-10-2026 (15 pilots inside the polygon, 14 with a flight plan; no whitelisted controllers were online at the time) and on 08-10-2026 (6 of 6 samples matched exactly at two times of day; only 2 whitelisted controllers were online, so the controller filter is still lightly tested; see docs/TRACKER.md, T16 and T21). Not yet verified on real, long-running data: airborne minutes over full flights, the 8-hour span split, controller merging across real reconnects, and any chart that depends on weeks of history.
+Checked against the code and SQL on 07-10-2026 and again on 08-10-2026, and exercised by the integration tests (166 exist; the suite is run against a real PostgreSQL 16 and in CI, which uses 16.4 until updated). The live filter counts were cross-checked against independent counts of the live feed on 07-10-2026 (15 pilots inside the polygon, 14 with a flight plan; no whitelisted controllers were online at the time) and on 08-10-2026 (6 of 6 samples matched exactly at two times of day; only 2 whitelisted controllers were online, so the controller filter is still lightly tested; see docs/TRACKER.md, T16 and T21). Not yet verified on real, long-running data: airborne minutes over full flights, the 8-hour span split, controller merging across real reconnects, and any chart that depends on weeks of history.

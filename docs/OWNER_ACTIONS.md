@@ -27,10 +27,10 @@ A Task Scheduler job on your PC checks Grafana every 5 minutes and messages you 
 5. Shut it down and delete the scratch VM.
 **Emma does:** record the result and close #26 when you tell her the outcome.
 
-## 4. Decide the Dependabot pull requests (issue #31, T9). About 5 minutes, or say "your call".
-Open now: #12 and #11 (Postgres 16.4 to 16.14, the same major version: safe, patch releases), #10 (Grafana 11.2.2 to 11.6.5), #1 (dbmate 2.21 to 2.36). Rules already set: Postgres 17 or 18, numpy 2.x and other major bumps are ignored.
-**Recommendation:** merge #11 and #12 after a throwaway-database test run (Emma does it), test #10 against all dashboards with `ops/check_panels.py` on a throwaway Grafana, and test #1 with the migrations on a throwaway database. Nothing is deployed without your go.
-**You do:** reply "go" and Emma tests each bump and merges the ones that pass, closing the rest with a reason. (Standing rule: Emma asks before touching pull requests, so this "go" is the permission.)
+## 4. Dependabot pull requests (issue #31, T9, T48). Tested and applied 09-10-2026; waiting for a deploy go.
+Postgres 16.15 (db and backup), Grafana 11.6.5 and dbmate 2.36.0 were tested on throwaway containers (all pass) and committed to main directly (commit aecec21, because the repo token cannot merge pull requests); the four PRs were closed with a note. They are NOT deployed yet. Deploying recreates the db and grafana containers (see docs/RUNBOOKS/deploy-to-vm.md section 4d).
+**You do:** say "go" when you want the deploy, in a quiet period. Postgres 17 or 18, numpy 2.x and other major bumps stay ignored.
+**Emma does:** the deploy (fresh dump first), the checks, and closes #31.
 
 ## 5. Read-only deploy key for the VM (issue #28, T8). Optional, about 5 minutes.
 **Why:** today code is copied with `git archive` over ssh, which works. A deploy key would let the VM `git pull` a tag.

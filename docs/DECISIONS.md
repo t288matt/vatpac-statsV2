@@ -16,6 +16,7 @@ Dashboards live in git as JSON and load on start, so the stack rebuilds from a c
 
 ## ADR-005 Poll every 15 s aligned to the feed timestamp (07-10-2026)
 The feed refreshes every 15 s (`general.update_timestamp`). v1 polled every ~92 s and saw one snapshot in six. v3 skips unchanged snapshots and records every attempt in `poll_log`.
+*Superseded 09-10-2026 by ADR-024: the poll interval is now 30 s, held in POLL_INTERVAL_SECONDS.*
 
 ## ADR-006 Session identity (07-10-2026)
 Flight and controller sessions are keyed `(cid, callsign, logon_time)`. Departure, arrival, route and aircraft are attributes, never keys (v1 keyed on them and produced duplicates).
@@ -43,6 +44,7 @@ Develop on Windows with Docker Desktop; deploy to an always-on Linux VM. Compose
 
 ## ADR-014 Collector size budget: 900, then 1300, now 1400 lines (07-10-2026)
 The original budget (about 900 physical lines) was set before the required behaviour was specified in detail (retries and circuit breaker, SIGHUP reload with validation, near-miss tracking, partition maintenance, health endpoint, idempotent single-transaction ingest). The implementation is 1243 physical lines (comments and blanks included) with no module over 300, against v1's 12.8k lines for `app/`. The budget stays a hard gate (CI) so growth is a conscious decision. Raised again to 1400 after the review fixes (database timeouts, poison-record handling, reload alerting, flight-summary refresh loop) took the package to 1325 lines; each addition was a required behaviour, not feature creep.
+*Superseded 08-10-2026 by ADR-022: the budget is now 1700 lines.*
 
 ## ADR-015 Integration tests against a real Postgres found and fixed defects (07-10-2026)
 First execution of the SQL and the integration tests (scratch Postgres 16.4): 31 of 95 failed. Fixed: `flight` view used `trim()` (spaces only) so tabs in airport codes slipped past the gate (now `btrim` with an explicit set); `store.py` assumed tuple rows (now explicit `tuple_row`); three test defects (read-only role test now proves the privilege layer as well as the read-only default; partial `network_snapshot` insert; poisoned pilot was outside the polygon). Result: 288 passed, 1 skipped.
@@ -54,7 +56,8 @@ The first design computed `flight` live with window functions over every positio
 The collector connects as `collector` (DML on its tables, EXECUTE on the maintenance functions, no DDL; the partition and refresh functions are SECURITY DEFINER), backups as `backup_ro` (`pg_read_all_data`), Grafana as `grafana_ro` (views and lookups, connection limit 10), the watchdog as `watchdog_ro`. The owner role is used by `migrate` and by restore only. Trade-off: the backup container still holds the owner password for the restore scripts; a dedicated restore role would be tighter.
 
 ## ADR-018 Airport movements stay the same as v1 (07-10-2026)
-Owner decision: the movements charts keep v1's definition. Every flight-gate session counts as one departure at its departure airport and one arrival at its arrival airport, whether or not the aircraft ever became airborne. Evidence at the time: in v1's last full month (12-07 to 12-08-2026) 12% of home-region departures had zero airborne time and 6% were circuits, so the charts include parked connections. The `movements` view carries a SQL comment saying so. A later change (an airborne-only panel or definition) needs a new decision and an ADR.
+Owner decision: the movements charts keep v1's definition. Every flight-gate session counts as one departure at its departure airport and one arrival at its arrival airport, whether or not the aircraft ever became airborne. Evidence at the time: in v1's last full month (12-07 to 12-08-2026) 12% of home-region departures had zero airborne time and 6% were circuits, so the charts include parked connections. The `movements` view carries a SQL comment about this. A later change (an airborne-only panel or definition) needs a new decision and an ADR.
+*Note 09-10-2026: the owner confirmed this again (issue 74, as v1 does; ADR-023 consequences). The `movements` view COMMENT (migration 20261007000024) still says "SPEC decision pending", which is now false; changing a comment needs a new numbered migration (issue 32). Flights still connected are no longer counted in movements, by ADR-025.*
 
 ## ADR-019 Names and CIDs are retained indefinitely (07-10-2026)
 Owner decision, confirming ADR-009: no retention or anonymisation rule. Names and CIDs stay in the database and in backups for as long as the data is kept. The option of anonymising sessions older than 12 months (stable hash, so unique-person counts still work) was offered and declined. Consequence: backups hold real names and CIDs and must stay private; before any public exposure (Cloudflare), check the VATSIM data-use policy and put the dashboards behind login (see ADR-009). A later change needs a new ADR and a new numbered migration.
@@ -92,7 +95,8 @@ Decision (owner): exclude in-progress flights from the COUNT panels (flights, ra
 Consequences: a flight appears in the counts once its pilot has been gone for two polls (60 s) rather than 8 hours, so it is counted about 8 hours earlier than in v1 but never while connected. A flight that reconnects within 120 minutes and is merged (ADR-023) drops out again while the new session is online and returns when it ends. If the collector stops, `online_now` is empty and every flight is counted. Panels that need an owner decision (monday attendance) are listed in the tracker row T46.
 
 ## OPEN decisions for the owner
+(Rewritten 09-10-2026. The live list is docs/TRACKER.md and docs/OWNER_ACTIONS.md.)
 - The backup container holds the owner password for the restore scripts (ADR-017); a dedicated restore-only role would be tighter.
-- Backfill of v1 history (ADR-011 says no backfill and stands until changed): the owner has not decided whether to load v1 sessions so the 30 to 90 day charts are meaningful immediately (docs/TRACKER.md, T22).
-- Data retention for every data set other than names and CIDs (docs/TRACKER.md, T12, low priority).
-- The chart questions listed in docs/RESUME.md section 4 (cards 66, 131, 134, 65, 41/43/98, 61, 93, 55 and others); they are definitions of individual charts and are answered there and in the tracker, not here.
+- Data retention for every data set other than names and CIDs (docs/TRACKER.md, T12, issue 21, low priority).
+- Monday attendance: it counts people present and reads `flight_summary`, so ADR-025 does not filter it (docs/TRACKER.md, T47).
+- Decided since this list was first written: backfill of v1 history is NO (T22; ADR-011 stands); the chart questions of 08-10-2026 were answered "keep all" (T14, T15, ADR-020); the v1 comparison differences were decided one by one (docs/V1_COMPARISON.md section 11).
