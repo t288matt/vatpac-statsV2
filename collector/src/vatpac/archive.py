@@ -130,7 +130,7 @@ class Archive:
             gap = (snap_ts - last).total_seconds()
             if gap < 0:
                 return [*out, "ts_older"], False
-            if gap > self.s.archive_gap_s:
+            if gap > (self.s.archive_gap_s or 0):
                 out.append("gap")
         n, share = fraction_share(raw)
         if self._share and n >= PRECISION_MIN_VALUES and self._share[0] >= PRECISION_MIN_VALUES \

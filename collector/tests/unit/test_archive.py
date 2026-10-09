@@ -106,7 +106,7 @@ def test_full_file_is_the_raw_payload_byte_for_byte(tmp_path: Path, fixture_payl
     assert gzip.decompress(full.read_bytes()) == raw
 
 
-@pytest.mark.parametrize("delta,reason", [(36, "gap"), (-20, "ts_older")])
+@pytest.mark.parametrize("delta,reason", [(66, "gap"), (-20, "ts_older")])
 def test_timestamp_anomalies(tmp_path: Path, fixture_payload: dict[str, Any], delta: int, reason: str) -> None:
     a, _ = make(tmp_path)
     feed(a, raw_at(fixture_payload, T0), T0)

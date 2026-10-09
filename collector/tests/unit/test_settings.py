@@ -36,10 +36,10 @@ def test_defaults_match_env_example(clean_env: pytest.MonkeyPatch) -> None:
     s = make()
     assert s.vatsim_feed_url == "https://data.vatsim.net/v3/vatsim-data.json"
     assert s.vatsim_status_url == "https://status.vatsim.net/status.json"
-    assert s.poll_interval_seconds == 15
+    assert s.poll_interval_seconds == 30
     assert s.http_timeout_seconds == 10
     assert s.position_retention_days == 90
-    assert s.airborne_gap_cap_seconds == 40
+    assert s.airborne_gap_cap_seconds == 75  # 2.5 x the poll interval
     assert str(s.log_level).upper() == "INFO"
     prefixes = s.home_icao_prefixes
     assert (prefixes == "Y") or list(prefixes) == ["Y"]
@@ -88,3 +88,18 @@ def test_optional_values_may_be_empty(clean_env: pytest.MonkeyPatch) -> None:
     clean_env.setenv("TELEGRAM_CHAT_ID", "")
     clean_env.setenv("UPTIME_KUMA_PUSH_URL", "")
     make()
+
+
+def test_cadence_dependent_values_follow_the_poll_interval(clean_env: pytest.MonkeyPatch) -> None:
+    s = Settings(_env_file=None, poll_interval_seconds=20)  # type: ignore[call-arg]
+    assert s.airborne_gap_cap_seconds == 50 and s.archive_gap_s == 45
+    s = Settings(_env_file=None, poll_interval_seconds=20, airborne_gap_cap_seconds=90, archive_gap_s=100)  # type: ignore[call-arg]
+    assert s.airborne_gap_cap_seconds == 90 and s.archive_gap_s == 100
+
+
+def test_blank_environment_values_mean_derived(clean_env: pytest.MonkeyPatch) -> None:
+    clean_env.setenv("POLL_INTERVAL_SECONDS", "40")
+    clean_env.setenv("AIRBORNE_GAP_CAP_SECONDS", "")
+    clean_env.setenv("ARCHIVE_GAP_S", "")
+    s = make()
+    assert s.airborne_gap_cap_seconds == 100 and s.archive_gap_s == 85

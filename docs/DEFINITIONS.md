@@ -58,7 +58,7 @@ Frequency handling is the controller-side equivalent: `121.700` becomes 12170000
 
 **v3.** Seen within the last 2 snapshots. Two forms exist in the database:
 
-- `online_now` (core view): `last_seen` within 30 seconds of the newest stored snapshot, and only while that newest snapshot is itself under 5 minutes old (migration 24), so a dead collector shows nobody online rather than the last people seen. Read it together with `data_freshness`.
+- `online_now` (core view): `last_seen` within 2 x the poll interval (setting `poll_interval_seconds`, 60 s at the default of 30 s; ADR-024) of the newest stored snapshot, and only while that newest snapshot is itself under 5 minutes old (migration 24), so a dead collector shows nobody online rather than the last people seen. Read it together with `data_freshness`.
 - `pilot_online_now` and `controller_online_now` (analytics views): within the last two stored snapshots **and** within the last 5 minutes of wall-clock time, the same guard.
 
 The two forms differ only slightly: 30 seconds of the newest snapshot against the last two stored snapshots, which on a healthy 15-second feed are the same people.
