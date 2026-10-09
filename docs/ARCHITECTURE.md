@@ -4,7 +4,7 @@ Last reviewed 08-10-2026 against the repository. Authoritative sources: [SPEC.md
 
 ## 1. What it is
 
-VATPAC Stats v3 polls the public VATSIM data feed every 15 seconds, keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist, stores them in PostgreSQL 16, and shows them in Grafana dashboards. Everything runs from one `docker compose up -d`.
+VATPAC Stats v3 polls the public VATSIM data feed every 30 seconds (`POLL_INTERVAL_SECONDS`, ADR-024; the feed itself refreshes every 15 s), keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist, stores them in PostgreSQL 16, and shows them in Grafana dashboards. Everything runs from one `docker compose up -d`.
 
 ## 2. Data flow
 
@@ -51,10 +51,10 @@ Defined in `docker-compose.yml` (project name `vatpac`, one internal network, `j
 
 | Service | Image / build | Role | Notes |
 |---|---|---|---|
-| `db` | `postgres:16.4-bookworm` | The database. | Named volume `pgdata`; `--data-checksums`; tuning in `ops/postgres/postgresql.conf`; healthcheck `pg_isready`; port not published (the dev overlay publishes `127.0.0.1:55432` only). |
-| `migrate` | `ops/migrate` (dbmate 2.21.0 and psql) | One-shot: applies new `db/migrations/*.sql`, then `db/roles.sql` (roles `grafana_ro`, `collector`, `backup_ro`) and creates `watchdog_ro`. | `restart: "no"`. Safe to re-run on every `up`. `./db` is mounted read-only, so new migration files need no image rebuild. Other services wait for `service_completed_successfully`. |
+| `db` | `postgres:16.15-bookworm` (CI uses 16.4 until updated) | The database. | Named volume `pgdata`; `--data-checksums`; tuning in `ops/postgres/postgresql.conf`; healthcheck `pg_isready`; port not published (the dev overlay publishes `127.0.0.1:55432` only). |
+| `migrate` | `ops/migrate` (dbmate 2.36.0 and psql) | One-shot: applies new `db/migrations/*.sql`, then `db/roles.sql` (roles `grafana_ro`, `collector`, `backup_ro`) and creates `watchdog_ro`. | `restart: "no"`. Safe to re-run on every `up`. `./db` is mounted read-only, so new migration files need no image rebuild. Other services wait for `service_completed_successfully`. |
 | `collector` | `collector/Dockerfile` | The only writer. Poll loop, daily maintenance, `/health` and `/metrics`. | Connects as the least-privilege role `collector`. Non-root, read-only filesystem, all capabilities dropped, `config/` mounted read-only at `/app/config`, 512 MB. The only writable place is the named volume `archive` at `/archive` (the raw-feed archive, owned by uid 10001). |
-| `grafana` | `grafana/grafana-oss:11.2.2` | Dashboards, provisioned from `grafana/provisioning` and `grafana/dashboards` (read-only mounts). | Login required, anonymous access off, published on `GRAFANA_BIND`:`GRAFANA_PORT` (default `127.0.0.1:3300`, loopback only; set `GRAFANA_BIND` for LAN access). Reads the database as `grafana_ro`. |
+| `grafana` | `grafana/grafana-oss:11.6.5` | Dashboards, provisioned from `grafana/provisioning` and `grafana/dashboards` (read-only mounts). | Login required, anonymous access off, published on `GRAFANA_BIND`:`GRAFANA_PORT` (default `127.0.0.1:3300`, loopback only; set `GRAFANA_BIND` for LAN access). Reads the database as `grafana_ro`. |
 | `backup` | `ops/backup` | Nightly `pg_dump` (custom format) as the read-only role `backup_ro`, rotation, weekly restore test, optional off-box hook (`BACKUP_REMOTE`). | Volume `backups`; see [runbook: restore](RUNBOOKS/restore.md). |
 | `watchdog` | `ops/watchdog` | Checks health and the database every 60 s and alerts. | Alert-only; see section 6. Writes a status file on volume `watchdog_status`. |
 

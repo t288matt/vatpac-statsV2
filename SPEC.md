@@ -10,7 +10,7 @@ Reproduce the VATPAC pilot/controller graphs, live and available 24/7, fully doc
 - Dashboards: **Grafana OSS**, provisioned from files in git. Login required. LAN only for now; any Cloudflare tunnel is set up externally by the owner (no config in this repo).
 - Collector: **Python 3.12** (httpx, psycopg 3 + psycopg_pool, shapely, pydantic-settings, aiohttp for the health endpoint).
 - Migrations: plain SQL files in `db/migrations/`, applied by a one-shot `migrate` container (dbmate).
-- Positions: every 15 s sample is stored; raw positions kept 90 days (drop old daily partitions); sessions kept forever.
+- Positions: every sample is stored (one per poll; 15 s when written, 30 s since 09-10-2026, ADR-024); raw positions kept 90 days (drop old daily partitions); sessions kept forever.
 - Names and CIDs are stored and shown (as v1). Repo is private but written public-safe: no secrets, no real personal data in fixtures.
 - No backfill. Charts start empty at go-live.
 - Dev/test on Windows (Docker Desktop), deploy to an always-on Linux VM. Compose must be portable.
@@ -18,7 +18,7 @@ Reproduce the VATPAC pilot/controller graphs, live and available 24/7, fully doc
 
 ## 3. Feed and polling
 - URL: `https://data.vatsim.net/v3/vatsim-data.json` (discover through `https://status.vatsim.net/status.json`, key `data.v3[0]`; fall back to the hard-coded URL if discovery fails).
-- The feed refreshes every 15 s; `general.update_timestamp` (ISO-8601 UTC) is the **snapshot time** and is used as `observed_at` for every row from that snapshot. A snapshot time more than `FEED_MAX_FUTURE_SECONDS` (default 120) ahead of the collector clock is not accepted: the poll is an `error` (message "snapshot time ... ahead of the clock", nothing stored, the last processed time unchanged), so a single future-dated snapshot cannot make every later genuine update look unchanged.
+- The feed refreshes every 15 s (the collector polls every 30 s since 09-10-2026, ADR-024); `general.update_timestamp` (ISO-8601 UTC) is the **snapshot time** and is used as `observed_at` for every row from that snapshot. A snapshot time more than `FEED_MAX_FUTURE_SECONDS` (default 120) ahead of the collector clock is not accepted: the poll is an `error` (message "snapshot time ... ahead of the clock", nothing stored, the last processed time unchanged), so a single future-dated snapshot cannot make every later genuine update look unchanged.
 - Poll loop (monotonic scheduler, no drift): fetch; if `update_timestamp` equals the last processed one, skip and retry in about 2 s; else process. At start-up the last processed time is read from the database (newest `network_snapshot.observed_at` that is not future-dated), so the first poll after a restart that returns the same snapshot is logged `skipped_unchanged`, not `ok` (issue 41). Use `If-Modified-Since`, `Accept-Encoding: gzip`, honour `Cache-Control`, User-Agent `vatpac-stats/<version>`, timeout 10 s (connect 5 s), 3 retries with jittered exponential backoff, honour 429/`Retry-After`, circuit breaker after N consecutive failures (poll continues at a slower cadence, never exits).
 - Only `pilots` and `controllers` are read. `atis`, `prefiles`, `servers`, `facilities`, `ratings`, `pilot_ratings` (the lookup arrays) are ignored; the lookup tables are seeded by migrations 3 and 11, not from the feed.
 - The transceivers feed is NOT fetched.
@@ -36,7 +36,7 @@ Reproduce the VATPAC pilot/controller graphs, live and available 24/7, fully doc
 
 ## 5. Definitions
 - **Pilot session (flight)**: `(cid, callsign, logon_time)` where `logon_time` is kept to WHOLE SECONDS (truncated at parse, never rounded; the feed sometimes sends a fraction and sometimes not, ADR-021; a CHECK constraint enforces it). A new whole-second `logon_time` for the same cid+callsign is a new session. Within one logon, a gap of more than 120 minutes between consecutive samples or a span of more than 8 hours starts a new session (handled in the `flight` view by splitting, not by the collector). Plan fields (departure, arrival, aircraft, route, remarks, flight rules, planned altitude, deptime) are attributes updated in place to the latest non-null values; `plan_changed_at` is updated when departure or arrival changes.
-- **Flight start** = first stored sample; **end** = last sample; **duration** = end - start. **Airborne minutes** = sum over consecutive sample pairs of the gap where groundspeed >= 60 kt at the earlier sample, each gap capped at `AIRBORNE_GAP_CAP_SECONDS` (default 40, about 2.5 x the 15 s interval).
+- **Flight start** = first stored sample; **end** = last sample; **duration** = end - start. **Airborne minutes** = sum over consecutive sample pairs of the gap where groundspeed >= 60 kt at the earlier sample, each gap capped at `AIRBORNE_GAP_CAP_SECONDS` (blank by default, derived as 2.5 x `POLL_INTERVAL_SECONDS`: 75 s at the 30 s default, ADR-024; it was 40 s at 15 s).
 - **Controller session**: `(cid, callsign, logon_time)` with `logon_time` in whole seconds as for pilots (ADR-021). Start = `logon_time`, end = last sighting. Reconnect of the same cid+callsign within 5 minutes merges (in the `controller_session_merged` view). "Closed" is derived (last seen older than 2 polls), never written.
 - **Online now** = seen within the last 2 snapshots.
 - **Plausibility caps** (ingest): groundspeed 0..700 kt, altitude -1500..65000 ft; values outside are stored as NULL and counted in `poll_log.rejected_values`. The same counter also takes the other values parsing drops (an integer outside int32, an unparsable number, a heading outside 0..360) for stored pilots and controllers, and every malformed feed entry that was skipped.
@@ -99,7 +99,7 @@ Dashboards show "data since <go-live>" because there is no backfill.
 
 ## 12. Acceptance (the goal)
 1. Clean clone + `.env` from `.env.example` + `docker compose up -d`: all services healthy.
-2. `poll_log` shows a snapshot about every 15 s; under 1% of expected snapshots skipped over 24 h.
+2. `poll_log` shows a snapshot about every poll interval (30 s since 09-10-2026; 15 s when written); under 1% of expected snapshots skipped over 24 h.
 3. Replaying a snapshot inserts zero rows.
 4. Every provisioned panel returns data (once data exists) with no query errors; each in-scope v1 chart has a panel.
 5. Kill any container: Docker/watchdog restores it; watchdog alerts once.

@@ -20,7 +20,7 @@ The watchdog already alerts by Telegram on the worst failures ([alerts.md](alert
    ```sh
    docker compose exec -T db sh -c 'psql -X -P pager=off -x -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT * FROM data_freshness"'
    ```
-   Expect `snapshot_age_seconds` under about 30, `last_ok_age_seconds` under about 30, `ok_last_hour` close to 240 (one per 15 seconds), and `error_last_hour` at or near 0. `skipped_last_hour` counts polls where the feed had not changed and is normal. (The same view feeds the Grafana dashboard "Monitoring: collector and data freshness".)
+   Expect `snapshot_age_seconds` under about 60, `last_ok_age_seconds` under about 60, `ok_last_hour` close to 120 (one per 30 seconds at the default `POLL_INTERVAL_SECONDS`; it was 240 at 15 s), and `error_last_hour` at or near 0. `skipped_last_hour` counts polls where the feed had not changed and is normal. (The same view feeds the Grafana dashboard "Monitoring: collector and data freshness".)
 4. **Watchdog verdict.**
    ```sh
    docker compose exec -T watchdog cat /var/watchdog/watchdog_status.json
@@ -50,7 +50,7 @@ The watchdog already alerts by Telegram on the worst failures ([alerts.md](alert
 
 ## The soak report
 
-The soak report answers the acceptance question "has the collector stored a snapshot about every 15 seconds for 24 hours?" It reads `poll_log` only and changes nothing.
+The soak report answers the acceptance question "has the collector stored a snapshot about every poll interval (30 seconds by default) for 24 hours?" It reads `poll_log` only and changes nothing.
 
 ```sh
 sh ops/soak_report.sh 24          # or: make soak HOURS=24; the argument is a whole number of hours
@@ -62,7 +62,7 @@ The output is one record followed by one line per container with its restart cou
 |---|---|
 | `first_snapshot`, `last_snapshot` | The first and last snapshot stored inside the window (UTC). |
 | `hours_covered`, `hours_requested` | Span between them, and the window you asked for. |
-| `snapshots_stored`, `snapshots_expected` | Distinct snapshots stored, and one per 15 seconds over the span. |
+| `snapshots_stored`, `snapshots_expected` | Distinct snapshots stored, and one per poll interval (`POLL_INTERVAL_SECONDS`, read from the setting) over the span. |
 | `coverage_pct` | Stored divided by expected. |
 | `gaps_over_limit`, `longest_gap` | Count of gaps over 2.5 poll intervals between consecutive snapshots, and the longest gap. |
 | `p95_cadence_s` | 95th percentile of the gap between consecutive snapshots (normally 15). |

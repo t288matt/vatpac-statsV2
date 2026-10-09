@@ -62,6 +62,10 @@ Three things are mandatory for this release. Each one has already cost, or would
 3. **Check the archive after the deploy.** About a minute after the collector starts, `docker compose exec -T collector python -c "import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8080/health').read().decode())"` (the health port is not published; 8080 is the default `HEALTH_PORT`) must show an `archive` block with `enabled: true`, `last_write` set to a time within the last few minutes (and `last_write_age_seconds` small), and error counters at 0. A `last_write` of null, or growing `last_write_age_seconds`, means the archive is not writing: check `docker compose logs --tail=50 collector` and the ownership of the `archive` volume. The watchdog also alerts on an old archive.
 Order for this release: fresh dump (`docker compose exec backup backup.sh once`), a copy of the VM's tree for rollback, `timedatectl`, `git archive` copy (section 2c), `docker compose stop collector`, `docker compose up -d --build`, `sh ops/smoke.sh`, `python3 ops/check_panels.py`, restart counts 0, the `/health` archive check above, and `ops/check_identity_flap.sql` (three zeros).
 
+## 4d. Special case: the Dependabot image bumps (T48; issue #31)
+Status 09-10-2026: committed to main in aecec21 and NOT yet deployed to the VM (the VM runs a600905).
+Postgres 16.4 to 16.15 (`db` and `ops/backup`), Grafana 11.2.2 to 11.6.5 and dbmate 2.21.0 to 2.36.0 were tested on throwaway containers, not on the live stack. Deploying them recreates the containers: `docker compose up -d --build` recreates `db` (same major version 16, the `pgdata` volume is reused, about 10 to 30 seconds of database downtime), `grafana` (about a minute; `grafana_data` is upgraded in place on first start, so copy the volume first if rollback matters) and rebuilds `backup` and `migrate`. Do it in a quiet period, take a fresh dump first (`docker compose exec backup backup.sh once`), then run `sh ops/smoke.sh` and `python3 ops/check_panels.py`. Never let the `backup` image tag differ from the `db` image tag.
+
 ## 5. Network exposure and firewall
 Only Grafana is published, and by default **only on loopback**: `127.0.0.1:${GRAFANA_PORT:-3300}`. The database is not published. To reach Grafana from the LAN, opt in explicitly in `.env`:
 ```sh
@@ -83,7 +87,7 @@ Grafana is also hardened with: external snapshots disabled, Gravatar disabled, v
 ## 6. Verify
 ```sh
 make smoke                                   # PASS/FAIL per check, non-zero on failure (without make: sh ops/smoke.sh)
-docker compose logs --tail=50 collector      # polls every ~15 s
+docker compose logs --tail=50 collector      # polls every 30 s (POLL_INTERVAL_SECONDS)
 docker compose exec backup backup.sh once    # first backup, then `ls` the volume (see restore.md)
 ```
 `python3 ops/check_panels.py` runs every dashboard query through Grafana's own API; expect `0 errors` (empty panels are fine while data is young). It reads `.env` and never prints the password.
