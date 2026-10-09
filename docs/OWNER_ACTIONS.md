@@ -32,7 +32,7 @@ Postgres 16.15 (db and backup), Grafana 11.6.5 and dbmate 2.36.0 were tested on 
 **You do:** say "go" when you want the deploy, in a quiet period. Postgres 17 or 18, numpy 2.x and other major bumps stay ignored.
 **Emma does:** the deploy (fresh dump first), the checks, and closes #31.
 
-## 5. Read-only deploy key for the VM (issue #28, T8). Optional, about 5 minutes.
+## 5. Read-only deploy key for the VM (issue #28, T8). WON'T DO: owner decision 09-10-2026, issue closed as not planned. Kept below as a record only.
 **Why:** today code is copied with `git archive` over ssh, which works. A deploy key would let the VM `git pull` a tag.
 **You do:** on the VM run `ssh-keygen -t ed25519 -f ~/.ssh/vatpac_deploy -N ""`, then `cat ~/.ssh/vatpac_deploy.pub`, paste the output at https://github.com/t288matt/vatpac-statsV2/settings/keys under **Add deploy key** with **Allow write access OFF**.
 **Recommendation:** skip it. The current method works and needs no credentials on the VM, which is safer. Say "skip" and Emma closes #28 as not needed.
