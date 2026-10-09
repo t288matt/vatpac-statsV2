@@ -20,7 +20,7 @@ python ops/check_size_budget.py                # collector package under 1700 li
 ruff check --config ops/ruff.toml ops          # lint of the ops scripts
 cd collector && ruff check . && mypy src       # lint and strict typing of the collector
 # strict typing of the watchdog and ops scripts (the exact list is in .github/workflows/ci.yml; the watchdog needs the two audit files on its path)
-mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/check_config_drift.py ops/check_size_budget.py ops/check_panels.py
+mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py ops/check_panels.py
 ```
 
 `make test`, `make drift`, `make size` and `make lint` wrap the same commands. On Windows without `make`, run the commands above. Set up the Python environment once: `python -m venv collector/.venv`, then `collector/.venv/bin/pip install pytest -r collector/requirements.txt` (Windows: `collector\.venv\Scripts\pip`).
