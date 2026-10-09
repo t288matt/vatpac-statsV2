@@ -17,6 +17,6 @@ RUN groupadd --system --gid 10001 watchdog \
  && useradd --system --uid 10001 --gid watchdog --no-create-home --shell /usr/sbin/nologin watchdog \
  && mkdir -p /var/watchdog && chown watchdog:watchdog /var/watchdog
 
-COPY watchdog/watchdog.py watchdog/integrity.py audit/independent.py audit/invariants.sql ./
+COPY watchdog/watchdog.py watchdog/integrity.py watchdog/messages.py audit/independent.py audit/invariants.sql ./
 USER 10001:10001
 ENTRYPOINT ["python", "/app/watchdog.py"]

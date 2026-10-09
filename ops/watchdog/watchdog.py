@@ -22,6 +22,7 @@ from typing import Any
 
 import httpx
 import integrity
+import messages
 import psycopg
 from psycopg.conninfo import make_conninfo
 
@@ -347,21 +348,47 @@ class Alerter:
         self.cfg, self.client = cfg, client
         self.confirmed: dict[str, str] = state.setdefault("alerts", {})
         self.pending: dict[str, tuple[str, int]] = {}
+        # When each check went bad (epoch seconds), persisted in the status file so a restart keeps it. Used only to say how
+        # long a problem lasted in the RECOVERED message; absent (an older status file) means the duration is left out.
+        self.bad_since: dict[str, float] = state.setdefault("bad_since", {})
+        self._context: tuple[str | None, float | None] = (None, None)  # (previous level, seconds bad) for the next send
 
     def send(self, text: str) -> None:
+        """Log the technical text; send the plain-language version to Telegram (messages.py)."""
         log.info("ALERT %s", text)
+        previous, down_for = getattr(self, "_context", (None, None))
+        self._context = (None, None)
         if not (self.cfg.tg_token and self.cfg.tg_chat):
             return
+        body = messages.telegram_text(text, down_for, previous)
         try:
             r = self.client.post(
                 f"https://api.telegram.org/bot{self.cfg.tg_token}/sendMessage",
-                json={"chat_id": self.cfg.tg_chat, "text": f"vatpac-stats: {text}"},
+                json={"chat_id": self.cfg.tg_chat, "text": body},
                 timeout=10,
             )
             if r.status_code != 200:
                 log.warning("telegram returned HTTP %s", r.status_code)
         except httpx.HTTPError as exc:  # never log the URL: it contains the bot token
             log.warning("telegram send failed (%s)", type(exc).__name__)
+
+    def _track(self, name: str, level: str, current: str) -> None:
+        """Keep the time a check went bad (best effort; never raises) and hand the context to the next send."""
+        try:
+            since = getattr(self, "bad_since", None)
+            if since is None:
+                return
+            now = time.time()
+            down_for: float | None = None
+            if level == OK:
+                started = since.pop(name, None)
+                if isinstance(started, (int, float)) and now >= started:
+                    down_for = now - started
+            elif current == OK:
+                since[name] = now
+            self._context = (current if current != OK else None, down_for)
+        except Exception:  # noqa: BLE001 - timing is a nicety; the alert matters more
+            self._context = (None, None)
 
     def update(self, name: str, level: str, detail: str) -> None:
         current = self.confirmed.get(name, OK)
@@ -375,6 +402,7 @@ class Alerter:
             return
         self.pending.pop(name, None)
         self.confirmed[name] = level
+        self._track(name, level, current)
         if level == OK:
             self.send(f"RECOVERED {name} (was {current}): {detail}")
         else:

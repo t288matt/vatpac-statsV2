@@ -1,0 +1,289 @@
+"""Issue 79: the watchdog's Telegram messages are plain language, with one last 'Technical:' line (ops/watchdog/messages.py).
+
+Pure text tests: no network, no database. The alert logic itself is tested in test_watchdog_decisions.py."""
+from __future__ import annotations
+
+import importlib.util
+import json
+import logging
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import httpx
+import pytest
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "ops" / "watchdog"))
+sys.path.insert(0, str(REPO / "ops" / "audit"))
+import integrity  # noqa: E402
+import messages as m  # noqa: E402
+
+spec = importlib.util.spec_from_file_location("watchdog_under_test_humane", REPO / "ops" / "watchdog" / "watchdog.py")
+assert spec and spec.loader
+wd = importlib.util.module_from_spec(spec)
+sys.modules["watchdog_under_test_humane"] = wd
+spec.loader.exec_module(wd)
+
+NOW = datetime(2026, 10, 9, 14, 5, tzinfo=UTC)
+SQL = (REPO / "ops" / "audit" / "invariants.sql").read_text(encoding="utf-8")
+NAMES = integrity.invariant_names(SQL)
+
+# (check, level, a realistic technical detail, text the plain sentence must contain)
+CASES: list[tuple[str, str, str, str]] = [
+    ("collector_health", "crit", "unreachable (ConnectError)", "collector is not answering"),
+    ("collector_health", "crit", "HTTP 503", "collector is not answering"),
+    ("poll_log_ok_age", "warn", "newest ok poll is 75s old", "about 1 minute"),
+    ("poll_log_ok_age", "crit", "newest ok poll is 312s old", "about 5 minutes"),
+    ("poll_log_ok_age", "warn", "no newest ok poll yet", "No successful"),
+    ("network_snapshot_age", "warn", "newest snapshot is 90s old", "stored picture"),
+    ("network_snapshot_age", "crit", "newest snapshot is 400s old", "feed may have frozen"),
+    ("grafana_health", "crit", "unreachable (ConnectError)", "dashboards"),
+    ("database", "crit", "query/connect failed (OperationalError)", "cannot read the database"),
+    ("db_size", "warn", "21.40 GB (limit 20)", "21.4 GB"),
+    ("disk", "warn", "/backups 82% used, / 50% used", "82% full"),
+    ("disk", "crit", "/ 95% used", "95% full"),
+    ("disk", "warn", "/backups unreadable", "could not be read"),
+    ("backup_age", "crit", "newest backup 27.3 h old", "27 hours old"),
+    ("backup_age", "crit", "no backup yet (30.0 h since watchdog first ran)", "No database backup"),
+    ("restore_test", "crit", "last restore test FAILED 2.1 days ago", "has failed"),
+    ("restore_test", "warn", "last successful restore test 10.0 days ago (limit 9)", "overdue"),
+    ("restore_test", "warn", "no restore test result after 10.0 days", "overdue"),
+    ("restore_test", "warn", "last restore test result unreadable", "cannot be read"),
+    ("identity_flap", "warn", "1 pilot and 0 controller session pairs (same cid and callsign), 0 fractional logon_time", "logon times"),
+    ("identity_flap", "warn", "identity-flap query failed (OperationalError)", "could not run"),
+    ("feed_archive", "warn", "last write 601s ago (limit 600s), 4 write errors, 12 MB", "safety copy"),
+    ("data_integrity", "warn",
+     "1 of 18 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log",
+     "more than 5 minutes"),
+    ("data_integrity", "warn", "invariant sweep could not run (InsufficientPrivilege); retrying in 1 h", "could not run properly"),
+    ("data_integrity", "warn", "new violations since the last sweep: identity duplicates (cid, callsign, logon_time)", "stored twice"),
+    ("feed_crosscheck", "warn", "1 difference(s) in 24 archived snapshots: 09-10-2026 12:00:03 UTC: pilots_in_region independent 41, stored 40",
+     "1 difference"),
+    ("feed_crosscheck", "warn", "cross-check had nothing to compare (no archive samples found); is the feed archive enabled", "nothing to compare"),
+    ("container:collector", "crit", "state exited", "collector container"),
+    ("container:db", "crit", "missing", "missing"),
+    ("container:grafana", "warn", "restarted by Docker (count 2)", "restarted the grafana container by itself"),
+    ("docker_proxy", "crit", "unreachable (ConnectError)", "reach Docker"),
+    ("restart-cap:db", "crit", "restart cap 3/hour reached; not restarting (state exited)", "hourly limit"),
+    ("mystery_check", "warn", "something odd", "mystery_check"),
+    ("mystery_check", "crit", "something odd", "mystery_check"),
+]
+OK_CHECKS = sorted({c for c, *_ in CASES})
+
+
+def check_shape(text: str, name: str) -> None:
+    assert text.isascii(), text
+    assert text.startswith(m.PREFIX + " "), text
+    assert len(text) <= 420, (len(text), text)
+    last = text.splitlines()[-1]
+    assert last.startswith("Technical: ") and name in last, text
+    assert len(text.splitlines()) == 2, text
+
+
+@pytest.mark.parametrize("name,level,detail,plain", CASES)
+def test_every_check_and_level_has_a_plain_message(name: str, level: str, detail: str, plain: str) -> None:
+    text = m.humanise(name, level, detail, now=NOW)
+    check_shape(text, name)
+    assert text.splitlines()[0].startswith(f"{m.PREFIX} {m.LABELS[level]} (14:05 UTC). ")
+    assert plain in text.splitlines()[0], text
+
+
+@pytest.mark.parametrize("name", OK_CHECKS)
+def test_recovered_with_and_without_a_duration(name: str) -> None:
+    without = m.humanise(name, "ok", "fine now", "warn", None, now=NOW)
+    check_shape(without, name)
+    assert without.startswith(f"{m.PREFIX} all clear") and "lasted" not in without  # no duration is ever invented
+    with_dur = m.humanise(name, "ok", "fine now", "crit", 4 * 60 + 10, now=NOW)
+    check_shape(with_dur, name)
+    assert "The problem lasted about 4 minutes." in with_dur and "(was crit)" in with_dur
+
+
+@pytest.mark.parametrize("secs,words", [(5, "under a minute"), (60, "about 1 minute"), (250, "about 4 minutes"),
+                                        (3600, "about 60 minutes"), (2 * 3600, "about 2 hours"), (3 * 86400, "about 3 days")])
+def test_duration_words(secs: float, words: str) -> None:
+    assert m.duration_words(secs) == words
+
+
+def test_the_examples_in_the_brief() -> None:
+    t = m.humanise("poll_log_ok_age", "crit", "newest ok poll is 312s old", now=NOW)
+    assert t.splitlines()[0] == ("VATPAC Stats: problem (14:05 UTC). No fresh VATSIM data for about 5 minutes. The system keeps "
+                                 "retrying; if this lasts, the collector may be stuck (see the stuck-collector guide).")
+    assert t.splitlines()[1] == "Technical: poll_log_ok_age, newest ok poll is 312s old"
+    d = m.humanise("disk", "warn", "/ 82% used", now=NOW)
+    assert "The VM disk is 82% full. Nothing breaks yet, but it needs clearing within days" in d
+
+
+def test_a_step_down_from_crit_to_warn_says_so() -> None:
+    t = m.humanise("disk", "warn", "/ 85% used", previous_level="crit", now=NOW)
+    assert "eased from a problem to a warning" in t
+
+
+def test_near_miss_and_restarted() -> None:
+    t = m.from_alert_text("NEAR-MISS controller callsign(s) not on whitelist: YSSY_X_TWR, YMML_N_APP", now=NOW)
+    assert "not on the whitelist" in t and "add it to the whitelist" in t
+    assert t.splitlines()[-1] == "Technical: near-miss YSSY_X_TWR, YMML_N_APP"
+    assert t.isascii() and t.startswith(m.PREFIX)
+    r = m.from_alert_text("RESTARTED collector (1/3 this hour, ok=True): collector HTTP 503 and no failures counted", now=NOW)
+    assert "restarted the collector container" in r and r.splitlines()[-1].startswith("Technical: restarted collector")
+
+
+def test_an_unknown_check_name_gets_a_generic_message_with_the_technical_line() -> None:
+    t = m.humanise("brand_new_check", "crit", "x is 5", now=NOW)
+    assert "brand_new_check" in t.splitlines()[0] and t.splitlines()[-1] == "Technical: brand_new_check, x is 5"
+    assert m.from_alert_text("something nobody planned", now=NOW).splitlines()[-1] == "Technical: something nobody planned"
+
+
+def test_a_long_or_non_ascii_detail_is_clipped_and_stays_ascii() -> None:
+    t = m.humanise("disk", "warn", "café — " + "x" * 1000, now=NOW)
+    assert t.isascii() and len(t) < 420 and t.endswith("...")
+
+
+def test_no_banned_jargon_in_any_plain_sentence() -> None:
+    banned = ("invariant", "snapshot age", "logon_time", "partition", "poll_log", "cid ", "gs_kt")
+    for name, level, detail, _ in CASES:
+        first = m.humanise(name, level, detail, now=NOW).splitlines()[0].lower()
+        assert not any(b in first for b in banned), first
+    for words in m.INVARIANT_WORDS.values():
+        assert words.isascii() and not any(b in words.lower() for b in banned), words
+
+
+# ---------------------------------------------------------------- the 18 invariants
+
+
+def test_every_invariant_has_a_plain_wording_and_none_is_stale() -> None:
+    """Fails when invariants.sql gains, loses or renames an invariant and messages.INVARIANT_WORDS does not follow."""
+    assert len(NAMES) == 18
+    assert sorted(m.INVARIANT_WORDS) == sorted(NAMES)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_each_invariant_produces_a_sentence_from_the_real_summary_text(name: str) -> None:
+    findings = [integrity.Finding(name, 3)]
+    _, detail = integrity.summarise_invariants(findings, [], len(NAMES))
+    t = m.humanise("data_integrity", "warn", detail, now=NOW)
+    check_shape(t, "data_integrity")
+    assert m.INVARIANT_WORDS[name] in t
+    assert "data_integrity" in t.splitlines()[-1]
+
+
+def test_several_failing_invariants_are_counted_in_words() -> None:
+    findings = [integrity.Finding(n, 1) for n in NAMES[:3]]
+    _, detail = integrity.summarise_invariants(findings, [], len(NAMES))
+    t = m.humanise("data_integrity", "warn", detail, now=NOW)
+    assert "(plus 2 others)" in t and m.INVARIANT_WORDS[NAMES[0]] in t
+    check_shape(t, "data_integrity")
+
+
+def test_the_new_violations_notice_from_integrity_is_humanised() -> None:
+    notice = f"WARN data_integrity: new violations since the last sweep: {NAMES[9]}, {NAMES[6]}"
+    t = m.from_alert_text(notice, now=NOW)
+    assert "new problem" in t and m.INVARIANT_WORDS[NAMES[9]] in t and "(and 1 more)" in t
+    check_shape(t, "data_integrity")
+
+
+def test_the_pack_incomplete_problem_is_not_called_a_data_problem() -> None:
+    _, detail = integrity.summarise_invariants([], ["1 invariant(s) did not report: x"], 18)
+    assert "could not run properly" in m.humanise("data_integrity", "warn", detail, now=NOW)
+
+
+# ---------------------------------------------------------------- every check the watchdog produces has wording
+
+
+def test_every_check_name_the_watchdog_can_alert_on_has_its_own_wording() -> None:
+    """The names in the runbook table and the ones the cycle produces; a new check must be added to messages.py."""
+    produced = {"collector_health", "poll_log_ok_age", "network_snapshot_age", "grafana_health", "database", "db_size", "disk",
+                "backup_age", "restore_test", "identity_flap", "feed_archive", integrity.INVARIANTS_KEY, integrity.CROSSCHECK_KEY,
+                "docker_proxy"}
+    assert set(m.known_checks()) == produced
+    source = (REPO / "ops" / "watchdog" / "watchdog.py").read_text(encoding="utf-8")
+    for name in produced - {integrity.INVARIANTS_KEY, integrity.CROSSCHECK_KEY}:
+        assert f'"{name}"' in source, name
+    runbook = (REPO / "docs" / "RUNBOOKS" / "alerts.md").read_text(encoding="utf-8")
+    for name in produced:
+        assert f"`{name}`" in runbook, name
+    for name in ("container:db", "restart-cap:db"):
+        first = m.humanise(name, "crit", "x", now=NOW).splitlines()[0]
+        assert "monitoring check" not in first  # own wording, not the generic one
+
+
+# ---------------------------------------------------------------- the safe fallback and the Alerter wiring
+
+
+def test_a_formatting_bug_falls_back_to_the_old_technical_text(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    def boom(*a: Any, **k: Any) -> str:
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(m, "humanise", boom)
+    with caplog.at_level(logging.ERROR, logger="watchdog.messages"):
+        assert m.telegram_text("CRIT disk: 95%") == "vatpac-stats: CRIT disk: 95%"
+    assert "could not format" in caplog.text and "RuntimeError" in caplog.text
+
+
+def alerter(handler: Any, state: dict[str, Any] | None = None, confirm: int = 1) -> Any:
+    cfg = type("C", (), {"confirm": confirm, "tg_token": "123:SECRET", "tg_chat": "42"})()
+    return wd.Alerter(cfg, httpx.Client(transport=httpx.MockTransport(handler)), {} if state is None else state)
+
+
+def test_the_alert_is_still_sent_when_formatting_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[dict[str, str]] = []
+
+    def handler(r: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(r.content))
+        return httpx.Response(200)
+
+    monkeypatch.setattr(m, "from_alert_text", lambda *a, **k: 1 / 0)
+    alerter(handler).send("WARN x: y")
+    assert seen == [{"chat_id": "42", "text": "vatpac-stats: WARN x: y"}]
+
+
+def test_the_log_line_stays_technical(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.INFO, logger="watchdog"):
+        alerter(lambda r: httpx.Response(200)).send("CRIT disk: / 95% used")
+    assert "ALERT CRIT disk: / 95% used" in caplog.text
+
+
+def test_recovered_reports_how_long_the_problem_lasted_and_survives_a_restart(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[str] = []
+
+    def handler(r: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(r.content)["text"])
+        return httpx.Response(200)
+
+    clock = {"t": 1_800_000_000.0}
+    monkeypatch.setattr(wd.time, "time", lambda: clock["t"])
+    state: dict[str, Any] = {}
+    a = alerter(handler, state)
+    a.update("poll_log_ok_age", "crit", "newest ok poll is 400s old")
+    clock["t"] += 250
+    state = json.loads(json.dumps(state))                       # what the status file keeps across a restart
+    b = alerter(handler, state)
+    b.update("poll_log_ok_age", "ok", "newest ok poll 5s old")
+    assert "The problem lasted about 4 minutes." in seen[-1] and seen[-1].startswith("VATPAC Stats: all clear")
+    assert "poll_log_ok_age" not in state["bad_since"]
+
+
+def test_recovered_without_a_stored_start_omits_the_duration() -> None:
+    seen: list[str] = []
+
+    def handler(r: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(r.content)["text"])
+        return httpx.Response(200)
+
+    state: dict[str, Any] = {"alerts": {"disk": "warn"}}         # an older status file: no bad_since
+    alerter(handler, state).update("disk", "ok", "/ 40% used")
+    assert seen and "lasted" not in seen[0] and "all clear" in seen[0]
+
+
+def test_a_context_never_leaks_into_the_next_message() -> None:
+    seen: list[str] = []
+
+    def handler(r: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(r.content)["text"])
+        return httpx.Response(200)
+
+    a = alerter(handler, {"alerts": {"disk": "warn"}, "bad_since": {"disk": 1.0}})
+    a.update("disk", "ok", "/ 40% used")
+    a.send("NEAR-MISS controller callsign(s) not on whitelist: X_TWR")
+    assert "lasted" in seen[0] and "lasted" not in seen[1]

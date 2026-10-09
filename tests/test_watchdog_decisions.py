@@ -428,9 +428,12 @@ def test_telegram_message_goes_to_the_bot_api_in_plain_text() -> None:
         seen.append(request)
         return httpx.Response(200)
 
-    telegram_alerter(handler).send("CRIT disk: 95%")
+    telegram_alerter(handler).send("CRIT disk: / 95% used")
     assert len(seen) == 1 and seen[0].url.host == "api.telegram.org" and seen[0].url.path == "/bot123:SECRET/sendMessage"
-    assert json.loads(seen[0].content) == {"chat_id": "42", "text": "vatpac-stats: CRIT disk: 95%"}
+    sent = json.loads(seen[0].content)
+    assert sent["chat_id"] == "42" and set(sent) == {"chat_id", "text"}
+    assert sent["text"].startswith("VATPAC Stats: problem") and "95% full" in sent["text"]
+    assert sent["text"].splitlines()[-1] == "Technical: disk, / 95% used"
 
 
 @pytest.mark.parametrize("token,chat", [("", "42"), ("123:SECRET", "")])

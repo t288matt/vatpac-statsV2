@@ -5,3 +5,6 @@ target-version = "py312"
 [lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["UP038"]  # deprecated rule
+
+[lint.per-file-ignores]
+"**/messages.py" = ["E501"]  # the plain-language sentences are long string literals; wrapping them hurts reading
