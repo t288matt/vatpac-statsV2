@@ -158,7 +158,7 @@ Five "every query runs" smoke tests (`test_atc_sessions_t15.py:254` on empty dat
 | monday-events.json | Airborne aircraft during the latest Monday event (0700-1200Z, 5-minute slots) | military_events_t15 |  |
 | management.json | Australian-based pilots and ATC online each month | pilots_people_t15 |  |
 | management.json | Pilot hours per month (names with Y) | pilots_people_t15 |  |
-| military.json | Most popular military aircraft (unique pilots, last 7 days) | none | test_military_aircraft_panel_lists_only_military_types |
+| military.json | Most popular military aircraft (unique pilots, last 7 days) | none | test_military_aircraft_panel_lists_only_military_types; rebuilt 09-10-2026 with tests/integration/test_card_65.py (11 tests) |
 | military.json | Most popular RAAFv routes (last month) | events_t14 |  |
 | military.json | Hours flown by RAAFv aircraft per week (last 14 weeks) | events_t14 |  |
 | military.json | RAAFv flights (last 7 days) | military_events_t15 |  |

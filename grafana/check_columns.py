@@ -9,7 +9,7 @@ schema={
  'controller_session_merged':"cid callsign merge_group first_session_id session_count name rating facility server frequency_hz start_time end_time duration duration_hours is_open",
  'online_now':"kind session_id cid callsign name logon_time first_seen last_seen as_of departure arrival aircraft_icao lat lon alt_ft gs_kt rating facility frequency_hz",
  'data_freshness':"checked_at latest_snapshot_ts snapshot_age_seconds data_since last_ok_poll_at last_ok_age_seconds ok_last_hour skipped_last_hour error_last_hour",
- 'controller_rating':"id short long",'facility':"id short long",'pilot_rating':"id short long",'airline':"prefix name",'aircraft_type':"icao category is_military",'region_map':"prefix region",
+ 'controller_rating':"id short long",'facility':"id short long",'pilot_rating':"id short long",'airline':"prefix name",'aircraft_type':"icao category is_military in_v1_card65_list",'region_map':"prefix region",
  'app_setting':"key value",
  'network_snapshot':"observed_at pilots_in_region controllers_in_region pilots_global controllers_global",
  'poll_log':"id polled_at status snapshot_ts duration_ms http_status pilots_seen pilots_inside pilots_with_plan pilots_kept controllers_seen controllers_kept rejected_values polygon_sha whitelist_sha error",
