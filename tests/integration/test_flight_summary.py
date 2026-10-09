@@ -28,7 +28,7 @@ def summary(conn, cid: int) -> list[dict]:
         "FROM flight WHERE cid = %s ORDER BY gap_segment, span_part", (cid,)).fetchall()
 
 
-def expected(samples: list[tuple[datetime, int | None]], cap: float = 40.0) -> list[tuple]:
+def expected(samples: list[tuple[datetime, int | None]], cap: float = 75.0) -> list[tuple]:
     """Reference implementation of the SPEC definition: (gap_segment, span_part, start, end, n, airborne_min)."""
     segs: list[list[int]] = []
     for i, (t, _) in enumerate(samples):
