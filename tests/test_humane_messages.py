@@ -49,6 +49,8 @@ CASES: list[tuple[str, str, str, str]] = [
     ("disk", "warn", "/backups unreadable", "could not be read"),
     ("backup_age", "crit", "newest backup 27.3 h old", "27 hours old"),
     ("backup_age", "crit", "no backup yet (30.0 h since watchdog first ran)", "No database backup"),
+    ("backup_remote", "warn", "last off-box copy 30.1 h ago (limit 26)", "second location"),
+    ("backup_remote", "warn", "no off-box copy recorded after 27.0 h since watchdog first ran", "second location"),
     ("restore_test", "crit", "last restore test FAILED 2.1 days ago", "has failed"),
     ("restore_test", "warn", "last successful restore test 10.0 days ago (limit 9)", "overdue"),
     ("restore_test", "warn", "no restore test result after 10.0 days", "overdue"),

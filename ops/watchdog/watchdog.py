@@ -58,6 +58,8 @@ class Config:
         self.db_max_gb = env_num("WATCHDOG_DB_MAX_GB", 20)
         self.backup_max_h = env_num("WATCHDOG_BACKUP_MAX_HOURS", 26)
         self.restore_test_max_days = env_num("WATCHDOG_RESTORE_TEST_MAX_DAYS", 9)
+        # On/off flag only (compose sets it to 1 when BACKUP_REMOTE is non-empty); the command itself never reaches the watchdog.
+        self.backup_remote = env("BACKUP_REMOTE_ENABLED").strip().lower() in ("1", "true", "yes", "on")
         # Filesystems to check. The pgdata and backups named volumes both live under the Docker data
         # root on the host; the watchdog sees /backups (and / for the container layer), which is
         # that same host filesystem. Add a path here if a volume is moved to its own mount.
@@ -255,6 +257,30 @@ def check_backup(cfg: Config, first_run: float) -> Result:
     age_h = (time.time() - newest) / 3600
     detail = f"newest backup {age_h:.1f} h old" if mtimes else f"no backup yet ({age_h:.1f} h since watchdog first ran)"
     return (CRIT if age_h > cfg.backup_max_h else OK), detail
+
+
+def check_backup_remote(cfg: Config, first_run: float) -> Result:
+    """The off-box copy (BACKUP_REMOTE) must have succeeded within WATCHDOG_BACKUP_MAX_HOURS: the backup container writes
+    /backups/.last_remote_success after every successful hook run. Only active when BACKUP_REMOTE_ENABLED is set (issue 91)."""
+    if not cfg.backup_remote:
+        return OK, "off-box copy not configured (BACKUP_REMOTE is empty)"
+    path = cfg.backup_dir / ".last_remote_success"
+    try:
+        text = path.read_text()
+        mtime = path.stat().st_mtime
+    except OSError:
+        age_h = (time.time() - first_run) / 3600
+        if age_h > cfg.backup_max_h:
+            return WARN, f"no off-box copy recorded after {age_h:.1f} h since watchdog first ran"
+        return OK, "no off-box copy yet"
+    try:
+        ts = datetime.strptime(text.strip().split()[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC).timestamp()
+    except (ValueError, IndexError):
+        ts = mtime
+    age_h = (time.time() - ts) / 3600
+    if age_h > cfg.backup_max_h:
+        return WARN, f"last off-box copy {age_h:.1f} h ago (limit {cfg.backup_max_h:g})"
+    return OK, f"last off-box copy {age_h:.1f} h ago"
 
 
 def parse_restore_result(text: str) -> tuple[datetime | None, str]:
@@ -534,6 +560,7 @@ def cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, s
     first_run = state.setdefault("first_run", time.time())
     results["backup_age"] = check_backup(cfg, first_run)
     results["restore_test"] = check_restore_test(cfg, first_run)
+    results["backup_remote"] = check_backup_remote(cfg, first_run)
 
     containers: dict[str, dict[str, Any]] = {}
     if cfg.docker:

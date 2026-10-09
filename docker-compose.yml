@@ -251,6 +251,8 @@ services:
       WATCHDOG_DB_MAX_GB: ${WATCHDOG_DB_MAX_GB:-20}
       WATCHDOG_BACKUP_MAX_HOURS: ${WATCHDOG_BACKUP_MAX_HOURS:-26}
       WATCHDOG_RESTORE_TEST_MAX_DAYS: ${WATCHDOG_RESTORE_TEST_MAX_DAYS:-9}
+      # on/off flag for the backup_remote check: 1 when BACKUP_REMOTE is set, empty otherwise. The command itself is NOT passed.
+      BACKUP_REMOTE_ENABLED: ${BACKUP_REMOTE:+1}
       # scheduled integrity checks (issue 20): the invariant sweep and the archive cross-check; 0 disables either
       WATCHDOG_INTEGRITY_INTERVAL_HOURS: ${WATCHDOG_INTEGRITY_INTERVAL_HOURS:-72}
       WATCHDOG_CROSSCHECK_INTERVAL_DAYS: ${WATCHDOG_CROSSCHECK_INTERVAL_DAYS:-14}
