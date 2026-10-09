@@ -33,7 +33,7 @@ All access to the live database was SELECT only (psql inside the `db` container,
 | `throwaway/replay_check.py` | Part A: real payloads, poison records, stale and future timestamps through the collector's own code (this one does run the collector's code, by design, since it tests behaviour). |
 | `capture.py`, `recompute_flights.py`, `panel_recompute.py` | Part B: raw tables, flights and 26 panels recomputed independently. |
 | `logon_precision_impact.py` | F1 and F3 quantification. |
-| `invariants.sql` | Read-only invariant pack (17 checks), proposed for T16. |
+| `invariants.sql` | Read-only invariant pack (18 checks; 17 when audited, one added later), now run by the watchdog every 3 days (T16). |
 | `throwaway/synthetic_flights.sql`, `throwaway/retention_drill.sql` | Gap, span and cap edge cases; retention. These two and `replay_check.py` write, so they live in `throwaway/` and refuse to run on any database whose name does not end in `t30b` or `_test`. Delete the folder if "read-only only" in the brief is meant literally. |
 
 ## 2. Findings by severity

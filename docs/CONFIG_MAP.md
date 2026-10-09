@@ -1,6 +1,6 @@
 # Configuration map
 
-Last reviewed 08-10-2026 against `docker-compose.yml`, `.env.example` and the code (`python ops/check_config_drift.py` enforces the collector part). Part A lists every environment variable v3 reads. Part B maps every variable in v1's `docker-compose.yml` to KEPT, CHANGED or DROPPED.
+Last reviewed 09-10-2026 (watchdog integrity settings and mounts added) against `docker-compose.yml`, `.env.example` and the code (`python ops/check_config_drift.py` enforces the collector part). Part A lists every environment variable v3 reads. Part B maps every variable in v1's `docker-compose.yml` to KEPT, CHANGED or DROPPED.
 
 Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker-compose.yml`, `.env.example`. Secrets live only in `.env` (git-ignored). `.env.example` has blank secrets on purpose: run `sh ops/gen_env.sh` to write a `.env` with random values, then `sh ops/check_env.sh` to check it (blank, `change-me*`, under 16 characters, repeated, or non letter/digit values are rejected). Passwords are placed inside connection URLs, so they must be letters and digits only (for example `openssl rand -hex 24`).
 
@@ -63,6 +63,9 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `WATCHDOG_DB_MAX_GB` | `20` | watchdog | Database size that raises a warning. |
 | `WATCHDOG_BACKUP_MAX_HOURS` | `26` | watchdog | Newest-backup age that alerts (critical). |
 | `WATCHDOG_RESTORE_TEST_MAX_DAYS` | `9` | watchdog | Warn if the last successful weekly restore test is older than this many days; `0` disables the age check. |
+| `WATCHDOG_INTEGRITY_INTERVAL_HOURS` | `72` | watchdog | How often the 18-invariant SQL sweep (`ops/audit/invariants.sql`) runs, in hours; `0` disables. A sweep with violations repeats every 6 hours. The last run is kept in the status file, so a restart does not re-run early or skip a due run. Do not raise it above 72 without widening the 3-day windows in the SQL (docs/RUNBOOKS/integrity-checks.md). |
+| `WATCHDOG_CROSSCHECK_INTERVAL_DAYS` | `14` | watchdog | How often the raw-feed archive cross-check runs, in days; `0` disables. |
+| `WATCHDOG_CROSSCHECK_SAMPLES` | `24` | watchdog | Archived snapshots compared per cross-check, evenly spread over the interval (about 1 s of CPU each). |
 
 ### A2. Set by `docker-compose.yml` itself (not intended for `.env`)
 
@@ -77,6 +80,8 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `COMPOSE_PROJECT` (watchdog) | `vatpac` | Compose project name used when Docker access exists. |
 | `COLLECTOR_HEALTH_URL`, `GRAFANA_HEALTH_URL` (watchdog) | `http://collector:${HEALTH_PORT}/health`, `http://grafana:3000/api/health` | Health endpoints it polls. |
 | `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (watchdog) | `db`, `${POSTGRES_DB}`, `watchdog_ro`, `${WATCHDOG_DB_PASSWORD}` | Watchdog's database login. |
+| `ARCHIVE_DIR` (watchdog) | `/archive` | Set by compose: the `archive` volume mounted read-only into the watchdog for the cross-check. |
+| `REFERENCE_CONFIG_DIR` (watchdog) | `/config` | Set by compose: `./config` mounted read-only (polygon and whitelist the cross-check recomputes with). |
 | `BACKUP_DIR`, `STATUS_FILE` (watchdog) | `/backups`, `/var/watchdog/watchdog_status.json` | Volumes the watchdog reads and writes. |
 
 ### A3. Read by the code but not wired through compose
