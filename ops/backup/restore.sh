@@ -84,7 +84,7 @@ psql -X -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${STAGING}\""
 # Roles are not in the dump; ownership and ACLs are dropped (the migrate job re-applies grants).
 pg_restore --no-owner --no-acl --exit-on-error -d "$STAGING" "$FILE"
 
-if ! counts="$(sanity_check "$STAGING")"; then
+if ! counts="$(sanity_check "$STAGING" "$FILE")"; then
   echo "restore: sanity checks failed on the restored copy; '${TARGET}' was not touched" >&2
   exit 1
 fi

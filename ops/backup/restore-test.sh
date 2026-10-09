@@ -27,7 +27,7 @@ fail() { echo "$(stamp) FAIL $1 ($newest)" | tee "$RESULT"; exit 1; }
 drop_db "$SCRATCH"
 psql -X -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${SCRATCH}\"" || fail "create scratch database"
 pg_restore --no-owner --no-acl --exit-on-error -d "$SCRATCH" "$newest" || fail "restore"
-counts="$(sanity_check "$SCRATCH" 2>&1)" || fail "sanity: $counts"
+counts="$(sanity_check "$SCRATCH" "$newest" 2>&1)" || fail "sanity: $counts"
 
 export PGDATABASE="$LIVE_DB"
 echo "$(stamp) OK ${newest} ${counts}" | tee "$RESULT"

@@ -25,6 +25,7 @@ psql -X -q -v ON_ERROR_STOP=1   -v grafana_ro_password="$GRAFANA_RO_PASSWORD"   
 
 echo "migrate: creating watchdog_ro"
 psql -X -q -v ON_ERROR_STOP=1 -v wd_pw="$WATCHDOG_DB_PASSWORD" <<'SQL'
+BEGIN;
 SELECT format('CREATE ROLE watchdog_ro LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE', :'wd_pw')
  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'watchdog_ro') \gexec
 SELECT format('ALTER ROLE watchdog_ro PASSWORD %L', :'wd_pw') \gexec
@@ -37,6 +38,7 @@ SELECT format('GRANT SELECT ON %I TO watchdog_ro', t)
   FROM unnest(ARRAY['poll_log', 'network_snapshot', 'controller_unlisted_sighting', 'pilot_session', 'controller_session',
                 'pilot_position', 'flight_summary', 'reference_data_change']) AS t
  WHERE to_regclass('public.' || t) IS NOT NULL \gexec
+COMMIT;
 SQL
 
 echo "migrate: done"
