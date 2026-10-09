@@ -74,6 +74,7 @@ class Archive:
         self.size = self.files = self.errors = self.dropped = self.anomalies = 0
         self._busy = self._failing = False
         self._lock, self._pending = threading.Lock(), deque[tuple[Any, ...]]()
+        self.stopping = threading.Event()  # set at shutdown: no further writes are started (issue 69)
         self._retry_at = 0.0  # after a failed write nothing is attempted before this time
         self._last_ts: datetime | None = None  # the state below is touched by the worker thread only
         self._share: tuple[int, float] | None = None
@@ -114,7 +115,7 @@ class Archive:
 
     def _run(self, *job: Any) -> None:
         """Process the job, then any error polls that queued up meanwhile; _busy clears only when none are left."""
-        while job:
+        while job and not self.stopping.is_set():
             self._one(*job)
             with self._lock:
                 job = self._pending.popleft() if self._pending else ()
@@ -172,6 +173,8 @@ class Archive:
                 body = json.dumps(compact(json.loads(raw)), separators=(",", ":")).encode()
                 self._put(self.root / "compact" / f"{snap_ts:%Y%m%d}" / f"{snap_ts:%H%M%S}.json.gz", body)
                 self._slot["compact"] = int(epoch // s.archive_compact_every_s)
+            if self.stopping.is_set():
+                return  # shutting down: leave the full file (the next start writes it) rather than outlast Docker's grace period
             if self._slot.get("full") != int(epoch // s.archive_full_every_s):
                 self._put(self.root / "full" / f"{snap_ts:%Y%m%d}" / f"{snap_ts:%H%M%S}.json.gz", raw)
                 self._slot["full"] = int(epoch // s.archive_full_every_s)

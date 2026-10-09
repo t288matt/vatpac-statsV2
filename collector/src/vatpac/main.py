@@ -256,6 +256,7 @@ async def run(settings: Settings, ref: ReferenceData) -> None:
         await asyncio.gather(collector.poll_loop(), collector.maintenance_loop(first_ok),
                              collector.flight_summary_loop())
     finally:
+        collector.archive.stopping.set()  # an in-flight archive write must not hold the exit past the grace period
         await runner.cleanup()
         await feed.aclose()
         pool.close()

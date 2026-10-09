@@ -312,3 +312,15 @@ def test_ts_future_follows_feed_max_future_seconds(tmp_path: Path, fixture_paylo
     ts = (datetime.now(UTC) + timedelta(seconds=60)).replace(microsecond=0)
     a._process(raw_at(fixture_payload, ts), ts, "error", 200, "ahead of the clock")
     assert any("ts_future" in n for n in files(tmp_path / "arc")) is expect
+
+
+def test_shutdown_stops_between_the_compact_and_the_full_write(tmp_path: Path, fixture_payload: dict[str, Any]) -> None:
+    """Issue 69: SIGTERM waited for the whole in-flight job; now the flag is checked between the writes."""
+    a, _ = make(tmp_path)
+    real = a._put
+    a._put = lambda *args: (real(*args), a.stopping.set())  # type: ignore[method-assign,assignment]  # stop arrives mid-job
+    feed(a, raw_at(fixture_payload, T0), T0)
+    assert files(tmp_path / "arc") == [f"compact/{T0:%Y%m%d}/{T0:%H%M%S}.json.gz"]  # no full file
+    a.submit(raw_at(fixture_payload, T0 + timedelta(seconds=30)), T0 + timedelta(seconds=30), "ok", 200, None)
+    a._pool.shutdown(wait=True)  # type: ignore[union-attr]
+    assert a.files == 1  # a job submitted after the stop did nothing
