@@ -60,7 +60,7 @@
       "id": 2,
       "type": "piechart",
       "title": "Most popular military aircraft (unique pilots, last 7 days)",
-      "description": "v1 card 65. Distinct pilots per aircraft type flagged is_military in the aircraft_type lookup. Changed from v1: a lookup flag replaces a 400-entry IN list with wildcard patterns.",
+      "description": "v1 card 65, rebuilt from v1's rule. Counts distinct pilots (CIDs) per military aircraft type over completed flights that ended in the selected time range (default last 7 days). A type counts as military only if it is in v1's card 65 code list (aircraft_type.in_v1_card65_list, 225 exact codes; v1's wildcard entries never matched anything and are not used). The share is each type's pilots divided by the sum of the per-type pilot counts, so a pilot who flew two types is counted under both and the shares add up to 100%. Flights still connected are left out. Differs from the broader aircraft_type.is_military flag by seven codes: EA18, EUFI, FA18, HAWK, K35R, KC10, KC30.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -81,7 +81,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT aircraft_icao AS aircraft, count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.is_military\nGROUP BY aircraft_icao\nORDER BY pilots DESC, aircraft"
+          "rawSql": "SELECT t.aircraft, t.pilots, t.flights,\n       round(100.0 * t.pilots / sum(t.pilots) OVER (), 2) AS \"% of pilots\"\nFROM (\n  SELECT f.aircraft_icao AS aircraft, count(DISTINCT f.cid) AS pilots, count(*) AS flights\n  FROM flight_ext f\n  JOIN aircraft_type a ON a.icao = f.aircraft_icao\n  WHERE a.in_v1_card65_list\n    AND f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY f.aircraft_icao\n) t\nORDER BY t.pilots DESC, t.flights DESC, t.aircraft"
         }
       ],
       "options": {
