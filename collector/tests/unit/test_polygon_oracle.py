@@ -72,7 +72,7 @@ L_SHAPE: Ring = [(Fraction(x), Fraction(y)) for x, y in [(0, 0), (4, 0), (4, 2),
     (SQUARE, 135.0, -10.0, "edge"), (SQUARE, 130.0, -15.0, "edge"), (SQUARE, 140.0, -20.0, "edge"),  # sides
     (SQUARE, 130.0, -10.0, "edge"), (SQUARE, 140.0, -20.0, "edge"),                                     # corners
     (SQUARE, 129.9999999, -15.0, "outside"), (SQUARE, 135.0, -10.0000001, "inside"),
-    (L_SHAPE, 1.0, 3.0, "inside"), (L_SHAPE, 3.0, 1.0, "inside"), (L_SHAPE, 3.0, 3.0, "outside"),     # the notch of the L
+    (L_SHAPE, 1.0, 3.0, "inside"), (L_SHAPE, 3.0, 1.0, "inside"), (L_SHAPE, 3.0, 3.0, "outside"),  # the notch of the L
     (L_SHAPE, 2.0, 3.0, "edge"), (L_SHAPE, 3.0, 2.0, "edge"), (L_SHAPE, 2.0, 2.0, "edge"),            # reflex corner
     (L_SHAPE, -1.0, 2.0, "outside"), (L_SHAPE, 5.0, 1.0, "outside"),
 ])
@@ -94,7 +94,8 @@ def test_the_oracle_is_right_on_known_places(ring: Ring) -> None:
 # ------------------------------------------------------------------ the fixture
 def test_oracle_and_production_agree_on_every_fixture_pilot(fixture_payload: dict, ring: Ring, production) -> None:
     for p in fixture_payload["pilots"]:
-        assert kept(ring, p["latitude"], p["longitude"]) == inside_polygon(production, p["latitude"], p["longitude"]), p["callsign"]
+        lat, lon = p["latitude"], p["longitude"]
+        assert kept(ring, lat, lon) == inside_polygon(production, lat, lon), p["callsign"]
 
 
 def test_oracle_reproduces_the_expected_fixture_numbers(fixture_payload: dict, expected: dict, ring: Ring) -> None:
@@ -171,7 +172,7 @@ def test_a_pilot_with_no_position_is_kept_by_both(ring: Ring, production) -> Non
         assert kept(ring, lat, lon) is True and inside_polygon(production, lat, lon) is True
 
 
-# ------------------------------------------------------------------ the oracle can tell a wrong filter from the right one
+# ------------------------------------------------------------------ the oracle tells a wrong filter from the right one
 def test_the_oracle_notices_edges_counted_as_inside(ring: Ring, polygon_path: Path) -> None:
     """Mutant C01 of docs/TEST_AUDIT.md (`contains` replaced by `covers`): edge points become inside."""
     poly = shapely.Polygon([(float(x), float(y)) for x, y in ring])
