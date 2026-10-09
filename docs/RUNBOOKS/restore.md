@@ -44,7 +44,7 @@ These are the options `restore-test.sh` and `restore.sh` use. Never restore into
 2. Requires `RESTORE_CONFIRM` to equal the target database name exactly (not `yes`).
 3. Refuses if any other session is connected to the target (`pg_stat_activity`). Stop the writers first.
 4. If the target exists and has tables, takes a safety dump first: `/backups/<target>_prerestore_<stamp>.prerestore`. It is not counted as a nightly backup and rotates with `BACKUP_RETENTION_DAYS`.
-5. Restores into `<target>_restoring` and runs the same sanity checks as the restore test (`pilot_session`, `poll_log`, non-empty `schema_migrations`). If they fail, the live database is untouched and `<target>_restoring` is dropped.
+5. Restores into `<target>_restoring` and runs the same sanity checks as the restore test (`pilot_session` and `poll_log` exist and each holds at least one row, `schema_migrations` is non-empty, and the newest `poll_log` row is at most `RESTORE_MAX_POLL_AGE_HOURS` (default 48; `0` turns this off) older than the time in the dump's file name, so a schema-only, empty or stale dump fails; set `RESTORE_SANITY_ALLOW_EMPTY=1` only to restore a dump of a genuinely new install, and a file name without a `YYYYMMDDTHHMMSSZ` stamp skips only the age check; issue 90). If they fail, the live database is untouched and `<target>_restoring` is dropped.
 6. Swaps with two `ALTER DATABASE ... RENAME`: `<target>` becomes `<target>_old`, then `<target>_restoring` becomes `<target>`. It will not run again while `<target>_old` exists: check it, then drop it.
 
 ## Restore into a scratch database (safe, to inspect data)
