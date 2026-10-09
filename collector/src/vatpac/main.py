@@ -50,7 +50,7 @@ class PollOutcome:
 class Collector:
     def __init__(self, settings: Settings, ref: ReferenceData, pool: ConnectionPool, feed: FeedClient) -> None:
         self.settings, self.ref, self.pool, self.feed = settings, ref, pool, feed
-        self.stats = Stats(reference=self._versions(ref))
+        self.stats = Stats(reference=self._versions(ref), poll_interval_s=settings.poll_interval_seconds)
         self.archive = Archive(settings, self.stats)
         self.stop = asyncio.Event()
         self.last_ts: datetime | None = None
@@ -64,7 +64,7 @@ class Collector:
     def _apply(self, snapshot: Snapshot, ref: ReferenceData) -> ApplyResult:
         with self.pool.connection() as conn:
             return apply_snapshot(conn, snapshot, ref.polygon, ref.whitelist,
-                                  polygon_sha=ref.polygon_sha, whitelist_sha=ref.whitelist_sha)
+                                  polygon_sha=ref.polygon_sha, whitelist_sha=ref.whitelist_sha, prefixes=ref.prefixes)
 
     def _db_last_ts(self) -> datetime | None:
         return db_last_ts(self.pool, self.settings.feed_max_future_seconds)
