@@ -171,7 +171,8 @@ def _nulled(raw: dict[str, Any], **parsed: object) -> int:
 
 
 def _pilot(raw: dict[str, Any]) -> Pilot:
-    fp = raw.get("flight_plan") or {}
+    plan = raw.get("flight_plan")
+    fp = plan if isinstance(plan, dict) else {}  # a plan that is not an object means no plan, one rejected value
     alt, gs, hdg = _i(raw.get("altitude")), _i(raw.get("groundspeed")), _heading(raw.get("heading"))
     prat, mrat = _i(raw.get("pilot_rating")), _i(raw.get("military_rating"))
     return Pilot(
@@ -184,7 +185,8 @@ def _pilot(raw: dict[str, Any]) -> Pilot:
         flight_rules=_s(fp.get("flight_rules")), route=_s(fp.get("route")),
         remarks=_s(fp.get("remarks")), planned_alt=_s(fp.get("altitude")), deptime=_s(fp.get("deptime")),
         pilot_rating=prat, military_rating=mrat,
-        rejected=_nulled(raw, altitude=alt, groundspeed=gs, heading=hdg, pilot_rating=prat, military_rating=mrat),
+        rejected=_nulled(raw, altitude=alt, groundspeed=gs, heading=hdg, pilot_rating=prat, military_rating=mrat)
+        + (fp is not plan and plan is not None),
     )
 
 
@@ -208,8 +210,7 @@ def cap_text(rec: _R, limit: int) -> _R:
 def parse_snapshot(payload: dict[str, Any], max_text: int = MAX_TEXT) -> Snapshot:
     """Parse pilots and controllers only. Malformed entries are skipped, counted and logged; text is capped."""
     observed_at = update_timestamp(payload)
-    raw_pilots = payload.get("pilots") or []
-    raw_ctrls = payload.get("controllers") or []
+    raw_pilots, raw_ctrls = (v if isinstance(v := payload.get(k), list) else [] for k in ("pilots", "controllers"))
     malformed = 0
 
     def parse_all(raws: list[Any], build: Callable[[dict[str, Any]], _R]) -> list[_R]:
@@ -217,8 +218,10 @@ def parse_snapshot(payload: dict[str, Any], max_text: int = MAX_TEXT) -> Snapsho
         out: list[_R] = []
         for raw in raws:
             try:
+                if not isinstance(raw, dict):  # null, string, list or number in place of an entry
+                    raise TypeError("feed entry is not an object")
                 out.append(cap_text(build(raw), max_text))
-            except (KeyError, TypeError, ValueError, OverflowError):  # OverflowError: int(inf) in cid
+            except (KeyError, TypeError, ValueError, OverflowError, AttributeError):  # OverflowError: int(inf) in cid
                 malformed += 1
         return out
 
