@@ -349,14 +349,14 @@ class Alerter:
         self.confirmed: dict[str, str] = state.setdefault("alerts", {})
         self.pending: dict[str, tuple[str, int]] = {}
         # When each check went bad (epoch seconds), persisted in the status file so a restart keeps it. Used only to say how
-        # long a problem lasted in the RECOVERED message; absent (an older status file) means the duration is left out.
+        # long the alert was active in the RECOVERED message; absent (an older status file) means the duration is left out.
         self.bad_since: dict[str, float] = state.setdefault("bad_since", {})
         self._context: tuple[str | None, float | None] = (None, None)  # (previous level, seconds bad) for the next send
 
     def send(self, text: str) -> None:
         """Log the technical text; send the plain-language version to Telegram (messages.py)."""
         log.info("ALERT %s", text)
-        previous, down_for = getattr(self, "_context", (None, None))
+        previous, down_for = self._context
         self._context = (None, None)
         if not (self.cfg.tg_token and self.cfg.tg_chat):
             return
@@ -375,9 +375,7 @@ class Alerter:
     def _track(self, name: str, level: str, current: str) -> None:
         """Keep the time a check went bad (best effort; never raises) and hand the context to the next send."""
         try:
-            since = getattr(self, "bad_since", None)
-            if since is None:
-                return
+            since = self.bad_since
             now = time.time()
             down_for: float | None = None
             if level == OK:

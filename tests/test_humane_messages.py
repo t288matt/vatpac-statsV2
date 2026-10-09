@@ -3,6 +3,7 @@
 Pure text tests: no network, no database. The alert logic itself is tested in test_watchdog_decisions.py."""
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import logging
@@ -43,6 +44,7 @@ CASES: list[tuple[str, str, str, str]] = [
     ("database", "crit", "query/connect failed (OperationalError)", "cannot read the database"),
     ("db_size", "warn", "21.40 GB (limit 20)", "21.4 GB"),
     ("disk", "warn", "/backups 82% used, / 50% used", "82% full"),
+    ("disk", "warn", "/backups 82% used, / 50% used", "(/backups)"),
     ("disk", "crit", "/ 95% used", "95% full"),
     ("disk", "warn", "/backups unreadable", "could not be read"),
     ("backup_age", "crit", "newest backup 27.3 h old", "27 hours old"),
@@ -64,6 +66,7 @@ CASES: list[tuple[str, str, str, str]] = [
     ("feed_crosscheck", "warn", "cross-check had nothing to compare (no archive samples found); is the feed archive enabled", "nothing to compare"),
     ("container:collector", "crit", "state exited", "collector container"),
     ("container:db", "crit", "missing", "missing"),
+    ("container:migrate", "crit", "state exited", "one-off job"),
     ("container:grafana", "warn", "restarted by Docker (count 2)", "restarted the grafana container by itself"),
     ("docker_proxy", "crit", "unreachable (ConnectError)", "reach Docker"),
     ("restart-cap:db", "crit", "restart cap 3/hour reached; not restarting (state exited)", "hourly limit"),
@@ -76,7 +79,7 @@ OK_CHECKS = sorted({c for c, *_ in CASES})
 def check_shape(text: str, name: str) -> None:
     assert text.isascii(), text
     assert text.startswith(m.PREFIX + " "), text
-    assert len(text) <= 420, (len(text), text)
+    assert len(text) <= 520, (len(text), text)
     last = text.splitlines()[-1]
     assert last.startswith("Technical: ") and name in last, text
     assert len(text.splitlines()) == 2, text
@@ -94,10 +97,10 @@ def test_every_check_and_level_has_a_plain_message(name: str, level: str, detail
 def test_recovered_with_and_without_a_duration(name: str) -> None:
     without = m.humanise(name, "ok", "fine now", "warn", None, now=NOW)
     check_shape(without, name)
-    assert without.startswith(f"{m.PREFIX} all clear") and "lasted" not in without  # no duration is ever invented
+    assert without.startswith(f"{m.PREFIX} all clear") and "active for" not in without  # no duration is ever invented
     with_dur = m.humanise(name, "ok", "fine now", "crit", 4 * 60 + 10, now=NOW)
     check_shape(with_dur, name)
-    assert "The problem lasted about 4 minutes." in with_dur and "(was crit)" in with_dur
+    assert "The alert was active for about 4 minutes." in with_dur and "problem lasted" not in with_dur and "(was crit)" in with_dur
 
 
 @pytest.mark.parametrize("secs,words", [(5, "under a minute"), (60, "about 1 minute"), (250, "about 4 minutes"),
@@ -109,10 +112,10 @@ def test_duration_words(secs: float, words: str) -> None:
 def test_the_examples_in_the_brief() -> None:
     t = m.humanise("poll_log_ok_age", "crit", "newest ok poll is 312s old", now=NOW)
     assert t.splitlines()[0] == ("VATPAC Stats: problem (14:05 UTC). No fresh VATSIM data for about 5 minutes. The system keeps "
-                                 "retrying; if this lasts, the collector may be stuck (see the stuck-collector guide).")
+                                 "retrying; if this lasts, the collector may be stuck (see docs/RUNBOOKS/stuck-collector.md on the VM).")
     assert t.splitlines()[1] == "Technical: poll_log_ok_age, newest ok poll is 312s old"
     d = m.humanise("disk", "warn", "/ 82% used", now=NOW)
-    assert "The VM disk is 82% full. Nothing breaks yet, but it needs clearing within days" in d
+    assert "A disk on the VM (/) is 82% full. Nothing breaks yet, but it needs clearing within days" in d
 
 
 def test_a_step_down_from_crit_to_warn_says_so() -> None:
@@ -176,10 +179,42 @@ def test_several_failing_invariants_are_counted_in_words() -> None:
     check_shape(t, "data_integrity")
 
 
+def test_more_than_six_failing_are_counted_from_the_n_of_18_figure() -> None:
+    findings = [integrity.Finding(n, 1) for n in NAMES[:10]]
+    _, detail = integrity.summarise_invariants(findings, [], len(NAMES))
+    assert "10 of 18 invariants" in detail and "and 4 more" in detail
+    t = m.humanise("data_integrity", "warn", detail, now=NOW)
+    assert "(plus 9 others)" in t
+    assert "10 of 18 checks failing" in t and "(+9 more)" in t.splitlines()[-1]
+    check_shape(t, "data_integrity")
+
+
+def test_every_invariant_has_its_own_action_hint() -> None:
+    assert sorted(m.INVARIANT_ACTIONS) == sorted(NAMES)
+    for name, hint in m.INVARIANT_ACTIONS.items():
+        assert hint.isascii() and len(hint) > 20 and hint.endswith("."), name
+        assert "docs/RUNBOOKS/" in hint or "Nothing to do" in hint, name
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_each_invariant_message_carries_its_own_hint_not_a_blanket_reassurance(name: str) -> None:
+    _, detail = integrity.summarise_invariants([integrity.Finding(name, 1)], [], len(NAMES))
+    first = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[0]
+    assert m.INVARIANT_ACTIONS[name] in first
+    if name != "snapshot gaps over 5 minutes (last 3 days)":
+        assert "Nothing to do unless it keeps happening" not in first
+
+
+def test_a_missing_partition_is_not_told_to_wait() -> None:
+    _, detail = integrity.summarise_invariants([integrity.Finding("daily partitions missing for today..today+3", 1)], [], len(NAMES))
+    first = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[0]
+    assert "Writes will start to fail" in first and "maintenance log today" in first and "keeps happening" not in first
+
+
 def test_the_new_violations_notice_from_integrity_is_humanised() -> None:
     notice = f"WARN data_integrity: new violations since the last sweep: {NAMES[9]}, {NAMES[6]}"
     t = m.from_alert_text(notice, now=NOW)
-    assert "new problem" in t and m.INVARIANT_WORDS[NAMES[9]] in t and "(and 1 more)" in t
+    assert "new problem" in t and m.INVARIANT_WORDS[NAMES[9]] in t and "(and 1 more)" in t and "Several checks failed" in t
     check_shape(t, "data_integrity")
 
 
@@ -191,15 +226,28 @@ def test_the_pack_incomplete_problem_is_not_called_a_data_problem() -> None:
 # ---------------------------------------------------------------- every check the watchdog produces has wording
 
 
+def names_the_watchdog_can_alert_on() -> set[str]:
+    """Read from the watchdog source itself: every literal key put into the results dicts (`out["x"] = ...`, `results["x"] = ...`)
+    in ops/watchdog/watchdog.py, plus the two slow checks named in integrity.py. Keys starting with an underscore are internal."""
+    tree = ast.parse((REPO / "ops" / "watchdog" / "watchdog.py").read_text(encoding="utf-8"))
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for t in node.targets:
+                if (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name) and t.value.id in {"out", "results"}
+                        and isinstance(t.slice, ast.Constant) and isinstance(t.slice.value, str) and not t.slice.value.startswith("_")):
+                    found.add(t.slice.value)
+    return found | {integrity.INVARIANTS_KEY, integrity.CROSSCHECK_KEY}
+
+
 def test_every_check_name_the_watchdog_can_alert_on_has_its_own_wording() -> None:
-    """The names in the runbook table and the ones the cycle produces; a new check must be added to messages.py."""
-    produced = {"collector_health", "poll_log_ok_age", "network_snapshot_age", "grafana_health", "database", "db_size", "disk",
-                "backup_age", "restore_test", "identity_flap", "feed_archive", integrity.INVARIANTS_KEY, integrity.CROSSCHECK_KEY,
-                "docker_proxy"}
-    assert set(m.known_checks()) == produced
-    source = (REPO / "ops" / "watchdog" / "watchdog.py").read_text(encoding="utf-8")
-    for name in produced - {integrity.INVARIANTS_KEY, integrity.CROSSCHECK_KEY}:
-        assert f'"{name}"' in source, name
+    """The names are read from watchdog.py, so a new check added there without wording in messages.py fails here."""
+    produced = names_the_watchdog_can_alert_on()
+    assert len(produced) >= 14, produced                      # the parser itself must not silently find nothing
+    assert produced >= {"collector_health", "disk", "docker_proxy", "database", "data_integrity"}
+    missing = produced - set(m.known_checks())
+    assert not missing, f"check(s) with no wording in messages.py: {sorted(missing)}"
+    assert set(m.known_checks()) <= produced, sorted(set(m.known_checks()) - produced)
     runbook = (REPO / "docs" / "RUNBOOKS" / "alerts.md").read_text(encoding="utf-8")
     for name in produced:
         assert f"`{name}`" in runbook, name
@@ -260,7 +308,7 @@ def test_recovered_reports_how_long_the_problem_lasted_and_survives_a_restart(mo
     state = json.loads(json.dumps(state))                       # what the status file keeps across a restart
     b = alerter(handler, state)
     b.update("poll_log_ok_age", "ok", "newest ok poll 5s old")
-    assert "The problem lasted about 4 minutes." in seen[-1] and seen[-1].startswith("VATPAC Stats: all clear")
+    assert "The alert was active for about 4 minutes." in seen[-1] and seen[-1].startswith("VATPAC Stats: all clear")
     assert "poll_log_ok_age" not in state["bad_since"]
 
 
@@ -273,7 +321,7 @@ def test_recovered_without_a_stored_start_omits_the_duration() -> None:
 
     state: dict[str, Any] = {"alerts": {"disk": "warn"}}         # an older status file: no bad_since
     alerter(handler, state).update("disk", "ok", "/ 40% used")
-    assert seen and "lasted" not in seen[0] and "all clear" in seen[0]
+    assert seen and "active for" not in seen[0] and "all clear" in seen[0]
 
 
 def test_a_context_never_leaks_into_the_next_message() -> None:
@@ -286,4 +334,4 @@ def test_a_context_never_leaks_into_the_next_message() -> None:
     a = alerter(handler, {"alerts": {"disk": "warn"}, "bad_since": {"disk": 1.0}})
     a.update("disk", "ok", "/ 40% used")
     a.send("NEAR-MISS controller callsign(s) not on whitelist: X_TWR")
-    assert "lasted" in seen[0] and "lasted" not in seen[1]
+    assert "active for" in seen[0] and "active for" not in seen[1]
