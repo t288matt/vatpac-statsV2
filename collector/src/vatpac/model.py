@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field, fields, replace
@@ -149,8 +150,14 @@ def _callsign(value: Any) -> str:
 
 
 def _f(value: Any) -> float | None:
-    """A coordinate: None means no position; anything unparsable raises, so the pilot is a malformed record."""
-    return None if value is None else float(value)
+    """A coordinate: None means no position; anything unparsable or non-finite (nan, inf) raises, so the pilot is a
+    malformed record (issues 37 and 62)."""
+    if value is None:
+        return None
+    x = float(value)
+    if not math.isfinite(x):
+        raise ValueError(f"non-finite coordinate {value!r}")
+    return x
 
 
 def _heading(value: Any) -> int | None:

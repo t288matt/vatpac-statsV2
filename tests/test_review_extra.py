@@ -86,8 +86,6 @@ def test_infinite_integer_field_does_not_abort_the_snapshot(field: str) -> None:
     assert snap.malformed == 0 and snap.pilots[0].rejected == 1  # nulled and counted like any other rejected value
 
 
-@pytest.mark.xfail(strict=True, reason="review finding: float('nan') and float('inf') pass _f, so the pilot is treated as "
-                   "outside the polygon without being counted as malformed or rejected")
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), "nan", "1e999"])
 def test_non_finite_coordinate_is_malformed(value: Any) -> None:
     payload = copy.deepcopy(FIXTURE)
