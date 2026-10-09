@@ -1,6 +1,6 @@
 """Integration test plumbing.
 
-Written against SPEC.md and run against a real PostgreSQL 16.4 (counts: tests/README.md).
+Written against SPEC.md and run against a real PostgreSQL 16.4 (how to run: docs/RUNBOOKS/run-tests.md).
 
 Skipped unless VATPAC_TEST_DSN is set, EXCEPT in strict mode (VATPAC_TEST_STRICT=1, which CI sets): there a missing
 VATPAC_TEST_DSN aborts the run, and any skipped test (a missing role, a missing module) fails the run, so a green
