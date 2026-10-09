@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-PACKAGE_LIMIT = 1700  # ADR-014/ADR-022: raised 900 -> 1300 -> 1400 -> 1700 as required behaviour landed (1575 today)
+PACKAGE_LIMIT = 1700  # ADR-014/ADR-022: raised 900 -> 1300 -> 1400 -> 1700 as required behaviour landed (1652 on 09-10-2026)
 MODULE_LIMIT = 300
 
 

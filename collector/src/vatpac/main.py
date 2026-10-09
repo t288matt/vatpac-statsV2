@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
-from psycopg.rows import tuple_row
 from psycopg_pool import ConnectionPool
 
 from . import __version__
@@ -27,6 +26,8 @@ from .health import Stats, start_server
 from .logsetup import setup_logging
 from .maintenance import FLIGHT_REFRESH_INTERVAL_S, refresh_flights, run_maintenance
 from .model import Snapshot, parse_snapshot, update_timestamp
+from .pollstats import update_stats
+from .resume import db_last_ts, load_last_ts
 from .settings import Settings
 from .store import ApplyResult, apply_snapshot, record_reference_change, write_poll_log
 
@@ -66,17 +67,10 @@ class Collector:
                                   polygon_sha=ref.polygon_sha, whitelist_sha=ref.whitelist_sha)
 
     def _db_last_ts(self) -> datetime | None:
-        sql = "SELECT max(observed_at) FROM network_snapshot WHERE observed_at <= now() + make_interval(secs => %s)"
-        with self.pool.connection() as conn, conn.cursor(row_factory=tuple_row) as cur:  # ignores a future-dated row
-            row = cur.execute(sql, (self.settings.feed_max_future_seconds,)).fetchone()
-        return row[0] if row else None
+        return db_last_ts(self.pool, self.settings.feed_max_future_seconds)
 
     async def load_last_ts(self) -> None:
-        """Resume from the newest stored snapshot, so a replay after a restart is logged as skipped, not ok."""
-        try:
-            self.last_ts = await asyncio.to_thread(self._db_last_ts)
-        except Exception:
-            log.exception("could not read the newest stored snapshot time")
+        self.last_ts = await load_last_ts(self.pool, self.settings.feed_max_future_seconds, self.last_ts)
 
     def _log_poll(self, status: str, ref: ReferenceData, **kw: Any) -> None:
         try:
@@ -151,31 +145,7 @@ class Collector:
         return PollOutcome(status, retry_in)
 
     def _update_stats(self, status: str, result: ApplyResult | None, snap_ts: datetime | None, err: str | None) -> None:
-        st, s = self.stats, self.settings
-        if status == "error":
-            st.polls_error += 1
-            st.consecutive_failures += 1
-            log.warning("poll error", extra={"error": err, "consecutive_failures": st.consecutive_failures})
-        else:
-            st.polls_skipped += status == "skipped_unchanged"
-            st.polls_ok += status == "ok"
-            st.consecutive_failures = 0
-            if status == "ok":  # an unchanged feed is not progress (see health.py)
-                st.last_ok_wall = time.time()
-        if result is not None and snap_ts is not None:
-            st.last_snapshot_ts = snap_ts
-            st.positions_written += result.positions_inserted
-            st.rejected_values += result.rejected_values
-            st.near_misses += len(result.new_near_misses)
-            for name in ("pilots_seen", "pilots_inside", "pilots_kept", "controllers_seen", "controllers_kept"):
-                setattr(st, name, getattr(result, name))
-            for callsign in result.new_near_misses:
-                log.warning("near-miss controller callsign not on whitelist", extra={"callsign": callsign})
-        was_open = st.breaker_open
-        st.breaker_open = st.consecutive_failures >= s.circuit_failure_threshold
-        if st.breaker_open != was_open:
-            log.log(logging.ERROR if st.breaker_open else logging.INFO,
-                    "circuit breaker %s", "opened" if st.breaker_open else "closed")
+        update_stats(self.stats, self.settings, status, result, snap_ts, err)
 
     async def _sleep(self, seconds: float) -> bool:
         """Sleep unless stopping. Returns True if asked to stop."""
