@@ -1,6 +1,6 @@
 # Runbook: run the tests and checks
 
-Last reviewed: 08-10-2026. There are 252 unit tests (`collector/tests`, `tests` outside `tests/integration`) and 231 integration tests (`tests/integration`), 483 collected in total (counted on the archive branch, 08-10-2026; the integration tests include `test_watchdog_flap.py`, whose role tests need `watchdog_ro`: CI creates it from the migrate script). GitHub Actions runs all of them on every push to `main` and `dev` and on pull requests (`.github/workflows/ci.yml`); the owner reads the result on GitHub (the repository is private and `gh` is not installed). The sections below are for running them yourself.
+Last reviewed: 08-10-2026. The unit tests are `collector/tests` and `tests` outside `tests/integration`; the integration tests are `tests/integration` (counts are deliberately not quoted here, because they go stale: run the commands below and report what you see; the integration tests include `test_watchdog_flap.py`, whose role tests need `watchdog_ro`: CI creates it from the migrate script). GitHub Actions runs all of them on every push to `main` and `dev` and on pull requests (`.github/workflows/ci.yml`); the owner reads the result on GitHub (the repository is private and `gh` is not installed). The sections below are for running them yourself.
 
 > **Never run `db/roles.sql` by hand against the live database or the VM's Postgres container.** Roles are cluster-wide: running it with throwaway passwords resets the live `grafana_ro`, `collector` and `backup_ro` passwords and the stack stops working until `docker compose up -d` re-applies the real ones. It is safe only in a throwaway container (section 3).
 >
@@ -12,7 +12,7 @@ From the repository root. These are the same commands CI runs.
 
 ```sh
 # unit tests (pytest, shapely and the collector requirements installed; Python 3.11 or newer)
-PYTHONPATH=collector/src python -m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv    # expect 252 passed
+PYTHONPATH=collector/src python -m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv    # expect all passed; the strict xfails (known defects pinned by tests) show as xfailed
 python grafana/validate_dashboards.py          # dashboard shape and SQL syntax; pip install sqlglot to parse SQL
 python grafana/check_columns.py                # every dashboard column exists in a view; expect "bad 0"
 python ops/check_config_drift.py               # collector settings, compose and .env.example agree (needs PyYAML)
@@ -26,7 +26,7 @@ cd collector && ruff check . && mypy src       # lint and strict typing of the c
 
 ## 2. Integration tests: the safe method on the VM
 
-Use this when there is no working Docker on the PC (Docker Desktop on the owner's PC is broken, docs/TRACKER.md T25). It uses a throwaway database inside the VM's running Postgres container, a copy of the committed code in `/tmp`, and a short-lived container built from the collector image. The live database is not touched. This method gave 117 passed, 1 skipped on 08-10-2026; it excludes the two role test files (`test_roles.py`, `test_grafana_ro.py`, 48 tests), which need roles that must not be created on the live cluster. CI runs those.
+Use this when there is no working Docker on the PC (Docker Desktop on the owner's PC is broken, docs/TRACKER.md T25). It uses a throwaway database inside the VM's running Postgres container, a copy of the committed code in `/tmp`, and a short-lived container built from the collector image. The live database is not touched. It excludes the two role test files (`test_roles.py`, `test_grafana_ro.py`, 48 tests), which need roles that must not be created on the live cluster. CI runs those.
 
 From the PC, in the repository root (so the VM gets exactly what is committed, without `.env`):
 
@@ -80,7 +80,7 @@ docker exec -i vp-test psql -U postgres -d vatpac_test -v ON_ERROR_STOP=1 -v gra
 sed -n "/<<'SQL'/,/^SQL$/p" ops/migrate/migrate.sh | sed '1d;$d' | docker exec -i vp-test psql -U postgres -d vatpac_test -X -q -v ON_ERROR_STOP=1 -v wd_pw=wpw
 export VATPAC_TEST_DSN=postgresql://postgres:x@127.0.0.1:55436/vatpac_test
 export VATPAC_TEST_GRAFANA_RO_DSN=postgresql://grafana_ro:testpw@127.0.0.1:55436/vatpac_test
-PYTHONPATH=collector/src python -m pytest tests collector/tests -q          # all 483
+PYTHONPATH=collector/src python -m pytest tests collector/tests -q          # everything
 docker rm -f vp-test
 ```
 
