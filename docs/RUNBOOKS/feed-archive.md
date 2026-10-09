@@ -24,7 +24,7 @@ Anomaly reasons (joined with `+` when several apply):
 | `ts_future` | The feed timestamp is more than 120 s ahead of the VM clock |
 | `precision` | The share of `logon_time` values that have a fractional second dropped by 20 points or more between two polls (at least 50 values). This is the signature of issue 15 / ADR-021 |
 
-Limits: a hard cap `ARCHIVE_MAX_MB` (1024) deletes the oldest files first, whatever their class. Files past their retention are removed every 10 minutes (twice the compact interval). Stale `.tmp` files from a crash are removed after 10 minutes.
+Limits: a hard cap `ARCHIVE_MAX_MB` (1024) deletes the oldest compact and full files first and touches anomaly files only when nothing else is left (issue 65). Files past their retention are removed every 10 minutes (twice the compact interval). Stale `.tmp` files from a crash are removed after 10 minutes.
 
 Expected writes at the defaults: 12 compact files and 1 full file per hour, about 0.8 MB an hour and about 20 MB a day, plus about 0.6 MB per anomaly. Steady-state size is about 0.4 GB (30 days of compact files, 7 days of full ones), far below the cap.
 

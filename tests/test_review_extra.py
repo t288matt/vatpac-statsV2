@@ -132,8 +132,6 @@ def test_retention_days_apply_per_kind_and_young_files_survive(tmp_path: Path) -
         "anomaly/20261008/x2.json.gz", "compact/20261008/x0.5.json.gz"]
 
 
-@pytest.mark.xfail(strict=True, reason="review finding: with the hard cap the oldest file goes first whatever its kind, so "
-                   "90-day anomaly evidence is deleted before the newer compact and full files it is meant to explain")
 def test_hard_cap_keeps_anomaly_evidence_before_routine_files(tmp_path: Path) -> None:
     a = make(tmp_path, archive_max_mb=1)
     root = tmp_path / "arc"
