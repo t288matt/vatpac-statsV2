@@ -136,7 +136,7 @@ def _i(value: Any) -> int | None:
     """Integer or None; values outside int32 are dropped so one bad field cannot abort a snapshot insert."""
     try:
         n = None if value is None else int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):  # OverflowError: int(inf), the feed literal 1e999 (issue 61)
         return None
     return n if n is None or -(2**31) <= n < 2**31 else None
 
@@ -211,7 +211,7 @@ def parse_snapshot(payload: dict[str, Any], max_text: int = MAX_TEXT) -> Snapsho
         for raw in raws:
             try:
                 out.append(cap_text(build(raw), max_text))
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError, OverflowError):  # OverflowError: int(inf) in cid
                 malformed += 1
         return out
 

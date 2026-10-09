@@ -71,14 +71,19 @@ def test_run_loads_the_last_snapshot_time_after_the_first_maintenance(monkeypatc
 
 
 # ---- parsing: a non-finite number is not a value (found in review) ----
-@pytest.mark.xfail(strict=True, reason="review finding: 1e999 parses to inf and int(inf) raises OverflowError, which "
-                   "parse_snapshot does not catch, so one such pilot fails every poll while it is in the feed")
+def test_infinite_cid_is_a_malformed_record_not_a_poll_failure() -> None:
+    payload = copy.deepcopy(FIXTURE)
+    payload["pilots"][0]["cid"] = float("inf")
+    assert parse_snapshot(payload).malformed == 1
+
+
 @pytest.mark.parametrize("field", ["altitude", "groundspeed", "heading", "pilot_rating"])
 def test_infinite_integer_field_does_not_abort_the_snapshot(field: str) -> None:
     payload = copy.deepcopy(FIXTURE)
     payload["pilots"][0][field] = float("inf")  # what json.loads gives for the literal 1e999
     snap = parse_snapshot(payload)
     assert snap.pilots_global == len(payload["pilots"])
+    assert snap.malformed == 0 and snap.pilots[0].rejected == 1  # nulled and counted like any other rejected value
 
 
 @pytest.mark.xfail(strict=True, reason="review finding: float('nan') and float('inf') pass _f, so the pilot is treated as "
