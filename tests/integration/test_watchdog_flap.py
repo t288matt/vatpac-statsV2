@@ -91,7 +91,8 @@ def test_watchdog_ro_runs_the_flap_check_and_stays_read_only(as_watchdog) -> Non
     c = as_watchdog
     assert run(c)[0] == wd.OK  # SELECT on both session tables works
     for sql in ("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "
-                "VALUES (1, 'X', now(), now(), now())", "DELETE FROM controller_session", "SELECT 1 FROM pilot_position",
-                "SELECT 1 FROM flight_summary"):
+                "VALUES (1, 'X', now(), now(), now())", "DELETE FROM controller_session", "SELECT 1 FROM app_setting",
+                "INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count) "
+                "VALUES (1, 0, 0, 1, now(), now(), 1)", "DELETE FROM pilot_position"):
         with pytest.raises(psycopg.errors.Error):
             c.execute(sql)

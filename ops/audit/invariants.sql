@@ -1,7 +1,8 @@
 -- Read-only data-integrity invariants for the live database (T30 audit, candidate for T16 check_data_integrity).
 -- Run:  ( echo "SET default_transaction_read_only = on;"; cat ops/audit/invariants.sql ) | \
 --       ssh vatpac-v3 'cd ~/vatpac-statsV2 && docker compose exec -T db sh -c '"'"'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -X'"'"''
--- Every query returns one row: name, violations (expected 0), detail. Only SELECTs; the whole file is one repeatable-read
+-- Every invariant returns exactly one row: name, violations (expected 0), detail. The watchdog (ops/watchdog/integrity.py) runs this
+-- file every 72 hours and fails if a row is missing, so keep each invariant as one SELECT of the form: name literal, count(*), detail. Only SELECTs; the whole file is one repeatable-read
 -- READ ONLY transaction so all figures describe the same instant. Positions are filtered to the last 3 days to stay light.
 BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
 
@@ -33,8 +34,10 @@ SELECT 'snapshot gaps over 45 s (last 3 days)', count(*), max(gap)::text
 FROM (SELECT observed_at - lag(observed_at) OVER (ORDER BY observed_at) AS gap FROM network_snapshot
       WHERE observed_at >= now() - interval '3 days') g WHERE gap > interval '45 seconds'
 UNION ALL
+-- (always returns its row: count 0 when the newest snapshot is fresh, or when there is no snapshot yet)
 SELECT 'newest snapshot in the future or older than 5 minutes', count(*), max(observed_at)::text
-FROM network_snapshot HAVING max(observed_at) > now() + interval '1 minute' OR max(observed_at) < now() - interval '5 minutes'
+FROM (SELECT max(observed_at) AS observed_at FROM network_snapshot) m
+WHERE observed_at > now() + interval '1 minute' OR observed_at < now() - interval '5 minutes'
 UNION ALL
 SELECT 'pilot session first/last seen differ from first/last stored position', count(*), NULL
 FROM pilot_session s

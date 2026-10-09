@@ -8,13 +8,15 @@ LABEL org.opencontainers.image.title="vatpac-stats-watchdog" \
       org.opencontainers.image.version="${VERSION}"
 
 WORKDIR /app
-COPY requirements.txt .
+# Build context is ./ops (docker-compose.yml), so the audit's independent rules and invariant pack are the same files
+# the repository tests, not copies.
+COPY watchdog/requirements.txt .
 RUN pip install -r requirements.txt
 
 RUN groupadd --system --gid 10001 watchdog \
  && useradd --system --uid 10001 --gid watchdog --no-create-home --shell /usr/sbin/nologin watchdog \
  && mkdir -p /var/watchdog && chown watchdog:watchdog /var/watchdog
 
-COPY watchdog.py .
+COPY watchdog/watchdog.py watchdog/integrity.py audit/independent.py audit/invariants.sql ./
 USER 10001:10001
 ENTRYPOINT ["python", "/app/watchdog.py"]

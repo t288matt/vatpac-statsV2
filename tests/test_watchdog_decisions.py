@@ -583,6 +583,9 @@ class World:
         monkeypatch.setattr(wd, "check_disk", lambda cfg: (OK, "disk fine"))
         monkeypatch.setattr(wd, "check_backup", lambda cfg, first: (OK, "backup fine"))
         monkeypatch.setattr(wd, "check_restore_test", lambda cfg, first: (OK, "restore fine"))
+        # the scheduled integrity checks (issue 20) need a database and the archive: the tests of their own stub them here
+        self.integrity: tuple[dict[str, wd.Result], list[str]] = ({}, [])
+        monkeypatch.setattr(wd.integrity, "run_due", lambda plan, state: self.integrity)
         self.state: dict[str, Any] = {}
         self.sent: list[str] = []
         sent = self.sent
@@ -621,6 +624,27 @@ def test_cycle_all_healthy_alerts_nothing_and_restarts_nothing(world: World) -> 
     assert world.sent == [] and world.docker.restarted == []
     data = json.loads(world.cfg.status_file.read_text())
     assert data["overall"] == "ok" and data["checks"]["collector_health"]["level"] == "ok"
+
+
+def test_cycle_scheduled_integrity_result_is_in_the_status_alerted_once_and_recovered(world: World) -> None:
+    world.integrity = ({"data_integrity": (wd.WARN, "1 of 18 invariants report violations: x (2) (checked now)")}, [])
+    world.cycle(6)
+    assert [s for s in world.sent if "data_integrity" in s] == [
+        "WARN data_integrity: 1 of 18 invariants report violations: x (2) (checked now)"]
+    data = json.loads(world.cfg.status_file.read_text())
+    assert data["overall"] == "warn" and data["checks"]["data_integrity"]["level"] == "warn"
+    world.integrity = ({"data_integrity": (OK, "all 18 invariants hold (checked later)")}, [])
+    world.cycle(4)
+    assert world.sent[-1].startswith("RECOVERED data_integrity (was warn): all 18 invariants hold") and len(world.sent) == 2
+
+
+def test_cycle_sends_the_follow_up_notices_from_a_sweep(world: World) -> None:
+    world.integrity = ({}, ["WARN data_integrity: new violations since the last sweep: y"])
+    world.cycle(1)
+    assert world.sent == ["WARN data_integrity: new violations since the last sweep: y"]
+    world.integrity = ({}, [])
+    world.cycle(2)
+    assert len(world.sent) == 1
 
 
 def test_cycle_restarts_a_collector_that_does_not_answer_after_three_cycles(world: World) -> None:

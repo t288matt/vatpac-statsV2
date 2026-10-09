@@ -28,7 +28,7 @@ jobs:
             context: .
             file: collector/Dockerfile
           - name: watchdog
-            context: ops/watchdog
+            context: ops   # the image also carries ops/audit/independent.py and invariants.sql
             file: ops/watchdog/Dockerfile
           - name: backup
             context: ops/backup

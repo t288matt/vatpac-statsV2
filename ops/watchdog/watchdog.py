@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import integrity
 import psycopg
 from psycopg.conninfo import make_conninfo
 
@@ -80,6 +81,16 @@ class Config:
         self.tg_token = env("TELEGRAM_BOT_TOKEN")
         self.tg_chat = env("TELEGRAM_CHAT_ID")
         self.kuma_url = env("UPTIME_KUMA_PUSH_URL")
+        # Scheduled integrity checks (issue 20): the invariant sweep and the archive cross-check. 0 disables either one.
+        self.integrity = integrity.Plan(
+            dsn=self.db_dsn,
+            sql_path=Path(env("INVARIANTS_SQL", "/app/invariants.sql")),
+            archive_dir=Path(env("ARCHIVE_DIR", "/archive")),
+            config_dir=Path(env("REFERENCE_CONFIG_DIR", "/config")),
+            invariants_interval_s=max(0.0, env_num("WATCHDOG_INTEGRITY_INTERVAL_HOURS", 72)) * 3600,
+            crosscheck_interval_s=max(0.0, env_num("WATCHDOG_CROSSCHECK_INTERVAL_DAYS", 14)) * 86400,
+            samples=max(1, int(env_num("WATCHDOG_CROSSCHECK_SAMPLES", 48))),
+        )
 
 
 def now_iso() -> str:
@@ -429,6 +440,8 @@ def cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, s
     db = check_db(cfg)
     near_miss = db.pop("_near_miss", (OK, ""))[1]
     results.update(db)
+    sched, notices = integrity.run_due(cfg.integrity, state)  # slow checks, persisted schedule, see integrity.py
+    results.update(sched)
     results["disk"] = check_disk(cfg)
     first_run = state.setdefault("first_run", time.time())
     results["backup_age"] = check_backup(cfg, first_run)
@@ -444,6 +457,9 @@ def cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, s
 
     for name, (level, detail) in results.items():
         alerter.update(name, level, detail)
+
+    for text in notices:  # violations that are new since the previous sweep, while the integrity alert is already active
+        alerter.send(text)
 
     # New near-miss controller callsigns: alert once each, ever (persisted).
     known = set(state.setdefault("known_near_miss", []))
