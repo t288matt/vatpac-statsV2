@@ -389,6 +389,18 @@ def from_alert_text(text: str, down_for: float | None = None, previous_level: st
     return _ascii(f"{PREFIX} heads up ({stamp}). The monitoring system sent a message; see docs/RUNBOOKS/alerts.md on the VM.\nTechnical: {_clip(text, 300)}")
 
 
+DELAY_NOTE_AFTER_S = 120  # a message delivered this long after it was raised says so
+
+
+def mark_delayed(body: str, raised_at: float, now: float) -> str:
+    """Say that a message is late and when it was really raised (UTC, DD-MM-YYYY). The body already carries the time of the
+    event; a retried message that is more than DELAY_NOTE_AFTER_S old gets this extra note after the prefix."""
+    if now - raised_at < DELAY_NOTE_AFTER_S or not body.startswith(PREFIX):
+        return body
+    when = datetime.fromtimestamp(raised_at, UTC).strftime("%d-%m-%Y %H:%M UTC")
+    return f"{PREFIX} delayed message, first raised {when}." + body[len(PREFIX):]
+
+
 def telegram_text(text: str, down_for: float | None = None, previous_level: str | None = None) -> str:
     """The text to send to Telegram for a technical alert text. A formatting bug must never stop an alert, so on any
     error the old technical wording is sent and the error is logged."""
