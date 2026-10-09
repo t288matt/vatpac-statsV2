@@ -11,8 +11,9 @@ import pytest
 psycopg = pytest.importorskip("psycopg")
 pytestmark = pytest.mark.integration
 
-VIEWS = ["flight", "controller_session_merged", "controller_activity_daily", "movements", "cohorts",
-         "online_now", "data_freshness"]
+# A few views are named so a failure names the one that broke; every other view is found in pg_views (below).
+NAMED_VIEWS = ["flight", "controller_session_merged", "controller_activity_daily", "movements", "cohorts",
+               "online_now", "data_freshness"]
 LOOKUPS = ["controller_rating", "facility", "pilot_rating", "airline", "aircraft_type", "region_map"]
 RAW = ["pilot_session", "pilot_position", "controller_session", "controller_rating_event",
        "controller_frequency_event", "network_snapshot", "poll_log", "controller_unlisted_sighting",
@@ -33,9 +34,25 @@ def ro(conn):
             conn.execute("RESET ROLE")
 
 
-@pytest.mark.parametrize("name", VIEWS + LOOKUPS)
+@pytest.mark.parametrize("name", NAMED_VIEWS + LOOKUPS)
 def test_can_select_views_and_lookups(ro, name: str) -> None:
     ro.execute(f"SELECT * FROM {name} LIMIT 1").fetchall()
+
+
+def test_can_select_every_view_in_the_schema(conn, ro) -> None:
+    """The list is derived from pg_views and pg_matviews, so a view added by a later migration is covered without
+    editing this file (db/roles.sql grants every view)."""
+    names = [r["n"] for r in conn.execute(
+        "SELECT viewname AS n FROM pg_views WHERE schemaname = 'public' "
+        "UNION SELECT matviewname FROM pg_matviews WHERE schemaname = 'public' ORDER BY 1").fetchall()]
+    assert set(NAMED_VIEWS) <= set(names) and len(names) >= 20, names
+    denied = []
+    for name in names:
+        try:
+            ro.execute(f"SELECT * FROM {name} LIMIT 1").fetchall()
+        except psycopg.errors.InsufficientPrivilege:
+            denied.append(name)
+    assert denied == []
 
 
 @pytest.mark.parametrize("name", RAW)

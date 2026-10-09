@@ -29,12 +29,13 @@ def panel_sql(title: str) -> str:
 
 
 def add_session(conn, cid: int, days_ago: float, minutes: int, rating: int = 3, name: str | None = None) -> None:
-    start = datetime.now(UTC) - timedelta(days=days_ago)
+    # whole seconds throughout (logon_time must be, ADR-021), so a session is exactly ``minutes`` long
+    start = (datetime.now(UTC) - timedelta(days=days_ago)).replace(microsecond=0)
     end = start + timedelta(minutes=minutes)
     conn.execute(
         "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
         "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        (cid, f"TEST{cid}_TWR", start.replace(microsecond=0), name or f"Controller {cid}", rating, start, end),
+        (cid, f"TEST{cid}_TWR", start, name or f"Controller {cid}", rating, start, end),
     )
 
 

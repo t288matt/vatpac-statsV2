@@ -1,7 +1,6 @@
 """Integration test plumbing.
 
-Written against SPEC.md, then run against a real PostgreSQL 16.4 on 07-10-2026 (94 pass, 1 skipped:
-see tests/README.md, "Known assumptions", for the skip).
+Written against SPEC.md and run against a real PostgreSQL 16.4 (counts: tests/README.md).
 
 Skipped unless VATPAC_TEST_DSN is set. The database must already be migrated (dbmate) and
 must be a THROWAWAY database: the fixtures TRUNCATE all data tables. As a safety net the
@@ -52,6 +51,21 @@ def dsn() -> str:
     return DSN
 
 
+_settings_baseline: dict[str, str] = {}
+
+
+def _restore_app_settings(c) -> None:
+    """app_setting is not a data table (the migrations seed it, the collector publishes into it), so it is not truncated.
+    Tests that change a setting would leak it into the next test, so put back exactly what the first test of the
+    session found: delete rows that were added, restore values that were changed."""
+    if not _settings_baseline:
+        _settings_baseline.update({r["key"]: r["value"] for r in c.execute("SELECT key, value FROM app_setting").fetchall()})
+    c.execute("DELETE FROM app_setting WHERE key <> ALL(%s)", (list(_settings_baseline),))
+    for key, value in _settings_baseline.items():
+        c.execute("INSERT INTO app_setting (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value "
+                  "WHERE app_setting.value IS DISTINCT FROM EXCLUDED.value", (key, value))
+
+
 @pytest.fixture()
 def conn(dsn: str) -> Iterator["psycopg.Connection"]:  # noqa: F821
     import psycopg
@@ -69,7 +83,12 @@ def conn(dsn: str) -> Iterator["psycopg.Connection"]:  # noqa: F821
         ).fetchall():
             c.execute(f"DROP TABLE IF EXISTS {row['part']}")
         c.execute("TRUNCATE " + ", ".join(DATA_TABLES) + " RESTART IDENTITY CASCADE")
-        yield c
+        _restore_app_settings(c)
+        try:
+            yield c
+        finally:
+            c.execute("RESET ROLE")
+            _restore_app_settings(c)
 
 
 @pytest.fixture(scope="session")

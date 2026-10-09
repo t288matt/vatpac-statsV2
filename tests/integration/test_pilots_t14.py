@@ -17,61 +17,18 @@ Rules under test:
 """
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from conftest import REPO
+from helpers import ORIGINS, TRAFFIC, add_flight, run_panel
 
 pytestmark = pytest.mark.integration
-
-TRAFFIC = REPO / "grafana" / "dashboards" / "pilots" / "pilots-traffic.json"
-ORIGINS = REPO / "grafana" / "dashboards" / "demographics" / "pilot-origins.json"
 
 SPEED = "Highest groundspeeds (last 7 days)"
 PILOTS_BY_AIRCRAFT = "Most popular aircraft by pilots (last 6 months)"
 DAYS = "Busiest days by pilots online (last 6 months)"
 ACTIVE = "Active pilots and controllers (last 90 days, log scale)"
 AIRPORTS = "Busiest home-region airports (last 30 days)"
-
-
-def panel(path, title: str) -> dict:
-    dash = json.loads(path.read_text(encoding="utf-8"))
-    return next(p for p in dash["panels"] if p.get("title") == title)
-
-
-def run_panel(conn, path, title: str) -> list[dict]:
-    p = panel(path, title)
-    days = int(str(p.get("timeFrom", "30d")).rstrip("d"))
-    sql = (p["targets"][0]["rawSql"]
-           .replace("$__timeFrom()", f"(now() - interval '{days * 24} hours')")  # hours: day intervals shift by an hour across DST in a non-UTC session
-           .replace("$__timeTo()", "now()"))
-    return conn.execute(sql).fetchall()
-
-
-_serial = {"n": 0}
-
-
-def add_flight(conn, cid: int, *, callsign: str | None = None, dep="YSSY", arr="YMML", aircraft="B738",
-               days_ago: float = 1.0, minutes: int = 120, airborne: float | None = 100, gs: int | None = 450,
-               alt: int | None = 35000, logon_days_ago: float | None = None) -> int:
-    """One pilot session plus its flight_summary row. The flight ends ``days_ago`` days ago."""
-    _serial["n"] += 1
-    end = datetime.now(UTC) - timedelta(days=days_ago)
-    start = end - timedelta(minutes=minutes)
-    logon = datetime.now(UTC) - timedelta(days=logon_days_ago) if logon_days_ago is not None else start
-    logon = min(logon, start)
-    sid = conn.execute(
-        "INSERT INTO pilot_session (cid, callsign, logon_time, name, first_seen, last_seen, departure, arrival, aircraft_icao) "
-        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-        (cid, callsign or f"TST{_serial['n']:04d}", logon.replace(microsecond=0), f"Pilot {cid}", logon, end, dep, arr, aircraft),
-    ).fetchone()["id"]
-    conn.execute(
-        "INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count, "
-        "airborne_minutes, max_gs_kt, max_alt_ft) VALUES (%s,0,0,%s,%s,%s,10,%s,%s,%s)",
-        (sid, cid, start, end, airborne, gs, alt),
-    )
-    return sid
 
 
 def add_controller(conn, cid: int, rating: int, *, start_days_ago: float, minutes: int) -> None:

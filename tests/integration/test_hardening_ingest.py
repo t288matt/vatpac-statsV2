@@ -6,8 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from helpers import apply, at, partition_for
-from test_upserts_and_events import ctrl, pilot
+from helpers import apply, at, ctrl, partition_for, pilot
 
 pytestmark = pytest.mark.integration
 

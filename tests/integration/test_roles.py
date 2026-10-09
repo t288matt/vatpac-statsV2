@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import pytest
 
+from helpers import set_poll_interval
+
 psycopg = pytest.importorskip("psycopg")
 pytestmark = pytest.mark.integration
 
@@ -144,6 +146,7 @@ def test_backup_role_reads_everything_writes_nothing(as_backup) -> None:
 
 
 def test_online_now_is_empty_when_the_newest_snapshot_is_stale(conn) -> None:
+    set_poll_interval(conn)
     conn.execute("INSERT INTO network_snapshot VALUES (now() - interval '10 minutes',1,1,1,1)")
     conn.execute(
         "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "

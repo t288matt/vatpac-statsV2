@@ -9,8 +9,7 @@ from datetime import timedelta
 
 import pytest
 
-from test_flight_summary import refresh
-from test_flight_view import T0, make_session, run
+from helpers import T0, make_session, refresh, run
 
 pytestmark = pytest.mark.integration
 
