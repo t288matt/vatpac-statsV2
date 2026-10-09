@@ -1,7 +1,7 @@
 #!/bin/sh
-# Soak report: did the collector store a snapshot every 15 s for the last N hours (default 24)?
+# Soak report: did the collector store a snapshot every 30 s for the last N hours (default 24)?
 # Usage: sh ops/soak_report.sh [hours]
-# PASS needs the full window covered, at least 99% of the expected snapshots, and p95 cadence <= 17 s.
+# PASS needs the full window covered, at least 99% of the expected snapshots, and p95 cadence <= 32 s.
 # A shorter run is reported as INCOMPLETE, never as PASS. Reads poll_log only (read-only).
 set -eu
 HOURS="${1:-24}"
