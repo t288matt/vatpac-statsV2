@@ -186,11 +186,11 @@ def _(conn: Any, w: World) -> None:
                  "VALUES (%s, %s, -33.9, 151.2, 5000, 250, 90)", (w.ts[5] + timedelta(seconds=7), w.sessions["A"]))
 
 
-@case("snapshot gaps over 45 s (last 3 days)")
+@case("snapshot gaps over 5 minutes (last 3 days)")
 def _(conn: Any, w: World) -> None:
-    for t in ("poll_log", "pilot_position", "network_snapshot"):
+    for t in ("poll_log", "pilot_position", "network_snapshot"):  # eleven snapshots (5.5 minutes) are missing
         col = {"poll_log": "snapshot_ts"}.get(t, "observed_at")
-        conn.execute(f"DELETE FROM {t} WHERE {col} = %s", (w.ts[10],))  # noqa: S608
+        conn.execute(f"DELETE FROM {t} WHERE {col} > %s AND {col} < %s", (w.ts[22], w.ts[10]))  # noqa: S608
 
 
 @case("newest snapshot in the future or older than 5 minutes")
@@ -247,17 +247,41 @@ def _(conn: Any, w: World) -> None:
                  "SELECT cid, callsign, logon_time + interval '1 second', first_seen, last_seen FROM controller_session")
 
 
-@case("snapshots that created sessions for more than 50% of in-region pilots")
-def _(conn: Any, w: World) -> None:
-    t = w.ts[5]
+def mass_logon(conn: Any, t: datetime) -> None:
+    """Eight sessions created at snapshot t, on top of the pilots already there (at least 8 of at least 10 are new)."""
     for k in range(8):
         sid = conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "
                            "VALUES (%s, %s, %s, %s, %s) RETURNING id",
                            (7000 + k, f"MASS{k}", t.replace(microsecond=0) - timedelta(minutes=5), t, t)).fetchone()["id"]
         conn.execute("INSERT INTO pilot_position (observed_at, session_id, lat, lon, alt_ft, gs_kt, hdg) "
                      "VALUES (%s, %s, -33.9, 151.2, 5000, 250, 90)", (t, sid))
-    conn.execute("UPDATE network_snapshot SET pilots_in_region = 10 WHERE observed_at = %s", (t,))
-    conn.execute("UPDATE poll_log SET pilots_inside = 10 WHERE snapshot_ts = %s", (t,))
+    conn.execute("UPDATE network_snapshot SET pilots_in_region = pilots_in_region + 8 WHERE observed_at = %s", (t,))
+    conn.execute("UPDATE poll_log SET pilots_inside = pilots_inside + 8 WHERE snapshot_ts = %s", (t,))
+
+
+@case("snapshots that created sessions for more than 50% of in-region pilots")
+def _(conn: Any, w: World) -> None:
+    mass_logon(conn, w.ts[5])
+
+
+def test_the_very_first_snapshot_of_a_database_may_create_every_session(conn: Any, dsn: str) -> None:
+    """07-10-2026 21:38 on the live database: go-live. That is not a feed change and must not alert."""
+    w = World(conn)
+    mass_logon(conn, w.ts[-1])  # the oldest snapshot in the database
+    assert sweep(dsn)["snapshots that created sessions for more than 50% of in-region pilots"] == 0
+    conn.execute("INSERT INTO network_snapshot (observed_at, pilots_in_region, controllers_in_region, pilots_global, controllers_global) "
+                 "VALUES (%s, 0, 1, 100, 10)", (w.ts[-1] - timedelta(seconds=30),))  # an even older snapshot: it is no longer the first
+    assert sweep(dsn)["snapshots that created sessions for more than 50% of in-region pilots"] == 1
+
+
+def test_gaps_of_a_tick_or_two_and_ordinary_restarts_are_not_violations(conn: Any, dsn: str) -> None:
+    """45.0002 s (a feed tick missed at 30 s polling) and 90 s (a restart) were reported by the first version of the check."""
+    w = World(conn)
+    for t in ("poll_log", "pilot_position", "network_snapshot"):
+        col = {"poll_log": "snapshot_ts"}.get(t, "observed_at")
+        conn.execute(f"DELETE FROM {t} WHERE {col} IN (%s, %s)", (w.ts[10], w.ts[20]))  # noqa: S608  (two 60 s gaps)
+        conn.execute(f"DELETE FROM {t} WHERE {col} IN (%s, %s)", (w.ts[30], w.ts[31]))  # noqa: S608  (one 90 s gap)
+    assert sweep(dsn)["snapshot gaps over 5 minutes (last 3 days)"] == 0
 
 
 @case("flight_summary rows missing for sessions older than 12 h",

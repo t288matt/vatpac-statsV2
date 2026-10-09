@@ -21,18 +21,22 @@ UNION ALL
 SELECT 'in-region count above global count', count(*), NULL
 FROM network_snapshot WHERE pilots_in_region > pilots_global OR controllers_in_region > controllers_global
 UNION ALL
+-- (one grouped pass over the positions; a per-snapshot subquery took 22 s on live data because no index starts with observed_at)
 SELECT 'positions per snapshot differ from pilots_in_region', count(*), NULL
 FROM network_snapshot n
-WHERE n.observed_at >= now() - interval '3 days'
-  AND n.pilots_in_region <> (SELECT count(*) FROM pilot_position p WHERE p.observed_at = n.observed_at)
+LEFT JOIN (SELECT observed_at, count(*) AS c FROM pilot_position WHERE observed_at >= now() - interval '3 days' GROUP BY 1) p
+  ON p.observed_at = n.observed_at
+WHERE n.observed_at >= now() - interval '3 days' AND n.pilots_in_region <> coalesce(p.c, 0)
 UNION ALL
 SELECT 'position rows at a timestamp with no network_snapshot', count(*), NULL
 FROM (SELECT DISTINCT observed_at FROM pilot_position WHERE observed_at >= now() - interval '3 days') x
 WHERE NOT EXISTS (SELECT 1 FROM network_snapshot n WHERE n.observed_at = x.observed_at)
 UNION ALL
-SELECT 'snapshot gaps over 45 s (last 3 days)', count(*), max(gap)::text
+-- (5 minutes, the watchdog's own page threshold for a stale poll. The first version said 45 s, which was right for 15 s polling
+-- but flagged ordinary 30 s polling (a feed tick missed: 45.0002 s) and every restart; shorter gaps are the soak report's job.)
+SELECT 'snapshot gaps over 5 minutes (last 3 days)', count(*), max(gap)::text
 FROM (SELECT observed_at - lag(observed_at) OVER (ORDER BY observed_at) AS gap FROM network_snapshot
-      WHERE observed_at >= now() - interval '3 days') g WHERE gap > interval '45 seconds'
+      WHERE observed_at >= now() - interval '3 days') g WHERE gap > interval '5 minutes'
 UNION ALL
 -- (always returns its row: count 0 when the newest snapshot is fresh, or when there is no snapshot yet)
 SELECT 'newest snapshot in the future or older than 5 minutes', count(*), max(observed_at)::text
@@ -68,6 +72,7 @@ UNION ALL
 SELECT 'snapshots that created sessions for more than 50% of in-region pilots', count(*), NULL FROM (
   SELECT first_seen, count(*) AS n FROM pilot_session WHERE first_seen >= now() - interval '3 days' GROUP BY 1) c
 JOIN network_snapshot n ON n.observed_at = c.first_seen WHERE n.pilots_in_region >= 10 AND c.n > 0.5 * n.pilots_in_region
+  AND n.observed_at > (SELECT min(observed_at) FROM network_snapshot)  -- the very first snapshot of a database creates every session
 UNION ALL
 SELECT 'flight_summary rows missing for sessions older than 12 h', count(*), NULL
 FROM pilot_session s WHERE s.last_seen < now() - interval '12 hours'
