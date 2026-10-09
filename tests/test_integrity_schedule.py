@@ -151,8 +151,8 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[float]]:
             raise v
         return v
 
-    monkeypatch.setattr(integrity, "_sweep", sweep)
-    monkeypatch.setattr(integrity, "_crosscheck", cross)
+    monkeypatch.setattr(integrity, "sweep", sweep)
+    monkeypatch.setattr(integrity, "crosscheck", cross)
     seen["box"] = box  # type: ignore[assignment]
     return seen
 

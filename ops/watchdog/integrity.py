@@ -276,13 +276,13 @@ def run_due(plan: Plan, state: dict[str, Any], now: float | None = None) -> tupl
     if plan.invariants_interval_s > 0:
         entry = sched.setdefault(INVARIANTS_KEY, {})
         if is_due(entry, plan.invariants_interval_s, now):
-            new = _guard(entry, now, "invariant sweep", lambda: _sweep(plan))
+            new = _guard(entry, now, "invariant sweep", lambda: sweep(plan))
             if new:
                 notices.append(f"WARN {INVARIANTS_KEY}: new violations since the last sweep: {', '.join(new[:MAX_NAMES_IN_ALERT])}")
     if plan.crosscheck_interval_s > 0:
         entry = sched.setdefault(CROSSCHECK_KEY, {})
         if is_due(entry, plan.crosscheck_interval_s, now):
-            _guard(entry, now, "archive cross-check", lambda: _crosscheck(plan, now))
+            _guard(entry, now, "archive cross-check", lambda: crosscheck(plan, now))
     results: dict[str, Result] = {}
     for key, on in ((INVARIANTS_KEY, plan.invariants_interval_s > 0), (CROSSCHECK_KEY, plan.crosscheck_interval_s > 0)):
         e = sched.get(key, {})
@@ -296,7 +296,7 @@ def find_pack(path: Path) -> Path:
     return path if path.is_file() else Path(__file__).resolve().parent.parent / "audit" / "invariants.sql"
 
 
-def _sweep(plan: Plan) -> tuple[Result, list[str], float | None]:
+def sweep(plan: Plan) -> tuple[Result, list[str], float | None]:
     sql = find_pack(plan.sql_path).read_text(encoding="utf-8")
     expected = invariant_names(sql)
     with psycopg.connect(plan.dsn) as conn:
@@ -312,7 +312,7 @@ def _sweep(plan: Plan) -> tuple[Result, list[str], float | None]:
     return res, failing, RECHECK_AFTER_FINDINGS_S if res[0] != OK else None
 
 
-def _crosscheck(plan: Plan, now: float) -> tuple[Result, list[str], float | None]:
+def crosscheck(plan: Plan, now: float) -> tuple[Result, list[str], float | None]:
     until = datetime.fromtimestamp(now, UTC) - timedelta(seconds=SETTLE_S)
     since = until - timedelta(seconds=max(plan.crosscheck_interval_s, 86400.0))
     files = pick_samples(plan.archive_dir, since, until, plan.samples)
