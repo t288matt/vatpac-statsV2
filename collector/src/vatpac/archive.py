@@ -17,7 +17,9 @@ import json
 import logging
 import os
 import re
+import threading
 import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
@@ -71,6 +73,7 @@ class Archive:
         self.last_write: float | None = None
         self.size = self.files = self.errors = self.dropped = self.anomalies = 0
         self._busy = self._failing = False
+        self._lock, self._pending = threading.Lock(), deque[tuple[Any, ...]]()
         self._retry_at = 0.0  # after a failed write nothing is attempted before this time
         self._last_ts: datetime | None = None  # the state below is touched by the worker thread only
         self._share: tuple[int, float] | None = None
@@ -95,16 +98,29 @@ class Archive:
         try:
             if self._pool is None or (raw is None and status != "error"):
                 return
-            if self._busy or time.time() < self._retry_at:
-                self.dropped += 1
-                return
-            self._busy = True
-            self._pool.submit(self._run, raw, snap_ts, status, http, err)
+            job = (raw, snap_ts, status, http, err)
+            with self._lock:  # an error poll waits its turn (at most 3 queued) instead of being dropped (issue 67)
+                if time.time() < self._retry_at or (self._busy and (status != "error" or len(self._pending) >= 3)):
+                    self.dropped += 1
+                    return
+                queued, self._busy = self._busy, True
+                if queued:
+                    self._pending.append(job)
+            if not queued:
+                self._pool.submit(self._run, *job)
         except Exception:
             self._busy = False
             self.errors += 1
 
-    def _run(self, raw: bytes | None, snap_ts: datetime | None, status: str, http: int | None, err: str | None) -> None:
+    def _run(self, *job: Any) -> None:
+        """Process the job, then any error polls that queued up meanwhile; _busy clears only when none are left."""
+        while job:
+            self._one(*job)
+            with self._lock:
+                job = self._pending.popleft() if self._pending else ()
+                self._busy = bool(job)
+
+    def _one(self, raw: bytes | None, snap_ts: datetime | None, status: str, http: int | None, err: str | None) -> None:
         try:
             self._process(raw, snap_ts, status, http, err)
             if self._failing:
@@ -116,8 +132,6 @@ class Archive:
             if not self._failing:
                 self._failing = True
                 log.error("archive failed, polling continues", extra={"error": f"{type(exc).__name__}: {exc}"})
-        finally:
-            self._busy = False
 
     def _put(self, path: Path, data: bytes) -> None:
         self.size += write_gz(path, data)
