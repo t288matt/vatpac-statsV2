@@ -310,7 +310,7 @@
       "id": 7,
       "type": "barchart",
       "title": "Active pilots and controllers (last 90 days, log scale)",
-      "description": "v1 card 93 (SQL re-checked 08-10-2026). Distinct pilots with at least 30 minutes airborne in a flight, and distinct controllers with a session of at least 30 minutes that started or ended in the window, one bar per rating using v1's names (1 Obs to 11 Administrator, anything else Unknown). Log scale, as in v1. Changed from v1: pilots use airborne minutes (v1 used enroute minutes); reconnects within 5 minutes are one controller session.",
+      "description": "v1 card 93 (SQL re-checked 08-10-2026). Distinct pilots with at least 30 minutes airborne in a flight, and distinct controllers with a session of at least 30 minutes that started or ended in the window, one bar per rating using v1's names for 1 Obs to 10 I3 and the VATSIM feed's names above that (11 Supervisor, 12 Administrator, anything else Unknown). Log scale, as in v1. Changed from v1: pilots use airborne minutes (v1 used enroute minutes); reconnects within 5 minutes are one controller session.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -331,7 +331,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT label, people FROM (\n  SELECT -100 AS sort, 'Pilots' AS label, count(DISTINCT f.cid) AS people\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.airborne_minutes >= 30\n  UNION ALL\n  SELECT min(r.rating) AS sort, r.label, count(DISTINCT r.cid) AS people\n  FROM (\n    SELECT c.rating, c.cid,\n           CASE c.rating WHEN 1 THEN 'Obs' WHEN 2 THEN 'S1' WHEN 3 THEN 'S2' WHEN 4 THEN 'S3' WHEN 5 THEN 'C1'\n                         WHEN 6 THEN 'C2' WHEN 7 THEN 'C3' WHEN 8 THEN 'I1' WHEN 9 THEN 'I2' WHEN 10 THEN 'I3'\n                         WHEN 11 THEN 'Administrator' ELSE 'Unknown' END AS label\n    FROM controller_session_ranked c\n    WHERE (c.session_start BETWEEN $__timeFrom() AND $__timeTo() OR c.session_end BETWEEN $__timeFrom() AND $__timeTo())\n      AND c.duration_minutes >= 30\n  ) r\n  GROUP BY r.label\n) x\nORDER BY sort"
+          "rawSql": "SELECT label, people FROM (\n  SELECT -100 AS sort, 'Pilots' AS label, count(DISTINCT f.cid) AS people\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.airborne_minutes >= 30\n  UNION ALL\n  SELECT min(r.rating) AS sort, r.label, count(DISTINCT r.cid) AS people\n  FROM (\n    SELECT c.rating, c.cid,\n           CASE c.rating WHEN 1 THEN 'Obs' WHEN 2 THEN 'S1' WHEN 3 THEN 'S2' WHEN 4 THEN 'S3' WHEN 5 THEN 'C1'\n                         WHEN 6 THEN 'C2' WHEN 7 THEN 'C3' WHEN 8 THEN 'I1' WHEN 9 THEN 'I2' WHEN 10 THEN 'I3'\n                         WHEN 11 THEN 'Supervisor' WHEN 12 THEN 'Administrator' ELSE 'Unknown' END AS label\n    FROM controller_session_ranked c\n    WHERE (c.session_start BETWEEN $__timeFrom() AND $__timeTo() OR c.session_end BETWEEN $__timeFrom() AND $__timeTo())\n      AND c.duration_minutes >= 30\n  ) r\n  GROUP BY r.label\n) x\nORDER BY sort"
         }
       ],
       "options": {

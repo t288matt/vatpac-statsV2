@@ -28,7 +28,7 @@ Trimming uses `btrim` with an explicit character set (space, tab, carriage retur
 
 ## 3. Airborne minutes
 
-**v3.** The sum, over consecutive sample pairs, of the time between them where groundspeed is at least 60 kt at the earlier sample. Each gap is capped at `AIRBORNE_GAP_CAP_SECONDS` (default 40 s, about 2.5 times the 15 s interval), and pairs more than 120 minutes apart are not consecutive and count as zero. Result in minutes, rounded to 2 decimals.
+**v3.** The sum, over consecutive sample pairs, of the time between them where groundspeed is at least 60 kt at the earlier sample. Each gap is capped at `AIRBORNE_GAP_CAP_SECONDS` (derived as 2.5 times `POLL_INTERVAL_SECONDS`: 75 s at the default 30 s polling, ADR-024), and pairs more than 120 minutes apart are not consecutive and count as zero. Result in minutes, rounded to 2 decimals.
 
 The cap means missed polls are not counted as flying time. It also means airborne minutes are a floor, not a measurement, if the poller falls behind.
 

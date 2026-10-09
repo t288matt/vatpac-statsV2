@@ -205,11 +205,12 @@ def test_card_93_controllers_by_v1_rating_names(conn):
     add_controller(conn, 9410001, 3, start_days_ago=10, minutes=40)      # S2
     add_controller(conn, 9410002, 8, start_days_ago=10, minutes=40)      # I1 (no longer folded into I1+)
     add_controller(conn, 9410003, 8, start_days_ago=11, minutes=40)      # second I1
-    add_controller(conn, 9410004, 11, start_days_ago=10, minutes=40)     # v1 name for 11
-    add_controller(conn, 9410005, 12, start_days_ago=10, minutes=40)     # not in v1's mapping: Unknown
+    add_controller(conn, 9410004, 11, start_days_ago=10, minutes=40)     # feed name for 11: SUP
+    add_controller(conn, 9410005, 12, start_days_ago=10, minutes=40)     # feed name for 12: ADM
+    add_controller(conn, 9410008, 13, start_days_ago=10, minutes=40)     # not a known rating: Unknown
     add_controller(conn, 9410006, 3, start_days_ago=10, minutes=20)      # under 30 minutes: out
     add_controller(conn, 9410007, 3, start_days_ago=120, minutes=40)     # ended long before 90 days: out
-    assert controllers_only(conn) == {"S2": 1, "I1": 2, "Administrator": 1, "Unknown": 1}
+    assert controllers_only(conn) == {"S2": 1, "I1": 2, "Supervisor": 1, "Administrator": 1, "Unknown": 1}
 
 
 def test_card_93_session_ending_inside_the_window_counts(conn):
