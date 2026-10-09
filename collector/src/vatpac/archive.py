@@ -1,14 +1,7 @@
-"""Rolling raw-feed archive (issue 20, audit section 6.2). Runbook: docs/RUNBOOKS/feed-archive.md.
-
-Layout under ARCHIVE_DIR (one gzipped file per write, written to a temporary name and renamed, never appended):
-compact/YYYYMMDD/HHMMSS.json.gz  every ARCHIVE_COMPACT_EVERY_S: all pilots and controllers, audit fields only, in the
-                                 feed's own key names so the file parses with vatpac.model.parse_snapshot
-full/YYYYMMDD/HHMMSS.json.gz     every ARCHIVE_FULL_EVERY_S: the raw payload exactly as received
-anomaly/YYYYMMDD/HHMMSS-<reasons>.json.gz (+ -prev: the payload before it)  reasons: poll_error, gap, ts_older,
-                                 ts_future, precision (the share of logon_time values with a fraction dropped).
+"""Rolling raw-feed archive (issue 20, audit section 6.2): compact/, full/ and anomaly/ gzipped files under ARCHIVE_DIR,
+each written to a temporary name and renamed. Layout, retention and reasons: docs/RUNBOOKS/feed-archive.md.
 The archive can never block or fail a poll: submit() only queues work for one worker thread, which runs after the
-snapshot is stored; any error is counted, logged once and swallowed. Counters appear in /health and /metrics.
-"""
+snapshot is stored; any error is counted, logged once and swallowed. Counters appear in /health and /metrics."""
 
 from __future__ import annotations
 

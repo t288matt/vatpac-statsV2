@@ -6,7 +6,7 @@ import hashlib
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import shapely
@@ -19,11 +19,19 @@ log = logging.getLogger(__name__)
 _CALLSIGN_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
-def load_polygon(path: str | Path) -> Polygon:
-    """Load a GeoJSON Polygon (lon,lat order) and prepare it for fast point tests."""
+def _read(path: str | Path, what: str) -> bytes:
     try:
-        geo = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
+        return Path(path).read_bytes()
+    except OSError as exc:
+        raise ReferenceDataError(f"{what} file {path} missing or unreadable: {exc}") from exc
+
+
+def load_polygon(path: str | Path, raw: bytes | None = None) -> Polygon:
+    """Load a GeoJSON Polygon (lon,lat order), prepared for fast point tests; `raw` = bytes the caller already read."""
+    raw = _read(path, "polygon") if raw is None else raw
+    try:
+        geo = json.loads(raw.decode("utf-8"))
+    except ValueError as exc:
         raise ReferenceDataError(f"polygon file {path} unreadable: {exc}") from exc
     if not isinstance(geo, dict) or geo.get("type") != "Polygon":
         raise ReferenceDataError(f"polygon file {path} is not a GeoJSON Polygon")
@@ -49,11 +57,12 @@ def inside_polygon(polygon: Polygon, lat: float | None, lon: float | None) -> bo
     return bool(shapely.contains_xy(polygon, lon, lat))
 
 
-def load_whitelist(path: str | Path) -> frozenset[str]:
+def load_whitelist(path: str | Path, raw: bytes | None = None) -> frozenset[str]:
     """Lines `CALLSIGN, FREQ` or bare `CALLSIGN`; blanks and `#` comments skipped. Fails closed."""
+    raw = _read(path, "whitelist") if raw is None else raw
     try:
-        lines = Path(path).read_text(encoding="utf-8-sig").splitlines()
-    except (OSError, UnicodeError) as exc:
+        lines = raw.decode("utf-8-sig").splitlines()
+    except UnicodeError as exc:
         raise ReferenceDataError(f"whitelist file {path} missing or unreadable: {exc}") from exc
     seen: set[str] = set()
     duplicates: list[str] = []
@@ -75,15 +84,15 @@ def load_whitelist(path: str | Path) -> frozenset[str]:
     return frozenset(seen)
 
 
-def is_near_miss(callsign: str, whitelist: frozenset[str]) -> bool:
-    """Unlisted controller whose prefix (text before the first `_`) matches a listed prefix."""
+def listed_prefixes(whitelist: frozenset[str]) -> frozenset[str]:
+    return frozenset(c.split("_", 1)[0] for c in whitelist if "_" in c)
+
+
+def is_near_miss(callsign: str, whitelist: frozenset[str], prefixes: frozenset[str] | None = None) -> bool:
+    """Unlisted controller whose prefix (text before the first `_`) matches a listed prefix (`prefixes` precomputed)."""
     if callsign in whitelist or callsign.endswith(("_OBS", "_SUP")) or "_" not in callsign:
         return False
-    return callsign.split("_", 1)[0] in {c.split("_", 1)[0] for c in whitelist if "_" in c}
-
-
-def file_sha256(path: str | Path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    return callsign.split("_", 1)[0] in (listed_prefixes(whitelist) if prefixes is None else prefixes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,10 +101,14 @@ class ReferenceData:
     whitelist: frozenset[str]
     polygon_sha: str
     whitelist_sha: str
+    prefixes: frozenset[str] = field(init=False)  # derived once per load, so no per-controller rebuild
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "prefixes", listed_prefixes(self.whitelist))
 
 
 def load_reference(polygon_path: str | Path, whitelist_path: str | Path) -> ReferenceData:
     """Load and validate both files. Raises ReferenceDataError if either is bad."""
-    polygon = load_polygon(polygon_path)
-    whitelist = load_whitelist(whitelist_path)
-    return ReferenceData(polygon, whitelist, file_sha256(polygon_path), file_sha256(whitelist_path))
+    raw_polygon, raw_whitelist = _read(polygon_path, "polygon"), _read(whitelist_path, "whitelist")  # read once
+    return ReferenceData(load_polygon(polygon_path, raw_polygon), load_whitelist(whitelist_path, raw_whitelist),
+                         hashlib.sha256(raw_polygon).hexdigest(), hashlib.sha256(raw_whitelist).hexdigest())
