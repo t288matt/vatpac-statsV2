@@ -13,13 +13,8 @@ Written 09-10-2026. Each item says what it is for, the least you have to do, and
 If GitHub says rulesets are not available for a private repository on your plan, stop: the fallback is care (no force pushes to `main`), which is already the practice. Tell Emma and the issue is closed as "not available on this plan".
 **Emma does:** test it with a harmless force push to a scratch branch (never `main`), then close #44.
 
-## 2. Outside heartbeat monitor (issue #17, T19). About 5 minutes of your time.
-**Why:** the watchdog runs on the VM. If the VM or its network dies, nothing tells you.
-**Decision for you (one click in chat):** where the check runs.
-- **A (recommended): a scheduled Claude task on your PC** that fetches Grafana's health address every 5 minutes and messages you on Telegram after two failures, and again on recovery. No new service to run. It only works while the PC is on.
-- **B:** a free external uptime service (for example UptimeRobot) pointed at a public address. It needs Grafana or the collector health reachable from the internet, which the plan forbids without a login. Not recommended.
-- **C:** a second always-on machine (the Proxmox host or a Raspberry Pi) running a small script. Best uptime, more to maintain.
-**Emma does:** everything after your choice (the script or scheduled task, the Telegram messages for FAILED and RECOVERED, and a test by stopping the collector's health route in a throwaway way, never the live stack without your go).
+## 2. Outside heartbeat monitor (issue #17, T19). DONE by Emma on 09-10-2026.
+A Task Scheduler job on your PC checks Grafana every 5 minutes and messages you on Telegram after two failures and on recovery. Tested with a simulated outage. See docs/RUNBOOKS/outside-heartbeat.md. Nothing for you to do. Close #17 when you are happy.
 
 ## 3. Restore test of the Proxmox backup of VM 100 (issue #26, T17). About 30 minutes, in Proxmox.
 **Why:** a backup you have never restored is a hope, not a backup.
