@@ -161,7 +161,9 @@ def _write(conn: psycopg.Connection[Any], cur: psycopg.Cursor[Any], sql: str, ro
             cur.execute(sql, {"rows": _jsonb(rows), "ts": ts})
             return max(cur.rowcount, 0), cur.fetchall() if fetch else [], []
     except (psycopg.DataError, psycopg.IntegrityError) as exc:
-        if "partition" in str(exc):  # a missing partition is not a bad record: the caller creates it
+        # a missing partition is a check_violation (23514) from tuple routing that names no constraint; a bad record
+        # that breaks a real CHECK names it. The message quotes row values, so its text is never inspected.
+        if isinstance(exc, psycopg.errors.CheckViolation) and exc.diag.constraint_name is None:
             raise
         if len(rows) == 1:
             log.warning("record rejected", extra={"callsign": rows[0]["callsign"], "error": type(exc).__name__})
@@ -179,6 +181,7 @@ def apply_snapshot(
     *,
     polygon_sha: str,
     whitelist_sha: str,
+    prefixes: frozenset[str] | None = None,
 ) -> ApplyResult:
     """Write one snapshot in a single transaction. Replaying it inserts zero rows."""
     ts = snapshot.observed_at
@@ -206,7 +209,7 @@ def apply_snapshot(
             res.rejected_values += c.rejected
             controllers[(c.cid, c.callsign, c.logon_time)] = {
                 **asdict(c), "frequency_hz": parse_frequency_hz(c.frequency_text)}
-        elif is_near_miss(c.callsign, whitelist):
+        elif is_near_miss(c.callsign, whitelist, prefixes):
             near_miss[c.callsign] = c.cid
     res.controllers_kept = len(controllers)
 
@@ -236,7 +239,7 @@ def apply_snapshot(
             res.new_near_misses = [r[0] for r in cur.fetchall() if r[1]]
         cur.execute(
             _NETWORK_SQL,
-            (ts, res.pilots_inside, res.controllers_kept, snapshot.pilots_global, snapshot.controllers_global),
+            (ts, res.pilots_kept, res.controllers_kept, snapshot.pilots_global, snapshot.controllers_global),
         )
         res.snapshot_inserted = cur.rowcount == 1
     return res

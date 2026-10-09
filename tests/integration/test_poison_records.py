@@ -74,3 +74,54 @@ def test_older_snapshot_still_gets_its_position(db, payload, refdata) -> None:
     assert db.execute(q).fetchall() == before
     assert res.positions_inserted == len(before)
     assert db.execute("SELECT count(*) AS n FROM pilot_position").fetchone()["n"] == 2 * len(before)
+
+
+# issue 85: a record that breaks a CHECK is skipped even when its text says "partition"; a missing partition is not
+def _poison(snap, poly):
+    inside = next(p for p in snap.pilots if inside_polygon(poly, p.latitude, p.longitude))
+    # a fractional logon_time breaks the pilot_session_logon_whole_second CHECK, and the failing row is quoted in the
+    # error text together with these words
+    return dataclasses.replace(inside, callsign="PARTITIONER", route="no partition of relation found",
+                               remarks="partition", logon_time=inside.logon_time.replace(microsecond=500_000))
+
+
+def test_poison_record_mentioning_partition_is_bisected_and_skipped(db, payload, refdata) -> None:
+    import psycopg
+
+    poly, _ = refdata
+    snap = parse_snapshot(at(payload))
+    clean = _apply(db, snap, refdata)
+    good = counts(db)
+    db.execute("TRUNCATE pilot_position, pilot_session, controller_session, controller_rating_event, "
+               "controller_frequency_event, network_snapshot RESTART IDENTITY CASCADE")
+    bad = _poison(snap, poly)
+    with pytest.raises(psycopg.errors.CheckViolation) as err:  # prove the setup: the text has the word, the class is CHECK
+        db.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, route) "
+                   "VALUES (1, 'X', %s, now(), now(), %s)", (bad.logon_time, bad.route))
+    assert "partition" in str(err.value) and err.value.diag.constraint_name == "pilot_session_logon_whole_second"
+    res = _apply(db, dataclasses.replace(snap, pilots=[*snap.pilots, bad]), refdata)
+    assert counts(db) == good
+    assert res.rejected_values == clean.rejected_values + 1
+    assert db.execute("SELECT count(*) AS n FROM pilot_session WHERE callsign = 'PARTITIONER'").fetchone()["n"] == 0
+
+
+def test_a_missing_partition_still_propagates_to_the_caller(db, payload, refdata) -> None:
+    import psycopg
+
+    snap = parse_snapshot(at(payload, 3 * 86_400))  # three days on: no partition exists for it
+    with pytest.raises(psycopg.errors.CheckViolation) as err:
+        _apply(db, snap, refdata)
+    assert err.value.diag.constraint_name is None  # what tells it apart from a record that broke a CHECK
+    assert counts(db)["pilot_session"] == 0 and counts(db)["network_snapshot"] == 0  # whole snapshot rolled back
+
+
+# issue 92: positions per snapshot equal network_snapshot.pilots_in_region even when a record is rejected
+def test_pilots_in_region_excludes_rejected_pilots(db, payload, refdata) -> None:
+    poly, _ = refdata
+    snap = parse_snapshot(at(payload))
+    bad = _poison(snap, poly)
+    res = _apply(db, dataclasses.replace(snap, pilots=[*snap.pilots, bad]), refdata)
+    row = db.execute("SELECT pilots_in_region FROM network_snapshot").fetchone()
+    positions = db.execute("SELECT count(*) AS n FROM pilot_position").fetchone()["n"]
+    assert row["pilots_in_region"] == positions == res.pilots_kept
+    assert res.pilots_inside == res.pilots_kept + 1  # poll_log still records how many were inside the polygon
