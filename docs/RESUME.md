@@ -38,5 +38,8 @@ NOT merged, in the intended merge order:
 - Decided today: soak standard 12 h; ADR-021 whole-second logon_time (truncate, not round); ADR-022 size budget 1700; card 65 parked; Docker Desktop repair won't fix (#30); disk-writes work deferred (#14); Dependabot major-version bumps ignored (Postgres, Grafana, dbmate; numpy 2.x ignored because it crashes the collector on the VM's CPU).
 - Standing: names and CIDs are public and kept forever (ADR-019); no backfill from v1; Cloudflare and the Docker socket proxy are the owner's to add, nothing in the repo; never expose Grafana publicly without a login.
 
+## 6b. Separate session for the trust work
+The owner chose on 09-10-2026 to run the 'trust in the numbers' work (v1 comparison, owner review checklist, test gaps #45 to #49) in a fresh session. Its brief is docs/TRUST_WORK.md. This session keeps the collector release (branch collector-release-final, issue #58, #61, #62).
+
 ## 7. Where to find things
 Test audit: docs/TEST_AUDIT.md (branch t30-test-audit). Data-integrity audit: docs/DATA_INTEGRITY_AUDIT.md (branch t30-data-integrity). Chart definitions: docs/CHART_DEFINITIONS.md. Decisions: docs/DECISIONS.md. Runbooks: docs/RUNBOOKS/. Evidence: docs/ARCHITECTURE.md section 10. v1 card SQL: docs/reference/v1_metabase_cards.json. Style: British English, DD-MM-YYYY, no emoji, state UTC, one decision at a time with a recommendation first, plan before multi-step work, evidence over assertion, new commits only.
