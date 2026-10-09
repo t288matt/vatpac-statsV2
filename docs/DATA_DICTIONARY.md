@@ -122,7 +122,7 @@ Granted SELECT to `grafana_ro`. Seeded by migrations 3 and 11 (`ON CONFLICT DO N
 | `facility` | `id` int | `short`, `long` | 0 OBS to 6 CTR (7 rows). |
 | `pilot_rating` | `id` int | `short`, `long` | Bit-flag values 0, 1, 3, 7, 15, 31, 63. |
 | `airline` | `prefix` text | `name` | Three-letter callsign prefixes (migration 11). |
-| `aircraft_type` | `icao` text | `category`, `is_military` (default false) | Exact-match ICAO codes; military codes from the v1 lists (migration 11). |
+| `aircraft_type` | `icao` text | `category`, `is_military` (default false), `in_v1_card65_list` (default false) | Exact-match ICAO codes; military codes from the v1 lists (migration 11). `in_v1_card65_list` (migration 20261009000160) marks the 225 exact codes of v1 card 65's IN list and is read only by the card 65 panel; `is_military` is the broader flag (seven more codes: EA18, EUFI, FA18, HAWK, K35R, KC10, KC30) used by other charts. |
 | `region_map` | `prefix` text | `region` | ICAO prefix to region, used by `icao_region()` (migration 11). |
 
 ## 3. Functions
