@@ -115,9 +115,12 @@ jobs:
         run: |
           pip install -r collector/requirements.txt
           pip install pytest pytest-asyncio
+      # VATPAC_TEST_STRICT=1: a missing database or ANY skipped test fails the run (tests/integration/conftest.py), so a
+      # green result cannot hide tests that did not run.
       - name: pytest (integration)
         env:
           PYTHONPATH: collector/src
+          VATPAC_TEST_STRICT: "1"
           VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test
           VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
         run: pytest tests/integration -m integration -q

@@ -2,7 +2,9 @@
 
 Written against SPEC.md and run against a real PostgreSQL 16.4 (counts: tests/README.md).
 
-Skipped unless VATPAC_TEST_DSN is set. The database must already be migrated (dbmate) and
+Skipped unless VATPAC_TEST_DSN is set, EXCEPT in strict mode (VATPAC_TEST_STRICT=1, which CI sets): there a missing
+VATPAC_TEST_DSN aborts the run, and any skipped test (a missing role, a missing module) fails the run, so a green
+result can never hide tests that did not run. The database must already be migrated (dbmate) and
 must be a THROWAWAY database: the fixtures TRUNCATE all data tables. As a safety net the
 database name must end in "_test" unless VATPAC_TEST_ALLOW_TRUNCATE=1.
 """
@@ -24,6 +26,8 @@ if SRC.is_dir() and str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 DSN = os.environ.get("VATPAC_TEST_DSN")
+STRICT = os.environ.get("VATPAC_TEST_STRICT") == "1"
+_skipped: list[str] = []
 
 DATA_TABLES = [
     "pilot_position", "pilot_session", "controller_rating_event", "controller_frequency_event",
@@ -39,10 +43,28 @@ def pytest_configure(config: pytest.Config) -> None:
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     if DSN:
         return
+    if STRICT:
+        raise pytest.UsageError("VATPAC_TEST_STRICT=1 but VATPAC_TEST_DSN is not set: refusing to skip every integration test")
     skip = pytest.mark.skip(reason="VATPAC_TEST_DSN not set (integration tests need a migrated Postgres 16)")
     for item in items:
         if "integration" in item.keywords:
             item.add_marker(skip)
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    if STRICT and report.skipped:
+        _skipped.append(report.nodeid)
+
+
+def pytest_collectreport(report: pytest.CollectReport) -> None:
+    if STRICT and report.skipped:
+        _skipped.append(report.nodeid)
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    if STRICT and _skipped and session.exitstatus == pytest.ExitCode.OK:
+        print(f"\nVATPAC_TEST_STRICT=1: {len(_skipped)} skipped test(s) turn the run red: " + ", ".join(_skipped))
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 
 @pytest.fixture(scope="session")

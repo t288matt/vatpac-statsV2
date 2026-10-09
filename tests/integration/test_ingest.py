@@ -99,18 +99,51 @@ def test_implausible_values_stored_as_null(db, payload, refdata) -> None:
     assert db.execute(q, ("TESTALT",)).fetchone()["alt_ft"] == -157
 
 
-def test_poll_log_row_counts_when_written(db, payload, expected, refdata) -> None:
-    """SPEC s6 poll_log columns; skipped if apply_snapshot leaves poll_log to its caller."""
-    apply(db, at(payload), refdata, polygon_sha="a" * 64, whitelist_sha="b" * 64)
+def test_poll_log_row_counts(db, payload, expected, refdata) -> None:
+    """SPEC s6 poll_log columns. apply_snapshot returns the counts and main.py writes them with write_poll_log; this
+    test does the same two steps and checks every column against the fixture's independently generated numbers."""
+    from vatpac.store import write_poll_log
+
+    result = apply(db, at(payload), refdata, polygon_sha="a" * 64, whitelist_sha="b" * 64)
+    snap_ts = datetime(2026, 10, 7, 16, 11, 19, tzinfo=timezone.utc)
+    write_poll_log(db, "ok", snapshot_ts=snap_ts, duration_ms=1234, http_status=200, result=result,
+                   polygon_sha="a" * 64, whitelist_sha="b" * 64)
     row = db.execute("SELECT * FROM poll_log ORDER BY id DESC LIMIT 1").fetchone()
-    if row is None:
-        pytest.skip("apply_snapshot did not write poll_log (SPEC s7 says ApplyResult carries the counts)")
+    assert row["status"] == "ok" and row["snapshot_ts"] == snap_ts
+    assert row["duration_ms"] == 1234 and row["http_status"] == 200 and row["error"] is None
     assert row["pilots_seen"] == expected["pilots_global"]
+    assert row["pilots_inside"] == expected["pilots_kept_by_polygon"]
+    assert row["pilots_with_plan"] == len(expected["pilots_passing_flight_gate_inside"])
     assert row["pilots_kept"] == expected["pilots_kept_by_polygon"]
     assert row["controllers_seen"] == expected["controllers_global"]
     assert row["controllers_kept"] == expected["controllers_kept_by_whitelist"]
     assert row["rejected_values"] == expected["rejected_values_expected"]
     assert row["polygon_sha"] == "a" * 64 and row["whitelist_sha"] == "b" * 64
+
+
+def test_poll_log_rows_for_errors_and_skipped_polls_carry_no_counts(db) -> None:
+    from vatpac.store import write_poll_log
+
+    write_poll_log(db, "error", http_status=503, error="x" * 3000, polygon_sha="a" * 64, whitelist_sha="b" * 64)
+    write_poll_log(db, "skipped_unchanged", snapshot_ts=datetime(2026, 10, 7, 16, 11, 19, tzinfo=timezone.utc))
+    err, skipped = db.execute("SELECT * FROM poll_log ORDER BY id").fetchall()
+    assert err["status"] == "error" and err["http_status"] == 503 and len(err["error"]) == 2000
+    for row in (err, skipped):
+        assert all(row[c] is None for c in ("pilots_seen", "pilots_inside", "pilots_with_plan", "pilots_kept",
+                                            "controllers_seen", "controllers_kept", "rejected_values"))
+    assert skipped["status"] == "skipped_unchanged" and skipped["error"] is None
+
+
+def test_reference_data_change_is_recorded_only_when_the_hash_changes(db) -> None:
+    from vatpac.store import record_reference_change
+
+    rows = "SELECT file, old_sha, new_sha FROM reference_data_change ORDER BY id"
+    assert record_reference_change(db, "polygon.json", "1" * 64) is True        # first sighting: old_sha is empty
+    assert record_reference_change(db, "polygon.json", "1" * 64) is False       # same hash: nothing
+    assert record_reference_change(db, "whitelist.txt", "1" * 64) is True       # another file has its own history
+    assert record_reference_change(db, "polygon.json", "2" * 64) is True        # changed: old_sha is the previous hash
+    assert [(r["file"], r["old_sha"], r["new_sha"]) for r in db.execute(rows).fetchall()] == [
+        ("polygon.json", None, "1" * 64), ("whitelist.txt", None, "1" * 64), ("polygon.json", "1" * 64, "2" * 64)]
 
 
 def test_home_icao_and_names_stored(db, payload, refdata) -> None:
@@ -133,8 +166,6 @@ def test_near_miss_sighting_recorded(db, payload, refdata) -> None:
     apply(db, at(payload), refdata)
     q = "SELECT callsign, polls_seen FROM controller_unlisted_sighting ORDER BY callsign"
     rows = db.execute(q).fetchall()
-    if not rows:
-        pytest.skip("near-miss recording may live outside apply_snapshot (SPEC s7 is silent)")
     assert [r["callsign"] for r in rows] == ["AD_XYZ_TWR", "ML_XYZ_CTR"]
     apply(db, at(payload, 15), refdata)
     assert [r["polls_seen"] for r in db.execute(q).fetchall()] == [2, 2]
