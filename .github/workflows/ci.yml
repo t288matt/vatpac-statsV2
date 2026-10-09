@@ -63,7 +63,7 @@ jobs:
         run: |
           pip install -r collector/requirements.txt
           if [ -f collector/requirements-dev.txt ]; then pip install -r collector/requirements-dev.txt; fi
-          pip install pytest
+          pip install pytest pyyaml==6.0.2
       - name: pytest (unit; integration tests need Postgres and are marked)
         env:
           PYTHONPATH: collector/src
