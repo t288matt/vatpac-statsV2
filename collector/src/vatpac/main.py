@@ -10,7 +10,7 @@ import signal
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +18,7 @@ import psycopg
 from psycopg_pool import ConnectionPool
 
 from . import __version__
+from .archive import Archive
 from .errors import FeedError, RateLimitedError, ReferenceDataError
 from .feed import FeedClient
 from .filters import ReferenceData, load_reference
@@ -25,6 +26,8 @@ from .health import Stats, start_server
 from .logsetup import setup_logging
 from .maintenance import FLIGHT_REFRESH_INTERVAL_S, refresh_flights, run_maintenance
 from .model import Snapshot, parse_snapshot, update_timestamp
+from .pollstats import update_stats
+from .resume import db_last_ts, load_last_ts
 from .settings import Settings
 from .store import ApplyResult, apply_snapshot, record_reference_change, write_poll_log
 
@@ -48,6 +51,7 @@ class Collector:
     def __init__(self, settings: Settings, ref: ReferenceData, pool: ConnectionPool, feed: FeedClient) -> None:
         self.settings, self.ref, self.pool, self.feed = settings, ref, pool, feed
         self.stats = Stats(reference=self._versions(ref))
+        self.archive = Archive(settings, self.stats)
         self.stop = asyncio.Event()
         self.last_ts: datetime | None = None
         self._tasks: set[asyncio.Task[None]] = set()  # strong refs so SIGHUP reload tasks are not collected
@@ -61,6 +65,12 @@ class Collector:
         with self.pool.connection() as conn:
             return apply_snapshot(conn, snapshot, ref.polygon, ref.whitelist,
                                   polygon_sha=ref.polygon_sha, whitelist_sha=ref.whitelist_sha)
+
+    def _db_last_ts(self) -> datetime | None:
+        return db_last_ts(self.pool, self.settings.feed_max_future_seconds)
+
+    async def load_last_ts(self) -> None:
+        self.last_ts = await load_last_ts(self.pool, self.settings.feed_max_future_seconds, self.last_ts)
 
     def _log_poll(self, status: str, ref: ReferenceData, **kw: Any) -> None:
         try:
@@ -95,11 +105,14 @@ class Collector:
             fetched = await self.feed.fetch()
             http, payload = fetched.http_status, fetched.payload
             if payload is not None:
-                snap_ts = update_timestamp(payload)
+                ts, bound = update_timestamp(payload), self.settings.feed_max_future_seconds
+                if ts - datetime.now(UTC) > timedelta(seconds=bound):  # one future stamp would skip every real update
+                    raise FeedError(f"snapshot time {ts:%Y-%m-%dT%H:%M:%SZ} is over {bound} s ahead of the clock", 200)
+                snap_ts = ts
             if payload is None or (self.last_ts is not None and snap_ts is not None and snap_ts <= self.last_ts):
                 status, retry_in = "skipped_unchanged", max(UNCHANGED_RETRY_S, min(fetched.max_age or 0, 5.0))
             else:
-                snapshot = parse_snapshot(payload)
+                snapshot = parse_snapshot(payload, self.settings.text_max_length)
                 if not snapshot.pilots_global and not snapshot.controllers_global:
                     raise FeedError("feed has no pilots or controllers (treated as an outage)", 200)
                 total = snapshot.pilots_global + snapshot.controllers_global
@@ -127,34 +140,12 @@ class Collector:
         await asyncio.to_thread(self._log_poll, status, ref, snapshot_ts=snap_ts, duration_ms=ms, http_status=http,
                                 result=result, error=err)
         self._update_stats(status, result, snap_ts, err)
+        # queued for the archive thread: never blocks or raises
+        self.archive.submit(getattr(self.feed, "last_raw", None), snap_ts, status, http, err)
         return PollOutcome(status, retry_in)
 
     def _update_stats(self, status: str, result: ApplyResult | None, snap_ts: datetime | None, err: str | None) -> None:
-        st, s = self.stats, self.settings
-        if status == "error":
-            st.polls_error += 1
-            st.consecutive_failures += 1
-            log.warning("poll error", extra={"error": err, "consecutive_failures": st.consecutive_failures})
-        else:
-            st.polls_skipped += status == "skipped_unchanged"
-            st.polls_ok += status == "ok"
-            st.consecutive_failures = 0
-            if status == "ok":  # an unchanged feed is not progress (see health.py)
-                st.last_ok_wall = time.time()
-        if result is not None and snap_ts is not None:
-            st.last_snapshot_ts = snap_ts
-            st.positions_written += result.positions_inserted
-            st.rejected_values += result.rejected_values
-            st.near_misses += len(result.new_near_misses)
-            for name in ("pilots_seen", "pilots_inside", "pilots_kept", "controllers_seen", "controllers_kept"):
-                setattr(st, name, getattr(result, name))
-            for callsign in result.new_near_misses:
-                log.warning("near-miss controller callsign not on whitelist", extra={"callsign": callsign})
-        was_open = st.breaker_open
-        st.breaker_open = st.consecutive_failures >= s.circuit_failure_threshold
-        if st.breaker_open != was_open:
-            log.log(logging.ERROR if st.breaker_open else logging.INFO,
-                    "circuit breaker %s", "opened" if st.breaker_open else "closed")
+        update_stats(self.stats, self.settings, status, result, snap_ts, err)
 
     async def _sleep(self, seconds: float) -> bool:
         """Sleep unless stopping. Returns True if asked to stop."""
@@ -258,6 +249,7 @@ async def run(settings: Settings, ref: ReferenceData) -> None:
     try:
         await feed.discover()
         first_ok = await collector.maintain_once()  # partitions must exist before the first poll
+        await collector.load_last_ts()
         log.info("collector started", extra={"version": __version__, **collector.stats.reference})
         await asyncio.gather(collector.poll_loop(), collector.maintenance_loop(first_ok),
                              collector.flight_summary_loop())

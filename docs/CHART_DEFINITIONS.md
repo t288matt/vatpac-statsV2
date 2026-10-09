@@ -148,7 +148,7 @@ The retention dashboard is built from the v1 Metabase SQL (owner's export, 08-10
 | monitoring/collector-health.json: Snapshots missed (last 24 hours) | Missed snapshots, acceptance target under 1%. | data_since, network_history |
 | monitoring/collector-health.json: Unchanged polls (last 24 hours) | Polls skipped because the feed was unchanged. | poll_history |
 | monitoring/collector-health.json: Poll errors (last 24 hours) | Poll errors. | poll_history |
-| monitoring/collector-health.json: Rejected values (last 24 hours) | Values rejected by the plausibility caps. | poll_history |
+| monitoring/collector-health.json: Rejected values (last 24 hours) | Values rejected at ingest: plausibility caps, values nulled by parsing, malformed entries skipped. | poll_history |
 | monitoring/collector-health.json: Near-miss controllers | Near-miss controllers (SPEC section 4). | near_miss_controllers |
 | monitoring/collector-health.json: Near-miss controller callsigns | Near-miss callsigns. | near_miss_controllers |
 | monitoring/collector-health.json: Polls by outcome | Polls by outcome. | poll_history |

@@ -16,6 +16,12 @@ if SRC.is_dir() and str(SRC) not in sys.path:  # allow running without an editab
     sys.path.insert(0, str(SRC))
 
 
+@pytest.fixture(autouse=True)
+def _no_archive(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The raw-feed archive writes files; only tests/unit/test_archive.py turns it on (with a temporary directory)."""
+    monkeypatch.setenv("ARCHIVE_ENABLED", "false")
+
+
 @pytest.fixture(scope="session")
 def repo_root() -> Path:
     return REPO

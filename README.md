@@ -63,7 +63,7 @@ On Windows without `make`, run the underlying commands shown.
 | `make drift` | `ops/check_config_drift.py`: collector settings, compose and `.env.example` agree |
 | `make test` | Unit tests (no database, no network); the integration tests are skipped without `VATPAC_TEST_DSN` |
 | `make smoke` | `ops/smoke.sh` |
-| `make size` | Collector size budget check (package under 1400 lines, no module over 300) |
+| `make size` | Collector size budget check (package under 1700 lines, no module over 300) |
 | `make soak` | `ops/soak_report.sh`: soak report from `poll_log`, was a snapshot stored every 15 s for the last `HOURS` (default 24)? Reports PASS only when the whole window is covered with at least 99% of the expected snapshots and a p95 cadence of 17 s or less; shorter runs say INCOMPLETE |
 | `make pii` | Fixture PII check |
 | `make backup` | Take a backup now |

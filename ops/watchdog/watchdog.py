@@ -140,10 +140,67 @@ def check_db(cfg: Config) -> dict[str, Result]:
             out["db_size"] = (WARN if gb > cfg.db_max_gb else OK, f"{gb:.2f} GB (limit {cfg.db_max_gb:g})")
             cur.execute("SELECT callsign FROM controller_unlisted_sighting ORDER BY first_seen")
             out["_near_miss"] = (OK, ",".join(r[0] for r in cur.fetchall()))
+            out["identity_flap"] = check_identity_flap(cur)  # last, so a failure here cannot hide the checks above
         out["database"] = (OK, "reachable")
     except psycopg.Error as exc:
         out["database"] = (CRIT, f"query/connect failed ({type(exc).__name__})")
     return out
+
+
+# Same logic as ops/check_identity_flap.sql (session pairs with one cid and callsign and logon_time within 2 s, and
+# fractional logon_time), limited to sessions seen in the last FLAP_WINDOW_HOURS so that the alert clears once they age
+# out. It walks the last_seen index and the (cid, callsign, logon_time) unique index, so it is cheap every cycle.
+FLAP_WINDOW_HOURS = 24
+_PAIRS_SQL = (
+    "SELECT count(*), min(b.first_seen) FROM {t} b JOIN {t} a ON a.cid = b.cid AND a.callsign = b.callsign AND a.id < b.id "
+    "AND a.logon_time > b.logon_time - interval '2 seconds' AND a.logon_time < b.logon_time + interval '2 seconds' "
+    "WHERE b.last_seen > now() - make_interval(hours => %s)"
+)
+_FRACTION_SQL = (
+    "SELECT count(*) FROM (SELECT logon_time FROM pilot_session WHERE last_seen > now() - make_interval(hours => %s) "
+    "UNION ALL SELECT logon_time FROM controller_session WHERE last_seen > now() - make_interval(hours => %s)) s "
+    "WHERE logon_time <> date_trunc('second', logon_time)"
+)
+
+
+def flap_level(pilot_pairs: int, controller_pairs: int, fractional: int, first: datetime | None) -> Result:
+    """WARN while any recent session pair or fractional logon_time exists; OK once none is left in the window."""
+    if not (pilot_pairs or controller_pairs or fractional):
+        return OK, f"no identity flap in the last {FLAP_WINDOW_HOURS} h"
+    when = first.astimezone(UTC).strftime("%d-%m-%Y %H:%M:%S UTC") if first else "unknown time"
+    return WARN, (f"{pilot_pairs} pilot and {controller_pairs} controller session pairs (same cid and callsign, logon_time "
+                  f"within 2 s), {fractional} fractional logon_time, first seen {when}; run ops/check_identity_flap.sql")
+
+
+def check_identity_flap(cur: Any) -> Result:
+    """Run the identity-flap queries on an open cursor (role watchdog_ro needs SELECT on both session tables)."""
+    try:
+        counts: list[int] = []
+        firsts: list[datetime] = []
+        for table in ("pilot_session", "controller_session"):
+            cur.execute(_PAIRS_SQL.format(t=table), (FLAP_WINDOW_HOURS,))
+            n, first = cur.fetchone()
+            counts.append(int(n))
+            if first is not None:
+                firsts.append(first)
+        cur.execute(_FRACTION_SQL, (FLAP_WINDOW_HOURS, FLAP_WINDOW_HOURS))
+        return flap_level(counts[0], counts[1], int(cur.fetchone()[0]), min(firsts) if firsts else None)
+    except psycopg.Error as exc:
+        return WARN, f"identity-flap query failed ({type(exc).__name__})"
+
+
+def check_archive(body: dict[str, Any] | None, collector_ok: bool) -> Result:
+    """The collector's raw-feed archive must have written something within twice its compact interval. Skipped while the
+    collector itself is unhealthy (no fresh feed means no writes, and that is already alerted)."""
+    arc = body.get("archive") if body else None
+    if not isinstance(arc, dict) or not arc.get("enabled"):
+        return OK, "archive disabled or not reported"
+    if not collector_ok:
+        return OK, "not checked while the collector is unhealthy"
+    age, limit = float(arc.get("last_write_age_seconds") or 0), 2 * float(arc.get("compact_every_s") or 300)
+    errors, mb = int(arc.get("errors") or 0), int(arc.get("size_bytes") or 0) / 1048576
+    detail = f"last write {age:.0f}s ago (limit {limit:.0f}s), {errors} write errors, {mb:.0f} MB"
+    return (WARN if age > limit else OK), detail
 
 
 def check_disk(cfg: Config) -> Result:
@@ -367,6 +424,7 @@ def cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, s
     results["collector_health"] = coll
     graf, _ = check_http(client, cfg.grafana_url)
     results["grafana_health"] = graf
+    results["feed_archive"] = check_archive(coll_body, coll[0] == OK)
 
     db = check_db(cfg)
     near_miss = db.pop("_near_miss", (OK, ""))[1]

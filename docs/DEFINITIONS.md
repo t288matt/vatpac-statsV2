@@ -68,7 +68,7 @@ Which one a panel uses is recorded in [CHART_DEFINITIONS.md](CHART_DEFINITIONS.m
 
 ## 7. Near-miss controller
 
-**v3.** A callsign that is not whitelisted but whose prefix (the text before the first `_`) equals the prefix of any whitelisted callsign. `_OBS` callsigns are never near-misses. For example, a hypothetical `XX_NEW_TWR` where other `XX_` callsigns are whitelisted would be flagged, because a new position at a known airport has probably been opened and the whitelist needs updating.
+**v3.** A callsign that is not whitelisted but whose prefix (the text before the first `_`) equals the prefix of any whitelisted callsign. `_OBS` and `_SUP` (supervisor) callsigns are never near-misses. For example, a hypothetical `XX_NEW_TWR` where other `XX_` callsigns are whitelisted would be flagged, because a new position at a known airport has probably been opened and the whitelist needs updating.
 
 Handling: the callsign is not stored as a session. It is upserted into `controller_unlisted_sighting` (`first_seen`, `last_seen`, `polls_seen`), logged once at WARNING on first sighting, and the watchdog alerts on the first sighting. The fix is to add the callsign to `config/controller_callsigns_list.txt` and reload (see [runbook: update reference files](RUNBOOKS/update-reference-files.md)).
 
@@ -76,7 +76,7 @@ Handling: the callsign is not stored as a session. It is upserted into `controll
 
 ## 8. In-region pilot (polygon filter)
 
-**v3.** A pilot is stored from the first snapshot in which they are inside the polygon `config/australian_airspace_polygon.json` (GeoJSON, lon,lat order), tested with shapely `contains`: a point exactly on the edge is outside. A pilot with no position passes. Pilots outside are never stored, so a flight is recorded only from the moment it enters the polygon and stops when it leaves; it can re-enter as the same session.
+**v3.** A pilot is stored from the first snapshot in which they are inside the polygon `config/australian_airspace_polygon.json` (GeoJSON, lon,lat order), tested with shapely `contains`: a point exactly on the edge is outside. A pilot with no position (latitude or longitude absent or null) passes; one whose latitude or longitude is present but unparsable is a malformed record and is skipped and counted. Pilots outside are never stored, so a flight is recorded only from the moment it enters the polygon and stops when it leaves; it can re-enter as the same session.
 
 **Difference from v1.** The polygon filter itself is kept from v1 (`ENABLE_BOUNDARY_FILTER` in the v1 compose). The edge rule and the no-position rule follow SPEC section 4; whether v1 treated an edge point the same way was not checked.
 
