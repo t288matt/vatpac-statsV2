@@ -1,143 +1,142 @@
 # VATPAC Stats v3
 
-Live pilot and controller statistics for the VATPAC region, built from the public VATSIM data feed. One collector polls the feed every 15 seconds, PostgreSQL 16 stores it, and Grafana shows it. Everything is dockerised and starts with `docker compose up -d`.
+[![CI](https://github.com/t288matt/vatpac-statsV2/actions/workflows/ci.yml/badge.svg)](https://github.com/t288matt/vatpac-statsV2/actions/workflows/ci.yml)
 
-## Quick start
+Live pilot and controller statistics for the VATPAC region, built from the public VATSIM data feed, running 24/7 in Docker.
 
-Requirements: Docker Desktop (Windows or macOS) or Docker Engine with the Compose plugin (Linux). Nothing else is needed to run the stack.
+## About
+
+One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist. PostgreSQL 16 stores the data and Grafana shows it as dashboards. Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
+
+v3 replaces the original v1 system (a FastAPI service with Metabase). The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
+
+- Flights are built from sessions: reconnects with the same callsign and airports within 120 minutes are one flight, and flights still connected are left out of the flight counts (see [docs/DEFINITIONS.md](docs/DEFINITIONS.md)).
+- Charts start empty at go-live (07-10-2026, 21:38 UTC) and fill as data arrives. There is no backfill. The 30 to 90 day charts need that much history before they say anything useful.
+- Names and CIDs are stored and shown, as in v1.
+
+## Getting started
+
+**Requirements:** Docker Desktop (Windows or macOS), or Docker Engine with the Compose plugin (Linux). Nothing else is needed to run the stack.
 
 ```
-sh ops/gen_env.sh           # writes .env with random passwords (Git Bash or Linux); or: make gen-env
-sh ops/check_env.sh         # rejects blank, weak or repeated secrets (make up runs this for you)
+sh ops/gen_env.sh            # writes .env with random passwords (Git Bash or Linux); or: make gen-env
+sh ops/check_env.sh          # rejects blank, weak or repeated secrets (make up runs this for you)
 docker compose up -d --build
-docker compose ps           # wait until db, collector, grafana, backup and watchdog are healthy
+docker compose ps            # wait until db, collector, grafana, backup and watchdog are healthy
 ```
 
-`.env.example` has blank secrets on purpose: `docker compose` refuses to start until they are set. Without `sh`, copy `.env.example` to `.env` and fill every blank secret yourself (letters and digits only, at least 16 characters, a different value for each, because the passwords are placed inside connection URLs). Never commit `.env`.
+`.env.example` has blank secrets on purpose: the stack will not start until they are set. Without `sh`, copy `.env.example` to `.env` and fill every blank secret yourself (letters and digits only, at least 16 characters, a different value for each, because the passwords sit inside connection URLs). Never commit `.env`.
 
-Then open Grafana at http://localhost:3300 and log in with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` from `.env`. Login is required; anonymous access is off. Grafana listens on the loopback address only; set `GRAFANA_BIND` in `.env` to reach it from the LAN (see [runbook: deploy to the VM](docs/RUNBOOKS/deploy-to-vm.md)).
+On every start the `migrate` container applies new SQL migrations and re-applies the database roles, then exits. `migrate` showing `exited (0)` is expected.
 
-Charts start empty at go-live and fill as data arrives (there is no backfill, ADR-011). Some charts need days or weeks of history before they say anything useful.
-
-On every start the `migrate` container applies any new SQL migrations and re-applies the database roles and grants, then exits; that is expected (`migrate` shows `exited (0)`). On Linux the same commands work unchanged; see [runbook: deploy to the VM](docs/RUNBOOKS/deploy-to-vm.md).
-
-Quick health check:
+**Check that it works:**
 
 ```
 docker compose logs --tail=20 collector
-docker compose exec db psql -U vatpac -d vatpac -c "SELECT status, count(*) FROM poll_log WHERE polled_at > now() - interval '5 minutes' GROUP BY 1;"
+make smoke
 ```
 
-You should see `ok` rows at about one per 15 seconds, plus a few `skipped_unchanged`. (`vatpac` is the default `POSTGRES_USER` and database name.) `make smoke` runs a fuller set of checks. The routine checks are in [runbook: daily and weekly checks](docs/RUNBOOKS/daily-checks.md).
+You should see an `ok` poll about every 30 seconds in `poll_log`, plus a few `skipped_unchanged`. Routine checks are in [docs/RUNBOOKS/daily-checks.md](docs/RUNBOOKS/daily-checks.md).
 
-## Where things are
+## Usage
 
-| What | Where |
+Open Grafana at http://localhost:3300 and log in with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` from `.env`. Anonymous access is off. Grafana listens on the loopback address only; set `GRAFANA_BIND` in `.env` to reach it from the LAN (see [docs/RUNBOOKS/deploy-to-vm.md](docs/RUNBOOKS/deploy-to-vm.md)). Never expose it to the internet without a login in front.
+
+Dashboards (as code in `grafana/dashboards/`): Pilots now, Pilots traffic, Pilot onboarding, ATC overview, ATC retention, Pilot origins, Military, Monday events, Management, and Collector health. Every chart is explained in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md).
+
+The collector serves `/health` and `/metrics` on port 8080 inside the Docker network only (not published). The database is not published either; the dev overlay (`make dev`) publishes it on `127.0.0.1:55432` only.
+
+## Configuration
+
+Everything is set through `.env` (names and defaults in `.env.example`; every variable is listed in [docs/CONFIG_MAP.md](docs/CONFIG_MAP.md)). The ones you are most likely to touch:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `POLL_INTERVAL_SECONDS` | 30 | How often the collector reads the feed. The airborne gap cap, the archive gap and the "online now" windows are all derived from it |
+| `POSITION_RETENTION_DAYS` | 90 | How long raw positions are kept (sessions and flights are kept forever) |
+| `HOME_ICAO_PREFIXES` | `Y` | Which airports count as the home region |
+| `GRAFANA_BIND`, `GRAFANA_PORT` | loopback, 3300 | Where Grafana listens |
+| `BACKUP_RETENTION_DAYS` | 14 | How many backup dumps are kept |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | blank | Where the watchdog sends alerts |
+
+Two reference files drive filtering: `config/australian_airspace_polygon.json` and `config/controller_callsigns_list.txt` (see [docs/RUNBOOKS/update-reference-files.md](docs/RUNBOOKS/update-reference-files.md)).
+
+## Project structure
+
+| Path | Contents |
 |---|---|
-| Grafana | http://localhost:3300 (port from `GRAFANA_PORT`, interface from `GRAFANA_BIND`, default loopback only) |
-| Collector health and metrics | `/health` and `/metrics` on port 8080, inside the Docker network only (not published) |
-| Database | Not published. The dev overlay publishes it on `127.0.0.1:55432` only |
-| Collector source | `collector/src/vatpac/` |
-| Migrations and roles | `db/migrations/`, `db/roles.sql` |
-| Dashboards (as code) | `grafana/dashboards/`, `grafana/provisioning/` |
-| Reference files | `config/australian_airspace_polygon.json`, `config/controller_callsigns_list.txt` (`config/australian_airspace_sectors.geojson` is kept but not read by v3) |
-| Backups, watchdog, ops scripts | `ops/` |
-| Documentation | `docs/` (start with [docs/RESUME.md](docs/RESUME.md)) |
-| Spec | [SPEC.md](SPEC.md) |
+| `collector/src/vatpac/` | The collector (Python) |
+| `db/migrations/`, `db/roles.sql` | SQL migrations and database roles |
+| `grafana/dashboards/`, `grafana/provisioning/` | Dashboards and data sources as code |
+| `config/` | Polygon and controller whitelist |
+| `ops/` | Backups, watchdog, smoke test, soak report, audit and heartbeat scripts |
+| `tests/`, `collector/tests/` | Unit and integration tests |
+| `docs/` | Documentation (start with [docs/RESUME.md](docs/RESUME.md)) |
+| `SPEC.md` | The specification |
 
-## Commands (Makefile)
+## Testing and development
 
-On Windows without `make`, run the underlying commands shown.
+On Windows without `make`, run the underlying commands.
 
 | Command | What it does |
 |---|---|
-| `make gen-env` | Write `.env` from `.env.example` with random passwords (refuses to overwrite) |
-| `make check-env` | `ops/check_env.sh`: reject blank, weak or repeated secrets in `.env` |
-| `make up` | `check-env`, then `docker compose up -d --build` |
-| `make dev` | Same as `make up`, with the dev overlay (database on `127.0.0.1:55432`) |
-| `make down` | `docker compose down` (volumes are kept) |
-| `make logs` | Follow the last 100 log lines of every service |
-| `make ps` | Container status |
-| `make config` | Validate the compose files with a generated throwaway env (`.env.example` has blank secrets, so it cannot be validated directly) |
+| `make test` | Unit tests (no database, no network). Integration tests are skipped without `VATPAC_TEST_DSN` |
 | `make lint` | ruff and mypy on the collector, ruff on `ops/` |
-| `make drift` | `ops/check_config_drift.py`: collector settings, compose and `.env.example` agree |
-| `make test` | Unit tests (no database, no network); the integration tests are skipped without `VATPAC_TEST_DSN` |
-| `make smoke` | `ops/smoke.sh` |
-| `make size` | Collector size budget check (package under 1700 lines, no module over 300) |
-| `make soak` | `ops/soak_report.sh`: soak report from `poll_log`, was a snapshot stored every 15 s for the last `HOURS` (default 24)? Reports PASS only when the whole window is covered with at least 99% of the expected snapshots and a p95 cadence of 17 s or less; shorter runs say INCOMPLETE |
-| `make pii` | Fixture PII check |
-| `make backup` | Take a backup now |
-| `make backup-test` | Restore the newest backup into a scratch database and sanity-check it |
-| `make restore FILE=/backups/<dump> [TARGET=vatpac_restore] CONFIRM=<same as TARGET>` | Restore a dump into a staging database, check it, then swap (see [runbook: restore](docs/RUNBOOKS/restore.md)) |
+| `make drift` | Collector settings, compose and `.env.example` agree |
+| `make size` | Collector size budget (package under 1700 lines, no module over 300) |
+| `make smoke` | Health checks on a running stack |
+| `make config` | Validate the compose files with a throwaway env |
+| `make soak` | Soak report from `poll_log`: was a snapshot stored every poll interval over the last `HOURS` (default 24) |
+| `make up` / `make dev` / `make down` | Start (optionally with the dev overlay) or stop the stack; volumes are kept |
+| `make logs` / `make ps` | Follow logs; container status |
+| `make backup` / `make backup-test` | Take a backup now; restore the newest into a scratch database and check it |
+| `make restore FILE=... CONFIRM=...` | Restore a dump ([docs/RUNBOOKS/restore.md](docs/RUNBOOKS/restore.md)) |
 
-## Running the tests
-
-Unit tests need only Python 3.11 or newer (the container uses 3.12) and the collector requirements:
+Unit tests need Python 3.11 or newer and the collector requirements:
 
 ```
 python -m venv collector/.venv
 collector/.venv/bin/pip install pytest -r collector/requirements.txt     # Windows: collector\.venv\Scripts\pip
-PYTHONPATH=collector/src collector/.venv/bin/python -m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv
+PYTHONPATH=collector/src collector/.venv/bin/python -m pytest -q -m "not integration" tests collector/tests
 ```
 
-`make test` runs the same command using whatever `pytest` is on the path. Static checks that need no database: `python grafana/validate_dashboards.py` (`pip install sqlglot` as well to parse the SQL), `make drift`, `make size`, `make pii`, `make lint`.
+Integration tests need a real PostgreSQL 16 with the migrations applied, in a **scratch** database whose name ends in `_test` (the tests truncate every data table). Never point them at the live database, and never run `db/roles.sql` against the live VM (it resets the live role passwords). The safe step-by-step method is in [docs/RUNBOOKS/run-tests.md](docs/RUNBOOKS/run-tests.md). GitHub Actions runs everything on every push to `main`; read the result there.
 
-Integration tests need a real PostgreSQL 16 with the migrations applied, in a **scratch** database whose name ends in `_test` (the fixtures truncate every data table). Without `VATPAC_TEST_DSN` they are skipped. Never point them at the live database, and never run `db/roles.sql` against the live VM (it resets the live role passwords). The step-by-step method, including the safe throwaway-database method on the VM, is in [runbook: run the tests](docs/RUNBOOKS/run-tests.md); the fixture notes are in [tests/README.md](tests/README.md).
+## Operations
 
-## Current status
-
-A snapshot as of 08-10-2026 taken from [docs/TRACKER.md](docs/TRACKER.md), which is the single source of truth and is updated with each change; read it for the current position. Times are UTC.
-
-Evidenced (see the tracker rows for the evidence):
-
-- The stack builds and runs on the Linux VM and survived a reboot test with all five long-running containers returning unaided (T2).
-- CI is green on GitHub, including the integration tests (T3, T10).
-- A Telegram test alert was delivered and confirmed (T4).
-- Live ingestion matched the live VATSIM feed in 6 of 6 samples at two times of day (T16, T21), and a nightly dump was restored into a scratch database and compared with the live one (T18, [docs/RESTORE_DRILL.md](docs/RESTORE_DRILL.md)).
-- 205 unit tests and 166 integration tests exist (371 collected). The integration suite, excluding the two role test files, was last run in full on a throwaway database on 08-10-2026 (117 passed, 1 skipped); CI runs all of them.
-- The dashboards hold 8 dashboards with 68 query panels and 9 text panels; `python grafana/validate_dashboards.py` checks their shape and SQL syntax without running anything against PostgreSQL.
-
-Not yet met (the gate for saying the goal is met, in the tracker's checklist):
-
-- The 24-hour soak on the VM (T1, `sh ops/soak_report.sh 24` must print PASS; see [docs/RUNBOOKS/daily-checks.md](docs/RUNBOOKS/daily-checks.md) for how to read it).
-- The newest collector fixes, migrations 20261008000030 and 20261008000031 and the rebuilt dashboards are merged but not yet deployed to the VM (T7); the deploy waits for the soak because a redeploy puts a gap in it.
-- Recording the evidence in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (T11).
-- The 30 to 90 day charts have no history until months after go-live (there is no backfill, ADR-011).
-
-Out of the repository by design (ADR-012): the Docker socket proxy and any Cloudflare tunnel. The watchdog is alert-only, and a container that is running but unhealthy is not restarted automatically until that external piece exists.
+| Runbook | When |
+|---|---|
+| [Deploy to the VM](docs/RUNBOOKS/deploy-to-vm.md) | First install, updating, rollback |
+| [Daily and weekly checks](docs/RUNBOOKS/daily-checks.md) | Routine checks and the soak report |
+| [Alerts](docs/RUNBOOKS/alerts.md) | What each Telegram message means |
+| [Outside heartbeat](docs/RUNBOOKS/outside-heartbeat.md) | The check that runs outside the VM |
+| [Feed outage](docs/RUNBOOKS/feed-outage.md), [Stuck collector](docs/RUNBOOKS/stuck-collector.md), [Database full](docs/RUNBOOKS/db-full.md) | Something is wrong |
+| [Restore from backup](docs/RUNBOOKS/restore.md) | Data loss |
+| [Update reference files](docs/RUNBOOKS/update-reference-files.md), [Add or change a dashboard](docs/RUNBOOKS/dashboards.md) | Routine changes |
 
 ## Documentation
 
-Start with [docs/RESUME.md](docs/RESUME.md) if you are picking the project up cold.
-
 | Document | Contents |
 |---|---|
-| [docs/RESUME.md](docs/RESUME.md) | Entry point for a new operator or session: what must happen next, decisions, how to test |
-| [docs/TRACKER.md](docs/TRACKER.md) | The live task list and the goal-met checklist |
-| [docs/HANDOVER.md](docs/HANDOVER.md) | Point-in-time hand-over written 07-10-2026 (history; the tracker is current) |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, data flow, containers, failure behaviour, scope |
-| [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md) | Tables, views, functions, roles |
-| [docs/DEFINITIONS.md](docs/DEFINITIONS.md) | Flight, session, online now, airborne minutes, gates, caps, near-miss, and differences from v1 |
-| [docs/CONFIG_MAP.md](docs/CONFIG_MAP.md) | Every environment variable, and v1's variables marked kept, changed or dropped |
-| [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md) | Every v1 chart and what replaced it |
-| [docs/DASHBOARDS_SIMPLIFIED.md](docs/DASHBOARDS_SIMPLIFIED.md) | Dropped charts and why |
+| [docs/RESUME.md](docs/RESUME.md) | Entry point for a new operator or session: current state, rules, next actions |
+| [docs/TRACKER.md](docs/TRACKER.md) | The live task list; the single source of truth for status |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log (ADRs) |
-| [docs/RESTORE_DRILL.md](docs/RESTORE_DRILL.md) | Result of the restore drill of 08-10-2026 |
-| [docs/DOC_AUDIT.md](docs/DOC_AUDIT.md) | Findings of the documentation audit of 08-10-2026 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, data flow, containers, failure behaviour |
+| [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md) | Tables, views, functions, roles |
+| [docs/DEFINITIONS.md](docs/DEFINITIONS.md) | Flight, session, online now, airborne minutes and the other definitions |
+| [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md) | Every v1 chart and what replaced it |
+| [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md) | v3 against v1 on overlapping hours |
+| [docs/HANDOVER.md](docs/HANDOVER.md) | Point-in-time hand-over of 07-10-2026 (history) |
+| [docs/OWNER_ACTIONS.md](docs/OWNER_ACTIONS.md) | Steps only the owner can do |
 
-Runbooks (`docs/RUNBOOKS/`):
+## Contributing
 
-- [Deploy to the VM](docs/RUNBOOKS/deploy-to-vm.md) (first install, updating by git archive, rebuild versus reload, rollback)
-- [Daily and weekly checks, and the soak report](docs/RUNBOOKS/daily-checks.md)
-- [Alerts: what each Telegram message means](docs/RUNBOOKS/alerts.md)
-- [Feed outage](docs/RUNBOOKS/feed-outage.md)
-- [Stuck collector](docs/RUNBOOKS/stuck-collector.md)
-- [Database full](docs/RUNBOOKS/db-full.md)
-- [Restore from backup](docs/RUNBOOKS/restore.md)
-- [Update reference files](docs/RUNBOOKS/update-reference-files.md)
-- [Add or change a dashboard](docs/RUNBOOKS/dashboards.md)
-- [Run the tests](docs/RUNBOOKS/run-tests.md)
+The repository is private and run by one owner with Claude. Pushes go to `main` and GitHub Actions reads the result afterwards; the tracker ([docs/TRACKER.md](docs/TRACKER.md)) records every change. Work in a git worktree under `.worktrees/` so other sessions do not change your branch. Add a new numbered SQL migration instead of editing an applied one, keep the collector within the size budget (`make size`), and add a test with every fix. Deploy only on the owner's say-so.
 
-## Notes
+## Licence
 
-The repository is private but written to be public-safe: no secrets, no real personal data in fixtures. Names and CIDs are stored and shown, as in v1 (ADR-009); check the VATSIM data-use policy and put the dashboards behind a login before any public exposure.
+No licence has been chosen. The repository is private. It is written to be public-safe (no secrets, no real personal data in fixtures), but check the VATSIM data-use policy and put the dashboards behind a login before any public exposure.
+
+## Credits
+
+Built by the owner with Claude. Data from the public VATSIM data feed.

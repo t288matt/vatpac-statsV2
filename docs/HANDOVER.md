@@ -37,7 +37,7 @@ The owner's words, set as a goal (a stop hook keeps firing because it is not yet
 **Success is only true when ALL of these are demonstrated, with evidence from this repo's tools:**
 1. Reproducible from git: a clean clone plus a generated `.env` plus `docker compose up -d --build` brings everything up healthy. (Demonstrated on this PC and on the VM.)
 2. Dashboards reproduce the in-scope charts, provisioned from files. (61 panel queries, 0 errors, demonstrated; retention charts UNVERIFIED.) *Update 08-10-2026: the retention charts were rebuilt from the owner's Metabase SQL export (T13); there are now 68 query panels.*
-3. Live: a snapshot is stored every 15 s. (Demonstrated.)
+3. Live: a snapshot is stored every 15 s. (Demonstrated.) *Update 09-10-2026: the interval is now 30 s, held only in `POLL_INTERVAL_SECONDS` (ADR-024).*
 4. 24/7: runs on an ALWAYS-ON host (the VM, not the owner's PC), `sh ops/soak_report.sh 24` prints `verdict | PASS` for a full 24 h, a reboot test passes, and alerts reach the owner. **Not yet demonstrated.** *Update 08-10-2026: the reboot test passed (07-10-2026 21:48 UTC) and a Telegram test alert was delivered; the 24 h soak is still outstanding (see TRACKER T1).*
 5. CI green on GitHub. **Never run.** *Update 08-10-2026: CI is green (TRACKER T3, T10).*
 
@@ -84,7 +84,7 @@ Do not tell the owner the goal is met before 4 and 5 are done. The owner has bee
 - The backup container holds the DB owner password (needed by restore scripts). A dedicated `CREATEDB` restore role would be tighter (ADR-017).
 - `poll_log` gets a row for every poll attempt including skipped ones: check the real daily row count after a few days (retention is 400 days).
 - The `flight` view's 8 h span split is an approximation (fixed buckets), documented in the view.
-- The two "online now" definitions differ slightly (core view: within 5 min of now and 30 s of newest snapshot; dashboard views: last two snapshots and a 5-minute wall-clock guard).
+- The two "online now" definitions differ slightly (core view: within 5 min of now and 2 x the poll interval of the newest snapshot, 60 s at 30 s polling, ADR-024; dashboard views: last two snapshots and a 5-minute wall-clock guard).
 - A deploy key for the VM so it can `git pull` (today code is pushed with `git archive | ssh`).
 
 ### 4.3 Open owner decisions
@@ -118,7 +118,7 @@ docker compose ps                         # backup, collector, db, grafana, watc
 sh ops/smoke.sh                           # per-check PASS/FAIL; expects SMOKE PASS (includes: grafana_ro cannot write)
 python ops/check_panels.py                # (python3 on the VM) every panel query via Grafana's API; expects "0 errors"; empty panels are fine while data is young
 sh ops/soak_report.sh 24                  # PASS needs a full 24 h window, >= 99% of snapshots and p95 cadence <= 17 s; also prints container restart counts
-docker compose logs --tail 50 collector   # JSON log lines; a poll about every 15 s is silent unless something is wrong
+docker compose logs --tail 50 collector   # JSON log lines; a poll about every 30 s (15 s before 09-10-2026) is silent unless something is wrong
 ```
 Direct SQL (note the quoting: do NOT use `$$` inside `sh -c`, the shell expands it):
 ```bash
@@ -171,17 +171,17 @@ The owner asked: "VM 100 (LAN address omitted here) has been created as a Proxmo
 ### 8.1 Components (docker-compose.yml, project name `vatpac`)
 | Service | Image / build | Role |
 |---|---|---|
-| `db` | `postgres:16.4-bookworm`, named volume `pgdata`, `--data-checksums`, `ops/postgres/postgresql.conf` mounted, port NOT published | the database (small box tuning) |
-| `migrate` | built from `ops/migrate` (dbmate 2.21.0 + psql), `restart: "no"` | applies `db/migrations/*.sql`, then `db/roles.sql`, creates `watchdog_ro` |
+| `db` | `postgres:16.15-bookworm` (16.4 until 09-10-2026), named volume `pgdata`, `--data-checksums`, `ops/postgres/postgresql.conf` mounted, port NOT published | the database (small box tuning) |
+| `migrate` | built from `ops/migrate` (dbmate 2.36.0 + psql; 2.21.0 until 09-10-2026), `restart: "no"` | applies `db/migrations/*.sql`, then `db/roles.sql`, creates `watchdog_ro` |
 | `collector` | built from `collector/Dockerfile` (python:3.12-slim, non-root, read-only root, no capabilities) | polls and stores; `/health` and `/metrics` on port 8080 inside the container |
-| `grafana` | `grafana/grafana-oss:11.2.2`, provisioning mounted read-only from `grafana/`, login required, port `${GRAFANA_BIND:-127.0.0.1}:${GRAFANA_PORT:-3300}` | dashboards |
+| `grafana` | `grafana/grafana-oss:11.6.5` (11.2.2 until 09-10-2026), provisioning mounted read-only from `grafana/`, login required, port `${GRAFANA_BIND:-127.0.0.1}:${GRAFANA_PORT:-3300}` | dashboards |
 | `backup` | built from `ops/backup` (postgres client) | nightly dump, rotation, restore scripts, weekly restore test, optional `BACKUP_REMOTE` hook |
 | `watchdog` | built from `ops/watchdog` (python, psycopg, httpx) | health and DB checks, Telegram alerts, writes `/var/watchdog/watchdog_status.json`; alert-only |
 All have `restart: unless-stopped` (except migrate), json-file log rotation (10 MB x 5), memory limits, one internal network `vatpac`. No socket proxy and no Cloudflare service by owner decision.
 
 ### 8.2 Collector behaviour (`collector/src/vatpac/`, 10 modules, 1325 lines, budget 1400, no module over 300; 1335 lines on 08-10-2026; on the release branch 14 modules, 1652 lines, budget 1700 per ADR-022)
 - `feed.py`: fetch `https://data.vatsim.net/v3/vatsim-data.json` (URL discovered via `https://status.vatsim.net/status.json`, key `data.v3[0]`, fallback to the constant), conditional GET, gzip, 10 s timeout, 3 jittered retries, honours 429 `Retry-After`.
-- `main.py`: monotonic 15 s scheduler (aligned to `general.update_timestamp`, skips unchanged snapshots and retries about 2 s later, skips missed ticks instead of bursting); circuit breaker after 5 consecutive failures (poll continues every 60 s, never exits); `apply` wrapped in a 25 s timeout; SIGHUP reloads reference files with validation (rejects a whitelist under 70% of the old size or an invalid polygon; old data stays); daily maintenance loop; a 5-minute `flight_summary` refresh loop.
+- `main.py`: monotonic scheduler (15 s when written; now `POLL_INTERVAL_SECONDS`, default 30, ADR-024) (aligned to `general.update_timestamp`, skips unchanged snapshots and retries about 2 s later, skips missed ticks instead of bursting); circuit breaker after 5 consecutive failures (poll continues every 60 s, never exits); `apply` wrapped in a 25 s timeout; SIGHUP reloads reference files with validation (rejects a whitelist under 70% of the old size or an invalid polygon; old data stays); daily maintenance loop; a 5-minute `flight_summary` refresh loop.
 - `filters.py`: pilot polygon (`config/australian_airspace_polygon.json`, shapely `contains`, edge excluded; pilots with no position pass), controller whitelist (`config/controller_callsigns_list.txt`, exact case-sensitive callsign; **fail closed**: a missing/empty/unreadable file stops startup), near-miss detection (a non-whitelisted controller whose prefix before the first `_` matches a whitelisted prefix, excluding `_OBS`).
 - `model.py`: parsing, string sanitising (lone surrogates, control characters), plausibility caps (gs 0..700 kt, altitude -1500..65000 ft; out-of-range becomes NULL and counts in `poll_log.rejected_values`), frequency to integer Hz (199.998 means "no frequency" and becomes NULL), `home_icao` from the trailing 4-letter token of the name.
 - `store.py`: one transaction per snapshot; upserts `pilot_session` on `(cid, callsign, logon_time)` (plan fields updated to latest non-null; unchanged rows are not rewritten), inserts `pilot_position` with `ON CONFLICT DO NOTHING`, controller sessions plus rating/frequency change events, `network_snapshot`; bad records are bisected out inside savepoints and counted (a poisoned record never blocks a snapshot).
@@ -196,9 +196,9 @@ Views Grafana reads (*update 08-10-2026: plus `controller_summaries`, migrations
 Roles: owner (migrate and restore only), `collector` (DML on its tables, EXECUTE on the SECURITY DEFINER maintenance functions, no DDL), `backup_ro` (`pg_read_all_data`), `grafana_ro` (SELECT on views and lookups only; connection limit 10; read-only default; **a session can switch its own read-only default off, so the real protection is lack of privileges, and the tests/smoke test prove that**), `watchdog_ro` (`pg_monitor` plus three tables).
 
 ### 8.4 Definitions that matter (details and v1 differences: `docs/DEFINITIONS.md`)
-- Flight = pilot session `(cid, callsign, logon_time)`, split after a 120-minute gap between samples and every 8 h of span (fixed buckets); counts as a "flight" when departure and arrival are non-empty after `upper(btrim(x, E' \t\r\n'))` (circuits, ZZZZ, overflights and one-sample sessions all count, same as v1). Start = first stored sample, end = last; duration = end - start; airborne minutes = sum of gaps where groundspeed >= 60 kt at the earlier sample, each gap capped at 40 s.
+- Flight = pilot session `(cid, callsign, logon_time)`, split after a 120-minute gap between samples and every 8 h of span (fixed buckets); counts as a "flight" when departure and arrival are non-empty after `upper(btrim(x, E' \t\r\n'))` (circuits, ZZZZ, overflights and one-sample sessions all count, same as v1). Start = first stored sample, end = last; duration = end - start; airborne minutes = sum of gaps where groundspeed >= 60 kt at the earlier sample, each gap capped at 2.5 x `POLL_INTERVAL_SECONDS` (75 s at the 30 s default, ADR-024; this was 40 s = 2.5 x 15 s when written). Reconnects of one flight are merged in the `flight` view (ADR-023) and in-progress flights are excluded from the flight counts (ADR-025).
 - Controller session = `(cid, callsign, logon_time)`, start = `logon_time`, end = last sighting; reconnects within 5 minutes merge in the view.
-- Online now = seen within the last two snapshots and within 5 minutes of wall clock (dashboard views).
+- Online now = seen within the last two snapshots (2 x the poll interval, ADR-024) and within 5 minutes of wall clock (dashboard views).
 
 ## 9. Decisions
 **The owner's 17 decisions (all resolved):** (1) Milk Run Monday fastest/slowest charts dropped, no sector logic anywhere. (2) Develop on the PC, run 24/7 on a Linux VM (now `vatpac-v3`). (3) LAN only first; Cloudflare later and external. (4) Names and CIDs stored and shown as in v1. (5) Raw positions kept 90 days; sessions forever. (6) Retention charts: owner will export the Metabase definitions. (7) "Top 50 service providers" = hours online over 30 days. (8) REST API: health/status only, data routes retired. (9) Callsign-pattern and frequency exclusion filters removed (inactive in v1; the whitelist keeps ATIS/_OBS out). (10) Store every 15 s sample, compressed (superseded: plain PostgreSQL, no compression, ADR-003). (11) A flight is the same as v1's. (12) No stand-in for the dropped ATC-coverage charts. (13) Watchdog authority: restart and alert only, later reduced to alert-only by owner choice (no Docker access). (14) No backfill. (15) Config-driven region, Australia deployed. (16) v1 is out of scope, the owner manages it. (17) Unlisted look-alike controller callsigns: log and alert once. Also: plain Postgres (not TimescaleDB), Grafana (not Metabase), keep the existing geography filters, frequency matching and sector matching not required (documented), maintainable and watched, built by role agents. Later: movements same as v1 (ADR-018); socket proxy and Cloudflare left out of the repo (ADR-012).
@@ -250,7 +250,7 @@ LOW: L1 duplicate SQL files deleted. L2 `pilot_session` bloat: fillfactor 70 and
 - Names and CIDs are stored forever and shown on dashboards; any public exposure needs authentication and the owner's check of VATSIM's data-use policy.
 - Single database, no replication; the only copies are dumps on the same host until `BACKUP_REMOTE` is configured.
 - Timestamps: everything is UTC (`timestamptz`); Grafana is set to UTC. The owner thinks in UK time (GMT/BST) and Sydney time, so state the time zone whenever you give a time.
-- The numbers will differ from v1's screenshots: different definitions (airborne time from sample gaps, no duplicates from amended plans), 15 s instead of 92 s sampling, different data period, no backfill.
+- The numbers will differ from v1's screenshots: different definitions (airborne time from sample gaps, no duplicates from amended plans), 15 s instead of 92 s sampling (30 s since 09-10-2026), different data period, no backfill.
 - `docs/CHART_DEFINITIONS.md` "Test" column says what to check once real data exists (it describes checks, it does not claim they passed).
 - The integration suite has one skip (role-dependent). The CI workflows have not run on GitHub (*update 08-10-2026: they have, and are green*).
 
@@ -268,7 +268,7 @@ LOW: L1 duplicate SQL files deleted. L2 `pilot_session` bloat: fillfactor 70 and
 - Grafana's `GF_SECURITY_ADMIN_PASSWORD` applies only on first start.
 - A cloned VM shares host keys, cron, Tailscale identity and monitor pushes with the original (section 7.4).
 - SSH to the VM: `known_hosts` for that IP was reset once (the original had stale entries from an earlier machine).
-- v1's Postgres container image cannot be reused for v3; v3 uses `postgres:16.4-bookworm`.
+- v1's Postgres container image cannot be reused for v3; v3 uses `postgres:16.15-bookworm` (16.4 until 09-10-2026; CI still tests on 16.4 until updated).
 - Docker Desktop on the owner's PC sometimes needs a manual start; `docker info` failing with a pipe error means it is not running.
 
 ## 16. Repo map and where other material lives
