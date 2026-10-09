@@ -1,6 +1,6 @@
-﻿# Working agreement
+# Working agreement
 
-Status: DRAFT written 09-10-2026 for the owner's approval. It takes effect when the owner approves it (section 9). Until then the rules in `docs/RESUME.md` section 4 and the owner's standing instructions apply.
+Status: APPROVED by the owner in chat on 09-10-2026 (section 9). The low-tier deploy rule in section 5 only takes effect once the scripted deploy with automatic rollback exists (issue #104); until then every production deploy needs the owner's explicit go. The rules in `docs/RESUME.md` section 4 still apply where this document is silent.
 Language: British English. Dates DD-MM-YYYY, times UTC. Plain words; no emoji.
 
 ## 1. Purpose
@@ -67,6 +67,6 @@ Deploys per week; time from a change being ready to being live; share of deploys
 | Item | Decision |
 |---|---|
 | Team in section 2 | agreed by the owner in chat, 09-10-2026 |
-| Tier table in section 5 | PENDING |
-| Low tier deploys without a further yes once #104 exists | PENDING |
-| Daily digest and default answers (section 6) | PENDING |
+| Tier table in section 5 | APPROVED as written by the owner, 09-10-2026 |
+| Low tier deploys without a further yes once #104 exists | APPROVED by the owner, 09-10-2026 (effective only after #104 exists and is proven) |
+| Daily digest and default answers (section 6) | APPROVED by the owner, 09-10-2026: a short daily digest, recommendation first; a default is taken after two working days only for Low-tier or pre-agreed questions, never for Medium, High, retention or data |
