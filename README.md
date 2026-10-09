@@ -1,6 +1,6 @@
 # VATPAC Stats v3
 
-Live pilot and controller statistics for the VATPAC region, built from the public VATSIM data feed. One collector polls the feed every 15 seconds, PostgreSQL 16 stores it, and Grafana shows it. Everything is dockerised and starts with `docker compose up -d`.
+Live pilot and controller statistics for the VATPAC region, built from the public VATSIM data feed. One collector polls the feed every 30 seconds, PostgreSQL 16 stores it, and Grafana shows it. Everything is dockerised and starts with `docker compose up -d`.
 
 ## Quick start
 
@@ -28,7 +28,7 @@ docker compose logs --tail=20 collector
 docker compose exec db psql -U vatpac -d vatpac -c "SELECT status, count(*) FROM poll_log WHERE polled_at > now() - interval '5 minutes' GROUP BY 1;"
 ```
 
-You should see `ok` rows at about one per 15 seconds, plus a few `skipped_unchanged`. (`vatpac` is the default `POSTGRES_USER` and database name.) `make smoke` runs a fuller set of checks. The routine checks are in [runbook: daily and weekly checks](docs/RUNBOOKS/daily-checks.md).
+You should see `ok` rows at about one per 30 seconds, plus a few `skipped_unchanged`. (`vatpac` is the default `POSTGRES_USER` and database name.) `make smoke` runs a fuller set of checks. The routine checks are in [runbook: daily and weekly checks](docs/RUNBOOKS/daily-checks.md).
 
 ## Where things are
 
@@ -64,7 +64,7 @@ On Windows without `make`, run the underlying commands shown.
 | `make test` | Unit tests (no database, no network); the integration tests are skipped without `VATPAC_TEST_DSN` |
 | `make smoke` | `ops/smoke.sh` |
 | `make size` | Collector size budget check (package under 1700 lines, no module over 300) |
-| `make soak` | `ops/soak_report.sh`: soak report from `poll_log`, was a snapshot stored every 15 s for the last `HOURS` (default 24)? Reports PASS only when the whole window is covered with at least 99% of the expected snapshots and a p95 cadence of 17 s or less; shorter runs say INCOMPLETE |
+| `make soak` | `ops/soak_report.sh`: soak report from `poll_log`, was a snapshot stored every poll interval (30 s by default) for the last `HOURS` (default 24)? Reports PASS only when the whole window is covered with at least 99% of the expected snapshots and a p95 cadence of 17 s or less; shorter runs say INCOMPLETE |
 | `make pii` | Fixture PII check |
 | `make backup` | Take a backup now |
 | `make backup-test` | Restore the newest backup into a scratch database and sanity-check it |

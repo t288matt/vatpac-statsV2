@@ -25,12 +25,12 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `GRAFANA_ROOT_URL` | `http://localhost:3300/` | grafana | External URL; set it when served through a proxy or tunnel. |
 | `VATSIM_FEED_URL` | `https://data.vatsim.net/v3/vatsim-data.json` | collector | Fallback feed URL, used if discovery fails. |
 | `VATSIM_STATUS_URL` | `https://status.vatsim.net/status.json` | collector | Discovery document (`data.v3[0]`). |
-| `POLL_INTERVAL_SECONDS` | `15` | collector | Poll cadence. Valid 5 to 300. |
+| `POLL_INTERVAL_SECONDS` | `30` | collector | Poll cadence (ADR-024). The one place the interval is held: the airborne gap cap, the archive gap threshold, the online-now windows (2 x this), the soak report and the Snapshots-missed panel derive from it. Valid 5 to 300. |
 | `HTTP_TIMEOUT_SECONDS` | `10` | collector | Request timeout (connect timeout is the lower of 5 s and this). Valid 1 to 60. |
 | `TEXT_MAX_LENGTH` | `2000` | collector | Free-text fields of a pilot or controller (name, route, remarks, server and so on) are cut to this many characters at ingest; each cut field counts once in `poll_log.rejected_values`. Valid 100 to 100000. |
 | `FEED_MAX_FUTURE_SECONDS` | `120` | collector | A feed snapshot whose `update_timestamp` is more than this many seconds ahead of the collector's clock is rejected as a feed error (`error` poll, nothing stored, `last seen` unchanged), so one future-dated snapshot cannot make every later real update look unchanged. Valid 15 to 3600. The collector host's clock must be correct to well within this bound. |
 | `POSITION_RETENTION_DAYS` | `90` | collector | Raw positions kept this long (whole daily partitions). Valid 2 to 3650. |
-| `AIRBORNE_GAP_CAP_SECONDS` | `40` | collector | Cap per sample gap in airborne minutes. Valid 15 to 600. Published to `app_setting` for the views. |
+| `AIRBORNE_GAP_CAP_SECONDS` | blank (derived: 2.5 x `POLL_INTERVAL_SECONDS`, 75 s at 30 s) | collector | Cap per sample gap in airborne minutes. Set it only to override. Valid 15 to 600. Published to `app_setting` for the views. |
 | `HOME_ICAO_PREFIXES` | `Y` | collector | Comma-separated letter prefixes defining the home region (for example `Y` or `Y,NZ`). Published to `app_setting`. |
 | `LOG_LEVEL` | `INFO` | collector | `DEBUG`, `INFO`, `WARNING` or `ERROR` (case-insensitive). The watchdog also reads it, but compose does not pass it on, so the watchdog stays at `INFO`. |
 | `CIRCUIT_FAILURE_THRESHOLD` | `5` | collector | Consecutive upstream failures that open the circuit breaker (1 to 1000). Polling never stops. |
@@ -42,7 +42,7 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `ARCHIVE_FULL_EVERY_S` | `3600` | collector | The full raw payload, gzipped, is written once per slot of this many seconds. |
 | `ARCHIVE_FULL_KEEP_DAYS` | `7` | collector | Days the full payloads are kept. |
 | `ARCHIVE_ANOMALY_KEEP_DAYS` | `90` | collector | Days the anomaly payloads are kept (poll error, timestamp gap, older or future timestamp, `logon_time` precision change). |
-| `ARCHIVE_GAP_S` | `35` | collector | A gap between two feed timestamps above this is an anomaly. A single missed tick is 30 s and is normal (audit F10), so the default sits above it (16 to 3600). |
+| `ARCHIVE_GAP_S` | blank (derived: 2 x `POLL_INTERVAL_SECONDS` + 5, 65 s at 30 s) | collector | A gap between two feed timestamps above this is an anomaly. A single missed tick (60 s at 30 s polling) is normal (audit F10), so the derived value sits above it (16 to 3600). |
 | `ARCHIVE_MAX_MB` | `1024` | collector | Hard cap on the archive; the oldest files are deleted first when it is exceeded. |
 | `HEALTH_PORT` | `8080` | collector, watchdog | Port of the collector's `/health` and `/metrics` inside the container. |
 | `VATPAC_VERSION` | `dev` | collector build arg | Version label baked into the image (the release workflow sets it from the git tag). |
@@ -128,7 +128,7 @@ Source: `C:\Users\mdora\Claude\VATPAC-Stats V2\docker-compose.yml`. Several v1 v
 
 | v1 variable | v1 value | Status | v3 equivalent and reason |
 |---|---|---|---|
-| `VATSIM_POLLING_INTERVAL` | 90 | CHANGED | `POLL_INTERVAL_SECONDS` = 15, aligned to the feed's own refresh (ADR-005). |
+| `VATSIM_POLLING_INTERVAL` | 90 | CHANGED | `POLL_INTERVAL_SECONDS` = 15 when written, aligned to the feed's own refresh (ADR-005); 30 since 09-10-2026 (ADR-024). |
 | `VATSIM_TRANSCEIVERS_POLLING_INTERVAL` | 120 | DROPPED | The transceivers feed is not fetched (SPEC section 3). |
 | `ENABLE_BOUNDARY_FILTER` | true | CHANGED | Always on; no switch. The polygon filter is one of the three fixed filters (SPEC section 4). Polygon path is `POLYGON_PATH`. |
 | `EXCLUDED_CALLSIGN_PATTERNS` | `ATIS,_OBS` | DROPPED | The whitelist keeps ATIS and `_OBS` out, and ATIS is a separate feed array (ADR-007). |

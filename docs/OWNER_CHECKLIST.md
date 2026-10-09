@@ -1,5 +1,7 @@
 # Owner review checklist: Metabase card against Grafana panel
 
+> **OBSOLETE (09-10-2026). Do not use this checklist.** Metabase is retired, so there is nothing left to compare against by eye, and the expected-difference text below predates the reconnect merge (ADR-023, flights now agree with v1 to within 2%), the 30 s polling (ADR-024) and the in-progress exclusion (ADR-025). It is kept unrewritten as a record. The v1 comparison results and the owner's decisions on every difference are in [V1_COMPARISON.md](V1_COMPARISON.md) (sections 6 to 12). Tracker T40, layer 4, is replaced by that comparison.
+
 Written 09-10-2026. Source of truth: docs/CHART_DEFINITIONS.md and docs/reference/v1_metabase_cards.json; the expected differences come from the measured comparison in docs/V1_COMPARISON.md. All times UTC. v3 has collected since 07-10-2026 21:38 UTC (1.5 days at writing). A private page with the same content, tick boxes and filters is at https://claude.ai/artifact/C4EbCzksaWUKGW5Hde3gW6 (private).
 
 ## How to use it (about 30 minutes)
