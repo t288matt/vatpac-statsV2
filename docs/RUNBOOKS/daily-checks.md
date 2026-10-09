@@ -64,7 +64,7 @@ The output is one record followed by one line per container with its restart cou
 | `hours_covered`, `hours_requested` | Span between them, and the window you asked for. |
 | `snapshots_stored`, `snapshots_expected` | Distinct snapshots stored, and one per 15 seconds over the span. |
 | `coverage_pct` | Stored divided by expected. |
-| `gaps_over_45s`, `longest_gap` | Count of gaps over 45 seconds between consecutive snapshots, and the longest gap. |
+| `gaps_over_limit`, `longest_gap` | Count of gaps over 2.5 poll intervals between consecutive snapshots, and the longest gap. |
 | `p95_cadence_s` | 95th percentile of the gap between consecutive snapshots (normally 15). |
 | `error_polls`, `skipped_polls` | Polls that failed, and polls where the feed had not changed (normal). |
 | `verdict` | See below. |
@@ -73,7 +73,7 @@ Verdicts:
 
 - `PASS`: the window is covered (at least 98% of the hours requested), at least 99% of the expected snapshots are stored, and the p95 cadence is 17 seconds or less.
 - `INCOMPLETE: only N h covered of M h requested`: not enough history yet. This is never a pass. Wait, then run it again.
-- `FAIL: coverage below 99%` or `FAIL: p95 cadence above 17 s`: too many snapshots missing or the cadence is slow. Look at `gaps_over_45s` and `longest_gap`, then at what happened at that time (a deploy, a restart, a feed outage: `docker compose logs --since <time> collector`).
+- `FAIL: coverage below 99%` or `FAIL: p95 cadence above the poll interval + 2 s`: too many snapshots missing or the cadence is slow. Look at `gaps_over_limit` and `longest_gap`, then at what happened at that time (a deploy, a restart, a feed outage: `docker compose logs --since <time> collector`).
 - `FAIL: no snapshots in the window`: nothing was stored; the collector is down or the database is empty.
 
 Notes for reading it:

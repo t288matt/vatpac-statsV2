@@ -27,6 +27,7 @@ def sync_settings(conn: psycopg.Connection[Any], settings: Settings) -> None:
     for key, value in (
         ("home_icao_prefixes", settings.home_icao_prefixes),
         ("airborne_gap_cap_seconds", str(settings.airborne_gap_cap_seconds)),
+        ("poll_interval_seconds", f"{settings.poll_interval_seconds:g}"),
     ):
         conn.execute(
             "INSERT INTO app_setting (key, value) VALUES (%s, %s) "
