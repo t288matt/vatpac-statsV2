@@ -17,23 +17,35 @@ BACKUP_REMOTE="${BACKUP_REMOTE:-}"
 log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) backup: $*"; }
 
 take_backup() {
+  # Every step is checked explicitly: take_backup is called as `take_backup || ...` in the loop, and bash ignores
+  # `set -e` inside a function called that way, so a failing step would otherwise be silently carried past (issue 81).
   local stamp file tmp
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
   file="${BACKUP_DIR}/${PGDATABASE}_${stamp}.dump"
   tmp="${file}.partial"
   log "starting ${file}"
-  if pg_dump -Fc --no-password -f "$tmp"; then
-    # A dump that pg_restore cannot list is not a backup.
-    pg_restore -l "$tmp" > /dev/null
-    mv "$tmp" "$file"
-    date -u +%Y-%m-%dT%H:%M:%SZ > "${BACKUP_DIR}/.last_success"
-    log "ok $(du -h "$file" | cut -f1)"
-    run_remote "$file"
-  else
+  if ! pg_dump -Fc --no-password -f "$tmp"; then
     rm -f "$tmp"
     log "FAILED pg_dump"
     return 1
   fi
+  # A dump that pg_restore cannot list is not a backup: no rename, no success marker, no off-box copy, no rotation.
+  if ! pg_restore -l "$tmp" > /dev/null; then
+    rm -f "$tmp"
+    log "FAILED validation (pg_restore -l could not read the dump); nothing kept, older backups untouched"
+    return 1
+  fi
+  if ! mv "$tmp" "$file"; then
+    rm -f "$tmp"
+    log "FAILED to move the finished dump into place"
+    return 1
+  fi
+  if ! date -u +%Y-%m-%dT%H:%M:%SZ > "${BACKUP_DIR}/.last_success"; then
+    log "FAILED to write .last_success"
+    return 1
+  fi
+  log "ok $(du -h "$file" | cut -f1)"
+  run_remote "$file"
   rotate
 }
 
