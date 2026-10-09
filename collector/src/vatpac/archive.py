@@ -184,7 +184,7 @@ class Archive:
         now, self._last_prune = time.time(), time.time()
         keep = {"compact": self.s.archive_compact_keep_days, "full": self.s.archive_full_keep_days,
                 "anomaly": self.s.archive_anomaly_keep_days}
-        files: list[tuple[float, int, Path]] = []
+        files: list[tuple[bool, float, int, Path]] = []  # (is anomaly, mtime, size, path)
         for kind, days in keep.items():
             for path in (self.root / kind).glob("*/*"):
                 try:
@@ -193,11 +193,11 @@ class Archive:
                     if now - st.st_mtime > limit:
                         path.unlink()
                     elif not path.name.startswith("."):
-                        files.append((st.st_mtime, st.st_size, path))
+                        files.append((kind == "anomaly", st.st_mtime, st.st_size, path))
                 except OSError:
                     continue
-        total, cap = sum(f[1] for f in files), self.s.archive_max_mb * 1_048_576
-        for _, size, path in sorted(files):
+        total, cap = sum(f[2] for f in files), self.s.archive_max_mb * 1_048_576
+        for _, _, size, path in sorted(files):  # routine files first, anomaly evidence last; oldest first within each
             if total <= cap:
                 break
             try:
