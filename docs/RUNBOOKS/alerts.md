@@ -60,7 +60,7 @@ Old wording to new wording (the plain sentence of the new message, without the l
 
 | Check name | Level and trigger | Meaning | What to do |
 |---|---|---|---|
-| `collector_health` | CRIT when the collector `/health` is unreachable or not HTTP 200 | No good poll in the last 60 s, or the newest snapshot is over 120 s old, or the collector is down | Read `docker compose logs --tail=100 collector`. If the feed is failing (`consecutive_failures` above 0): [feed-outage.md](feed-outage.md), wait. Otherwise [stuck-collector.md](stuck-collector.md). |
+| `collector_health` | CRIT when the collector `/health` is unreachable or not HTTP 200 | No good poll in the last max(60 s, 2 x the poll interval) (60 s at the default 30 s), or the newest snapshot is older than max(120 s, 4 x the poll interval) (120 s at 30 s), or the collector is down | Read `docker compose logs --tail=100 collector`. If the feed is failing (`consecutive_failures` above 0): [feed-outage.md](feed-outage.md), wait. Otherwise [stuck-collector.md](stuck-collector.md). |
 | `poll_log_ok_age` | WARN at 60 s, CRIT at 300 s (`WATCHDOG_WARN_SECONDS`, `WATCHDOG_PAGE_SECONDS`) | The newest `ok` row in `poll_log` is this old | Same as `collector_health`. Also fires if the database is slow or unreachable. |
 | `network_snapshot_age` | Same thresholds | The newest stored snapshot is this old | Usually fires with `poll_log_ok_age`. If only this one fires, the feed has frozen (polls succeed but the snapshot time does not change): [feed-outage.md](feed-outage.md). |
 | `grafana_health` | CRIT when `/api/health` is unreachable or not 200 | Grafana is down or unwell; data collection is unaffected | `docker compose ps grafana`, `docker compose logs --tail=100 grafana`, then `docker compose restart grafana`. |
