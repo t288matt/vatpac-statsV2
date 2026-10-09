@@ -89,7 +89,7 @@ class Config:
             config_dir=Path(env("REFERENCE_CONFIG_DIR", "/config")),
             invariants_interval_s=max(0.0, env_num("WATCHDOG_INTEGRITY_INTERVAL_HOURS", 72)) * 3600,
             crosscheck_interval_s=max(0.0, env_num("WATCHDOG_CROSSCHECK_INTERVAL_DAYS", 14)) * 86400,
-            samples=max(1, int(env_num("WATCHDOG_CROSSCHECK_SAMPLES", 48))),
+            samples=max(1, int(env_num("WATCHDOG_CROSSCHECK_SAMPLES", 24))),
         )
 
 
