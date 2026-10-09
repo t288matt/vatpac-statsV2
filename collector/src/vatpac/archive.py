@@ -27,7 +27,7 @@ from .health import Stats
 from .settings import Settings
 
 log = logging.getLogger(__name__)
-FUTURE_S, ANOMALY_REPEAT_S, STALE_TMP_S, BACKOFF_S = 120.0, 300.0, 600.0, 60.0
+ANOMALY_REPEAT_S, STALE_TMP_S, BACKOFF_S = 300.0, 600.0, 60.0
 PRECISION_DROP, PRECISION_MIN_VALUES = 0.2, 50  # a fall of 20 points or more over at least 50 logon_time values
 _LOGON_RE = re.compile(rb'"logon_time"\s*:\s*"([^"]*)"')
 PILOT_KEYS = ("cid", "callsign", "logon_time", "latitude", "longitude", "groundspeed", "altitude")
@@ -129,7 +129,7 @@ class Archive:
         out = ["poll_error"] if status == "error" else []
         if raw is None or snap_ts is None:
             return out, False
-        if snap_ts.timestamp() - time.time() > FUTURE_S:
+        if snap_ts.timestamp() - time.time() > self.s.feed_max_future_seconds:
             return [*out, "ts_future"], False
         last = self._last_ts
         if last is not None:
