@@ -139,8 +139,10 @@ def test_airborne_minutes_uses_gs_at_earlier_sample(conn) -> None:
     assert float(col(row, "airborne_minutes")) == pytest.approx(15 / 60, abs=0.01)  # only the 2nd gap
 
 
-def test_airborne_gap_is_capped_at_75_seconds(conn) -> None:
+def test_airborne_gap_is_capped_at_the_published_setting(conn) -> None:
     t = T0
+    conn.execute("INSERT INTO app_setting (key, value) VALUES ('airborne_gap_cap_seconds', '75') "
+                 "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")  # the collector publishes 2.5 x the poll interval
     make_session(conn, 9200032, [(t, 250), (t + timedelta(seconds=100), 250)])
     row = flights(conn, 9200032)[0]
     assert float(col(row, "airborne_minutes")) == pytest.approx(75 / 60, abs=0.01)

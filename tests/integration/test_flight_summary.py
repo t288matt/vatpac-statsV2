@@ -28,7 +28,7 @@ def summary(conn, cid: int) -> list[dict]:
         "FROM flight WHERE cid = %s ORDER BY gap_segment, span_part", (cid,)).fetchall()
 
 
-def expected(samples: list[tuple[datetime, int | None]], cap: float = 75.0) -> list[tuple]:
+def expected(samples: list[tuple[datetime, int | None]], cap: float) -> list[tuple]:
     """Reference implementation of the SPEC definition: (gap_segment, span_part, start, end, n, airborne_min)."""
     segs: list[list[int]] = []
     for i, (t, _) in enumerate(samples):
@@ -56,7 +56,8 @@ def expected(samples: list[tuple[datetime, int | None]], cap: float = 75.0) -> l
 def check(conn, cid: int, samples) -> None:
     got = [(r["gap_segment"], r["span_part"], r["start_time"], r["end_time"], r["sample_count"],
             float(r["airborne_minutes"])) for r in summary(conn, cid)]
-    assert got == expected(samples)
+    cap = float(conn.execute("SELECT value FROM app_setting WHERE key = 'airborne_gap_cap_seconds'").fetchone()["value"])
+    assert got == expected(samples, cap)
 
 
 def test_equivalence_on_mixed_sessions(conn) -> None:
