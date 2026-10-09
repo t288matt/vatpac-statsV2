@@ -66,7 +66,7 @@ Owner decision, confirming ADR-009: no retention or anonymisation rule. Names an
 Recorded here because SPEC.md says decisions belong in this log. Source: the owner's statements during the 08-10-2026 session, as written down in docs/RESUME.md section 2.
 - Cards 94 and 95 (when people are online) are rebuilt to match v1 counting; card 94 uses Monday to Friday (UTC), where v1 used Sunday, Monday and Saturday as a data workaround.
 - Cards 90 and 135 (most popular aircraft) keep the `aircraft_type` lookup categories, not v1's `LIKE` ladder.
-- The retention panels copy v1's rules exactly, including the quirk that "reactivated" needs no earlier session, so every controller counts as reactivated until 60 days of history exist.
+- The retention panels copy v1's rules exactly, including the quirk that "reactivated" needs no earlier session, so every controller counts as reactivated until 60 days of history exist. (The reactivated quirk is superseded by ADR-027.)
 - Accepted risk (owner, 07-10-2026): the Telegram bot token appeared once in a session transcript and was not rotated.
 Consequence: the corresponding rows in CHART_DEFINITIONS.md describe these rules. A later change needs a new ADR.
 
@@ -107,6 +107,11 @@ Decisions (owner), one rule per data set:
 8. **Small tables, Grafana data and Docker logs: no change.** Names and CIDs stay forever (ADR-019).
 9. **Housekeeping, not retention:** about 70 unused anonymous Docker volumes (4.7 GB, left by earlier throwaway test databases), old images and the older rollback copies may be removed, but only from an exact list of names approved by the owner first. Never a blanket prune.
 Consequences: nothing is deleted by these decisions today. Work to build, each needing an independent code review and then the owner's deploy go: the two settings (items 1 and 6), the `network_snapshot` trim with the stored go-live value (item 3; keep the logic in SQL because the collector size budget, ADR-022, is at 1696 of 1700 lines), the `BACKUP_REMOTE` configuration with the owner's one-time setup on the Proxmox host (item 7), and the clean-up list (item 9). Dashboards are unaffected: the longest look-back of any panel on a table with a rule is 7 days on raw positions (limit now 180 days), and every all-time panel reads a table kept forever or for 5 years.
+## ADR-027 "Reactivated" needs an earlier session (10-10-2026, from the code review of issue 80; owner confirmation pending)
+Problem (issue 93): ADR-020 copied v1's quirk that a controller is "reactivated" when they have a session in the last 30 days and none 30 to 90 days ago, with no earlier session required, so a brand-new controller counted as someone returning after a 60 day gap. The independent review found this wrong against v1's own stated intent ("Active now after 60+ day gap").
+Change: the three reactivation panels (cards 171, 172, 177) also require at least one session before 90 days ago. A brand-new controller is no longer reactivated. Because there is no backfill (ADR-011), the figure is zero until the database holds more than 90 days of history. The lapsed panels (cards 166, 168, 169) use the latest session only and are unaffected; card 176 (monthly trend) keeps its v1 month rule, which says in its description that first-time controllers count.
+Status: made on the lead session's instruction after the review. It reverses part of an owner decision (ADR-020), so the owner is asked to confirm it or revert the three queries.
+
 ## OPEN decisions for the owner
 (Rewritten 09-10-2026. The live list is docs/TRACKER.md and docs/OWNER_ACTIONS.md.)
 - The backup container holds the owner password for the restore scripts (ADR-017); a dedicated restore-only role would be tighter.

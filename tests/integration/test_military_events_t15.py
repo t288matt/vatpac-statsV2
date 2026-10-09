@@ -230,7 +230,7 @@ def test_card_156_slots_after_now_are_not_drawn_while_the_event_is_on(conn) -> N
     assert rows[-1]["time"] == MON + timedelta(hours=9, minutes=5)
     assert {r["time"]: r["Airborne aircraft"] for r in rows}[MON + timedelta(hours=8)] == 1
     assert sum(r["Airborne aircraft"] for r in rows) == 1                    # the 10:00 sample is not counted
-    assert run_panel(conn, EVENTS, title, MON, MON + timedelta(days=1), now=MON + timedelta(hours=6, minutes=59)) == []
+    # (before 07:00Z on Monday the panel shows the previous Monday: test_card_156_before_0700z_on_monday_shows_last_monday)
 
 
 def test_card_156_uses_the_latest_monday_not_the_previous_one(conn) -> None:
@@ -250,3 +250,19 @@ def test_card_156_has_no_sector_or_frequency_logic() -> None:
     sql = panel(EVENTS, "Airborne aircraft during the latest Monday")["targets"][0]["rawSql"].lower()
     for word in ("sector", "frequency", "transceiver"):
         assert word not in sql
+
+
+def test_card_156_before_0700z_on_monday_shows_last_monday(conn) -> None:
+    """Issue 94: from Monday 00:00 to 06:59 UTC the most recent event that has started is last Monday's, so it is shown in
+    full (60 slots); at exactly 07:00:00 the new Monday begins with its first slot."""
+    title = "Airborne aircraft during the latest Monday"
+    next_mon = MON + timedelta(days=7)
+    _add_samples(conn, 9500079, [(MON + timedelta(hours=8), 5000)])
+    _add_samples(conn, 9500080, [(next_mon + timedelta(hours=7), 5000)])
+    for now in (next_mon, next_mon + timedelta(hours=3), next_mon + timedelta(hours=6, minutes=59, seconds=59)):
+        rows = run_panel(conn, EVENTS, title, MON, next_mon + timedelta(days=1), now=now)
+        assert len(rows) == 60 and rows[0]["time"] == MON + timedelta(hours=7), now
+        assert sum(r["Airborne aircraft"] for r in rows) == 1
+    started = run_panel(conn, EVENTS, title, MON, next_mon + timedelta(days=1), now=next_mon + timedelta(hours=7))
+    assert [r["time"] for r in started] == [next_mon + timedelta(hours=7)]
+    assert started[0]["Airborne aircraft"] == 1
