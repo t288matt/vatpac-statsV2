@@ -233,6 +233,9 @@ Keep to section 1. Pull per-poll rows from v1 `flights` (primary-key range from 
 | 1 | Pilot sessions split by reconnects (v1 merged them) | Merge like v1: same CID, callsign, departure and arrival, gap of 120 minutes or less. Built on branch flight-reconnect-merge (ADR-023, T41, issue #35). |
 | 2 | Parked sessions with no airborne time still count as flights and movements (issue #74) | Behave as v1 does: no change. |
 | 3 | v3 stores pilots' positions before they file a plan; v1 dropped them | Keep v3 as it is. |
+| 4 | v1 controller summaries double count overlapping reconnects (hours about 3% above v3) | Keep v3 as it is (v3 is right). |
+| 5 | Airborne time: v3 measures time at 60 kt or more, v1 reported sector-based enroute time (median ratio 1.05) | Keep v3's measured airborne time. |
+| 6 | Poll rate: v3 polls every 30 s (ADR-024), v1 every 93 s | Poll every 30 s, interval held in POLL_INTERVAL_SECONDS only. Deployed 09-10-2026. |
 
 ## 12. Correction: v1 does not skip flights (09-10-2026)
 - **Error:** 6.5 matched flights on (CID, callsign, logon time). v1 merges the sessions of one flight (same CID, callsign, departure, arrival, gaps of 120 minutes or less; app/services/session_selector.py), so a v1 summary carries only the first logon time, and the later sessions of the same flight looked "missing". 48 of the 59 "v3-only" flights were such reconnect parts, not omissions.
