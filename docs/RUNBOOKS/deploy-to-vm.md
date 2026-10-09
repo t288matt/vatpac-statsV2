@@ -89,6 +89,20 @@ Steps (all from `~/vatpac-statsV2` on the VM, after the `git archive` copy of th
 
 Runbook for the checks themselves: [integrity-checks.md](integrity-checks.md).
 
+## 4f. Special case: plain-language Telegram messages (T56, issue #79; owner's go needed)
+What it changes: the watchdog image only (new file `ops/watchdog/messages.py`, copied by the Dockerfile; a small change in `watchdog.py`). No migration, no setting, no `.env` edit, no change to the collector, so polling is not interrupted. Alert logic, the log text and the status-file detail strings keep their technical wording (the status file gains a `bad_since` entry per active alert, used for "the problem lasted ...").
+
+Steps (from `~/vatpac-statsV2` on the VM, after the `git archive` copy of the tree, section 2c):
+1. **Rollback copy.** `cp -a ~/vatpac-statsV2 ~/vatpac-statsV2.rollback-<dd-mm>` before copying the new tree over it.
+2. **Rebuild the watchdog only.** `docker compose up -d --build watchdog`. Only the watchdog is recreated; its status volume is kept; the collector is not touched.
+3. **Checks afterwards.**
+   - `docker compose ps`: `watchdog` is `healthy`; `collector` has the same start time as before.
+   - `docker compose logs --tail=30 watchdog`: no `Traceback`, no `could not format the alert`.
+   - `docker compose exec -T watchdog python -c "import messages; print(messages.telegram_text('WARN disk: / 82% used'))"` prints a `VATPAC Stats: heads up` message with a `Technical:` last line (prints to the terminal only; sends nothing).
+   - `sh ops/smoke.sh` ends `SMOKE PASS`.
+4. **Live proof.** The next real alert arrives in the new form and the owner confirms it. Do not send a test message to the owner's chat without asking.
+5. **Roll back.** Restore the previous tree and `docker compose up -d --build watchdog`. The extra `bad_since` entry in the status file is ignored by the old code.
+
 ## 5. Network exposure and firewall
 Only Grafana is published, and by default **only on loopback**: `127.0.0.1:${GRAFANA_PORT:-3300}`. The database is not published. To reach Grafana from the LAN, opt in explicitly in `.env`:
 ```sh
