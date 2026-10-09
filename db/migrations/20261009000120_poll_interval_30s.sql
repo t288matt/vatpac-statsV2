@@ -30,10 +30,11 @@ DO $$
 DECLARE def text;
 BEGIN
     def := pg_get_viewdef('controller_session_merged'::regclass, true);
-    IF position('30 seconds' IN def) = 0 THEN
+    -- pg_get_viewdef prints interval '30 seconds' as '00:00:30'::interval
+    IF position('''00:00:30''::interval' IN def) = 0 THEN
         RAISE EXCEPTION 'controller_session_merged: expected 30 second window not found';
     END IF;
-    def := replace(def, '30 seconds', '60 seconds');
+    def := replace(def, '''00:00:30''::interval', '''00:01:00''::interval');
     EXECUTE 'CREATE OR REPLACE VIEW controller_session_merged AS ' || rtrim(def, '; ' || chr(10));
 END $$;
 
@@ -67,7 +68,7 @@ DO $$
 DECLARE def text;
 BEGIN
     def := pg_get_viewdef('controller_session_merged'::regclass, true);
-    def := replace(def, '60 seconds', '30 seconds');
+    def := replace(def, '''00:01:00''::interval', '''00:00:30''::interval');
     EXECUTE 'CREATE OR REPLACE VIEW controller_session_merged AS ' || rtrim(def, '; ' || chr(10));
 END $$;
 
