@@ -124,6 +124,17 @@ jobs:
           VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test
           VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
         run: pytest tests/integration -m integration -q
+      # Second pass, same database and same tests, but the test connection's session time zone is Australia/Sydney
+      # (production is UTC and grafana_ro is pinned to UTC, so only the tests' own connection moves). This is what
+      # catches SQL that stopped converting to UTC (issue #51, mutants U03, U05, U07 in docs/TEST_AUDIT.md). It adds about a minute.
+      - name: pytest (integration, session time zone Australia/Sydney)
+        env:
+          PYTHONPATH: collector/src
+          VATPAC_TEST_STRICT: "1"
+          VATPAC_TEST_EXPECT_TZ: Australia/Sydney
+          VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test?options=-c%20TimeZone%3DAustralia/Sydney
+          VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
+        run: pytest tests/integration -m integration -q
 
   config-drift:
     runs-on: ubuntu-latest
