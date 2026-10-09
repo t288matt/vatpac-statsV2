@@ -82,6 +82,7 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (watchdog) | `db`, `${POSTGRES_DB}`, `watchdog_ro`, `${WATCHDOG_DB_PASSWORD}` | Watchdog's database login. |
 | `ARCHIVE_DIR` (watchdog) | `/archive` | Set by compose: the `archive` volume mounted read-only into the watchdog for the cross-check. |
 | `REFERENCE_CONFIG_DIR` (watchdog) | `/config` | Set by compose: `./config` mounted read-only (polygon and whitelist the cross-check recomputes with). |
+| `BACKUP_REMOTE_ENABLED` (watchdog) | `1` when `BACKUP_REMOTE` is non-empty, else empty (`${BACKUP_REMOTE:+1}`) | On/off flag for the `backup_remote` check (is the off-box copy still succeeding). The `BACKUP_REMOTE` command itself is not passed to the watchdog. |
 | `BACKUP_DIR`, `STATUS_FILE` (watchdog) | `/backups`, `/var/watchdog/watchdog_status.json` | Volumes the watchdog reads and writes. |
 
 ### A3. Read by the code but not wired through compose

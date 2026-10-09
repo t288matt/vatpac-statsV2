@@ -170,6 +170,12 @@ def _backup_age(level: str, detail: str) -> str:
     return f"The newest database backup is {age} old; one should be made every night. Take one by hand (run make backup from ~/vatpac-statsV2 on the VM) and check the backup log."
 
 
+def _backup_remote(level: str, detail: str) -> str:
+    return ("The nightly backup is being made, but the copy to the second location (off the VM) has not succeeded recently, so losing "
+            "the VM disk could lose the backups too. Check the backup log (docker compose logs --tail=50 backup, from ~/vatpac-statsV2 "
+            "on the VM) and the copy destination (see docs/RUNBOOKS/restore.md on the VM, Off-box copies).")
+
+
 def _restore_test(level: str, detail: str) -> str:
     if "FAILED" in detail:
         return ("The weekly test that proves a backup can really be restored has failed, so a recent backup may be unusable. "
@@ -268,6 +274,7 @@ _FIXED = {
     "db_size": _db_size,
     "disk": _disk,
     "backup_age": _backup_age,
+    "backup_remote": _backup_remote,
     "restore_test": _restore_test,
     "identity_flap": _identity_flap,
     "feed_archive": _feed_archive,
@@ -286,6 +293,7 @@ _RECOVERED = {
     "db_size": "The database size is back within the expected range.",
     "disk": "The disk has enough free space again.",
     "backup_age": "A fresh database backup now exists.",
+    "backup_remote": "The off-box backup copy is working again.",
     "restore_test": "The weekly backup restore test is in order again.",
     "identity_flap": "No duplicated sessions are left in the last 24 hours.",
     "feed_archive": "The raw-data archive is being written again.",

@@ -151,3 +151,53 @@ def test_check_backup_skips_a_dump_deleted_between_listing_and_stat(tmp_path: Pa
     level, detail = wd.check_backup(wd.Config(), _t.time())
     assert level == wd.OK and "newest backup" in detail
     assert os.path.exists(good)
+
+
+# ---------------------------------------------------------------- backup_remote (issue 91)
+def _remote_cfg(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, enabled: bool = True) -> Any:
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path))
+    if enabled:
+        monkeypatch.setenv("BACKUP_REMOTE_ENABLED", "1")
+    else:
+        monkeypatch.delenv("BACKUP_REMOTE_ENABLED", raising=False)
+    return wd.Config()
+
+
+def _stamp(hours_ago: float) -> str:
+    import time as _t
+    return _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime(_t.time() - hours_ago * 3600))
+
+
+def test_backup_remote_is_inactive_without_the_flag(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import time as _t
+    level, detail = wd.check_backup_remote(_remote_cfg(monkeypatch, tmp_path, enabled=False), _t.time() - 99 * 3600)
+    assert level == wd.OK and "not configured" in detail
+
+
+@pytest.mark.parametrize("hours,level", [(1, "ok"), (25.5, "ok"), (27, "warn"), (200, "warn")])
+def test_backup_remote_marker_age(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, hours: float, level: str) -> None:
+    import time as _t
+    cfg = _remote_cfg(monkeypatch, tmp_path)
+    (tmp_path / ".last_remote_success").write_text(_stamp(hours) + "\n")
+    assert wd.check_backup_remote(cfg, _t.time())[0] == level
+
+
+def test_backup_remote_missing_marker_waits_then_warns(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import time as _t
+    cfg = _remote_cfg(monkeypatch, tmp_path)
+    assert wd.check_backup_remote(cfg, _t.time() - 3600)[0] == wd.OK
+    assert wd.check_backup_remote(cfg, _t.time() - 30 * 3600)[0] == wd.WARN
+
+
+def test_backup_remote_unreadable_content_falls_back_to_the_file_time(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import time as _t
+    cfg = _remote_cfg(monkeypatch, tmp_path)
+    (tmp_path / ".last_remote_success").write_text("garbage")
+    assert wd.check_backup_remote(cfg, _t.time())[0] == wd.OK
+
+
+def test_compose_passes_only_a_flag_never_the_remote_command() -> None:
+    text = (REPO / "docker-compose.yml").read_text(encoding="utf-8")
+    wd_block = text[text.index("  watchdog:"):]
+    assert "BACKUP_REMOTE_ENABLED: ${BACKUP_REMOTE:+1}" in wd_block
+    assert "BACKUP_REMOTE: " not in wd_block
