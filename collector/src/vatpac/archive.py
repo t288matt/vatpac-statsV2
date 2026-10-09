@@ -174,7 +174,7 @@ class Archive:
                 self._put(self.root / "compact" / f"{snap_ts:%Y%m%d}" / f"{snap_ts:%H%M%S}.json.gz", body)
                 self._slot["compact"] = int(epoch // s.archive_compact_every_s)
             if self.stopping.is_set():
-                return  # shutting down: leave the full file (the next start writes it) rather than outlast Docker's grace period
+                return  # shutting down: skip the full file rather than outlast Docker's grace period
             if self._slot.get("full") != int(epoch // s.archive_full_every_s):
                 self._put(self.root / "full" / f"{snap_ts:%Y%m%d}" / f"{snap_ts:%H%M%S}.json.gz", raw)
                 self._slot["full"] = int(epoch // s.archive_full_every_s)
