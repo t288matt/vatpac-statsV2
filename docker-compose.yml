@@ -15,7 +15,7 @@ x-logging: &logging
 
 services:
   db:
-    image: postgres:16.4-bookworm
+    image: postgres:16.15-bookworm
     restart: unless-stopped
     logging: *logging
     mem_limit: 2g
