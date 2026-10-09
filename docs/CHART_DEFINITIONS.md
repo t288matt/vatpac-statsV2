@@ -156,3 +156,52 @@ The retention dashboard is built from the v1 Metabase SQL (owner's export, 08-10
 | monitoring/collector-health.json: Poll duration | Poll duration. | poll_history |
 | monitoring/collector-health.json: Recent poll errors | Recent poll errors. | poll_history |
 | monitoring/collector-health.json: Data freshness (data engineer view) | The data_freshness view as supplied. | data_freshness |
+
+## In-progress flights (ADR-025, 09-10-2026)
+
+Owner decision (issue #38): a flight that is still connected (`flight.is_in_progress`, migration 20261009000130) is left out of every flight count, rank and airborne-time sum, as v1 never summarised a flight until 8 hours after it ended. Panels about who is connected now keep showing it. Where the filter lives: migration `20261009000140` adds `WHERE NOT is_in_progress` to `flight_ext`, so `movements` (the flight's departure and its arrival both go) and `cohorts` inherit it; panels that read `flight` directly carry `NOT is_in_progress` (or `NOT f.is_in_progress`) in their own SQL. `flight` and `flight_part` still list every flight. A flight returns to the counts once no session of it is online (two polls, 60 s, after the last sighting); if the collector is stale, nothing is in progress and nothing is hidden. Guarded by `tests/test_in_progress_panels.py` and `tests/integration/test_exclude_in_progress.py`.
+
+Class: **COUNT** counts, ranks or sums completed flights or airborne time (in-progress excluded); **LIVE** about who is connected now (kept); **OTHER** neither (reason given).
+
+| Dashboard: panel | Reads | Class | How excluded |
+|---|---|---|---|
+| demographics/pilot-origins: Where pilots currently online come from | pilot_online_now | LIVE | not filtered |
+| demographics/pilot-origins: Who flies most in Australian airspace (flights by home region) | flight_ext | COUNT | view |
+| demographics/pilot-origins: Who spends most time in Australian airspace (airborne hours) | flight_ext | COUNT | view |
+| demographics/pilot-origins: Flights by joining cohort | cohorts | COUNT | view (via flight_ext) |
+| demographics/pilot-origins: Servers used by home-region pilots | flight_ext | COUNT | view |
+| demographics/pilot-origins: Active pilots and controllers (pilot bar only; controller bars are sessions) | flight_ext, controller_session_ranked | COUNT | view |
+| events/monday-events: Monday event attendance | monday_attendance | OTHER | unchanged, see "Needs owner decision" |
+| events/monday-events: Share of YMML-YSSY airborne time flown by local pilots | flight_ext | COUNT | view |
+| events/monday-events: Airborne aircraft during the latest Monday event | pilot_sample | OTHER | position samples, not flights; unchanged |
+| management/management: Australian-based pilots and ATC online each month (pilot side) | flight | COUNT | SQL |
+| management/management: Pilot hours per month (names with Y) | flight | COUNT | SQL |
+| military/military: Most popular military aircraft (unique pilots) | flight_ext | COUNT | view |
+| military/military: Most popular RAAFv routes | flight_ext | COUNT | view |
+| military/military: Hours flown by RAAFv aircraft per week | flight_ext | COUNT | view |
+| military/military: RAAFv flights (list of flights, 7 days) | flight | COUNT | SQL (a list of completed flights, v1 parity) |
+| military/military: RAAFv flights by aircraft type | flight_ext | COUNT | view |
+| military/military: Most popular RAAFv aircraft last month (flights) | flight | COUNT | SQL |
+| military/military: Flights flown by RAAFv aircraft per week | flight_ext | COUNT | view |
+| pilots/pilot-onboarding: Pilots who logged on but never flew (90 days) | flight | COUNT | SQL |
+| pilots/pilot-onboarding: Pilots who logged on in a month but never flew that month | flight | COUNT | SQL |
+| pilots/pilot-onboarding: Pilots who flew last month but not this month (lapsed) | flight | COUNT | SQL |
+| pilots/pilots-now: Pilots online now (in region, network-wide) and Pilots online over time | network_history | LIVE | not filtered |
+| pilots/pilots-now: When are people online on weekdays / weekends | flight | COUNT | SQL |
+| pilots/pilots-now: Departure board | pilot_latest | LIVE | not filtered |
+| pilots/pilots-traffic: Most popular international routes, domestic routes, VFR routes | flight_ext | COUNT | view |
+| pilots/pilots-traffic: Pilots with the most diverse routes | flight_ext | COUNT | view |
+| pilots/pilots-traffic: Busiest and quietest home-region airports | movements | COUNT | view (via flight_ext) |
+| pilots/pilots-traffic: Most popular airlines, callsigns, aircraft by flights, aircraft by pilots | flight_ext | COUNT | view |
+| pilots/pilots-traffic: Highest groundspeeds | flight_ext | COUNT | view |
+| pilots/pilots-traffic: Busiest days by flights | flight_ext | COUNT | view |
+| pilots/pilots-traffic: Busiest days by pilots online | flight | COUNT | SQL |
+| pilots/pilots-traffic: Flights with SELCAL in the remarks | flight_ext | COUNT | view |
+| pilots/pilots-traffic: Which member spent the most time online | flight | COUNT | SQL |
+| atc/*, monitoring/collector-health | controller and collector views | OTHER | controllers and sessions are not flights; unchanged |
+
+Eleven panels read `flight` directly (the ones marked SQL: management 2, military 2, pilot-onboarding 3, pilots-now 2, pilots-traffic 2). Views: `flight` (base, keeps in-progress), `flight_part` (no panel reads it), `flight_ext` (filtered), `movements` and `cohorts` (inherit), `monday_attendance` (reads `flight_summary`, unchanged), `pilot_latest`, `pilot_online_now`, `online_now`, `network_history` (live, unchanged).
+
+### Needs owner decision
+
+- **Monday event attendance** (`monday_attendance`, events/monday-events panel 2): it counts distinct pilot CIDs present at any time between 0700Z and 1200Z, a head count of people, not of flights, and it reads `flight_summary` rather than `flight`. Options: (a) leave it, so a pilot still connected during the event is counted as present (people are there); (b) exclude in-progress flights, so the current Monday under-counts until pilots disconnect, as v1 did for 8 hours. Recommendation: (a), because the panel answers who attended, and hiding people who are at the event right now would make the live Monday read low. Left unchanged.

@@ -545,7 +545,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT (f.logon_time AT TIME ZONE 'UTC')::date AS member_date,\n       trim(to_char(f.logon_time AT TIME ZONE 'UTC', 'Day')) AS day_name,\n       count(DISTINCT f.cid) AS unique_pilots,\n       row_number() OVER (ORDER BY count(DISTINCT f.cid) DESC, (f.logon_time AT TIME ZONE 'UTC')::date DESC) AS rank\nFROM flight f\nWHERE f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1, 2\nORDER BY unique_pilots DESC, member_date DESC\nLIMIT 10"
+          "rawSql": "SELECT (f.logon_time AT TIME ZONE 'UTC')::date AS member_date,\n       trim(to_char(f.logon_time AT TIME ZONE 'UTC', 'Day')) AS day_name,\n       count(DISTINCT f.cid) AS unique_pilots,\n       row_number() OVER (ORDER BY count(DISTINCT f.cid) DESC, (f.logon_time AT TIME ZONE 'UTC')::date DESC) AS rank\nFROM flight f\nWHERE NOT f.is_in_progress\n  AND f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1, 2\nORDER BY unique_pilots DESC, member_date DESC\nLIMIT 10"
         }
       ],
       "options": {},
@@ -638,7 +638,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table (see docs/t15_notes/a_pilots_people.md): one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n)\nSELECT\n    cid,\n    name,\n    ROUND(SUM(total_enroute_time_minutes) / 60.0) AS total_enroute_hours\nFROM flight_summaries\nWHERE\n    SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n    AND total_enroute_time_minutes > 30\n    AND completion_time >= NOW() - INTERVAL '7 days'\nGROUP BY cid, name\nORDER BY SUM(total_enroute_time_minutes) DESC, cid\nLIMIT 10"
+          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table (see docs/t15_notes/a_pilots_people.md): one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n  WHERE NOT is_in_progress\n)\nSELECT\n    cid,\n    name,\n    ROUND(SUM(total_enroute_time_minutes) / 60.0) AS total_enroute_hours\nFROM flight_summaries\nWHERE\n    SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n    AND total_enroute_time_minutes > 30\n    AND completion_time >= NOW() - INTERVAL '7 days'\nGROUP BY cid, name\nORDER BY SUM(total_enroute_time_minutes) DESC, cid\nLIMIT 10"
         }
       ],
       "options": {
