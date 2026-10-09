@@ -1,6 +1,8 @@
 # V1 against v3 comparison (issue #19, tracker T21)
 
 Status: COMPLETE for pilots, controllers, flights and movements (09-10-2026). Sections 1 to 5 (method and the EXPECTED differences) were committed on their own at about 07:45 UTC BEFORE any v1 and v3 figures were compared (commit 24f07d5); section 4 is unchanged. Sections 6 onward are the results, added in a later commit. Cards 94 and 95 cannot be compared yet (section 6.8).
+**CORRECTION 09-10-2026 (see section 12):** sections 6.5, 7, 8 and 9 below say v1 omits about 22% of the flights its raw table holds. That was wrong. It came from matching flights on logon time, which cannot match a v1 summary that merged several reconnects. After the reconnect merge (ADR-023), 176 of 177 v3 flights have a v1 summary and all 173 v1 summaries have a v3 flight. Issue #73 is corrected accordingly. The controller double counting (6.4) stands.
+
 
 ## 1. Rules for touching v1 (owner approval 09-10-2026, read-only)
 - SELECT only, inside a session with `SET default_transaction_read_only = on` and `statement_timeout = '30s'`.
@@ -231,3 +233,9 @@ Keep to section 1. Pull per-poll rows from v1 `flights` (primary-key range from 
 | 1 | Pilot sessions split by reconnects (v1 merged them) | Merge like v1: same CID, callsign, departure and arrival, gap of 120 minutes or less. Built on branch flight-reconnect-merge (ADR-023, T41, issue #35). |
 | 2 | Parked sessions with no airborne time still count as flights and movements (issue #74) | Behave as v1 does: no change. |
 | 3 | v3 stores pilots' positions before they file a plan; v1 dropped them | Keep v3 as it is. |
+
+## 12. Correction: v1 does not skip flights (09-10-2026)
+- **Error:** 6.5 matched flights on (CID, callsign, logon time). v1 merges the sessions of one flight (same CID, callsign, departure, arrival, gaps of 120 minutes or less; app/services/session_selector.py), so a v1 summary carries only the first logon time, and the later sessions of the same flight looked "missing". 48 of the 59 "v3-only" flights were such reconnect parts, not omissions.
+- **Corrected figures** (window 08-10-2026 08:00 to 23:00 UTC, v3 merged by the same rule, matched on CID, callsign and overlapping time): v3 177 flights, v1 173 summaries. 176 of 177 v3 flights have a v1 summary; the one without is a one-sample flight (E1). 0 of 173 v1 summaries lack a v3 flight. Flights with no airborne time fall from 49 to 16.
+- **What still stands:** v1 summaries appear 6 to 15 hours after the flight ends; v1 controller summaries hold overlapping duplicate rows (6.4); v1 flight summaries hold 3 duplicate sessions from amended plans (E5); pilot sets agree poll by poll once the flight gate is allowed for (6.3); movements are identical on shared flights (6.7).
+- **What is withdrawn:** the claims that v1 summarises 78% of its flights, that v3 flight and movement counts run a quarter to a third above v1, and finding F1's first half. With the reconnect merge v3 and v1 flight counts agree to within 2%.
