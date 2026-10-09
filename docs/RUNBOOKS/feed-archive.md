@@ -4,7 +4,7 @@ Last reviewed: 08-10-2026, against `collector/src/vatpac/archive.py`. Times are 
 
 ## What is kept
 
-The collector writes a rolling archive to the named volume `archive` (mounted at `/archive`, owned by the collector's non-root user, `ARCHIVE_DIR`). Every file is gzipped JSON, written once to a temporary name and renamed into place. Nothing is ever appended to, so the disk sees a few sequential writes per hour. The archive is written after the snapshot is stored, by a single background thread; if it fails the poll is not affected (the failure is counted and logged once).
+The collector writes a rolling archive to the named volume `archive` (mounted at `/archive`, owned by the collector's non-root user, `ARCHIVE_DIR`). Every file is gzipped JSON, written once to a temporary name and renamed into place. Nothing is ever appended to, so the disk sees a few sequential writes per hour. The archive is written after the snapshot is stored, by a single background thread; if it fails the poll is not affected (the failure is counted and logged once). On shutdown (SIGTERM) the thread starts no further write: a job in progress skips its full-file write and queued jobs are abandoned, so the exit stays inside Docker's 10 s grace period (issue 69); only the single gzip write already running can still finish.
 
 | Folder | Content | When | Kept | Size |
 |---|---|---|---|---|
