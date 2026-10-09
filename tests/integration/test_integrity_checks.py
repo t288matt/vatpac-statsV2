@@ -453,9 +453,11 @@ def test_cross_check_reports_a_damaged_archive_file(arc: Archive, conn: Any, dsn
 def test_the_scheduled_cross_check_end_to_end(arc: Archive, conn: Any, dsn: str, tmp_path: Path) -> None:
     state: dict[str, Any] = {}
     p = plan(dsn, arc.root, invariants_interval_s=0)
-    now = (T0 + timedelta(days=1)).timestamp()
+    now = (T0 + timedelta(minutes=10)).timestamp()
     res, _ = integrity.run_due(p, state, now=now)
     assert res["feed_crosscheck"][0] == "ok" and "1 archived snapshots match" in res["feed_crosscheck"][1]
     conn.execute("UPDATE network_snapshot SET controllers_in_region = controllers_in_region + 1")
-    res, _ = integrity.run_due(p, state, now=now + 14 * 86400)
+    assert integrity.run_due(p, state, now=now + 3600)[0]["feed_crosscheck"][0] == "ok"  # not due yet: the stored result stands
+    state["integrity"]["feed_crosscheck"]["last_run"] = now - 14 * 86400  # fourteen days later
+    res, _ = integrity.run_due(p, state, now=now)
     assert res["feed_crosscheck"][0] == "warn" and "controllers_in_region" in res["feed_crosscheck"][1]
