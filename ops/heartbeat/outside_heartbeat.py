@@ -12,11 +12,12 @@ TELEGRAM_MATT_CHAT_ID) and are never printed. Plain ASCII messages only.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 FAIL_AFTER = 2
@@ -51,12 +52,10 @@ def main() -> int:
     ap.add_argument("--test-prefix", default="")
     a = ap.parse_args()
     state = {"fails": 0, "alerted": False}
-    try:
+    with contextlib.suppress(OSError, ValueError):
         state.update(json.loads(a.state.read_text(encoding="utf-8")))
-    except (OSError, ValueError):
-        pass
     ok, why = check(a.url)
-    now = datetime.now(timezone.utc).strftime("%d-%m-%Y %H:%M UTC")
+    now = datetime.now(UTC).strftime("%d-%m-%Y %H:%M UTC")
     pre = f"{a.test_prefix} " if a.test_prefix else ""
     if ok:
         if state["alerted"]:
