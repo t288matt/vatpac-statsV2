@@ -1,6 +1,6 @@
 # Runbook: the scheduled data-integrity checks
 
-Last reviewed: 09-10-2026, against `ops/watchdog/integrity.py` and `ops/audit/invariants.sql`. Times are UTC. GitHub issue 20, tracker T16 (slim version; invariant pack defects: issue 77, tracker T54). Alert meanings are in [alerts.md](alerts.md); this page says what the checks do, how to run them by hand and what is deliberately not automated.
+Last reviewed: 09-10-2026, against `ops/watchdog/integrity.py` and `ops/audit/invariants.sql`. Times are UTC. GitHub issue 20, tracker T16 (slim version; invariant pack defects: issue 77, tracker T55). Alert meanings are in [alerts.md](alerts.md); this page says what the checks do, how to run them by hand and what is deliberately not automated.
 
 ## What runs, where and how often
 
