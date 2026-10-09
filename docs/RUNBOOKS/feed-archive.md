@@ -76,6 +76,6 @@ All settings are in `.env` (see [../CONFIG_MAP.md](../CONFIG_MAP.md)): `ARCHIVE_
 ## If it misbehaves
 
 - `errors` above 0 and `last_write_age_seconds` growing: the volume is full or unwritable. `df -h /` on the VM, `docker compose logs collector | grep "archive failed"` for the first error. Polling is unaffected.
-- `dropped` above 0: a write took longer than the poll interval and one snapshot was skipped by the archive (harmless; a slow disk).
+- `dropped` above 0: a write took longer than the poll interval and one snapshot was skipped by the archive (harmless; a slow disk). After a failed write (disk full) the archive also pauses for 60 seconds, counting each skipped poll as dropped, and the partial temporary file is removed at once (issue 68).
 - The size sits at the cap: lower the retention days or raise `ARCHIVE_MAX_MB`; many `poll_error` or `gap` files point at a feed problem, see [feed-outage.md](feed-outage.md).
 - Disk wear (issue 14): the archive adds about 13 file writes an hour (about 0.8 MB). It writes each file once with an atomic rename and never appends.
