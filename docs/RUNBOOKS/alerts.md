@@ -14,18 +14,18 @@ The watchdog is **alert-only**: it has no Docker access, so it never restarts an
 
 ## Message formats
 
-Every Telegram message is plain ASCII text (no emoji) and has the same shape: `VATPAC Stats: <label> (HH:MM UTC).`, then one or two plain sentences (what happened, whether data is affected, whether you must do anything), then one last line starting `Technical: ` with the check name and the key numbers. The label is `heads up` (WARN), `problem` (CRIT) or `all clear` (RECOVERED). A RECOVERED message says how long the problem lasted ("The problem lasted about 4 minutes.") when the watchdog knows when it began (it keeps the start time in the status file); after an upgrade, or if the start is unknown, the sentence is left out rather than guessed. A WARN that follows a CRIT of the same check starts "This has eased from a problem to a warning." The wording lives in `ops/watchdog/messages.py` (pure functions, tested by `tests/test_humane_messages.py`). If the wording code ever fails, the alert is still sent in the old technical form (`vatpac-stats: WARN ...`) and the error is logged (`could not format the alert`). A check name the wording does not know gets a generic sentence plus the technical line; a test fails if a check in this runbook has no wording of its own, or if an invariant is added to `ops/audit/invariants.sql` without a plain sentence.
+Every Telegram message is plain ASCII text (no emoji) and has the same shape: `VATPAC Stats: <label> (HH:MM UTC).`, then one or two plain sentences (what happened, whether data is affected, whether you must do anything), then one last line starting `Technical: ` with the check name and the key numbers. The label is `heads up` (WARN), `problem` (CRIT) or `all clear` (RECOVERED). A RECOVERED message says how long the alert was active ("The alert was active for about 4 minutes.") when the watchdog knows when the alert was raised (it keeps that time in the status file). This is not the true length of the problem: the clock starts when the alert is confirmed (after `WATCHDOG_CONFIRM_CYCLES` cycles, and for `poll_log_ok_age` and `network_snapshot_age` only after the data was already 1 to 5 minutes late), and a time kept across a watchdog outage can run long. After an upgrade, or if the time is unknown, the sentence is left out rather than guessed. Every message that points to a guide names its file (for example `docs/RUNBOOKS/stuck-collector.md` on the VM), and commands such as `make backup` are said to run from `~/vatpac-statsV2` on the VM. A WARN that follows a CRIT of the same check starts "This has eased from a problem to a warning." The wording lives in `ops/watchdog/messages.py` (pure functions, tested by `tests/test_humane_messages.py`). If the wording code ever fails, the alert is still sent in the old technical form (`vatpac-stats: WARN ...`) and the error is logged (`could not format the alert`). A check name the wording does not know gets a generic sentence plus the technical line; a test fails if a check in this runbook has no wording of its own, or if an invariant is added to `ops/audit/invariants.sql` without a plain sentence.
 
 Examples:
 
 ```
-VATPAC Stats: problem (14:05 UTC). No fresh VATSIM data for about 5 minutes. The system keeps retrying; if this lasts, the collector may be stuck (see the stuck-collector guide).
+VATPAC Stats: problem (14:05 UTC). No fresh VATSIM data for about 5 minutes. The system keeps retrying; if this lasts, the collector may be stuck (see docs/RUNBOOKS/stuck-collector.md on the VM).
 Technical: poll_log_ok_age, newest ok poll is 312s old
 
-VATPAC Stats: all clear (14:09 UTC). Data is flowing again. The problem lasted about 4 minutes.
+VATPAC Stats: all clear (14:09 UTC). Data is flowing again. The alert was active for about 4 minutes.
 Technical: poll_log_ok_age recovered (was crit), newest ok poll is 5s old
 
-VATPAC Stats: heads up (14:05 UTC). A routine data check found a problem: no data was recorded for more than 5 minutes at some point in the last 3 days. Nothing to do unless it keeps happening (see the integrity-checks guide).
+VATPAC Stats: heads up (14:05 UTC). A routine data check found a problem: no data was recorded for more than 5 minutes at some point in the last 3 days. Nothing to do if the time matches an outage you already know about; otherwise see docs/RUNBOOKS/integrity-checks.md on the VM.
 Technical: data_integrity, 1 of 18 checks failing: snapshot gaps over 5 minutes (last 3 days)
 
 VATPAC Stats: heads up (14:05 UTC). A controller logged on with a callsign that is not on the whitelist, so they are not being recorded: YSSY_X_TWR. It looks like a new position; add it to the whitelist if it is real.
@@ -37,24 +37,24 @@ Old wording to new wording (the plain sentence of the new message, without the l
 | Old (after `vatpac-stats: `) | New |
 |---|---|
 | `CRIT poll_log_ok_age: newest ok poll is 312s old` | No fresh VATSIM data for about 5 minutes. The system keeps retrying; if this lasts, the collector may be stuck. |
-| `RECOVERED poll_log_ok_age (was crit): ...` | Data is flowing again. The problem lasted about 4 minutes. |
+| `RECOVERED poll_log_ok_age (was crit): ...` | Data is flowing again. The alert was active for about 4 minutes. |
 | `WARN network_snapshot_age: newest snapshot is 90s old` | The newest stored picture of the network is about 2 minutes old. Usually a brief hiccup; no action unless it grows. |
 | `CRIT collector_health: unreachable (ConnectError)` | The data collector is not answering properly, so new VATSIM data may not be arriving. It keeps trying; check whether VATSIM is down or the collector is stuck. |
 | `CRIT grafana_health: ...` | The dashboards (Grafana) are down or unwell. Data collection is not affected. Restart Grafana when convenient. |
 | `CRIT database: query/connect failed (...)` | The watchdog cannot read the database, so the checks that need it are blind. Collection may still be running. |
 | `WARN db_size: 21.40 GB (limit 20)` | The database has grown to 21.4 GB, more than expected (normally 2 to 3 GB). Nothing is broken yet. |
-| `WARN disk: /backups 82% used, / 50% used` | The VM disk is 82% full. Nothing breaks yet, but it needs clearing within days. (CRIT: writes could start to fail soon, clear space today.) |
-| `CRIT backup_age: newest backup 27.3 h old` | The newest database backup is 27 hours old; one should be made every night. Take one by hand (make backup) and check the backup log. |
-| `CRIT restore_test: ... FAILED ...` | The weekly test that proves a backup can really be restored has failed, so a recent backup may be unusable. Run make backup-test. (WARN forms: overdue, or result unreadable.) |
-| `WARN identity_flap: ...` | VATSIM may have changed how it stamps logon times again, so one connection could be stored as two and flight counts inflated. Not urgent today, but an engineer should look. |
+| `WARN disk: /backups 82% used, / 50% used` | A disk on the VM (/backups) is 82% full. Nothing breaks yet, but it needs clearing within days. (CRIT: writes could start to fail soon, clear space today.) |
+| `CRIT backup_age: newest backup 27.3 h old` | The newest database backup is 27 hours old; one should be made every night. Take one by hand (run make backup from ~/vatpac-statsV2 on the VM) and check the backup log. |
+| `CRIT restore_test: ... FAILED ...` | The weekly test that proves a backup can really be restored has failed, so a recent backup may be unusable. Run make backup-test from ~/vatpac-statsV2 on the VM. (WARN forms: overdue, or result unreadable.) |
+| `WARN identity_flap: ...` | VATSIM may have changed how it stamps logon times again, so one connection could be stored as two and flight counts inflated. Not urgent today, but an engineer should look (the exact command is under `identity_flap` below). |
 | `WARN feed_archive: last write 601s ago ...` | The safety copy of the raw VATSIM data (the archive) has stopped being written. Live collection is not affected. |
-| `WARN data_integrity: 1 of 18 invariants report violations: <name> (1). ...` | A routine data check found a problem: (the failing check in plain words). Nothing to do unless it keeps happening. The Technical line reads "1 of 18 checks failing: <name>". |
-| `WARN data_integrity: new violations since the last sweep: ...` | The routine data check found a new problem on top of the earlier one: (plain words). |
+| `WARN data_integrity: 1 of 18 invariants report violations: <name> (1). ...` | A routine data check found a problem: (the failing check in plain words). Each of the 18 checks has its own action hint: the missing-storage-tables check says writes will fail and to check the collector and maintenance log today; the flight-summary checks say the same; a snapshot gap says nothing to do if it matches a known outage; the rest say an engineer should look. When several fail the sentence adds "(plus N others)", counted from the "N of 18" figure, and points to the integrity-checks guide. The Technical line reads "1 of 18 checks failing: <name>". |
+| `WARN data_integrity: new violations since the last sweep: ...` | The routine data check found a new problem on top of the earlier one: (plain words), with the same action hint. |
 | `WARN data_integrity: invariant sweep could not run (...)` | The routine data check could not run properly (it retries in an hour). Data collection is not affected. |
 | `WARN feed_crosscheck: 1 difference(s) in 24 archived snapshots ...` | The fortnightly check against saved raw VATSIM data found 1 difference: the system may have kept or dropped some pilots or controllers wrongly. Not urgent. |
 | `NEAR-MISS controller callsign(s) not on whitelist: X` | A controller logged on with a callsign that is not on the whitelist, so they are not being recorded: X. It looks like a new position; add it to the whitelist if it is real. |
-| `container:<svc>`, `docker_proxy`, `restart-cap:<svc>`, `RESTARTED <svc>` (inactive here) | The <svc> container is not running properly; the watchdog cannot reach Docker; the <svc> container has hit the hourly restart limit; the watchdog restarted the <svc> container because it looked stuck. |
-| any other check name | A monitoring check (name) has a problem (or a warning). See the alerts guide for what it means. |
+| `container:<svc>`, `docker_proxy`, `restart-cap:<svc>`, `RESTARTED <svc>` (inactive here) | The <svc> container is not running properly (for `migrate`, a one-off job: read its log, it is not meant to stay running); the watchdog cannot reach Docker; the <svc> container has hit the hourly restart limit; the watchdog restarted the <svc> container because it looked stuck. |
+| any other check name | A monitoring check (name) has a problem (or a warning). See docs/RUNBOOKS/alerts.md on the VM for what it means. |
 
 ## What each check means and what to do
 
