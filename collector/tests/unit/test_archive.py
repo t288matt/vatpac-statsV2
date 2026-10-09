@@ -303,3 +303,12 @@ def test_feed_client_keeps_the_raw_body_of_the_last_200_only(tmp_path: Path) -> 
         return seen
 
     assert asyncio.run(go()) == [b'{"a": 1}', None, b"[1]"]
+
+
+@pytest.mark.parametrize(("bound", "expect"), [(30, True), (120, False)])
+def test_ts_future_follows_feed_max_future_seconds(tmp_path: Path, fixture_payload: dict[str, Any], bound: int,
+                                                   expect: bool) -> None:
+    a, _ = make(tmp_path, feed_max_future_seconds=bound)
+    ts = (datetime.now(UTC) + timedelta(seconds=60)).replace(microsecond=0)
+    a._process(raw_at(fixture_payload, ts), ts, "error", 200, "ahead of the clock")
+    assert any("ts_future" in n for n in files(tmp_path / "arc")) is expect

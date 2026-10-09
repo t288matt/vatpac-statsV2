@@ -21,7 +21,7 @@ Anomaly reasons (joined with `+` when several apply):
 | `poll_error` | The poll ended in `error` (HTTP failure, bad JSON, empty feed, too many malformed entries, database timeout) |
 | `gap` | The feed timestamp moved forward by more than `ARCHIVE_GAP_S` (35 s). A single missed tick (30 s) is normal (audit F10) and is not kept |
 | `ts_older` | The feed timestamp is older than the newest one seen |
-| `ts_future` | The feed timestamp is more than 120 s ahead of the VM clock |
+| `ts_future` | The feed timestamp is more than `FEED_MAX_FUTURE_SECONDS` (120 s) ahead of the VM clock. The poll itself is an error, so the file is named `...-poll_error+ts_future` (issue 66) |
 | `precision` | The share of `logon_time` values that have a fractional second dropped by 20 points or more between two polls (at least 50 values). This is the signature of issue 15 / ADR-021 |
 
 Limits: a hard cap `ARCHIVE_MAX_MB` (1024) deletes the oldest compact and full files first and touches anomaly files only when nothing else is left (issue 65). Files past their retention are removed every 10 minutes (twice the compact interval). Stale `.tmp` files from a crash are removed after 10 minutes.
