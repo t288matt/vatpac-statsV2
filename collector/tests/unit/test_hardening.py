@@ -162,6 +162,16 @@ def test_future_bound_defaults_to_120_seconds(fixture_payload: dict, offset: flo
     assert statuses == [expected]
 
 
+def test_rejected_future_snapshot_reaches_the_archive_with_its_own_timestamp(fixture_payload: dict) -> None:
+    """Issue 66: the poll is an error, but the archive must see the feed's timestamp so it can tag ts_future."""
+    col = _collector(Settings(), fixture_payload)
+    col.archive = MagicMock()
+    stamped = _stamped(fixture_payload, 600)
+    _poll_sequence(col, col.feed, [stamped])  # type: ignore[arg-type]
+    _raw, ts, status, *_ = col.archive.submit.call_args.args
+    assert status == "error" and ts is not None and ts > datetime.now(UTC) + timedelta(seconds=500)
+
+
 def test_future_bound_is_the_setting(fixture_payload: dict) -> None:
     col = _collector(Settings(feed_max_future_seconds=600), fixture_payload)
     assert _poll_sequence(col, col.feed, [_stamped(fixture_payload, 500)])[0] == ["ok"]  # type: ignore[arg-type]

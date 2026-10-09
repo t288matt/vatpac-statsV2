@@ -7,6 +7,7 @@ import copy
 import gzip
 import json
 import os
+import threading
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -47,6 +48,7 @@ def test_run_loads_the_last_snapshot_time_after_the_first_maintenance(monkeypatc
         def __init__(self, *a: Any) -> None:
             self.stats = type("S", (), {"reference": {}})()
             self.stop = asyncio.Event()
+            self.archive = type("A", (), {"stopping": threading.Event()})()
 
         async def maintain_once(self) -> bool:
             calls.append("maintain")
@@ -132,8 +134,6 @@ def test_retention_days_apply_per_kind_and_young_files_survive(tmp_path: Path) -
         "anomaly/20261008/x2.json.gz", "compact/20261008/x0.5.json.gz"]
 
 
-@pytest.mark.xfail(strict=True, reason="review finding: with the hard cap the oldest file goes first whatever its kind, so "
-                   "90-day anomaly evidence is deleted before the newer compact and full files it is meant to explain")
 def test_hard_cap_keeps_anomaly_evidence_before_routine_files(tmp_path: Path) -> None:
     a = make(tmp_path, archive_max_mb=1)
     root = tmp_path / "arc"
@@ -146,8 +146,6 @@ def test_hard_cap_keeps_anomaly_evidence_before_routine_files(tmp_path: Path) ->
     assert (root / "anomaly" / "20261008" / "00.json.gz").exists()
 
 
-@pytest.mark.xfail(strict=True, reason="review finding: write_gz leaves its partial .tmp behind when the write fails "
-                   "(disk full), and the leftover holds space until the next prune after 10 minutes")
 def test_failed_write_removes_its_temporary_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     real = Path.write_bytes
 
@@ -161,13 +159,32 @@ def test_failed_write_removes_its_temporary_file(tmp_path: Path, monkeypatch: py
     assert not list((tmp_path / "d").glob("*"))
 
 
-def test_error_poll_submitted_while_busy_is_dropped_and_counted(tmp_path: Path) -> None:
-    """Pins the current design: one job at a time, the next submission is dropped. An error poll that lands on a busy
-    worker therefore leaves no anomaly file (rare at a 15 s cadence; common on a slow disk)."""
+def test_failed_write_backs_off_before_the_next_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    a = arc.Archive(Settings(_env_file=None, archive_dir=str(tmp_path / "arc"), archive_enabled=True), Stats())  # type: ignore[call-arg]
+    monkeypatch.setattr(arc, "write_gz", lambda *x: (_ for _ in ()).throw(OSError(28, "No space left on device")))
+    a._run(b"{}", None, "error", 500, "x")
+    assert a.errors == 1 and a._retry_at > time.time()
+    a.submit(b"{}", None, "error", 500, "x")  # inside the back-off window: not queued, counted as dropped
+    assert a.dropped == 1 and not a._busy
+
+
+def test_error_poll_submitted_while_busy_is_queued_and_written_after_the_current_job(tmp_path: Path) -> None:
+    """Issue 67: an error poll that lands on a busy worker waits (up to 3 deep) instead of being dropped."""
     a = make(tmp_path)
-    a._busy = True
-    a.submit(b"{}", None, "error", 200, "x")
-    assert a.dropped == 1 and not list((tmp_path / "arc").rglob("*"))
+    gate = threading.Event()
+    real, seen = a._process, []
+    a._process = lambda *args: (gate.wait(5), seen.append(args[4]), real(*args))  # type: ignore[method-assign,assignment]
+    a.submit(None, None, "error", 500, "first")  # the worker takes this one and waits on the gate
+    for i in range(5):
+        a.submit(None, None, "error", 500, f"queued {i}")
+    a.submit(b"{}", None, "ok", 200, None)  # a routine job is still dropped while busy
+    assert len(a._pending) == 3 and a.dropped == 3  # two error polls beyond the queue limit, plus the routine one
+    gate.set()
+    deadline = time.time() + 5
+    while a._busy and time.time() < deadline:
+        time.sleep(0.01)
+    assert not a._pending and not a._busy
+    assert seen == ["first", "queued 0", "queued 1", "queued 2"] and a.anomalies == 1  # one file per reason per 5 minutes
 
 
 def test_future_dated_snapshot_is_flagged_and_not_a_baseline(tmp_path: Path) -> None:

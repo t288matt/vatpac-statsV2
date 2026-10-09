@@ -4,7 +4,7 @@ Last reviewed: 08-10-2026, against `collector/src/vatpac/archive.py`. Times are 
 
 ## What is kept
 
-The collector writes a rolling archive to the named volume `archive` (mounted at `/archive`, owned by the collector's non-root user, `ARCHIVE_DIR`). Every file is gzipped JSON, written once to a temporary name and renamed into place. Nothing is ever appended to, so the disk sees a few sequential writes per hour. The archive is written after the snapshot is stored, by a single background thread; if it fails the poll is not affected (the failure is counted and logged once).
+The collector writes a rolling archive to the named volume `archive` (mounted at `/archive`, owned by the collector's non-root user, `ARCHIVE_DIR`). Every file is gzipped JSON, written once to a temporary name and renamed into place. Nothing is ever appended to, so the disk sees a few sequential writes per hour. The archive is written after the snapshot is stored, by a single background thread; if it fails the poll is not affected (the failure is counted and logged once). On shutdown (SIGTERM) the thread starts no further write: a job in progress skips its full-file write and queued jobs are abandoned, so the exit stays inside Docker's 10 s grace period (issue 69); only the single gzip write already running can still finish.
 
 | Folder | Content | When | Kept | Size |
 |---|---|---|---|---|
@@ -21,10 +21,10 @@ Anomaly reasons (joined with `+` when several apply):
 | `poll_error` | The poll ended in `error` (HTTP failure, bad JSON, empty feed, too many malformed entries, database timeout) |
 | `gap` | The feed timestamp moved forward by more than `ARCHIVE_GAP_S` (35 s). A single missed tick (30 s) is normal (audit F10) and is not kept |
 | `ts_older` | The feed timestamp is older than the newest one seen |
-| `ts_future` | The feed timestamp is more than 120 s ahead of the VM clock |
+| `ts_future` | The feed timestamp is more than `FEED_MAX_FUTURE_SECONDS` (120 s) ahead of the VM clock. The poll itself is an error, so the file is named `...-poll_error+ts_future` (issue 66) |
 | `precision` | The share of `logon_time` values that have a fractional second dropped by 20 points or more between two polls (at least 50 values). This is the signature of issue 15 / ADR-021 |
 
-Limits: a hard cap `ARCHIVE_MAX_MB` (1024) deletes the oldest files first, whatever their class. Files past their retention are removed every 10 minutes (twice the compact interval). Stale `.tmp` files from a crash are removed after 10 minutes.
+Limits: a hard cap `ARCHIVE_MAX_MB` (1024) deletes the oldest compact and full files first and touches anomaly files only when nothing else is left (issue 65). Files past their retention are removed every 10 minutes (twice the compact interval). Stale `.tmp` files from a crash are removed after 10 minutes.
 
 Expected writes at the defaults: 12 compact files and 1 full file per hour, about 0.8 MB an hour and about 20 MB a day, plus about 0.6 MB per anomaly. Steady-state size is about 0.4 GB (30 days of compact files, 7 days of full ones), far below the cap.
 
@@ -76,6 +76,6 @@ All settings are in `.env` (see [../CONFIG_MAP.md](../CONFIG_MAP.md)): `ARCHIVE_
 ## If it misbehaves
 
 - `errors` above 0 and `last_write_age_seconds` growing: the volume is full or unwritable. `df -h /` on the VM, `docker compose logs collector | grep "archive failed"` for the first error. Polling is unaffected.
-- `dropped` above 0: a write took longer than the poll interval and one snapshot was skipped by the archive (harmless; a slow disk).
+- `dropped` above 0: a write took longer than the poll interval and one snapshot was skipped by the archive (harmless; a slow disk). Error polls are the exception: while the worker is busy up to 3 of them wait in a queue and are written afterwards, so a poll_error anomaly is only dropped when that queue is full (issue 67). After a failed write (disk full) the archive also pauses for 60 seconds, counting each skipped poll as dropped, and the partial temporary file is removed at once (issue 68).
 - The size sits at the cap: lower the retention days or raise `ARCHIVE_MAX_MB`; many `poll_error` or `gap` files point at a feed problem, see [feed-outage.md](feed-outage.md).
 - Disk wear (issue 14): the archive adds about 13 file writes an hour (about 0.8 MB). It writes each file once with an atomic rename and never appends.
