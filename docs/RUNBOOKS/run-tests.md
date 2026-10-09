@@ -11,7 +11,7 @@ Last reviewed: 09-10-2026. The unit tests are `collector/tests` and `tests` outs
 From the repository root. These are the same commands CI runs.
 
 ```sh
-# unit tests (pytest, shapely and the collector requirements installed; Python 3.11 or newer)
+# unit tests (pytest, pyyaml, shapely and the collector requirements installed; Python 3.11 or newer)
 PYTHONPATH=collector/src python -m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv    # expect all passed; the strict xfails (known defects pinned by tests) show as xfailed
 python grafana/validate_dashboards.py          # dashboard shape and SQL syntax; pip install sqlglot to parse SQL
 python grafana/check_columns.py                # every dashboard column exists in a view; expect "bad 0"
