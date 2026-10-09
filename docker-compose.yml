@@ -86,7 +86,7 @@ services:
       TEXT_MAX_LENGTH: ${TEXT_MAX_LENGTH:-2000}
       FEED_MAX_FUTURE_SECONDS: ${FEED_MAX_FUTURE_SECONDS:-120}
       POSITION_RETENTION_DAYS: ${POSITION_RETENTION_DAYS:-90}
-      AIRBORNE_GAP_CAP_SECONDS: ${AIRBORNE_GAP_CAP_SECONDS:-75}
+      AIRBORNE_GAP_CAP_SECONDS: ${AIRBORNE_GAP_CAP_SECONDS:-}
       HOME_ICAO_PREFIXES: ${HOME_ICAO_PREFIXES:-Y}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       HEALTH_PORT: ${HEALTH_PORT:-8080}
@@ -100,7 +100,7 @@ services:
       ARCHIVE_FULL_KEEP_DAYS: ${ARCHIVE_FULL_KEEP_DAYS:-7}
       ARCHIVE_ANOMALY_KEEP_DAYS: ${ARCHIVE_ANOMALY_KEEP_DAYS:-90}
       ARCHIVE_MAX_MB: ${ARCHIVE_MAX_MB:-1024}
-      ARCHIVE_GAP_S: ${ARCHIVE_GAP_S:-65}
+      ARCHIVE_GAP_S: ${ARCHIVE_GAP_S:-}
     volumes:
       - ./config:/app/config:ro
       # the root filesystem is read-only; the raw-feed archive needs a writable volume (owned by uid 10001, see the Dockerfile)

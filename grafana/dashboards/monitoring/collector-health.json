@@ -320,7 +320,7 @@
       "id": 6,
       "type": "stat",
       "title": "Snapshots missed (last 24 hours)",
-      "description": "Percentage of the expected snapshots (one every 30 s since the switch to 30 s polling on the deploy of ADR-024; for 24 hours after that deploy the figure is inflated because the window still holds 15 s snapshots) that are not in network_snapshot. Acceptance target: under 1%.",
+      "description": "Percentage of the expected snapshots (one every POLL_INTERVAL_SECONDS since go-live, at most 24 hours; for 24 hours after a change of the interval the figure is off because the window mixes both) that are not in network_snapshot. Acceptance target: under 1%.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -341,7 +341,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT GREATEST(0, round(100.0 * (1 - n.actual / NULLIF(n.expected, 0)), 2)) AS \"Missed (%)\"\nFROM (\n  SELECT count(*)::numeric AS actual,\n         floor(extract(epoch FROM (now() - GREATEST(now() - interval '24 hours', (SELECT go_live FROM data_since)))) / 30) AS expected\n  FROM network_history\n  WHERE observed_at >= now() - interval '24 hours'\n) n"
+          "rawSql": "SELECT GREATEST(0, round(100.0 * (1 - n.actual / NULLIF(n.expected, 0)), 2)) AS \"Missed (%)\"\nFROM (\n  SELECT count(*)::numeric AS actual,\n         floor(extract(epoch FROM (now() - GREATEST(now() - interval '24 hours', (SELECT go_live FROM data_since)))) / (SELECT poll_interval_s FROM poll_cadence)) AS expected\n  FROM network_history\n  WHERE observed_at >= now() - interval '24 hours'\n) n"
         }
       ],
       "options": {

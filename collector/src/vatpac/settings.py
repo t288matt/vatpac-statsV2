@@ -5,25 +5,25 @@ connection, assembled with make_conninfo (DATABASE_URL overrides all five). VATS
 discovery through VATSIM_STATUS_URL (data.v3[0]) fails. POLL_INTERVAL_SECONDS [30] (5..300). HTTP_TIMEOUT_SECONDS [10].
 TEXT_MAX_LENGTH [2000]: free-text fields are cut to this many characters at ingest (each cut counts in
 poll_log.rejected_values). FEED_MAX_FUTURE_SECONDS [120]: a snapshot dated further ahead of the clock is a feed error.
-POSITION_RETENTION_DAYS [90]. AIRBORNE_GAP_CAP_SECONDS [75] and HOME_ICAO_PREFIXES [Y, comma separated] are published
-to app_setting for the SQL views. LOG_LEVEL [INFO]. POLYGON_PATH / WHITELIST_PATH: reference files [/app/config/...].
+POSITION_RETENTION_DAYS [90]. AIRBORNE_GAP_CAP_SECONDS [2.5 x the poll interval], POLL_INTERVAL_SECONDS and HOME_ICAO_PREFIXES [Y,
+comma separated] are published to app_setting for the SQL views (the online windows are 2 x the poll interval). LOG_LEVEL [INFO]. POLYGON_PATH / WHITELIST_PATH: reference files [/app/config/...].
 HEALTH_PORT [8080]. CIRCUIT_FAILURE_THRESHOLD [5] consecutive failures open the breaker; CIRCUIT_SLOW_INTERVAL_SECONDS
 [60] is the cadence while open (polling never stops).
 ARCHIVE_ENABLED [true] ARCHIVE_DIR [/archive] ARCHIVE_COMPACT_EVERY_S [300] ARCHIVE_FULL_EVERY_S [3600]
 ARCHIVE_COMPACT_KEEP_DAYS [30] ARCHIVE_FULL_KEEP_DAYS [7] ARCHIVE_ANOMALY_KEEP_DAYS [90] ARCHIVE_MAX_MB [1024]
-ARCHIVE_GAP_S [65]: the rolling raw-feed archive (archive.py, docs/RUNBOOKS/feed-archive.md).
+ARCHIVE_GAP_S [2 x the poll interval + 5]: the rolling raw-feed archive (archive.py, docs/RUNBOOKS/feed-archive.md).
 """
 
 from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(extra="ignore", case_sensitive=False)
+    model_config = SettingsConfigDict(extra="ignore", case_sensitive=False, env_ignore_empty=True)
 
     database_url: str | None = None
     postgres_host: str = "db"
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     text_max_length: int = Field(2000, ge=100, le=100_000)
     feed_max_future_seconds: int = Field(120, ge=15, le=3600)
     position_retention_days: int = Field(90, ge=2, le=3650)
-    airborne_gap_cap_seconds: int = Field(75, ge=15, le=600)
+    airborne_gap_cap_seconds: int | None = Field(None, ge=15, le=600)  # None: 2.5 x poll interval
     home_icao_prefixes: str = "Y"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     polygon_path: str = "/app/config/australian_airspace_polygon.json"
@@ -54,7 +54,16 @@ class Settings(BaseSettings):
     archive_full_keep_days: float = Field(7.0, gt=0, le=3650)
     archive_anomaly_keep_days: float = Field(90.0, gt=0, le=3650)
     archive_max_mb: int = Field(1024, ge=1, le=1_000_000)
-    archive_gap_s: float = Field(65.0, ge=16, le=3600)
+    archive_gap_s: float | None = Field(None, ge=16, le=3600)  # None: 2 x poll interval + 5
+
+    @model_validator(mode="after")
+    def _derive_from_poll_interval(self) -> "Settings":
+        """Everything that scales with the cadence follows POLL_INTERVAL_SECONDS unless set explicitly."""
+        if self.airborne_gap_cap_seconds is None:
+            self.airborne_gap_cap_seconds = max(15, int(round(2.5 * self.poll_interval_seconds)))
+        if self.archive_gap_s is None:
+            self.archive_gap_s = max(16.0, 2 * self.poll_interval_seconds + 5)
+        return self
 
     @field_validator("log_level", mode="before")
     @classmethod
