@@ -53,7 +53,8 @@ def test_observed_at_is_snapshot_time_not_wall_clock(db, payload, refdata) -> No
     apply(db, at(payload), refdata)
     row = db.execute("SELECT min(observed_at) AS lo, max(observed_at) AS hi FROM pilot_position").fetchone()
     assert row["lo"] == row["hi"]
-    assert (row["lo"].year, row["lo"].month, row["lo"].day) == (2026, 10, 7)
+    lo = row["lo"].astimezone(timezone.utc)  # the session time zone must not matter
+    assert (lo.year, lo.month, lo.day) == (2026, 10, 7)
 
 
 def test_idempotent_second_apply_adds_zero_rows(db, payload, refdata) -> None:

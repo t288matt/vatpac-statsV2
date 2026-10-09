@@ -44,7 +44,7 @@ def run_panel(conn, path, title: str) -> list[dict]:
     p = panel(path, title)
     days = int(str(p.get("timeFrom", "30d")).rstrip("d"))
     sql = (p["targets"][0]["rawSql"]
-           .replace("$__timeFrom()", f"(now() - interval '{days} days')")
+           .replace("$__timeFrom()", f"(now() - interval '{days * 24} hours')")  # hours: day intervals shift by an hour across DST in a non-UTC session
            .replace("$__timeTo()", "now()"))
     return conn.execute(sql).fetchall()
 

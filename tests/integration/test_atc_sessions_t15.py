@@ -168,7 +168,8 @@ def test_exactly_four_hours_is_not_enough_but_one_minute_more_is(conn):
     rows = run(conn, EIGHT_HOUR_TITLE)
     assert [r["row_type"] for r in rows] == ["summary", "detail"]   # summary first, then its sessions
     assert rows[0]["cid"] == 9300002 and float(rows[0]["hours_controlled_in_8_hr_period"]) == 4.02
-    assert rows[0]["period_end_utc"] - rows[0]["period_start_utc"] == timedelta(hours=8)
+    span = rows[0]["period_end_utc"].astimezone(UTC) - rows[0]["period_start_utc"].astimezone(UTC)
+    assert span == timedelta(hours=8)   # compared in UTC: same-zone subtraction in Python is wall-clock
     assert rows[1]["hours_controlled_in_8_hr_period"] is None and rows[1]["period_start_utc"] is None
     assert float(rows[1]["session_hours"]) == 4.02
     assert rows[1]["session_start_utc"] == ANCHOR and rows[1]["session_callsign"] == "TEST9300002_TWR"
