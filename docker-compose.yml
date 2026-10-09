@@ -83,6 +83,8 @@ services:
       VATSIM_STATUS_URL: ${VATSIM_STATUS_URL:-https://status.vatsim.net/status.json}
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-15}
       HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-10}
+      TEXT_MAX_LENGTH: ${TEXT_MAX_LENGTH:-2000}
+      FEED_MAX_FUTURE_SECONDS: ${FEED_MAX_FUTURE_SECONDS:-120}
       POSITION_RETENTION_DAYS: ${POSITION_RETENTION_DAYS:-90}
       AIRBORNE_GAP_CAP_SECONDS: ${AIRBORNE_GAP_CAP_SECONDS:-40}
       HOME_ICAO_PREFIXES: ${HOME_ICAO_PREFIXES:-Y}
@@ -90,8 +92,19 @@ services:
       HEALTH_PORT: ${HEALTH_PORT:-8080}
       CIRCUIT_FAILURE_THRESHOLD: ${CIRCUIT_FAILURE_THRESHOLD:-5}
       CIRCUIT_SLOW_INTERVAL_SECONDS: ${CIRCUIT_SLOW_INTERVAL_SECONDS:-60}
+      ARCHIVE_ENABLED: ${ARCHIVE_ENABLED:-true}
+      ARCHIVE_DIR: ${ARCHIVE_DIR:-/archive}
+      ARCHIVE_COMPACT_EVERY_S: ${ARCHIVE_COMPACT_EVERY_S:-300}
+      ARCHIVE_FULL_EVERY_S: ${ARCHIVE_FULL_EVERY_S:-3600}
+      ARCHIVE_COMPACT_KEEP_DAYS: ${ARCHIVE_COMPACT_KEEP_DAYS:-30}
+      ARCHIVE_FULL_KEEP_DAYS: ${ARCHIVE_FULL_KEEP_DAYS:-7}
+      ARCHIVE_ANOMALY_KEEP_DAYS: ${ARCHIVE_ANOMALY_KEEP_DAYS:-90}
+      ARCHIVE_MAX_MB: ${ARCHIVE_MAX_MB:-1024}
+      ARCHIVE_GAP_S: ${ARCHIVE_GAP_S:-35}
     volumes:
       - ./config:/app/config:ro
+      # the root filesystem is read-only; the raw-feed archive needs a writable volume (owned by uid 10001, see the Dockerfile)
+      - archive:/archive
     healthcheck:
       test:
         - CMD
@@ -261,3 +274,4 @@ volumes:
   grafana_data:
   backups:
   watchdog_status:
+  archive:

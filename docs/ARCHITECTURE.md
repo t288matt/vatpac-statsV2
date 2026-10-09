@@ -36,11 +36,12 @@ VATPAC Stats v3 polls the public VATSIM data feed every 15 seconds, keeps the pi
 Step by step, per poll (`collector/src/vatpac/main.py`, `Collector.poll_once`):
 
 1. Fetch the feed. The feed URL is discovered from `https://status.vatsim.net/status.json` (`data.v3[0]`) at start-up, with `VATSIM_FEED_URL` as the fallback.
-2. Read `general.update_timestamp`. If it is not newer than the last processed snapshot, the poll is recorded as `skipped_unchanged` and retried in about 2 seconds (never less than 2 s, at most 5 s, depending on `Cache-Control`).
+2. Read `general.update_timestamp`. If it is not newer than the last processed snapshot (after a restart: the newest stored one, read from the database at start-up), the poll is recorded as `skipped_unchanged` and retried in about 2 seconds (never less than 2 s, at most 5 s, depending on `Cache-Control`). A timestamp more than `FEED_MAX_FUTURE_SECONDS` (default 120) ahead of the collector clock is rejected first, as an `error` poll (audit F2, issue 34); this needs the VM clock to be right (NTP).
 3. Otherwise parse the snapshot. A snapshot with no pilots and no controllers at all is treated as an outage (an error), not as data.
 4. `apply_snapshot` runs in one database transaction: pilot upserts and position inserts, controller upserts and rating/frequency events, near-miss controller sightings, and the `network_snapshot` row. Every row uses the snapshot's own timestamp as `observed_at`.
 5. A `poll_log` row is written for every attempt, including failures. This write is separate from the snapshot transaction, so a failed snapshot still leaves its error row.
 6. The in-memory statistics behind `/health` and `/metrics` are updated.
+7. The raw payload and the poll outcome are queued for the archive thread (`archive.py`), which keeps a compact record every 5 minutes, the full payload hourly and anomaly payloads (poll error, timestamp gap, older or future timestamp, `logon_time` precision change). This runs after the snapshot is stored, off the poll path, and can never fail or slow a poll ([runbook: feed archive](RUNBOOKS/feed-archive.md)).
 
 Replaying a snapshot inserts zero rows: sessions are upserted on `(cid, callsign, logon_time)`, positions on `(session_id, observed_at)` with `ON CONFLICT DO NOTHING`, and `network_snapshot` on `observed_at`.
 
@@ -52,7 +53,7 @@ Defined in `docker-compose.yml` (project name `vatpac`, one internal network, `j
 |---|---|---|---|
 | `db` | `postgres:16.4-bookworm` | The database. | Named volume `pgdata`; `--data-checksums`; tuning in `ops/postgres/postgresql.conf`; healthcheck `pg_isready`; port not published (the dev overlay publishes `127.0.0.1:55432` only). |
 | `migrate` | `ops/migrate` (dbmate 2.21.0 and psql) | One-shot: applies new `db/migrations/*.sql`, then `db/roles.sql` (roles `grafana_ro`, `collector`, `backup_ro`) and creates `watchdog_ro`. | `restart: "no"`. Safe to re-run on every `up`. `./db` is mounted read-only, so new migration files need no image rebuild. Other services wait for `service_completed_successfully`. |
-| `collector` | `collector/Dockerfile` | The only writer. Poll loop, daily maintenance, `/health` and `/metrics`. | Connects as the least-privilege role `collector`. Non-root, read-only filesystem, all capabilities dropped, `config/` mounted read-only at `/app/config`, 512 MB. |
+| `collector` | `collector/Dockerfile` | The only writer. Poll loop, daily maintenance, `/health` and `/metrics`. | Connects as the least-privilege role `collector`. Non-root, read-only filesystem, all capabilities dropped, `config/` mounted read-only at `/app/config`, 512 MB. The only writable place is the named volume `archive` at `/archive` (the raw-feed archive, owned by uid 10001). |
 | `grafana` | `grafana/grafana-oss:11.2.2` | Dashboards, provisioned from `grafana/provisioning` and `grafana/dashboards` (read-only mounts). | Login required, anonymous access off, published on `GRAFANA_BIND`:`GRAFANA_PORT` (default `127.0.0.1:3300`, loopback only; set `GRAFANA_BIND` for LAN access). Reads the database as `grafana_ro`. |
 | `backup` | `ops/backup` | Nightly `pg_dump` (custom format) as the read-only role `backup_ro`, rotation, weekly restore test, optional off-box hook (`BACKUP_REMOTE`). | Volume `backups`; see [runbook: restore](RUNBOOKS/restore.md). |
 | `watchdog` | `ops/watchdog` | Checks health and the database every 60 s and alerts. | Alert-only; see section 6. Writes a status file on volume `watchdog_status`. |
@@ -73,6 +74,7 @@ Package `collector/src/vatpac/` (Python 3.12, asyncio):
 | `filters.py` | The polygon filter, the controller whitelist, near-miss detection, reference-file loading and SHA-256 hashing. |
 | `store.py` | One transaction per snapshot; `poll_log` and `reference_data_change` writers. |
 | `maintenance.py` | At start-up and then daily: publish settings to `app_setting`, create partitions, refresh `flight_summary`, drop old partitions (finalising their flights first), trim `poll_log` (400 days), refresh any materialized views. `flight_summary` is also refreshed every 5 minutes by its own loop in `main.py`. |
+| `archive.py` | The rolling raw-feed archive: gzipped compact (5 min, 30 days), full (hourly, 7 days) and anomaly (90 days) files on the `archive` volume, a hard size cap, one worker thread, errors counted and swallowed. See [runbook: feed archive](RUNBOOKS/feed-archive.md). |
 | `health.py` | aiohttp `/health` (200 only when the last `ok` poll is under 60 s old and the newest stored snapshot is under 120 s old, else 503; an unchanged feed does not count as progress) and `/metrics` (Prometheus text). |
 | `main.py` | Supervisor: poll loop, daily maintenance loop, 5-minute `flight_summary` refresh loop, SIGHUP reload, signal handling. |
 
@@ -103,9 +105,10 @@ Grafana connects as `grafana_ro`: login role, connection limit 10, `default_tran
 | Collector running but unhealthy | Not restarted automatically. The watchdog alerts. Restarts need the external Docker endpoint (ADR-012). | Alerting verified (see below); restart not in scope. |
 | Database down | Polls fail and are retried; the pool reconnects in the background; the `poll_log` row for those attempts cannot be written either (a failed write is logged, not raised). | Not separately verified. |
 | Reference file replaced with an invalid one | SIGHUP reload rejected, old file stays, error logged. A bad file at start-up stops the collector. | Loading and validation are unit tested; the SIGHUP path itself was not demonstrated. |
+| The archive volume is full or unwritable | Archive writes fail; each failure is counted (`vatpac_archive_errors_total`) and the first is logged; polling is unaffected. The watchdog warns after twice the compact interval without a write. | Yes, 08-10-2026 on a throwaway stack: an unwritable `ARCHIVE_DIR` left 8 of 8 polls `ok`, logged one error and counted 8. |
 | Near-miss controller callsign appears | Recorded in `controller_unlisted_sighting`, logged once at WARNING, watchdog alerts on the first sighting. | Detection logic is unit tested; the alert path was not demonstrated. |
 
-The watchdog (`ops/watchdog/watchdog.py`) checks the collector `/health`, the age of the newest `ok` poll and snapshot, database size, disk, newest backup age, Grafana `/api/health` and near-miss sightings, and alerts by Telegram on state change. It is **alert-only by default**: it has no Docker access, so container-state checks and capped restarts stay off unless `DOCKER_HOST_URL` points at an endpoint provided outside this repository (ADR-012). On 07-10-2026 it alerted and recovered correctly while testing locally, and a Telegram test alert from the VM was delivered and confirmed by the owner (docs/TRACKER.md, T4). It also reads the weekly restore-test result. What each alert means and what to do is in [runbook: alerts](RUNBOOKS/alerts.md). It does not alert on a rejected reference-file reload (`/health` shows `reload_rejected`); that gap is known.
+The watchdog (`ops/watchdog/watchdog.py`) checks the collector `/health`, the age of the newest `ok` poll and snapshot, database size, disk, newest backup age, Grafana `/api/health` and near-miss sightings, and alerts by Telegram on state change. It is **alert-only by default**: it has no Docker access, so container-state checks and capped restarts stay off unless `DOCKER_HOST_URL` points at an endpoint provided outside this repository (ADR-012). On 07-10-2026 it alerted and recovered correctly while testing locally, and a Telegram test alert from the VM was delivered and confirmed by the owner (docs/TRACKER.md, T4). It also reads the weekly restore-test result, runs the identity-flap check (`identity_flap`, sessions of one `cid` and callsign with `logon_time` within 2 s, or a fractional `logon_time`, seen in the last 24 hours; WARN once, RECOVERED when clear) and warns when the collector's archive has written nothing for twice its compact interval (`feed_archive`). What each alert means and what to do is in [runbook: alerts](RUNBOOKS/alerts.md). It does not alert on a rejected reference-file reload (`/health` shows `reload_rejected`); that gap is known.
 
 ## 7. Deliberately out of scope
 
@@ -116,7 +119,7 @@ The watchdog (`ops/watchdog/watchdog.py`) checks the collector `/health`, the ag
 
 ## 8. Size and quality gates
 
-The collector package has a hard size budget of 1400 physical lines with no module over 300 (ADR-014), checked in CI by `ops/check_size_budget.py`. CI also runs ruff, mypy, the unit tests, the integration tests against a Postgres service, the config-drift and dashboard checks, `docker compose config`, image builds, a fixture PII check and a secret scan (`.github/workflows/ci.yml`).
+The collector package has a hard size budget of 1700 physical lines with no module over 300 (ADR-014, ADR-022), checked in CI by `ops/check_size_budget.py`. CI also runs ruff, mypy, the unit tests, the integration tests against a Postgres service, the config-drift and dashboard checks, `docker compose config`, image builds, a fixture PII check and a secret scan (`.github/workflows/ci.yml`).
 
 ## 9. Related documents
 

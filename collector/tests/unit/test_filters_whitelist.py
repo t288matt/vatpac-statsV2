@@ -132,6 +132,12 @@ def test_obs_never_near_miss(cs: str) -> None:
     assert is_near_miss(cs, WL) is False
 
 
+@pytest.mark.parametrize("cs", ["ML_SUP", "AD_SUP", "ML_XYZ_SUP", "AS_SUP", "EN_SUP"])
+def test_sup_never_near_miss(cs: str) -> None:
+    """Issue 39 (audit F8): supervisors are not new positions, so they must not raise a near-miss alert."""
+    assert is_near_miss(cs, WL) is False
+
+
 @pytest.mark.parametrize("cs", ["ZZ_XYZ_CTR", "YSSY_TWR", "ML-FOO_CTR", "UAE123", "", "NZ_TWR"])
 def test_unrelated_prefix_is_not_near_miss(cs: str) -> None:
     assert is_near_miss(cs, WL) is False
