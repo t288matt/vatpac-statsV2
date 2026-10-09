@@ -27,7 +27,7 @@ from .health import Stats
 from .settings import Settings
 
 log = logging.getLogger(__name__)
-FUTURE_S, ANOMALY_REPEAT_S, STALE_TMP_S = 120.0, 300.0, 600.0
+FUTURE_S, ANOMALY_REPEAT_S, STALE_TMP_S, BACKOFF_S = 120.0, 300.0, 600.0, 60.0
 PRECISION_DROP, PRECISION_MIN_VALUES = 0.2, 50  # a fall of 20 points or more over at least 50 logon_time values
 _LOGON_RE = re.compile(rb'"logon_time"\s*:\s*"([^"]*)"')
 PILOT_KEYS = ("cid", "callsign", "logon_time", "latitude", "longitude", "groundspeed", "altitude")
@@ -55,8 +55,12 @@ def write_gz(path: Path, data: bytes) -> int:
     """Write data gzipped (level 6, no embedded time) to a temporary name, then rename. Returns the file size."""
     path.parent.mkdir(parents=True, exist_ok=True)
     blob, tmp = gzip.compress(data, 6, mtime=0), path.with_name(f".{path.name}.tmp")
-    tmp.write_bytes(blob)
-    os.replace(tmp, path)
+    try:
+        tmp.write_bytes(blob)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)  # a full disk must not keep the partial file
+        raise
     return len(blob)
 
 
@@ -67,6 +71,7 @@ class Archive:
         self.last_write: float | None = None
         self.size = self.files = self.errors = self.dropped = self.anomalies = 0
         self._busy = self._failing = False
+        self._retry_at = 0.0  # after a failed write nothing is attempted before this time
         self._last_ts: datetime | None = None  # the state below is touched by the worker thread only
         self._share: tuple[int, float] | None = None
         self._prev: bytes | None = None
@@ -90,7 +95,7 @@ class Archive:
         try:
             if self._pool is None or (raw is None and status != "error"):
                 return
-            if self._busy:
+            if self._busy or time.time() < self._retry_at:
                 self.dropped += 1
                 return
             self._busy = True
@@ -107,6 +112,7 @@ class Archive:
                 log.info("archive writes recovered")
         except Exception as exc:  # the archive must never affect polling
             self.errors += 1
+            self._retry_at = time.time() + BACKOFF_S  # back off: do not retry two gzips every poll on a full disk
             if not self._failing:
                 self._failing = True
                 log.error("archive failed, polling continues", extra={"error": f"{type(exc).__name__}: {exc}"})

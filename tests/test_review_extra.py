@@ -144,8 +144,6 @@ def test_hard_cap_keeps_anomaly_evidence_before_routine_files(tmp_path: Path) ->
     assert (root / "anomaly" / "20261008" / "00.json.gz").exists()
 
 
-@pytest.mark.xfail(strict=True, reason="review finding: write_gz leaves its partial .tmp behind when the write fails "
-                   "(disk full), and the leftover holds space until the next prune after 10 minutes")
 def test_failed_write_removes_its_temporary_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     real = Path.write_bytes
 
@@ -157,6 +155,15 @@ def test_failed_write_removes_its_temporary_file(tmp_path: Path, monkeypatch: py
     with pytest.raises(OSError):
         arc.write_gz(tmp_path / "d" / "x.json.gz", b"payload" * 100)
     assert not list((tmp_path / "d").glob("*"))
+
+
+def test_failed_write_backs_off_before_the_next_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    a = arc.Archive(Settings(_env_file=None, archive_dir=str(tmp_path / "arc"), archive_enabled=True), Stats())  # type: ignore[call-arg]
+    monkeypatch.setattr(arc, "write_gz", lambda *x: (_ for _ in ()).throw(OSError(28, "No space left on device")))
+    a._run(b"{}", None, "error", 500, "x")
+    assert a.errors == 1 and a._retry_at > time.time()
+    a.submit(b"{}", None, "error", 500, "x")  # inside the back-off window: not queued, counted as dropped
+    assert a.dropped == 1 and not a._busy
 
 
 def test_error_poll_submitted_while_busy_is_dropped_and_counted(tmp_path: Path) -> None:
