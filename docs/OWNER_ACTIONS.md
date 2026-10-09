@@ -43,7 +43,7 @@ Postgres 16.15 (db and backup), Grafana 11.6.5 and dbmate 2.36.0 were tested on 
 **Emma does (next session you open):** update docs/RESUME.md, absolute paths in the docs, the git worktrees, and the Claude memory notes (the memory folder is named after the old path).
 **Recommendation:** do it at a quiet moment after this batch of work is deployed, because several agents and worktrees currently use the old paths.
 
-## 7. Clean up the Metabase host (issue #29, T24). About 5 minutes.
+## 7. Clean up the Metabase host (issue #29, T24). WON'T DO: owner decision 09-10-2026, issue closed as not planned. Kept below as a record only.
 **Why:** a 46 MB Metabase backup dump with real names sits in your home folder on the Metabase host, a Metabase container there still runs against the old database, and exported card files sit on your PC outside git.
 **You do:** on the Metabase host delete the dump (`rm ~/<dump file>`; the file name is in the issue thread of T24), stop and remove the Metabase container if Metabase is retired (it is), and delete the exported card CSVs on your PC. v3 keeps the card definitions in docs/reference/v1_metabase_cards.json, so nothing is lost.
 **Emma does:** close #29 when you confirm.
