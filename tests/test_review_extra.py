@@ -48,6 +48,7 @@ def test_run_loads_the_last_snapshot_time_after_the_first_maintenance(monkeypatc
         def __init__(self, *a: Any) -> None:
             self.stats = type("S", (), {"reference": {}})()
             self.stop = asyncio.Event()
+            self.archive = type("A", (), {"stopping": threading.Event()})()
 
         async def maintain_once(self) -> bool:
             calls.append("maintain")
