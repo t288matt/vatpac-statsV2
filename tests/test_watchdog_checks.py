@@ -130,3 +130,24 @@ def test_migrate_grants_the_watchdog_role_the_session_tables() -> None:
     assert {"pilot_session", "controller_session"} <= names
     assert {"pilot_position", "flight_summary", "reference_data_change"} <= names  # added for the invariant sweep (issue 20)
     assert not names & {"app_setting", "controller_rating_event"}  # nothing wider than the checks need
+
+
+def test_check_backup_skips_a_dump_deleted_between_listing_and_stat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Issue 97: rotation can delete a dump after the watchdog listed it; that must not crash the check."""
+    import os
+    import time as _t
+    good, gone = tmp_path / "a.dump", tmp_path / "b.dump"
+    good.write_text("x")
+    gone.write_text("x")
+    real_stat = Path.stat
+
+    def flaky(self: Path, *a: Any, **k: Any) -> Any:
+        if self.name == "b.dump":
+            raise FileNotFoundError(self.name)
+        return real_stat(self, *a, **k)
+
+    monkeypatch.setattr(Path, "stat", flaky)
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path))
+    level, detail = wd.check_backup(wd.Config(), _t.time())
+    assert level == wd.OK and "newest backup" in detail
+    assert os.path.exists(good)
