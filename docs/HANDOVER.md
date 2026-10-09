@@ -288,7 +288,7 @@ tests/                       integration/ (needs Postgres), fixtures/ (anonymise
 config/                      australian_airspace_polygon.json, controller_callsigns_list.txt, australian_airspace_sectors.geojson (unused by v3)
 .github/workflows/           ci.yml, release.yml (tags vX.Y.Z, gated on CI), dependabot.yml
 .claude/agents/              role definitions: data-engineer, analytics, sre, qa, reviewer, docs-writer
-Makefile                     up, down, logs, ps, config, lint, test, smoke, soak (HOURS=24), backup, backup-test, restore, size, pii, dev (now also gen-env, check-env, drift)
+Makefile                     up, down, logs, ps, config, lint, test, smoke, soak (HOURS=24), backup, backup-test, restore, size, pii (removed 08-10-2026 with the fixture check, TRACKER T29), dev (now also gen-env, check-env, drift)
 ```
 Outside the repo (owner's PC, may be temporary): the v1 working copy and screenshots (`C:\Users\mdora\Pictures\Screenshots`, 3,295 PNGs of which about 50 are the Metabase charts; copies of 34 are in the v1 working copy `docs\metabase_charts\`; they show real names so they were NOT copied into this repo); Claude's scratchpad under `C:\Users\mdora\AppData\Local\Temp\claude\...\scratchpad\` holds throw-away analysis scripts (and an OCR text index of the screenshots), none needed to continue; the historical plan file named in section 9.
 

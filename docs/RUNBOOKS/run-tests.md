@@ -21,7 +21,7 @@ ruff check --config ops/ruff.toml ops          # lint of the ops scripts
 cd collector && ruff check . && mypy src       # lint and strict typing of the collector
 ```
 
-`make test`, `make drift`, `make size`, `make pii` and `make lint` wrap the same commands. On Windows without `make`, run the commands above. Set up the Python environment once: `python -m venv collector/.venv`, then `collector/.venv/bin/pip install pytest -r collector/requirements.txt` (Windows: `collector\.venv\Scripts\pip`).
+`make test`, `make drift`, `make size` and `make lint` wrap the same commands. On Windows without `make`, run the commands above. Set up the Python environment once: `python -m venv collector/.venv`, then `collector/.venv/bin/pip install pytest -r collector/requirements.txt` (Windows: `collector\.venv\Scripts\pip`).
 
 ## 2. Integration tests: the safe method on the VM
 
