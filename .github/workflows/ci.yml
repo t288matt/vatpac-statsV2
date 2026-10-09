@@ -94,23 +94,27 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: collector/requirements*.txt
-      - name: Create database, apply migrations and roles
+      # The database is built by the SAME image production uses (ops/migrate: dbmate with --no-dump-schema, then db/roles.sql
+      # in one transaction, then the watchdog_ro block), not by piping the migration files through psql (issue 96). That also
+      # creates schema_migrations, so dbmate-only behaviour (per-migration transactions, the up/down split, the version table)
+      # is exercised by CI. It runs on the host network, with the name `db` pointing at the service container, because
+      # migrate.sh connects to host `db`. The passwords are test-only values for this throwaway service container.
+      - name: Create database, apply migrations and roles (production migrate image)
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-superuser-pw
+          POSTGRES_DB: vatpac_test
+          GRAFANA_RO_PASSWORD: ci-grafana-ro-pw
+          COLLECTOR_DB_PASSWORD: ci-collector-pw
+          BACKUP_DB_PASSWORD: ci-backup-pw
+          WATCHDOG_DB_PASSWORD: ci-watchdog-pw
         run: |
           psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE vatpac_test"
-          for f in db/migrations/*.sql; do
-            echo "applying $f"
-            # keep only the "migrate:up" half, as dbmate does
-            sed '/^-- migrate:down/,$d' "$f" | psql -X -q -v ON_ERROR_STOP=1 -d vatpac_test
-          done
-          # test-only passwords for a throwaway service container
-          psql -X -q -v ON_ERROR_STOP=1 -d vatpac_test \
-            -v grafana_ro_password=ci-grafana-ro-pw \
-            -v collector_password=ci-collector-pw \
-            -v backup_password=ci-backup-pw \
-            -f db/roles.sql
-          # watchdog_ro is created by the migrate job; run its SQL block here so its grants are tested too
-          sed -n "/<<'SQL'/,/^SQL$/p" ops/migrate/migrate.sh | sed '1d;$d' \
-            | psql -X -q -v ON_ERROR_STOP=1 -d vatpac_test -v wd_pw=ci-watchdog-pw
+          docker build -q -t vatpac-migrate-ci ops/migrate
+          docker run --rm --network host --add-host db:127.0.0.1 \
+            -e POSTGRES_USER -e POSTGRES_PASSWORD -e POSTGRES_DB \
+            -e GRAFANA_RO_PASSWORD -e COLLECTOR_DB_PASSWORD -e BACKUP_DB_PASSWORD -e WATCHDOG_DB_PASSWORD \
+            -v "$PWD/db:/db:ro" vatpac-migrate-ci
       - name: Install
         run: |
           pip install -r collector/requirements.txt
