@@ -54,7 +54,7 @@ Other standing decisions: ADR-022 (collector size budget 1700 lines, gated in CI
 
 ## 7. Next actions, in order
 Done on 09-10-2026: image bumps deployed and verified (#31 closed); #45 to #57, #33 and #24 closed; CI moved to postgres 16.15 and green.
-1. Ask the owner about pushing `fix-movements-comment` (#32), see section 6. Then close #32.
+1. #32: migration 20261009000150 (movements comment) is on main (T52) and deploys with the next deploy; after that deploy check `SELECT obj_description('movements'::regclass,'pg_class')` and close #32.
 2. #20 make the data-integrity checks permanent (building blocks in `ops/audit/`).
 3. #21 data retention rules for every data set: inventory sizes and growth first, then ask the owner one decision at a time; write an ADR.
 4. #27 VM performance baseline and CPU steal check (read-only).
