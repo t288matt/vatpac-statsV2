@@ -19,6 +19,7 @@ log = logging.getLogger("watchdog.messages")
 PREFIX = "VATPAC Stats:"
 LABELS = {"warn": "heads up", "crit": "problem", "ok": "all clear"}
 MAX_TECH = 170  # characters of detail kept on the Technical line, so a whole message stays near 400
+MAX_TECH_INTEGRITY = 120  # the integrity line lists several long check names; the plain part above it is already long
 
 # One plain wording for every invariant in ops/audit/invariants.sql, keyed by the exact invariant name.
 # tests/test_humane_messages.py fails if the pack gains, loses or renames an invariant without this table following.
@@ -71,7 +72,6 @@ INVARIANT_ACTIONS: dict[str, str] = {
                                                     "(docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM)."),
     "reference file hashes in poll_log differ from reference_data_change": "An engineer should look (docs/RUNBOOKS/update-reference-files.md on the VM).",
 }
-_SEVERAL = f"Several checks failed; read {_IG} on the VM and the watchdog log to see which."
 
 
 def _clip(text: str, n: int = MAX_TECH) -> str:
@@ -199,7 +199,33 @@ def _feed_archive(level: str, detail: str) -> str:
 
 
 def _integrity_failing_names(detail: str) -> list[str]:
+    """The invariant names in the detail, in the order the detail lists them."""
     return sorted((n for n in INVARIANT_WORDS if n in detail), key=detail.index)
+
+
+# Invariants whose failure needs action TODAY (data may stop or be wrong now), most urgent first. When several invariants fail
+# the message is built from the most urgent one so a same-day problem is never hidden behind a failure that can wait.
+SAME_DAY_INVARIANTS: tuple[str, ...] = (
+    "daily partitions missing for today..today+3",
+    "newest snapshot in the future or older than 5 minutes",
+    "flight_summary rows missing for sessions older than 12 h",
+    "positions outside plausibility caps",
+    "in-region count above global count",
+    "positions per snapshot differ from pilots_in_region",
+)
+
+
+def _by_urgency(names: list[str]) -> list[str]:
+    """Same-day invariants first (in SAME_DAY_INVARIANTS order), then the rest in their original order."""
+    rank = {n: i for i, n in enumerate(SAME_DAY_INVARIANTS)}
+    return sorted(names, key=lambda n: rank.get(n, len(rank)))  # sorted() is stable: the rest keep their order
+
+
+def _several_todo(names: list[str]) -> str:
+    """The action sentence when more than one invariant failed: the most urgent one's action, plus where to read the rest."""
+    todo = INVARIANT_ACTIONS[_by_urgency(names)[0]]
+    today = " Some need action today." if any(n in SAME_DAY_INVARIANTS for n in names) else ""
+    return f"{todo}{today} The rest: watchdog log."
 
 
 def _failing_count(detail: str, names: list[str]) -> int:
@@ -210,10 +236,10 @@ def _failing_count(detail: str, names: list[str]) -> int:
 
 def _data_integrity(level: str, detail: str) -> str:
     if detail.startswith("new violations since the last sweep"):
-        names = _integrity_failing_names(detail)
+        names = _by_urgency(_integrity_failing_names(detail))
         what = INVARIANT_WORDS[names[0]] if names else "another rule is now broken"
         more = f" (and {len(names) - 1} more)" if len(names) > 1 else ""
-        todo = _SEVERAL if len(names) > 1 else INVARIANT_ACTIONS[names[0]] if names else f"See {_IG} on the VM."
+        todo = _several_todo(names) if len(names) > 1 else INVARIANT_ACTIONS[names[0]] if names else f"See {_IG} on the VM."
         return f"The routine data check found a new problem on top of the earlier one: {what}{more}. {todo}"
     if "could not run" in detail or "did not report" in detail or "unexpected row" in detail or "no invariants found" in detail:
         return ("The routine data check could not run properly (it retries in an hour). Data collection is not affected. "
@@ -221,10 +247,11 @@ def _data_integrity(level: str, detail: str) -> str:
     names = _integrity_failing_names(detail)
     if not names:
         return f"A routine data check found a problem. See {_IG} on the VM for what to do."
-    first = INVARIANT_WORDS[names[0]]
+    first = INVARIANT_WORDS[_by_urgency(names)[0]]
     others = _failing_count(detail, names) - 1
     more = f" (plus {others} other{'s' if others > 1 else ''})" if others > 0 else ""
-    todo = _SEVERAL if others > 0 else INVARIANT_ACTIONS[names[0]]
+    # more than the six names the detail lists can fail: then at least two did, so the several-failed wording applies
+    todo = _several_todo(names) if others > 0 else INVARIANT_ACTIONS[names[0]]
     return f"A routine data check found a problem: {first}{more}. {todo}"
 
 
@@ -364,10 +391,27 @@ def _tech_detail(name: str, detail: str) -> str:
         names = _integrity_failing_names(detail)
         counts = re.search(r"(\d+) of (\d+) invariants", detail)
         if names and counts:
-            others = _failing_count(detail, names) - 1
-            more = f" (+{others} more)" if others > 0 else ""
-            return _clip(f"{counts.group(1)} of {counts.group(2)} checks failing: {names[0]}{more}")
+            return _integrity_tech(names, _failing_count(detail, names), counts.group(1), counts.group(2))
+    if name == "data_integrity":
+        short = detail.replace("new violations since the last sweep:", "new violations:", 1)
+        return _clip(_strip_log_pointer(short), MAX_TECH_INTEGRITY + 20)
     return _clip(_strip_log_pointer(detail))
+
+
+def _integrity_tech(names: list[str], total: int, failing: str, of: str) -> str:
+    """'N of 18 checks failing: a; b; c (+K more)': every name the detail gave, most urgent first, as many as fit in MAX_TECH;
+    K counts the failing checks not named (including those the detail itself did not list)."""
+    head = f"{failing} of {of} checks failing: "
+    ordered = _by_urgency(names)
+    shown: list[str] = []
+    for n in ordered:
+        left = total - len(shown) - 1
+        reserve = len(f" (+{left} more)") if left > 0 else 0
+        if shown and len(head) + len("; ".join(shown + [n])) + reserve > MAX_TECH_INTEGRITY:
+            break
+        shown.append(n)
+    left = total - len(shown)
+    return _clip(head + "; ".join(shown) + (f" (+{left} more)" if left > 0 else ""), MAX_TECH_INTEGRITY + 20)
 
 
 def _strip_log_pointer(detail: str) -> str:
