@@ -59,7 +59,22 @@ Everything is set through `.env` (names and defaults in `.env.example`; every va
 | `BACKUP_RETENTION_DAYS` | 14 | How many backup dumps are kept |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | blank | Where the watchdog sends alerts |
 
-Two reference files drive filtering: `config/australian_airspace_polygon.json` and `config/controller_callsigns_list.txt` (see [docs/RUNBOOKS/update-reference-files.md](docs/RUNBOOKS/update-reference-files.md)).
+### Configuration files and why they are needed
+
+The collector is configured from three places. Each exists for a reason.
+
+**1. `.env` (settings and secrets).** One file holds the passwords for the database roles, Grafana's admin login, the Telegram token and every tunable setting. It is not in git, and `.env.example` shows the names with blank secrets so the stack refuses to start until you fill them. It exists so the same code runs on a laptop and on the VM without editing any file in the repository, and so secrets never reach git.
+
+**2. Two reference files in `config/` (what to keep from the feed).** The VATSIM feed covers the whole world, about 1,500 pilots and 130 controllers at any moment. v3 only wants the Australian region, so two files tell the collector what to keep. Both are mounted read-only into the collector.
+
+| File | What it is | Why it is required |
+|---|---|---|
+| `config/australian_airspace_polygon.json` | A GeoJSON polygon (longitude, latitude order) around the VATPAC airspace | A pilot is stored from the first poll in which they are inside it, and not stored outside. Without it the database would fill with every pilot in the world and every "pilots online" number would be wrong. A point exactly on the edge counts as outside |
+| `config/controller_callsigns_list.txt` | The controller callsigns that are real positions, one per line as `CALLSIGN, FREQ` (254 today). The match is exact and case-sensitive | A controller is stored only if their callsign is listed. This keeps observers (`_OBS`), ATIS and radio-silent entries out of the ATC numbers. A callsign that looks like a listed one (same prefix, not on the list) is not stored, but it is logged and raises one Telegram alert, so a new position that opens at a known airport is noticed |
+
+Both files are loaded when the collector starts and reloaded without a restart when you send it a reload signal (`docker compose kill -s HUP collector`). A broken new file, or a whitelist that shrinks to under 70% of the old one, is rejected and the old one stays in use. A missing or empty whitelist stops the collector from starting: it fails closed rather than storing every controller. A polygon change affects new snapshots only; stored history is not re-filtered. The steps are in [docs/RUNBOOKS/update-reference-files.md](docs/RUNBOOKS/update-reference-files.md). `config/australian_airspace_sectors.geojson` is kept in the folder but is not read by v3, because sector matching was dropped.
+
+**3. The `app_setting` table (settings the database views need).** The collector publishes a few of its settings (the poll interval, the airborne gap cap and the home airport prefixes) into this table when it starts, so the SQL views and dashboards use exactly the same values as the collector and no number is written in two places.
 
 ## Project structure
 
@@ -135,7 +150,7 @@ The repository is private and run by one owner with Claude. Pushes go to `main` 
 
 ## Licence
 
-No licence has been chosen. The repository is private. It is written to be public-safe (no secrets, no real personal data in fixtures), but check the VATSIM data-use policy and put the dashboards behind a login before any public exposure.
+MIT, see [LICENSE](LICENSE). The repository is written to be public-safe (no secrets, no real personal data in fixtures). Before any public exposure, check the VATSIM data-use policy and put the dashboards behind a login, because names and CIDs are shown.
 
 ## Credits
 
