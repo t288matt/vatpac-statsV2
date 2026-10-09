@@ -78,11 +78,13 @@ def test_groundspeed_of_exactly_60_kt_is_airborne(conn) -> None:
 
 def test_samples_exactly_120_minutes_apart_still_count_as_airborne_time(conn) -> None:
     """Mutant S03 (`<` instead of `<=` on the 120 minute pair rule): two samples exactly 120 minutes apart are in the
-    same gap segment, so the earlier one contributes its capped gap (40 s)."""
+    same gap segment, so the earlier one contributes its capped gap. The cap is what the collector publishes at the
+    default 30 s poll interval, 2.5 x 30 = 75 s (ADR-024); the schema seed of 40 s is only a fallback."""
+    conn.execute("UPDATE app_setting SET value = '75' WHERE key = 'airborne_gap_cap_seconds'")
     make_session(conn, 9700002, [(T0, 250), (T0 + timedelta(minutes=120), 250)])
     rows = flights(conn, 9700002)
     assert len(rows) == 1
-    assert float(rows[0]["airborne_minutes"]) == pytest.approx(40 / 60, abs=0.01)
+    assert float(rows[0]["airborne_minutes"]) == pytest.approx(75 / 60, abs=0.01)
 
 
 def test_samples_121_minutes_apart_add_no_airborne_time(conn) -> None:
@@ -192,18 +194,22 @@ def _snap(conn, ts: datetime) -> None:
 
 
 def test_online_now_means_seen_in_the_last_two_snapshots(conn) -> None:
-    """Mutants V06 and V08 (30 s window widened to 30 min): SPEC section 5, online = seen within the last 2
-    snapshots (30 s before the newest). Pilots and controllers 10 s old are online, 45 s old are not."""
+    """Mutants V06 and V08 (window widened to 30 min): online = seen within 2 x the poll interval of the newest
+    snapshot (ADR-024; app_setting poll_interval_seconds, published by the collector, 30 s so a 60 s window).
+    Pilots and controllers 10 s and 45 s old are online, 90 s old are not."""
+    conn.execute("INSERT INTO app_setting (key, value) VALUES ('poll_interval_seconds', '30') "
+                 "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
     now = datetime.now(timezone.utc)
     _snap(conn, now - timedelta(seconds=5))
-    for cid, age in ((9730001, 10), (9730002, 45)):
+    for cid, age in ((9730001, 10), (9730002, 45), (9730003, 90)):
         t = now - timedelta(seconds=age)
         conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "
                      "VALUES (%s,%s,%s,%s,%s)", (cid, f"ON{cid}", (t - timedelta(hours=1)).replace(microsecond=0), t - timedelta(hours=1), t))
         conn.execute("INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen) "
                      "VALUES (%s,%s,%s,%s,%s)", (cid, f"ON{cid}_TWR", (t - timedelta(hours=1)).replace(microsecond=0), t - timedelta(hours=1), t))
     rows = conn.execute("SELECT kind, cid FROM online_now ORDER BY kind, cid").fetchall()
-    assert [(r["kind"], r["cid"]) for r in rows] == [("controller", 9730001), ("pilot", 9730001)]
+    assert [(r["kind"], r["cid"]) for r in rows] == [("controller", 9730001), ("controller", 9730002),
+                                                       ("pilot", 9730001), ("pilot", 9730002)]
 
 
 def test_online_lists_exclude_sessions_when_the_collector_has_been_silent(conn) -> None:
@@ -313,7 +319,8 @@ def test_monday_attendance_includes_the_current_weeks_monday(conn) -> None:
 
 
 def test_controller_is_open_only_when_seen_in_the_newest_snapshot(conn) -> None:
-    """Mutant V05 (is_open window 30 s -> 30 min)."""
+    """Mutant V05 (is_open window widened to 30 min): the window is 2 x the poll interval (ADR-024); the session seen 5 s
+    ago is open, the one last seen 10 minutes ago is not, at any interval up to 5 minutes."""
     now = datetime.now(timezone.utc)
     _snap(conn, now)
     _ctrl_session(conn, now - timedelta(hours=1), now - timedelta(seconds=5), 9820001, "OPEN_TWR")
