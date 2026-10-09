@@ -122,12 +122,11 @@ def test_watchdog_ro_can_read_everything_the_sweep_and_the_cross_check_need(conn
     if role is None:
         pytest.skip("role watchdog_ro not created (migrate.sh creates it; see the CI step)")
     World(conn)
-    with psycopg.connect(dsn) as c:
+    with psycopg.connect(dsn, autocommit=True) as c:  # autocommit, so the role is not rolled back between statements
         c.execute("SET ROLE watchdog_ro")
         for t in ("network_snapshot", "poll_log", "pilot_position", "pilot_session", "controller_session", "flight_summary",
                   "reference_data_change"):
             c.execute(f"SELECT count(*) FROM {t}").fetchone()  # noqa: S608
-            c.rollback()
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             c.execute("SELECT 1 FROM app_setting")
 
