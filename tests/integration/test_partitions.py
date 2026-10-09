@@ -1,9 +1,8 @@
-"""SPEC s6 partition lifecycle. Run against a real PostgreSQL 16.4 on 07-10-2026 (all pass).
+"""SPEC s6 partition lifecycle.
 
-Part A (schema level) needs only SQL. Part B exercises vatpac.maintenance; SPEC s7 names no
-functions for it, so those tests look for conventional names and skip with a clear reason.
-Proposed contract (to add to SPEC s7): ensure_partitions(conn, today: date, days_ahead: int = 7) and
-drop_old_partitions(conn, today: date, retention_days: int).
+Part A (schema level) needs only SQL. Part B exercises vatpac.maintenance: ensure_partitions(conn, today, days_ahead)
+and drop_old_partitions(conn, today, retention_days). They are imported directly, so a rename fails the test instead of
+skipping it.
 """
 from __future__ import annotations
 
@@ -58,16 +57,8 @@ def test_create_partition_is_idempotent(conn) -> None:
 
 
 # ------------------------------------------------------------------ B: maintenance module
-def maint(*names):
-    mod = pytest.importorskip("vatpac.maintenance")
-    for n in names:
-        if hasattr(mod, n):
-            return getattr(mod, n)
-    pytest.skip(f"vatpac.maintenance has none of {names}; SPEC s7 does not name its public functions")
-
-
 def test_maintenance_creates_today_plus_seven(conn) -> None:
-    ensure = maint("ensure_partitions", "create_partitions")
+    from vatpac.maintenance import ensure_partitions as ensure
     ensure(conn, date(2026, 10, 7), 7)
     want = {f"pilot_position_{date(2026, 10, 7) + timedelta(days=i):%Y%m%d}" for i in range(0, 8)}
     assert want <= partitions(conn)
@@ -76,7 +67,7 @@ def test_maintenance_creates_today_plus_seven(conn) -> None:
 
 
 def test_maintenance_drops_old_partitions_without_open_session(conn) -> None:
-    drop = maint("drop_old_partitions", "drop_expired_partitions")
+    from vatpac.maintenance import drop_old_partitions as drop
     old_day = datetime(2026, 6, 1, 12, tzinfo=timezone.utc)  # 128 days old
     recent = datetime(2026, 9, 20, 12, tzinfo=timezone.utc)
     p_old, p_recent = partition_for(conn, old_day), partition_for(conn, recent)
@@ -85,7 +76,7 @@ def test_maintenance_drops_old_partitions_without_open_session(conn) -> None:
 
 
 def test_maintenance_keeps_old_partition_with_open_session(conn) -> None:
-    drop = maint("drop_old_partitions", "drop_expired_partitions")
+    from vatpac.maintenance import drop_old_partitions as drop
     old_day = datetime(2026, 6, 1, 12, tzinfo=timezone.utc)
     p_old = partition_for(conn, old_day)
     still_online = datetime(2026, 10, 7, 11, tzinfo=timezone.utc)  # session open: last_seen is recent

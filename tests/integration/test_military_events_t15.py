@@ -33,10 +33,15 @@ def panel(dashboard, title_start: str) -> dict:
     return next(p for p in panels if p.get("title", "").startswith(title_start))
 
 
-def run_panel(conn, dashboard, title_start: str, start: datetime, end: datetime) -> list[dict]:
+def run_panel(conn, dashboard, title_start: str, start: datetime, end: datetime, now: datetime | None = None) -> list[dict]:
+    """Run a panel's SQL. ``now`` is a clock seam for panels that read now(): the literal text now() is replaced by that
+    instant, so a test does not depend on the day or hour it runs."""
     sql = panel(dashboard, title_start)["targets"][0]["rawSql"]
     sql = sql.replace("$__timeFrom()", f"'{start.isoformat()}'::timestamptz")
     sql = sql.replace("$__timeTo()", f"'{end.isoformat()}'::timestamptz")
+    if now is not None:
+        assert "now()" in sql
+        sql = sql.replace("now()", f"'{now.isoformat()}'::timestamptz")
     return conn.execute(sql.rstrip().rstrip(";")).fetchall()
 
 
@@ -169,9 +174,10 @@ def test_card_184_flights_per_utc_week_of_end(conn) -> None:
 
 
 # ------------------------------------------------------------------ card 156
-def _latest_monday_start() -> datetime:
-    today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-    return today - timedelta(days=today.weekday())
+# The panel reads now() (latest Monday, and no slots after the present). The tests fix the clock, so they run on any day
+# and at any hour: "now" is Wednesday 07-10-2026 10:00 UTC, the latest Monday is 05-10-2026.
+MON = datetime(2026, 10, 5, tzinfo=UTC)
+WED_NOW = datetime(2026, 10, 7, 10, 0, tzinfo=UTC)
 
 
 def _add_samples(conn, cid: int, samples: list[tuple[datetime, int | None]]) -> int:
@@ -188,9 +194,7 @@ def _add_samples(conn, cid: int, samples: list[tuple[datetime, int | None]]) -> 
 
 
 def test_card_156_airborne_count_per_slot_on_latest_monday(conn) -> None:
-    mon = _latest_monday_start()
-    if datetime.now(UTC) < mon + timedelta(hours=12):
-        pytest.skip("the latest Monday event window has not finished yet (slots in the future are not drawn)")
+    mon = MON
 
     def h(hours: float) -> datetime:
         return mon + timedelta(minutes=round(hours * 60))
@@ -203,7 +207,7 @@ def test_card_156_airborne_count_per_slot_on_latest_monday(conn) -> None:
     _add_samples(conn, 9500073, [(h(12.0), 5000), (h(7.5), None)])
     # D: a sample 5 minutes before the same weekday a week earlier must not leak in
     _add_samples(conn, 9500074, [(h(7.0) - timedelta(days=7), 5000)])
-    rows = run_panel(conn, EVENTS, "Airborne aircraft during the latest Monday", mon, mon + timedelta(days=1))
+    rows = run_panel(conn, EVENTS, "Airborne aircraft during the latest Monday", mon, mon + timedelta(days=1), now=WED_NOW)
     got = {r["time"]: r["Airborne aircraft"] for r in rows}
     assert len(rows) == 60
     assert rows[0]["time"] == h(7) and rows[-1]["time"] == h(12) - timedelta(minutes=5)
@@ -212,6 +216,34 @@ def test_card_156_airborne_count_per_slot_on_latest_monday(conn) -> None:
     assert got[h(7.0) + timedelta(minutes=10)] == 0                        # B at exactly 1000 ft does not count
     assert got[h(11.0) + timedelta(minutes=55)] == 1                       # A
     assert sum(got.values()) == 3                          # nothing else anywhere in the window
+
+
+def test_card_156_slots_after_now_are_not_drawn_while_the_event_is_on(conn) -> None:
+    """Mutant P35 (slot <= now() removed). Monday 09:07 UTC: the 07:00 to 09:05 slots (26) exist, later ones do not, and
+    a sample later than now is ignored. Before 07:00 nothing is drawn."""
+    _add_samples(conn, 9500075, [(MON + timedelta(hours=8), 5000)])
+    _add_samples(conn, 9500076, [(MON + timedelta(hours=10), 5000)])         # in the future at 09:07
+    title = "Airborne aircraft during the latest Monday"
+    now = MON + timedelta(hours=9, minutes=7)
+    rows = run_panel(conn, EVENTS, title, MON, MON + timedelta(days=1), now=now)
+    assert [r["time"] for r in rows] == [MON + timedelta(hours=7, minutes=5 * n) for n in range(26)]
+    assert rows[-1]["time"] == MON + timedelta(hours=9, minutes=5)
+    assert {r["time"]: r["Airborne aircraft"] for r in rows}[MON + timedelta(hours=8)] == 1
+    assert sum(r["Airborne aircraft"] for r in rows) == 1                    # the 10:00 sample is not counted
+    assert run_panel(conn, EVENTS, title, MON, MON + timedelta(days=1), now=MON + timedelta(hours=6, minutes=59)) == []
+
+
+def test_card_156_uses_the_latest_monday_not_the_previous_one(conn) -> None:
+    """On Sunday evening the latest Monday is still the one just gone; just after midnight on the next Monday it is the new one."""
+    title = "Airborne aircraft during the latest Monday"
+    next_mon = MON + timedelta(days=7)
+    _add_samples(conn, 9500077, [(MON + timedelta(hours=7), 5000)])
+    _add_samples(conn, 9500078, [(next_mon + timedelta(hours=7), 5000)])
+    sunday = run_panel(conn, EVENTS, title, MON, next_mon, now=next_mon - timedelta(minutes=1))
+    assert sunday[0]["time"] == MON + timedelta(hours=7) and sunday[0]["Airborne aircraft"] == 1 and len(sunday) == 60
+    monday = run_panel(conn, EVENTS, title, MON, next_mon, now=next_mon + timedelta(hours=7, minutes=30))
+    assert [r["time"] for r in monday][0] == next_mon + timedelta(hours=7) and len(monday) == 7
+    assert [r["Airborne aircraft"] for r in monday][0] == 1 and sum(r["Airborne aircraft"] for r in monday) == 1
 
 
 def test_card_156_has_no_sector_or_frequency_logic() -> None:
