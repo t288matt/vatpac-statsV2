@@ -224,3 +224,10 @@ No change to v3 is recommended by this comparison.
 
 ## 10. How to repeat this
 Keep to section 1. Pull per-poll rows from v1 `flights` (primary-key range from id 6,694,000, time bounded), `controllers` (time bounded), `flight_summaries` and `controller_summaries` (time bounded), and the same period from v3 `pilot_position`, `pilot_session`, `controller_session`, `controller_session_merged`, `flight`, `network_snapshot` and `poll_log` through a SELECT-only session, then join on (CID, callsign, whole-second logon time). The analysis scripts are not committed; the method above is enough to recreate them. Whole run: under 30,000 v1 rows.
+
+## 11. Owner decisions on the differences (09-10-2026, one at a time)
+| # | Difference | Decision |
+|---|---|---|
+| 1 | Pilot sessions split by reconnects (v1 merged them) | Merge like v1: same CID, callsign, departure and arrival, gap of 120 minutes or less. Built on branch flight-reconnect-merge (ADR-023, T41, issue #35). |
+| 2 | Parked sessions with no airborne time still count as flights and movements (issue #74) | Behave as v1 does: no change. |
+| 3 | v3 stores pilots' positions before they file a plan; v1 dropped them | Keep v3 as it is. |
