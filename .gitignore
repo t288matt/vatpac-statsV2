@@ -38,3 +38,4 @@ Thumbs.db
 
 # git worktrees for branch work live here
 .worktrees/
+ops/heartbeat/heartbeat_state.json
