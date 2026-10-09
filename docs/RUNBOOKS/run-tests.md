@@ -19,6 +19,8 @@ python ops/check_config_drift.py               # collector settings, compose and
 python ops/check_size_budget.py                # collector package under 1700 lines, no module over 300
 ruff check --config ops/ruff.toml ops          # lint of the ops scripts
 cd collector && ruff check . && mypy src       # lint and strict typing of the collector
+# strict typing of the watchdog and ops scripts (the exact list is in .github/workflows/ci.yml; the watchdog needs the two audit files on its path)
+mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/check_config_drift.py ops/check_size_budget.py ops/check_panels.py
 ```
 
 `make test`, `make drift`, `make size` and `make lint` wrap the same commands. On Windows without `make`, run the commands above. Set up the Python environment once: `python -m venv collector/.venv`, then `collector/.venv/bin/pip install pytest -r collector/requirements.txt` (Windows: `collector\.venv\Scripts\pip`).
@@ -84,6 +86,8 @@ docker rm -f vp-test
 ```
 
 `db/roles.sql` needs all three password variables (`grafana_ro_password`, `collector_password`, `backup_password`) or it raises an error. The passwords above belong to a throwaway container that is deleted at the end; they are not real credentials. Without `VATPAC_TEST_DSN` the integration tests are skipped, not failed (unless `VATPAC_TEST_STRICT=1`, section 5). The fixture and the test layout are described in [../../tests/README.md](../../tests/README.md).
+
+**Integrity checks (issue #20).** `tests/test_integrity_schedule.py` (unit: judging of rows, persisted schedule, alert text, de-duplication, settings) and `tests/integration/test_integrity_checks.py` (a clean database reports 0 for every one of the 18 invariants, one deliberately broken database per invariant, a guard that fails if the invariant list and the cases differ, the archive cross-check against damaged rows and files, and a `watchdog_ro` grant test) run with the rest. The sweep is run as `watchdog_ro` when that role exists, so on the VM variant (section 2) the role test is excluded or skipped: use section 3 (a throwaway cluster of your own, on the VM if the PC has no Docker, with the container capped: `--memory 512m --memory-swap 512m --cpus 1`, and `free -m` before and after) for the full run, which also needs the `watchdog_ro` block of `ops/migrate/migrate.sh`. After changing an invariant, prove the guard: make one invariant always return 0 (or delete it) in `ops/audit/invariants.sql` and the file must fail; restore it afterwards.
 
 ## 4. After a run
 

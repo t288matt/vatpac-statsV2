@@ -1,6 +1,6 @@
 # Runbook: deploy to the Linux VM
 
-Last reviewed: 08-10-2026. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD**. The production VM is reached as `ssh vatpac-v3` (an alias in the owner's `~/.ssh/config`) and the stack lives in `~/vatpac-statsV2`. That VM has no git and no GitHub credentials, so code is deployed with `git archive` (section 2c). Times in this runbook are UTC.
+Last reviewed: 09-10-2026. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD**. The production VM is reached as `ssh vatpac-v3` (an alias in the owner's `~/.ssh/config`) and the stack lives in `~/vatpac-statsV2`. That VM has no git and no GitHub credentials, so code is deployed with `git archive` (section 2c). Times in this runbook are UTC.
 
 Disk sizing: about 2 to 3 GB of positions at 90 days, plus WAL (up to 2 GB), plus `BACKUP_RETENTION_DAYS` (default 14) dumps on the same disk, plus Docker images, logs and build cache. 20 GB is too tight. Provision 40 GB or more, or set `BACKUP_RETENTION_DAYS=7` and copy dumps off-box (`restore.md`, "Off-box copies"). The watchdog checks the filesystems listed in `WATCHDOG_DISK_PATHS` (default `/backups,/`, which is the Docker data-root filesystem that holds the `pgdata` and `backups` named volumes) and warns at `WATCHDOG_DISK_PCT` (80%). If you move a volume onto its own mount, mount that path into the watchdog and add it to the list.
 
@@ -66,6 +66,29 @@ Order for this release: fresh dump (`docker compose exec backup backup.sh once`)
 Status 09-10-2026: DEPLOYED at 13:46 UTC (commit 8905d85) and verified; the steps below are the record of how it was done. The Grafana volume was copied first (a throwaway container with `--memory 256m --memory-swap 256m --cpus 0.5` running `cp -a` from the volume into a new one).
 Postgres 16.4 to 16.15 (`db` and `ops/backup`), Grafana 11.2.2 to 11.6.5 and dbmate 2.21.0 to 2.36.0 were tested on throwaway containers, not on the live stack. Deploying them recreates the containers: `docker compose up -d --build` recreates `db` (same major version 16, the `pgdata` volume is reused, about 10 to 30 seconds of database downtime), `grafana` (about a minute; `grafana_data` is upgraded in place on first start, so copy the volume first if rollback matters) and rebuilds `backup` and `migrate`. Do it in a quiet period, take a fresh dump first (`docker compose exec backup backup.sh once`), then run `sh ops/smoke.sh` and `python3 ops/check_panels.py`. Never let the `backup` image tag differ from the `db` image tag.
 
+## 4e. Special case: the scheduled integrity checks (T16, issue #20; owner's go needed)
+Status: built and tested, NOT deployed. Do not run any of this without the owner's go (deploy policy, [../TRACKER.md](../TRACKER.md)). What it changes: the watchdog image (new build context `./ops`, new files `integrity.py`, `independent.py`, `invariants.sql`), two read-only mounts on the watchdog (`archive:/archive:ro` and `./config:/config:ro`), three settings (`WATCHDOG_INTEGRITY_INTERVAL_HOURS=72`, `WATCHDOG_CROSSCHECK_INTERVAL_DAYS=14`, `WATCHDOG_CROSSCHECK_SAMPLES=24`, all with defaults in `docker-compose.yml`, so `.env` needs no edit) and three new `SELECT` grants for `watchdog_ro` (`pilot_position`, `flight_summary`, `reference_data_change`). No migration file, no collector change: collector polling is not interrupted.
+
+**Owner decision needed on timing.** The first sweep runs on the first watchdog cycle and will find the 6 minute snapshot gap of the power cut of 09-10-2026 (15:35:57 to 15:41:57 UTC, tracker T51) while it is inside the 3 day window. If deployed before 12-10-2026 15:42 UTC, expect one `WARN data_integrity: 1 of 18 invariants report violations: snapshot gaps over 5 minutes (1)` and a `RECOVERED` up to 6 hours after the gap leaves the window. That is a live proof that the alert path works; deploy after that time for a clean start (no message).
+
+Steps (all from `~/vatpac-statsV2` on the VM, after the `git archive` copy of the tree, section 2c):
+1. **Fresh dump and rollback copy.** `docker compose exec backup backup.sh once`; check the new file in `/backups`; copy the current tree (`cp -a ~/vatpac-statsV2 ~/vatpac-statsV2.rollback-<dd-mm>`).
+2. **Migrate job first.** `docker compose up -d --build migrate`. It re-applies the roles and the `watchdog_ro` grants and exits 0; nothing restarts. Check: `docker compose ps -a migrate` shows `exited (0)`, and
+   ```sh
+   echo "SELECT t FROM unnest(ARRAY['pilot_position','flight_summary','reference_data_change']) t WHERE has_table_privilege('watchdog_ro', t, 'SELECT')" |      docker compose exec -T db sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At'
+   ```
+   prints all three names. Never run `db/roles.sql` by hand.
+3. **Rebuild the watchdog only.** `docker compose up -d --build watchdog`. Only the watchdog is recreated (its status volume is kept, so the schedule state survives).
+4. **Checks afterwards.**
+   - `docker compose ps`: `watchdog` is `healthy`, `collector` has the same start time as before (not restarted).
+   - `docker compose logs --tail=50 watchdog | grep -i integrity`: lines for the invariant sweep and the archive cross-check on the first cycle (the cross-check takes about 25 s).
+   - `docker compose exec -T watchdog cat /var/watchdog/watchdog_status.json`: `data_integrity` and `feed_crosscheck` present, `state.integrity.<name>.last_run` set. Expect `feed_crosscheck` ok (24 snapshots match, or fewer if the archive is young).
+   - `could not run (InsufficientPrivilege)` means step 2 did not apply the grants: repeat it.
+   - `sh ops/smoke.sh` ends `SMOKE PASS`; `python3 ops/check_panels.py` reports 0 errors.
+5. **Roll back.** `docker compose up -d --build watchdog` from the previous tree (the extra grants are harmless to leave). To switch the checks off without a rollback, set `WATCHDOG_INTEGRITY_INTERVAL_HOURS=0` and `WATCHDOG_CROSSCHECK_INTERVAL_DAYS=0` in `.env` and `docker compose up -d watchdog`.
+
+Runbook for the checks themselves: [integrity-checks.md](integrity-checks.md).
+
 ## 5. Network exposure and firewall
 Only Grafana is published, and by default **only on loopback**: `127.0.0.1:${GRAFANA_PORT:-3300}`. The database is not published. To reach Grafana from the LAN, opt in explicitly in `.env`:
 ```sh
@@ -130,7 +153,7 @@ ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/smoke.sh && python3 ops/check_panel
 | `.env` (a collector setting) | `docker compose up -d collector` | Yes, about 45 s |
 | `docker-compose.yml` | `docker compose up -d` (recreates the services whose definition changed; a new named volume, such as `archive`, is created by the same command) | Only for those services |
 | `ops/postgres/postgresql.conf` | `docker compose restart db` | Yes, the database restarts; the collector retries |
-| `ops/watchdog/**`, `ops/backup/**` | `docker compose up -d --build watchdog` or `backup` | No |
+| `ops/watchdog/**`, `ops/audit/independent.py`, `ops/audit/invariants.sql` (the watchdog image copies the last two), `ops/backup/**` | `docker compose up -d --build watchdog` or `backup` | No |
 | `ops/*.sh`, `ops/*.py`, `grafana/*.py`, `docs/`, `tests/`, `Makefile` | Nothing: they run from the host or are only documentation | No |
 
 ## Roll back
