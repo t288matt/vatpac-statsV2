@@ -7,6 +7,7 @@ import copy
 import gzip
 import json
 import os
+import threading
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -166,13 +167,23 @@ def test_failed_write_backs_off_before_the_next_attempt(tmp_path: Path, monkeypa
     assert a.dropped == 1 and not a._busy
 
 
-def test_error_poll_submitted_while_busy_is_dropped_and_counted(tmp_path: Path) -> None:
-    """Pins the current design: one job at a time, the next submission is dropped. An error poll that lands on a busy
-    worker therefore leaves no anomaly file (rare at a 15 s cadence; common on a slow disk)."""
+def test_error_poll_submitted_while_busy_is_queued_and_written_after_the_current_job(tmp_path: Path) -> None:
+    """Issue 67: an error poll that lands on a busy worker waits (up to 3 deep) instead of being dropped."""
     a = make(tmp_path)
-    a._busy = True
-    a.submit(b"{}", None, "error", 200, "x")
-    assert a.dropped == 1 and not list((tmp_path / "arc").rglob("*"))
+    gate = threading.Event()
+    real, seen = a._process, []
+    a._process = lambda *args: (gate.wait(5), seen.append(args[4]), real(*args))  # type: ignore[method-assign,assignment]
+    a.submit(None, None, "error", 500, "first")  # the worker takes this one and waits on the gate
+    for i in range(5):
+        a.submit(None, None, "error", 500, f"queued {i}")
+    a.submit(b"{}", None, "ok", 200, None)  # a routine job is still dropped while busy
+    assert len(a._pending) == 3 and a.dropped == 3  # two error polls beyond the queue limit, plus the routine one
+    gate.set()
+    deadline = time.time() + 5
+    while a._busy and time.time() < deadline:
+        time.sleep(0.01)
+    assert not a._pending and not a._busy
+    assert seen == ["first", "queued 0", "queued 1", "queued 2"] and a.anomalies == 1  # one file per reason per 5 minutes
 
 
 def test_future_dated_snapshot_is_flagged_and_not_a_baseline(tmp_path: Path) -> None:
