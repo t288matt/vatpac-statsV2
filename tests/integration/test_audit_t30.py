@@ -171,21 +171,55 @@ def _merged(conn, cid: int = 9720001) -> list[dict]:
                         "WHERE cid = %s ORDER BY start_time", (cid,)).fetchall()
 
 
+RECONNECT_START = datetime(2026, 9, 1, 10, 0, tzinfo=timezone.utc)
+
+
+def _reconnect(conn, cid: int, gap: timedelta) -> list[dict]:
+    """One controller session of 30 minutes, then a second one starting ``gap`` after the first one's last sighting."""
+    a = RECONNECT_START
+    _ctrl_session(conn, a, a + timedelta(minutes=30), cid)
+    _ctrl_session(conn, a + timedelta(minutes=30) + gap, a + timedelta(minutes=60) + gap, cid)
+    return _merged(conn, cid)
+
+
 def test_reconnect_after_exactly_five_minutes_is_one_session(conn) -> None:
-    """Mutants V01 (window 10 min) and V02 (`>=`). SPEC: reconnects within 5 minutes of the previous last sighting
-    are merged. 5:00 exactly merges; 5:01 does not; 7 minutes does not."""
-    a = datetime(2026, 9, 1, 10, 0, tzinfo=timezone.utc)
-    _ctrl_session(conn, a, a + timedelta(minutes=30), 9720001)
-    _ctrl_session(conn, a + timedelta(minutes=35), a + timedelta(minutes=60), 9720001)        # exactly 5:00
-    _ctrl_session(conn, a, a + timedelta(minutes=30), 9720002)
-    _ctrl_session(conn, a + timedelta(minutes=35, seconds=1), a + timedelta(minutes=60), 9720002)  # 5:01
-    _ctrl_session(conn, a, a + timedelta(minutes=30), 9720003)
-    _ctrl_session(conn, a + timedelta(minutes=37), a + timedelta(minutes=60), 9720003)        # 7:00
-    one = _merged(conn, 9720001)
+    """Mutant V02 (`>=` instead of `>`). SPEC: reconnects within 5 minutes of the previous last sighting are merged;
+    5:00 exactly is within."""
+    one = _reconnect(conn, 9720001, timedelta(minutes=5))
     assert len(one) == 1 and one[0]["session_count"] == 2
-    assert one[0]["start_time"] == a and one[0]["end_time"] == a + timedelta(minutes=60)
-    assert len(_merged(conn, 9720002)) == 2
-    assert len(_merged(conn, 9720003)) == 2
+    assert one[0]["start_time"] == RECONNECT_START and one[0]["end_time"] == RECONNECT_START + timedelta(minutes=65)
+
+
+def test_reconnect_after_five_minutes_and_a_second_is_two_sessions(conn) -> None:
+    """Mutants V01 (window 10 minutes) and a window of 5:01 or more: one second over the limit is a new session (issue #49)."""
+    two = _reconnect(conn, 9720002, timedelta(minutes=5, seconds=1))
+    assert [r["session_count"] for r in two] == [1, 1]
+    assert two[1]["start_time"] == RECONNECT_START + timedelta(minutes=35, seconds=1)
+
+
+def test_reconnect_after_seven_minutes_is_two_sessions(conn) -> None:
+    """Mutants V01 (window 10 minutes) and a window of 7 minutes (issue #49): a 7 minute gap is a new session."""
+    two = _reconnect(conn, 9720003, timedelta(minutes=7))
+    assert [r["session_count"] for r in two] == [1, 1]
+
+
+def test_reconnect_gap_is_measured_from_the_latest_sighting_of_all_earlier_sessions(conn) -> None:
+    """Mutant: gap measured from the immediately preceding session instead of the latest last_seen so far. B lies inside
+    A and ends early (10:20); C starts at 10:34, 14 minutes after B but 4 minutes after A (10:30), so all three merge."""
+    a = RECONNECT_START
+    _ctrl_session(conn, a, a + timedelta(minutes=30), 9720004)
+    _ctrl_session(conn, a + timedelta(minutes=10), a + timedelta(minutes=20), 9720004)
+    _ctrl_session(conn, a + timedelta(minutes=34), a + timedelta(minutes=50), 9720004)
+    merged = _merged(conn, 9720004)
+    assert len(merged) == 1 and merged[0]["session_count"] == 3 and merged[0]["end_time"] == a + timedelta(minutes=50)
+
+
+def test_reconnects_of_other_callsigns_or_other_controllers_are_never_merged(conn) -> None:
+    a = RECONNECT_START
+    _ctrl_session(conn, a, a + timedelta(minutes=30), 9720005, callsign="ML_APP")
+    _ctrl_session(conn, a + timedelta(minutes=31), a + timedelta(minutes=60), 9720005, callsign="ML_TWR")
+    _ctrl_session(conn, a + timedelta(minutes=31), a + timedelta(minutes=60), 9720006, callsign="ML_APP")
+    assert len(_merged(conn, 9720005)) == 2 and len(_merged(conn, 9720006)) == 1
 
 
 # ------------------------------------------------------------------ online_now windows
