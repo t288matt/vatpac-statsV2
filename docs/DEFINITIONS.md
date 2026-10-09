@@ -11,9 +11,10 @@ A session becomes one or more **flights**, computed into the table `flight_summa
 - **Gap split (exact):** a gap of more than 120 minutes between consecutive stored samples starts a new flight.
 - **Span split (approximate):** within a gap segment, flights are cut into fixed 8-hour buckets measured from the segment's first sample. This approximates "restart after 8 hours" without a recursive query, so a split falls on a bucket boundary rather than on the exact 8-hour mark.
 - **Start** = first stored sample; **end** = last stored sample; **duration** = end minus start.
+- **Reconnect merge (ADR-023, from migration 20261009000110):** the `flight` view joins parts of different sessions that have the same CID, callsign, departure and arrival when the next part starts 120 minutes or less after the earlier parts ended. A changed departure or arrival is a different flight. Parts of one session are never joined. The per-session parts are in the view `flight_part`.
 - Plan fields are updated in place to the latest non-null values; `plan_changed_at` records when departure or arrival last changed.
 
-**Difference from v1.** v1 keyed sessions on departure and arrival as well, which produced duplicates when a plan was amended (ADR-006). v1 closed a flight after `FLIGHT_COMPLETION_HOURS` of 8 hours from first logon (v1 compose); v3 splits by gap and span in the view and closes nothing in the collector.
+**Difference from v1.** v1 keyed sessions on departure and arrival as well, which produced duplicates when a plan was amended (ADR-006); since ADR-023 v3 merges reconnects with the same airports as v1 does, but still keeps a changed plan as a separate flight without v1's duplicate rows. v1 closed a flight after `FLIGHT_COMPLETION_HOURS` of 8 hours from first logon (v1 compose); v3 splits by gap and span in the view and closes nothing in the collector.
 
 ## 2. The flight gate
 
