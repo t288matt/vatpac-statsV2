@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from helpers import apply, at, counts, partition_for
+from helpers import apply, at, counts, ctrl, events, partition_for, pilot
 
 pytestmark = pytest.mark.integration
 
@@ -16,14 +16,6 @@ T1 = datetime(2026, 10, 7, 16, 11, 19, tzinfo=timezone.utc)
 def db(conn):
     partition_for(conn, T1)
     return conn
-
-
-def pilot(payload: dict, callsign: str) -> dict:
-    return next(p for p in payload["pilots"] if p["callsign"] == callsign)
-
-
-def ctrl(payload: dict, callsign: str) -> dict:
-    return next(c for c in payload["controllers"] if c["callsign"] == callsign)
 
 
 def session(db, callsign: str) -> dict | None:
@@ -127,14 +119,6 @@ def test_pilot_entering_region_is_stored_from_first_inside_snapshot(db, payload,
 
 
 # ------------------------------------------------------------------ controllers
-def events(db, table: str, callsign: str) -> list[dict]:
-    return db.execute(
-        f"SELECT e.* FROM {table} e JOIN controller_session s ON s.id = e.session_id "
-        "WHERE s.callsign = %s ORDER BY e.observed_at",
-        (callsign,),
-    ).fetchall()
-
-
 def test_rating_and_frequency_events_only_on_change(db, payload, refdata) -> None:
     apply(db, at(payload, 0), refdata)
     assert len(events(db, "controller_rating_event", "ML_APP")) == 1

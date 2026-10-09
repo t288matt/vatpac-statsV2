@@ -1,11 +1,10 @@
 """Card 90 (most popular aircraft by flights): v1 uses a 6-month window, flights with an aircraft type and
 airborne time only, and counts flights per category. Owner decision 08-10-2026: categories come from the
-aircraft_type lookup, not v1's LIKE ladder. Helpers come from test_pilots_t14 (precedent: other test modules
-import from each other)."""
+aircraft_type lookup, not v1's LIKE ladder. Helpers come from helpers.py."""
 from __future__ import annotations
 
 import pytest
-from test_pilots_t14 import TRAFFIC, add_flight, run_panel
+from helpers import TRAFFIC, add_flight, run_panel
 
 pytestmark = pytest.mark.integration
 

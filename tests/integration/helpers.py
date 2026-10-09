@@ -2,7 +2,12 @@
 from __future__ import annotations
 
 import copy
-from datetime import datetime, timedelta, timezone
+import json
+from datetime import UTC, datetime, timedelta, timezone
+from pathlib import Path
+
+
+REPO = Path(__file__).resolve().parents[2]
 
 
 def partition_for(conn, day: datetime) -> str:
@@ -41,3 +46,126 @@ def counts(conn) -> dict[str, int]:
     tables = ["pilot_session", "pilot_position", "controller_session", "controller_rating_event",
               "controller_frequency_event", "network_snapshot"]
     return {t: conn.execute(f"SELECT count(*) AS n FROM {t}").fetchone()["n"] for t in tables}
+
+
+# ------------------------------------------------------------------ flight view and summary (used by several files)
+T0 = datetime(2026, 10, 7, 0, 0, tzinfo=timezone.utc)
+
+
+def make_session(conn, cid: int, samples: list[tuple[datetime, int | None]], dep="YSSY", arr="YMML") -> int:
+    """Insert a pilot_session and one position per (observed_at, gs) sample."""
+    first, last = samples[0][0], samples[-1][0]
+    for t, _ in samples:
+        partition_for(conn, t)
+    sid = conn.execute(
+        "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+        (cid, f"TEST{cid}", first.replace(microsecond=0), first, last, dep, arr),
+    ).fetchone()["id"]
+    with conn.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO pilot_position (observed_at, session_id, lat, lon, alt_ft, gs_kt, hdg) "
+            "VALUES (%s,%s,-33.9,151.2,5000,%s,90)",
+            [(t, sid, gs) for t, gs in samples],
+        )
+    return sid
+
+
+def run(n: int, start: datetime = T0, step: int = 15, gs: int | None = 250):
+    return [(start + timedelta(seconds=step * i), gs) for i in range(n)]
+
+
+def flights(conn, cid: int) -> list[dict]:
+    # `flight` reads the incremental flight_summary table: recompute it for all sessions first
+    # (the collector does this every 5 minutes with refresh_flight_summary()).
+    conn.execute("SELECT refresh_flight_summary(NULL)")
+    return conn.execute("SELECT * FROM flight WHERE cid = %s ORDER BY 1", (cid,)).fetchall()
+
+
+def refresh(conn, since: str | None = None) -> int:
+    if since is None:
+        return conn.execute("SELECT refresh_flight_summary(NULL) AS n").fetchone()["n"]
+    return conn.execute("SELECT refresh_flight_summary(%s::interval) AS n", (since,)).fetchone()["n"]
+
+
+# ------------------------------------------------------------------ in-progress flights (the online_now clock)
+CID = 9700000
+
+
+def set_poll_interval(conn, seconds: int = 30) -> None:
+    """The collector publishes poll_interval_seconds to app_setting on start; the migrations do not seed it, and the
+    online-now windows (2 x this value, ADR-024) are empty without it. The conn fixture removes it after each test."""
+    conn.execute("INSERT INTO app_setting (key, value) VALUES ('poll_interval_seconds', %s) "
+                 "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (str(seconds),))
+
+
+def set_up_clock(conn) -> datetime:
+    """30 s polling and a newest snapshot 5 s ago; returns the snapshot time."""
+    set_poll_interval(conn, 30)
+    t = datetime.now(timezone.utc) - timedelta(seconds=5)
+    conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (t,))
+    return t
+
+
+def session_ending(t: datetime, age_s: int, n: int = 40, gs: int | None = 250):
+    """n samples 15 s apart whose last one is age_s seconds before t."""
+    return run(n, start=t - timedelta(seconds=age_s + 15 * (n - 1)), gs=gs)
+
+
+# ------------------------------------------------------------------ feed payload lookups and controller events
+def pilot(payload: dict, callsign: str) -> dict:
+    return next(p for p in payload["pilots"] if p["callsign"] == callsign)
+
+
+def ctrl(payload: dict, callsign: str) -> dict:
+    return next(c for c in payload["controllers"] if c["callsign"] == callsign)
+
+
+def events(db, table: str, callsign: str) -> list[dict]:
+    return db.execute(
+        f"SELECT e.* FROM {table} e JOIN controller_session s ON s.id = e.session_id "
+        "WHERE s.callsign = %s ORDER BY e.observed_at",
+        (callsign,),
+    ).fetchall()
+
+
+# ------------------------------------------------------------------ dashboard panels run against synthetic flights
+TRAFFIC = REPO / "grafana" / "dashboards" / "pilots" / "pilots-traffic.json"
+ORIGINS = REPO / "grafana" / "dashboards" / "demographics" / "pilot-origins.json"
+def panel(path, title: str) -> dict:
+    dash = json.loads(path.read_text(encoding="utf-8"))
+    return next(p for p in dash["panels"] if p.get("title") == title)
+
+
+def run_panel(conn, path, title: str) -> list[dict]:
+    p = panel(path, title)
+    days = int(str(p.get("timeFrom", "30d")).rstrip("d"))
+    sql = (p["targets"][0]["rawSql"]
+           .replace("$__timeFrom()", f"(now() - interval '{days * 24} hours')")  # hours: day intervals shift by an hour across DST in a non-UTC session
+           .replace("$__timeTo()", "now()"))
+    return conn.execute(sql).fetchall()
+
+
+_serial = {"n": 0}
+
+
+def add_flight(conn, cid: int, *, callsign: str | None = None, dep="YSSY", arr="YMML", aircraft="B738",
+               days_ago: float = 1.0, minutes: int = 120, airborne: float | None = 100, gs: int | None = 450,
+               alt: int | None = 35000, logon_days_ago: float | None = None) -> int:
+    """One pilot session plus its flight_summary row. The flight ends ``days_ago`` days ago."""
+    _serial["n"] += 1
+    end = datetime.now(UTC) - timedelta(days=days_ago)
+    start = end - timedelta(minutes=minutes)
+    logon = datetime.now(UTC) - timedelta(days=logon_days_ago) if logon_days_ago is not None else start
+    logon = min(logon, start)
+    sid = conn.execute(
+        "INSERT INTO pilot_session (cid, callsign, logon_time, name, first_seen, last_seen, departure, arrival, aircraft_icao) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+        (cid, callsign or f"TST{_serial['n']:04d}", logon.replace(microsecond=0), f"Pilot {cid}", logon, end, dep, arr, aircraft),
+    ).fetchone()["id"]
+    conn.execute(
+        "INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count, "
+        "airborne_minutes, max_gs_kt, max_alt_ft) VALUES (%s,0,0,%s,%s,%s,10,%s,%s,%s)",
+        (sid, cid, start, end, airborne, gs, alt),
+    )
+    return sid

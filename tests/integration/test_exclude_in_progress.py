@@ -11,9 +11,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from conftest import REPO
 
-from test_flight_in_progress import CID, session_ending, set_up_clock
-from test_flight_summary import refresh
-from test_flight_view import make_session, run
+from helpers import CID, make_session, refresh, run, session_ending, set_up_clock
 
 pytestmark = pytest.mark.integration
 

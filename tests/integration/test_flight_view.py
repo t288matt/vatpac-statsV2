@@ -7,46 +7,13 @@ cid, departure and arrival. SPEC does not list the view's full column set (see t
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 import pytest
 
-from helpers import partition_for
+from helpers import T0, flights, make_session, run
 
 pytestmark = pytest.mark.integration
-
-T0 = datetime(2026, 10, 7, 0, 0, tzinfo=timezone.utc)
-
-
-def make_session(conn, cid: int, samples: list[tuple[datetime, int | None]], dep="YSSY", arr="YMML") -> int:
-    """Insert a pilot_session and one position per (observed_at, gs) sample."""
-    first, last = samples[0][0], samples[-1][0]
-    for t, _ in samples:
-        partition_for(conn, t)
-    sid = conn.execute(
-        "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
-        "VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-        (cid, f"TEST{cid}", first.replace(microsecond=0), first, last, dep, arr),
-    ).fetchone()["id"]
-    with conn.cursor() as cur:
-        cur.executemany(
-            "INSERT INTO pilot_position (observed_at, session_id, lat, lon, alt_ft, gs_kt, hdg) "
-            "VALUES (%s,%s,-33.9,151.2,5000,%s,90)",
-            [(t, sid, gs) for t, gs in samples],
-        )
-    return sid
-
-
-def run(n: int, start: datetime = T0, step: int = 15, gs: int | None = 250):
-    return [(start + timedelta(seconds=step * i), gs) for i in range(n)]
-
-
-def flights(conn, cid: int) -> list[dict]:
-    # `flight` reads the incremental flight_summary table: recompute it for all sessions first
-    # (the collector does this every 5 minutes with refresh_flight_summary()).
-    conn.execute("SELECT refresh_flight_summary(NULL)")
-    return conn.execute("SELECT * FROM flight WHERE cid = %s ORDER BY 1", (cid,)).fetchall()
-
 
 def col(row: dict, *names: str):
     for n in names:

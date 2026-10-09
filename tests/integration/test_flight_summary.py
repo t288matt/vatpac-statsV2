@@ -10,16 +10,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from helpers import partition_for
-from test_flight_view import T0, make_session, run
+from helpers import T0, make_session, partition_for, refresh, run
 
 pytestmark = pytest.mark.integration
-
-
-def refresh(conn, since: str | None = None) -> int:
-    if since is None:
-        return conn.execute("SELECT refresh_flight_summary(NULL) AS n").fetchone()["n"]
-    return conn.execute("SELECT refresh_flight_summary(%s::interval) AS n", (since,)).fetchone()["n"]
 
 
 def summary(conn, cid: int) -> list[dict]:

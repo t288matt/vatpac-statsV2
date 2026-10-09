@@ -22,7 +22,7 @@ import test_events_t14 as ev14
 import test_online_hours as hours
 import test_pilots_t14 as p14
 from helpers import apply, at, partition_for
-from test_flight_view import T0, flights, make_session, run
+from helpers import T0, flights, make_session, run, set_poll_interval
 
 pytestmark = pytest.mark.integration
 
@@ -321,6 +321,7 @@ def test_monday_attendance_includes_the_current_weeks_monday(conn) -> None:
 def test_controller_is_open_only_when_seen_in_the_newest_snapshot(conn) -> None:
     """Mutant V05 (is_open window widened to 30 min): the window is 2 x the poll interval (ADR-024); the session seen 5 s
     ago is open, the one last seen 10 minutes ago is not, at any interval up to 5 minutes."""
+    set_poll_interval(conn)
     now = datetime.now(timezone.utc)
     _snap(conn, now)
     _ctrl_session(conn, now - timedelta(hours=1), now - timedelta(seconds=5), 9820001, "OPEN_TWR")

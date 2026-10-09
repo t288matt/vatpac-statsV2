@@ -9,32 +9,14 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from test_flight_summary import refresh
-from test_flight_view import make_session, run
+from helpers import CID, make_session, refresh, run, session_ending, set_up_clock
 
 pytestmark = pytest.mark.integration
-
-CID = 9700000
-
-
-def set_up_clock(conn) -> datetime:
-    """30 s polling and a newest snapshot 5 s ago; returns the snapshot time."""
-    conn.execute("INSERT INTO app_setting (key, value) VALUES ('poll_interval_seconds', '30') "
-                 "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
-    t = datetime.now(timezone.utc) - timedelta(seconds=5)
-    conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (t,))
-    return t
-
 
 def flag(conn, cid: int) -> list[bool]:
     refresh(conn)
     rows = conn.execute("SELECT is_in_progress FROM flight WHERE cid = %s ORDER BY start_time", (cid,)).fetchall()
     return [r["is_in_progress"] for r in rows]
-
-
-def session_ending(t: datetime, age_s: int, n: int = 40, gs: int | None = 250):
-    """n samples 15 s apart whose last one is age_s seconds before t."""
-    return run(n, start=t - timedelta(seconds=age_s + 15 * (n - 1)), gs=gs)
 
 
 def test_still_connected_flight_is_in_progress(conn) -> None:
