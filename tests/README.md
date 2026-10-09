@@ -92,6 +92,5 @@ curl.exe -s https://data.vatsim.net/v3/vatsim-data.json -o $env:TEMP\raw_feed.js
 tests/.venv/Scripts/python tests/tools/make_fixture.py --raw $env:TEMP\raw_feed.json --verify
 ```
 
-`--verify` proves that no original name or CID survives (it prints counts only, never values). `ops/check_fixture_pii.py` (run in CI and by `make pii`) enforces
-the same patterns: names must match `^(Pilot|Controller) \d{4}( [A-Z]{4})?$`, CIDs must
-be 9000000..9999999, remarks must be `RMK/TEST`.
+`--verify` proves that no original name or CID survives (it prints counts only, never values). The fixture is anonymised by construction: names look like `Pilot 0001` or `Controller 0001`, CIDs are 9000000..9999999 and remarks are `RMK/TEST`.
+The CI check that enforced this (`ops/check_fixture_pii.py`, `make pii`) was removed on 08-10-2026 (owner decision: names and CIDs are public, ADR-019), so new fixtures may hold real names and CIDs; the anonymised one stays as it is.
