@@ -49,7 +49,7 @@ class Plan:
     config_dir: Path
     invariants_interval_s: float = 72 * 3600.0  # 0 disables
     crosscheck_interval_s: float = 14 * 86400.0  # 0 disables
-    samples: int = 48
+    samples: int = 24
 
 
 @dataclass
