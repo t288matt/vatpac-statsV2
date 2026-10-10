@@ -7,8 +7,8 @@ import contextlib
 import logging
 import math
 import signal
-import threading
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
