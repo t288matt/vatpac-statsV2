@@ -62,3 +62,48 @@ def test_diff_dumps_is_empty_for_equal_dumps_and_names_the_changed_table() -> No
     assert out[0].startswith("pilot_session: 2 rows vs 2 rows; only in A 1, only in B 1")
     assert any('A> {"a": 2}' in line for line in out) and any('B> {"a": 3}' in line for line in out)
     assert not any("network_snapshot" in line for line in out)
+
+
+def test_the_independent_values_agree_with_the_parser_on_real_data() -> None:
+    """Heading, altitude, groundspeed and position as the raw payload gives them (worked out in replay.py, not in
+    model.py) equal what the parser and the plausibility caps produce, for every in-region pilot and listed controller."""
+    from vatpac.model import clamp_pilot, parse_frequency_hz
+
+    for name, payload in rp.collect([FIX]):
+        exp = rp.expected(payload, REF.polygon, REF.whitelist)
+        snap = parse_snapshot(payload)
+        for p in snap.pilots:
+            k = (p.cid, p.callsign, f"{p.logon_time:%Y-%m-%dT%H:%M:%S}")
+            if k in exp.pilot_values:
+                gs, alt, _ = clamp_pilot(p.groundspeed, p.altitude)
+                assert exp.pilot_values[k] == (p.latitude, p.longitude, alt, gs, p.heading), (name, k)
+        assert any(v[2] for v in exp.pilot_values.values())              # not all zero or empty: the check can bite
+        assert name != "real_full.json.gz" or any(v[4] for v in exp.pilot_values.values())   # (the compact file has no heading)
+        for c in snap.controllers:
+            k = (c.cid, c.callsign, f"{c.logon_time:%Y-%m-%dT%H:%M:%S}")
+            if k in exp.controller_values:
+                assert exp.controller_values[k] == (c.rating, c.facility, parse_frequency_hz(c.frequency_text)), (name, k)
+
+
+def test_a_padded_callsign_collapses_to_the_plain_one() -> None:
+    """' X ' and 'X' are the same session: the callsign is stripped (removing the strip splits one flight in two)."""
+    payload = rp.collect([FIX])[0][1]
+    padded = json.loads(json.dumps(payload))
+    padded["pilots"][0]["callsign"] = "  " + payload["pilots"][0]["callsign"] + " \t"
+    assert parse_snapshot(padded).pilots[0].callsign == payload["pilots"][0]["callsign"]
+    padded["controllers"][0]["callsign"] = " " + payload["controllers"][0]["callsign"] + "  "
+    assert parse_snapshot(padded).controllers[0].callsign == payload["controllers"][0]["callsign"]
+
+
+def test_a_hand_built_polygon_and_points_catch_a_shifted_or_flipped_polygon(tmp_path) -> None:
+    """Hand-written coordinates, not the shared reference objects: a box lon 150..152, lat -34..-33 loaded through
+    load_polygon; points 0.05 degrees either side of every edge, and a point with latitude and longitude swapped."""
+    from vatpac.filters import inside_polygon, load_polygon
+
+    path = tmp_path / "box.json"
+    path.write_text(json.dumps({"type": "Polygon", "coordinates": [[[150, -34], [152, -34], [152, -33], [150, -33], [150, -34]]]}))
+    poly = load_polygon(path)
+    inside = [(-33.5, 151.0), (-33.05, 150.05), (-33.95, 151.95), (-33.05, 151.95), (-33.95, 150.05)]
+    outside = [(-32.95, 151.0), (-34.05, 151.0), (-33.5, 149.95), (-33.5, 152.05), (-33.5, -151.0), (151.0, -33.5)]
+    assert all(inside_polygon(poly, lat, lon) for lat, lon in inside)
+    assert not any(inside_polygon(poly, lat, lon) for lat, lon in outside)
