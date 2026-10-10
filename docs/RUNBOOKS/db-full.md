@@ -1,5 +1,9 @@
 # Runbook: database or disk full
 
+Last reviewed 10-10-2026 against commit c89e544.
+
+> **Section on dropping old position partitions applies after the fix-sql deploy** (migration 20261009000170, not yet deployed; deploys 1 and 2 do not contain it). **Deployed today (commit 3eb81a3):** the older drop function; it takes an exclusive lock on the parent table, has never been exercised live (first real drop is not due until about 06-01-2027) and is replaced by the lock-friendly version in migration 170 (issue #98).
+
 Symptoms: watchdog `WARN/CRIT disk`, `WARN db_size`, Postgres log "No space left on device", collector write errors, Postgres in recovery loops.
 
 ## 1. Measure

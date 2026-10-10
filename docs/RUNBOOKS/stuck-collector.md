@@ -1,5 +1,7 @@
 # Runbook: stuck collector
 
+Last reviewed 10-10-2026 against commit c89e544.
+
 The collector should never exit and never stop polling. "Stuck" means the container is up but `poll_log` has no new rows, or `/health` does not answer or returns 503 with `consecutive_failures` of 0.
 
 In this deployment the watchdog is alert-only (ADR-012): it has no Docker access, so it never restarts anything. You will receive `CRIT collector_health` (and later `poll_log_ok_age` and `network_snapshot_age`) and the restart is yours to do. Docker itself restarts the collector only if the process exits. (The restart logic in `watchdog.py`, including `RESTARTED collector ...` and `restart cap ... reached` messages, only activates if `DOCKER_HOST_URL` points at an external Docker endpoint.)

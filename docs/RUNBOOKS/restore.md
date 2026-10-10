@@ -1,5 +1,9 @@
 # Runbook: backups and restore
 
+Last reviewed 10-10-2026 against commit c89e544.
+
+> **Applies after deploy 1** (fix-ops, exact commit 520dc3e): the dump time limits, the validation of every dump, the stale-dump check (`RESTORE_MAX_POLL_AGE_HOURS`, default 48; 0 turns it off) and the stricter restore sanity check. **Deployed today (commit 3eb81a3):** the restore test only checks that `pilot_session` and `poll_log` exist and hold rows; it does not refuse an old or near-empty dump, and `pg_dump` has no time limit. Back-ups, the nightly 02:00 schedule, retention and the restore steps themselves are the same.
+
 Backups: the `backup` service writes `vatpac_<UTC stamp>.dump` (pg_dump custom format) to the `backups` named volume at `BACKUP_TIME_UTC` (default 02:00) and keeps `BACKUP_RETENTION_DAYS` (default 14) days. The dump runs as the read-only role `backup_ro` (member of `pg_read_all_data`; password `BACKUP_DB_PASSWORD`). The dump holds data and schema, not roles (the migrate job recreates roles).
 
 `pg_dump` runs under a time limit, `BACKUP_DUMP_TIMEOUT_S` (default 1800 s; validation by `pg_restore -l` has `BACKUP_VALIDATE_TIMEOUT_S`, default 300 s). A dump that takes longer is killed, logged as `FAILED pg_dump (timed out after ...)` and counts as a failed backup, so raise `BACKUP_DUMP_TIMEOUT_S` in `.env` (and pass it to the backup service) when the database has grown enough for the dump to need longer; the watchdog `backup_age` alert at 26 h is how this shows up.

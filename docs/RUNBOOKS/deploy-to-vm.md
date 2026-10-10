@@ -1,6 +1,6 @@
 # Runbook: deploy to the Linux VM
 
-Last reviewed: 09-10-2026. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD**. The production VM is reached as `ssh vatpac-v3` (an alias in the owner's `~/.ssh/config`) and the stack lives in `~/vatpac-statsV2`. That VM has the git program installed (version 2.43.0 on 10-10-2026) but `~/vatpac-statsV2` is not a git checkout and the VM holds no GitHub credentials, so code is deployed with `git archive` (section 2c). Times in this runbook are UTC.
+Last reviewed 10-10-2026 against commit c89e544. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD**. The production VM is reached as `ssh vatpac-v3` (an alias in the owner's `~/.ssh/config`) and the stack lives in `~/vatpac-statsV2`. That VM has the git program installed (version 2.43.0 on 10-10-2026) but `~/vatpac-statsV2` is not a git checkout and the VM holds no GitHub credentials, so code is deployed with `git archive` (section 2c). Times in this runbook are UTC.
 
 Disk sizing: about 2 to 3 GB of positions at 90 days, plus WAL (up to 2 GB), plus `BACKUP_RETENTION_DAYS` (default 14) dumps on the same disk, plus Docker images, logs and build cache. 20 GB is too tight. Provision 40 GB or more, or set `BACKUP_RETENTION_DAYS=7` and copy dumps off-box (`restore.md`, "Off-box copies"). The watchdog checks the filesystems listed in `WATCHDOG_DISK_PATHS` (default `/backups,/`, which is the Docker data-root filesystem that holds the `pgdata` and `backups` named volumes) and warns at `WATCHDOG_DISK_PCT` (80%). If you move a volume onto its own mount, mount that path into the watchdog and add it to the list.
 
@@ -89,7 +89,8 @@ Steps (all from `~/vatpac-statsV2` on the VM, after the `git archive` copy of th
 
 Runbook for the checks themselves: [integrity-checks.md](integrity-checks.md).
 
-## 4f. Special case: plain-language Telegram messages (T56, issue #79; owner's go needed)
+## 4f. Special case: plain-language Telegram messages (T56, issue #79; NOT deployed yet)
+**Applies at deploy 1** (with fix-ops, exact commit 520dc3e, see [../DEPLOY_PLAN_REVIEW_FIXES.md](../DEPLOY_PLAN_REVIEW_FIXES.md)). Deployed today (commit 3eb81a3): the VM sends the older form `vatpac-stats: WARN <check>: <detail>`. The owner's go is needed.
 What it changes: the watchdog image only (new file `ops/watchdog/messages.py`, copied by the Dockerfile; a small change in `watchdog.py`). No migration, no setting, no `.env` edit, no change to the collector, so polling is not interrupted. Alert logic, the log text and the status-file detail strings keep their technical wording (the status file gains a `bad_since` entry per active alert, used for "the alert was active for ...").
 
 Steps (from `~/vatpac-statsV2` on the VM, after the `git archive` copy of the tree, section 2c):
