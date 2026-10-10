@@ -8,7 +8,7 @@
 # deploy is unchanged; this script only replaces remembering the checks. Exit 0 means no FAIL (WARN is allowed).
 # Settings (environment): DEPLOY_SSH (default vatpac-v3), DEPLOY_DIR (default ~/vatpac-statsV2), DEPLOY_GH (path to gh),
 # DEPLOY_REPO (default t288matt/vatpac-statsV2), DEPLOY_MIN_MEM_MB, DEPLOY_MAX_DISK_PCT, DEPLOY_MAX_DUMP_AGE_H,
-# DEPLOY_MIN_DUMP_BYTES, DEPLOY_MAX_GAP_S, DEPLOY_LOG_SINCE.
+# DEPLOY_MIN_DUMP_BYTES, DEPLOY_MAX_LOAD, DEPLOY_LOG_SINCE, DEPLOY_CMD_TIMEOUT (seconds per ssh call, default 60).
 
 DEPLOY_SSH="${DEPLOY_SSH:-vatpac-v3}"
 DEPLOY_DIR="${DEPLOY_DIR:-~/vatpac-statsV2}"
@@ -17,15 +17,18 @@ MIN_MEM_MB="${DEPLOY_MIN_MEM_MB:-3000}"
 MAX_DISK_PCT="${DEPLOY_MAX_DISK_PCT:-80}"
 MAX_DUMP_AGE_H="${DEPLOY_MAX_DUMP_AGE_H:-26}"
 MIN_DUMP_BYTES="${DEPLOY_MIN_DUMP_BYTES:-1000000}"
-MAX_GAP_S="${DEPLOY_MAX_GAP_S:-90}"
+WARN_GAP_S=90      # a polling gap from here is a WARN (a restart costs about 45 s; 90 s is three missed polls)
+FAIL_GAP_S=300     # a polling gap above this is a FAIL
+MAX_LOAD="${DEPLOY_MAX_LOAD:-2.0}"
+CMD_TIMEOUT="${DEPLOY_CMD_TIMEOUT:-60}"
 LOG_SINCE="${DEPLOY_LOG_SINCE:-6h}"
 SERVICES="db collector grafana backup watchdog"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXPECTED_FILE="${DEPLOY_EXPECTED_FILE:-$HERE/deploy_expected_warnings.txt}"
-BACKUP_WINDOW_START=6600   # 01:50 UTC, seconds since midnight
-BACKUP_WINDOW_END=9000     # 02:30 UTC
+ROOT="$(cd "$HERE/.." && pwd)"
 
 VM_DOWN=0
+g() { git -C "$ROOT" "$@"; }
 PASSES=0; WARNS=0; FAILS=0
 
 # ---------------------------------------------------------------- pure logic (no I/O except `date -d`)
@@ -33,10 +36,16 @@ PASSES=0; WARNS=0; FAILS=0
 # mem_ok <MemAvailable in MB>: succeeds when it is a number at least the minimum.
 mem_ok() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge "$MIN_MEM_MB" ]; }
 
-# in_backup_window <epoch seconds>: succeeds from 01:50 to 02:30 UTC inclusive.
+# in_backup_window <epoch> [HH:MM backup time, default 02:00]: succeeds from 10 minutes before to 30 minutes after it (UTC).
 in_backup_window() {
-  local s=$(( $1 % 86400 ))
-  [ "$s" -ge "$BACKUP_WINDOW_START" ] && [ "$s" -le "$BACKUP_WINDOW_END" ]
+  local t="${2:-02:00}" s c off
+  [[ "$t" =~ ^([0-9]{2}):([0-9]{2})$ ]] || t="02:00"
+  [[ "$t" =~ ^([0-9]{2}):([0-9]{2})$ ]]
+  c=$(( 10#${BASH_REMATCH[1]} * 3600 + 10#${BASH_REMATCH[2]} * 60 )); s=$(( $1 % 86400 ))
+  for off in -86400 0 86400; do
+    [ "$s" -ge $(( c + off - 600 )) ] && [ "$s" -le $(( c + off + 1800 )) ] && return 0
+  done
+  return 1
 }
 
 # dmy_to_epoch "DD-MM-YYYY HH:MM" -> epoch seconds (UTC); fails on a malformed value.
@@ -45,16 +54,17 @@ dmy_to_epoch() {
   date -u -d "${BASH_REMATCH[3]}-${BASH_REMATCH[2]}-${BASH_REMATCH[1]} ${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:00" +%s 2>/dev/null
 }
 
-# expected_warning_status <check name> <now epoch> <file> -> prints: none | valid <expiry> | expired <expiry> | malformed <expiry>
-# File lines: name|DD-MM-YYYY HH:MM (UTC expiry)|reason ; # starts a comment. A name must match exactly.
+# expected_warning_status <check name> <now epoch> <file> -> none | valid <max> <expiry> | expired <max> <expiry> | malformed
+# File lines: name|max count|DD-MM-YYYY HH:MM (UTC expiry)|reason ; # starts a comment. A name must match exactly.
 expected_warning_status() {
-  local want="$1" now="$2" file="$3" name exp reason ep
+  local want="$1" now="$2" file="$3" name max exp reason ep
   [ -r "$file" ] || { echo none; return 0; }
-  while IFS='|' read -r name exp reason; do
+  while IFS='|' read -r name max exp reason; do
     case "$name" in ''|'#'*) continue ;; esac
     [ "$name" = "$want" ] || continue
-    if ! ep="$(dmy_to_epoch "$exp")" || [ -z "$ep" ]; then echo "malformed $exp"; return 0; fi
-    if [ "$now" -lt "$ep" ]; then echo "valid $exp"; else echo "expired $exp"; fi
+    case "$max" in ''|*[!0-9]*) echo malformed; return 0 ;; esac
+    if ! ep="$(dmy_to_epoch "$exp")" || [ -z "$ep" ]; then echo malformed; return 0; fi
+    if [ "$now" -lt "$ep" ]; then echo "valid $max $exp"; else echo "expired $max $exp"; fi
     return 0
   done < "$file"
   echo none
@@ -62,23 +72,26 @@ expected_warning_status() {
 
 # classify_invariant <name> <violations> <now epoch> <file> -> prints "STATUS|value"
 classify_invariant() {
-  local name="$1" n="$2" now="$3" file="$4" st
+  local name="$1" n="$2" now="$3" file="$4" st rest max exp
   case "$n" in ''|*[!0-9]*) echo "FAIL|$name: unreadable count '$n'"; return 0 ;; esac
   if [ "$n" -eq 0 ]; then echo "PASS|"; return 0; fi
-  st="$(expected_warning_status "$name" "$now" "$file")"
+  st="$(expected_warning_status "$name" "$now" "$file")"; rest="${st#* }"; max="${rest%% *}"; exp="${rest#* }"
   case "$st" in
-    valid*) echo "WARN|$name = $n (expected until ${st#valid } UTC)" ;;
-    expired*) echo "FAIL|$name = $n (the expected-warning entry expired ${st#expired } UTC)" ;;
-    malformed*) echo "FAIL|$name = $n (malformed expiry '${st#malformed }' in the expected-warnings file)" ;;
+    valid*) if [ "$n" -le "$max" ]; then echo "WARN|$name = $n (expected, at most $max, until $exp UTC)"
+            else echo "FAIL|$name = $n (above the expected maximum of $max)"; fi ;;
+    expired*) echo "FAIL|$name = $n (the expected-warning entry expired $exp UTC)" ;;
+    malformed*) echo "FAIL|$name = $n (malformed entry in the expected-warnings file)" ;;
     *) echo "FAIL|$name = $n" ;;
   esac
 }
 
-# gap_ok <max gap seconds> <age of newest row seconds>: both numbers and under the limit.
-gap_ok() {
-  case "$1" in ''|*[!0-9]*) return 1 ;; esac
-  case "$2" in ''|*[!0-9]*) return 1 ;; esac
-  [ "$1" -lt "$MAX_GAP_S" ] && [ "$2" -lt "$MAX_GAP_S" ]
+# classify_gap <max gap s> <newest row age s> -> PASS | WARN | FAIL | BAD
+classify_gap() {
+  case "$1" in ''|*[!0-9]*) echo BAD; return ;; esac
+  case "$2" in ''|*[!0-9]*) echo BAD; return ;; esac
+  if [ "$2" -ge "$WARN_GAP_S" ] || [ "$1" -gt "$FAIL_GAP_S" ]; then echo FAIL
+  elif [ "$1" -ge "$WARN_GAP_S" ]; then echo WARN
+  else echo PASS; fi
 }
 
 # ---------------------------------------------------------------- output
@@ -96,8 +109,12 @@ summary() {
 
 # ---------------------------------------------------------------- access to the VM and GitHub
 
-vm()    { [ "$VM_DOWN" = 1 ] && return 255; ssh -n -o BatchMode=yes -o ConnectTimeout=10 "$DEPLOY_SSH" "cd $DEPLOY_DIR && $1"; }
-vm_in() { [ "$VM_DOWN" = 1 ] && return 255; ssh -o BatchMode=yes -o ConnectTimeout=10 "$DEPLOY_SSH" "cd $DEPLOY_DIR && $1"; }
+SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3"
+with_timeout() { if command -v timeout >/dev/null 2>&1; then timeout "${TMO:-$CMD_TIMEOUT}" "$@"; else "$@"; fi; }
+# shellcheck disable=SC2086
+vm()    { [ "$VM_DOWN" = 1 ] && return 255; with_timeout ssh -n $SSH_OPTS "$DEPLOY_SSH" "cd $DEPLOY_DIR && $1"; }
+# shellcheck disable=SC2086
+vm_in() { [ "$VM_DOWN" = 1 ] && return 255; with_timeout ssh $SSH_OPTS "$DEPLOY_SSH" "cd $DEPLOY_DIR && $1"; }
 
 gh_bin() {
   if [ -n "${DEPLOY_GH:-}" ]; then echo "$DEPLOY_GH"; return; fi
@@ -152,32 +169,31 @@ dump_facts() {  # sets D_EPOCH D_SIZE D_NAME D_VALID from the newest dump; retur
 # ---------------------------------------------------------------- --preflight
 
 preflight() {
-  local want="$1" full tip behind now out ci_lines ci_bad pct free tdc mem inwin foreign dumpage ageh reach
+  local want="$1" full tip behind now out ci_lines ci_bad pct free tdc mem foreign dumpage ageh bt load
   [[ "$want" =~ ^[0-9a-fA-F]{7,40}$ ]] || { echo "usage: deploy.sh --preflight <commit (7 to 40 hex characters)>" >&2; return 2; }
   echo "deploy preflight for $want against $DEPLOY_SSH (read-only)"
 
-  # commit on origin/main
-  git fetch -q origin main 2>/dev/null
-  full="$(git rev-parse --verify -q "${want}^{commit}" 2>/dev/null)"
-  tip="$(git rev-parse --verify -q origin/main 2>/dev/null)"
+  g fetch -q origin main 2>/dev/null
+  full="$(g rev-parse --verify -q "${want}^{commit}" 2>/dev/null)"
+  tip="$(g rev-parse --verify -q origin/main 2>/dev/null)"
   if [ -z "$full" ] || [ -z "$tip" ]; then
     emit FAIL commit_on_main "cannot resolve '$want' or origin/main"
-  elif ! git merge-base --is-ancestor "$full" "$tip" 2>/dev/null; then
+  elif ! g merge-base --is-ancestor "$full" "$tip" 2>/dev/null; then
     emit FAIL commit_on_main "${full:0:10} is not on origin/main"
   elif [ "$full" = "$tip" ]; then
     emit PASS commit_on_main "${full:0:10} is the tip of origin/main"
   else
-    behind="$(git rev-list --count "$full..$tip" 2>/dev/null)"
+    behind="$(g rev-list --count "$full..$tip" 2>/dev/null)"
     emit PASS commit_on_main "${full:0:10} is on origin/main (${behind:-?} newer commit(s) after it)"
   fi
 
-  # CI green for that exact sha: every run for it must be completed/success, and there must be at least one
+  # CI green for that exact sha: every run for it completed/success, and at least one
   if [ -z "$full" ]; then
     emit FAIL ci_green "no commit to look up"
   else
-    ci_lines="$("$(gh_bin)" run list --repo "$DEPLOY_REPO" --branch main --limit 50 \
-      --json headSha,workflowName,status,conclusion \
-      --jq ".[] | select(.headSha==\"$full\") | .workflowName + \" \" + .status + \" \" + (.conclusion // \"\")" 2>/dev/null | tr -d '\r')"
+    ci_lines="$("$(gh_bin)" run list --repo "$DEPLOY_REPO" --commit "$full" \
+      --json workflowName,status,conclusion \
+      --jq '.[] | .workflowName + " " + .status + " " + (.conclusion // "")' 2>/dev/null | tr -d '\r')"
     if [ -z "$ci_lines" ]; then
       emit FAIL ci_green "no CI run found for ${full:0:10} (gh missing, not logged in, or no run)"
     else
@@ -187,9 +203,7 @@ preflight() {
     fi
   fi
 
-  # VM reachable and its clock
-  reach="$(vm 'echo reachable' 2>/dev/null | tr -d '\r')"
-  if [ "$reach" != reachable ]; then
+  if [ "$(vm 'echo reachable' 2>/dev/null | tr -d '\r')" != reachable ]; then
     VM_DOWN=1; emit FAIL vm_reachable "ssh $DEPLOY_SSH did not answer"
   else
     emit PASS vm_reachable "ssh $DEPLOY_SSH answers"
@@ -198,7 +212,7 @@ preflight() {
   if printf '%s\n' "$tdc" | grep -q 'System clock synchronized: yes' && printf '%s\n' "$tdc" | grep -q 'NTP service: active'; then
     emit PASS vm_clock "synchronized: yes, NTP service: active"
   else
-    emit FAIL vm_clock "$(printf '%s\n' "$tdc" | grep -E 'synchronized|NTP service' | tr -s ' ' | tr '\n' ';' | cut -c1-120)${tdc:+}${tdc:-could not run timedatectl}"
+    emit FAIL vm_clock "$(printf '%s\n' "$tdc" | grep -E 'synchronized|NTP service' | tr -s ' ' | tr '\n' ';' | cut -c1-100)"
   fi
 
   # MemAvailable (the kernel's estimate), never the "free" column
@@ -206,7 +220,11 @@ preflight() {
   if mem_ok "$mem"; then emit PASS mem_available "$mem MB (needs $MIN_MEM_MB)"
   else emit FAIL mem_available "${mem:-could not read} MB (needs $MIN_MEM_MB)"; fi
 
-  # disk
+  # load average (1 minute): parallel test containers caused snapshot apply timeouts on 10-10-2026 (issue 113)
+  load="$(vm 'awk "{print \$1}" ${DEPLOY_LOADAVG:-/proc/loadavg}' 2>/dev/null | tr -d '\r' | head -n 1)"
+  if [[ "$load" =~ ^[0-9]+(\.[0-9]+)?$ ]] && awk -v l="$load" -v m="$MAX_LOAD" 'BEGIN{exit !(l<=m)}'; then emit PASS load "1-minute load average $load (limit $MAX_LOAD)"
+  else emit FAIL load "1-minute load average ${load:-unreadable} (limit $MAX_LOAD)"; fi
+
   out="$(vm 'df -P / | awk "NR==2{print \$5, int(\$4/1024/1024)}"' 2>/dev/null | tr -d '\r' | head -n 1)"
   pct="${out%% *}"; pct="${pct%\%}"; free="${out##* }"
   case "$pct" in ''|*[!0-9]*) emit FAIL disk_free "could not read" ;;
@@ -214,18 +232,18 @@ preflight() {
        else emit FAIL disk_free "/ ${pct}% used, ${free} GB free (limit ${MAX_DISK_PCT}%)"; fi ;;
   esac
 
-  # containers
   load_containers
   check_healthy
   check_restarts
 
-  # backup window (VM time)
+  # backup window: BACKUP_TIME_UTC from the VM's .env if set (only that one value is read, and only an HH:MM is ever used)
   now="$(vm_now)"
+  bt="$(vm "sed -n 's/^BACKUP_TIME_UTC=//p' .env 2>/dev/null | head -n 1" 2>/dev/null | tr -d '\r ')"
+  [[ "$bt" =~ ^[0-9]{2}:[0-9]{2}$ ]] || bt="02:00"
   if [ -z "$now" ]; then emit FAIL backup_window "could not read the VM time"
-  elif in_backup_window "$now"; then emit FAIL backup_window "$(iso "$now" | cut -c12-16) UTC is inside 01:50 to 02:30 UTC (backup and restore test)"
-  else emit PASS backup_window "$(iso "$now" | cut -c12-16) UTC is outside 01:50 to 02:30 UTC"; fi
+  elif in_backup_window "$now" "$bt"; then emit FAIL backup_window "$(iso "$now" | cut -c12-16) UTC is within -10/+30 minutes of the $bt UTC backup and restore test"
+  else emit PASS backup_window "$(iso "$now" | cut -c12-16) UTC is outside the $bt UTC backup window"; fi
 
-  # leftovers that are not part of the stack
   out="$(vm "docker ps -a --format '{{.Names}}'" 2>/dev/null | tr -d '\r')"
   if [ -z "$out" ]; then emit FAIL foreign_containers "could not list containers"
   else
@@ -233,25 +251,19 @@ preflight() {
     if [ -z "$foreign" ]; then emit PASS foreign_containers "none"; else emit FAIL foreign_containers "non-vatpac containers present: $foreign"; fi
   fi
 
-  # newest dump: recent, big enough, and readable by pg_restore -l
+  # newest dump: readable, big enough, not from the future, under 26 h (FAIL); over 2 h old is a WARN
   if ! dump_facts; then emit FAIL recent_dump "could not read the backup volume"
   elif [ -z "$now" ]; then emit FAIL recent_dump "no VM time to compute the age"
   else
     dumpage=$(( now - D_EPOCH )); ageh=$(( dumpage / 3600 ))
-    if [ "$D_VALID" = valid ] && [ "$D_SIZE" -ge "$MIN_DUMP_BYTES" ] && [ "$ageh" -lt "$MAX_DUMP_AGE_H" ]; then
-      emit PASS recent_dump "$D_NAME, ${ageh} h old, $D_SIZE bytes, pg_restore -l ok"
-    else
+    if [ "$D_VALID" != valid ] || [ "$D_SIZE" -lt "$MIN_DUMP_BYTES" ] || [ "$dumpage" -lt 0 ] || [ "$ageh" -ge "$MAX_DUMP_AGE_H" ]; then
       emit FAIL recent_dump "$D_NAME, ${ageh} h old (max $MAX_DUMP_AGE_H), $D_SIZE bytes (min $MIN_DUMP_BYTES), readable: $D_VALID"
+    elif [ "$dumpage" -gt 7200 ]; then
+      emit WARN recent_dump "$D_NAME is ${ageh} h old, $D_SIZE bytes, readable; run 'docker compose exec backup backup.sh once' before the deploy"
+    else
+      emit PASS recent_dump "$D_NAME, ${ageh} h old, $D_SIZE bytes, pg_restore -l ok"
     fi
   fi
-
-  # mid-deploy flag: the marker folder holds a "lock" file only if somebody put it there by hand
-  out="$(vm 'if [ -e .deploy/lock ]; then echo "LOCKED: $(cat .deploy/lock 2>/dev/null | head -c 100)"; else echo free; fi' 2>/dev/null | tr -d '\r' | head -n 1)"
-  case "$out" in
-    free) emit PASS not_mid_deploy "no .deploy/lock on the VM" ;;
-    LOCKED*) emit FAIL not_mid_deploy "$out" ;;
-    *) emit FAIL not_mid_deploy "could not read the VM tree" ;;
-  esac
 
   summary preflight
 }
@@ -259,15 +271,19 @@ preflight() {
 # ---------------------------------------------------------------- --verify
 
 verify() {
-  local out rc now line name n detail res st age maxgap rows tb bad first lines hits rows3 sample
+  local out line name cnt detail res st age maxgap rows ts bad total seen hits lines gapclass hs en er ag
   echo "deploy verify against $DEPLOY_SSH (read-only)"
-  out="$(vm 'echo reachable' 2>/dev/null | tr -d '\r')"
-  if [ "$out" != reachable ]; then VM_DOWN=1; emit FAIL vm_reachable "ssh $DEPLOY_SSH did not answer"; else emit PASS vm_reachable "ssh answers"; fi
+  if [ "$(vm 'echo reachable' 2>/dev/null | tr -d '\r')" != reachable ]; then VM_DOWN=1; emit FAIL vm_reachable "ssh $DEPLOY_SSH did not answer"; else emit PASS vm_reachable "ssh answers"; fi
 
-  # existing scripts
-  out="$(vm 'sh ops/smoke.sh' 2>&1 | tr -d '\r')"; rc=$?
-  if printf '%s\n' "$out" | tail -n 1 | grep -q '^SMOKE PASS$'; then emit PASS smoke "SMOKE PASS ($(printf '%s\n' "$out" | grep -c '^PASS') checks)"
-  else emit FAIL smoke "$(printf '%s\n' "$out" | grep '^FAIL' | head -n 2 | tr '\n' ';')${out:+}${out:-could not run ops/smoke.sh}" ; fi
+  # smoke: only the guarded version (issue 86). The old VM copy had unguarded DELETE and INSERT attempts, so it is never run.
+  out="$(vm 'grep -c ro-check-begin ops/smoke.sh' 2>/dev/null | tr -d '\r' | head -n 1)"
+  if [ "$out" != 1 ]; then
+    emit FAIL smoke "SKIPPED: the VM's ops/smoke.sh lacks the 'ro-check-begin' marker (the old unguarded version); deploy the guarded one first"
+  else
+    out="$(TMO=600 vm 'sh ops/smoke.sh' 2>&1 | tr -d '\r')"
+    if printf '%s\n' "$out" | tail -n 1 | grep -q '^SMOKE PASS$'; then emit PASS smoke "SMOKE PASS ($(printf '%s\n' "$out" | grep -c '^PASS') checks)"
+    else emit FAIL smoke "$(printf '%s\n' "$out" | grep -E '^FAIL' | head -n 2 | tr '\n' ';' | cut -c1-150) no SMOKE PASS"; fi
+  fi
 
   out="$(vm 'python3 ops/check_panels.py' 2>&1 | tr -d '\r')"
   line="$(printf '%s\n' "$out" | grep -E '^panel queries: ' | tail -n 1)"
@@ -275,33 +291,32 @@ verify() {
   elif printf '%s' "$line" | grep -qE ' 0 errors$'; then emit PASS panels "$line"
   else emit FAIL panels "$line"; fi
 
-  # containers
   load_containers
   check_restarts
   line="$(svc_line collector)"
   if [ -n "$line" ]; then emit PASS collector_started "$(printf '%s' "$line" | cut -d'|' -f2 | cut -c1-19) UTC (health: $(printf '%s' "$line" | cut -d'|' -f4))"
   else emit FAIL collector_started "collector container not found"; fi
 
-  # polling gap over the newest 20 poll_log rows, and age of the newest row
-  out="$(printf '%s\n' "SET default_transaction_read_only = on; SELECT coalesce(max(gap),-1)::int, (SELECT extract(epoch FROM now() - max(polled_at))::int FROM poll_log), count(*) FROM (SELECT extract(epoch FROM polled_at - lag(polled_at) OVER (ORDER BY polled_at)) AS gap FROM (SELECT polled_at FROM poll_log ORDER BY polled_at DESC LIMIT 20) q) g;" \
-        | vm_in "$PSQL" 2>/dev/null | tr -d '\r' | grep -E '^-?[0-9]+\|-?[0-9]+\|[0-9]+$' | head -n 1)"
-  maxgap="${out%%|*}"; rows="${out##*|}"; age="${out#*|}"; age="${age%%|*}"
-  if [ -z "$out" ]; then emit FAIL polling_gap "could not read poll_log"
+  # polling: newest row under 90 s old and no gap over 300 s in the newest 20 rows; a gap of 90 to 300 s is a WARN with its time
+  out="$(printf '%s\n' "SET default_transaction_read_only = on; SELECT coalesce(max(gap),-1)::int, (SELECT extract(epoch FROM now() - max(polled_at))::int FROM poll_log), count(*), coalesce(to_char((array_agg(polled_at ORDER BY gap DESC NULLS LAST))[1], 'DD-MM HH24:MI:SS'), '') FROM (SELECT polled_at, extract(epoch FROM polled_at - lag(polled_at) OVER (ORDER BY polled_at)) AS gap FROM (SELECT polled_at FROM poll_log ORDER BY polled_at DESC LIMIT 20) q) g;" \
+        | vm_in "$PSQL" 2>/dev/null | tr -d '\r' | grep -E '^-?[0-9]+\|-?[0-9]+\|[0-9]+\|' | head -n 1)"
+  IFS='|' read -r maxgap age rows ts <<EOF
+$out
+EOF
+  gapclass="$(classify_gap "$maxgap" "$age")"
+  if [ -z "$out" ] || [ "$gapclass" = BAD ]; then emit FAIL polling_gap "could not read poll_log"
   elif [ "$rows" -lt 5 ]; then emit FAIL polling_gap "only $rows poll_log rows"
-  elif gap_ok "$maxgap" "$age"; then emit PASS polling_gap "longest gap $maxgap s over the newest $rows rows, newest row $age s old (limit $MAX_GAP_S)"
-  else emit FAIL polling_gap "longest gap $maxgap s over the newest $rows rows, newest row $age s old (limit $MAX_GAP_S)"; fi
+  else emit "$gapclass" polling_gap "longest gap $maxgap s (ending $ts UTC) over the newest $rows rows, newest row $age s old (WARN from ${WARN_GAP_S} s, FAIL above ${FAIL_GAP_S} s or newest row over ${WARN_GAP_S} s)"; fi
 
-  # collector /health, including the archive block (runbook 4c.3)
-  out="$(vm 'docker compose exec -T collector python -c "import os,urllib.request;r=urllib.request.urlopen(\"http://127.0.0.1:%s/health\"%os.environ.get(\"HEALTH_PORT\",\"8080\"),timeout=5);print(r.status);print(r.read().decode())"' 2>/dev/null | tr -d '\r')"
-  if [ "$(printf '%s\n' "$out" | sed -n 1p)" != 200 ]; then emit FAIL health "no HTTP 200 from the collector /health"
-  else
-    sample="$(printf '%s\n' "$out" | sed -n 2p | sed -n 's/.*"archive": *{\([^}]*\)}.*/\1/p')"
-    if printf '%s' "$sample" | grep -q '"enabled": *true' && printf '%s' "$sample" | grep -q '"errors": *0,'; then
-      emit PASS health "200; archive enabled, errors 0, last_write_age_seconds $(printf '%s' "$sample" | sed -n 's/.*"last_write_age_seconds": *\([0-9]*\).*/\1/p')"
-    else emit FAIL health "200 but the archive block is missing, disabled or has errors: ${sample:-none}"; fi
-  fi
+  # collector /health: parsed as JSON inside the container; archive enabled, errors 0, last write under 600 s ago
+  out="$(vm 'docker compose exec -T collector python -c "import os,json,urllib.request;r=urllib.request.urlopen(\"http://127.0.0.1:%s/health\"%os.environ.get(\"HEALTH_PORT\",\"8080\"),timeout=5);a=json.load(r).get(\"archive\") or {};x=a.get(\"last_write_age_seconds\");print(r.status,a.get(\"enabled\"),a.get(\"errors\"),int(x) if x is not None else -1)"' 2>/dev/null | tr -d '\r' | tail -n 1)"
+  IFS=' ' read -r hs en er ag <<EOF
+$out
+EOF
+  if [ "$hs" = 200 ] && [ "$en" = True ] && [ "$er" = 0 ] && [[ "$ag" =~ ^[0-9]+$ ]] && [ "$ag" -le 600 ]; then
+    emit PASS health "200; archive enabled, errors 0, last write $ag s ago (limit 600)"
+  else emit FAIL health "status=${hs:-none} archive_enabled=${en:-?} errors=${er:-?} last_write_age_s=${ag:-?} (needs 200, True, 0, 0 to 600)"; fi
 
-  # identity flap: three zero counts
   out="$( { echo "SET default_transaction_read_only = on;"; cat "$HERE/check_identity_flap.sql"; } | vm_in "$PSQL" 2>/dev/null | tr -d '\r' | grep -E '\|[0-9]+\|' )"
   if [ "$(printf '%s\n' "$out" | grep -c .)" -ne 3 ]; then emit FAIL identity_flap "could not read three result rows"
   else
@@ -309,26 +324,25 @@ verify() {
     if [ "$bad" -eq 0 ]; then emit PASS identity_flap "0, 0, 0"; else emit FAIL identity_flap "counts: $(printf '%s\n' "$out" | cut -d'|' -f2 | tr '\n' ' ')"; fi
   fi
 
-  # invariant pack, read-only, compared with the expected-warnings file
+  # invariant pack: exactly as many rows as the local file defines, every row parseable (a NULL or text count is a FAIL)
+  total="$(grep -cE "SELECT +'[^']+'( +AS +check_name)? *, *count\(" "$HERE/audit/invariants.sql")"
   now="$(vm_now)"
-  out="$( { echo "SET default_transaction_read_only = on;"; cat "$HERE/audit/invariants.sql"; } | vm_in "$PSQL" 2>/dev/null | tr -d '\r' | grep -E '\|[0-9]+\|' )"
-  n="$(printf '%s\n' "$out" | grep -c .)"
-  if [ -z "$now" ]; then emit FAIL invariants "could not read the VM time"
-  elif [ "$n" -lt 1 ]; then emit FAIL invariants "no invariant rows came back"
+  out="$( { echo "SET default_transaction_read_only = on;"; cat "$HERE/audit/invariants.sql"; } | vm_in "$PSQL" 2>/dev/null | tr -d '\r' | grep -v '^$')"
+  seen=0; bad=0
+  if [ -z "$now" ] || [ -z "$out" ]; then emit FAIL invariants "could not run the invariant pack (or read the VM time)"
   else
-    bad=0; rows3=0
     while IFS='|' read -r name cnt detail; do
+      seen=$((seen + 1))
       res="$(classify_invariant "$name" "$cnt" "$now" "$EXPECTED_FILE")"; st="${res%%|*}"
-      rows3=$((rows3 + 1))
       [ "$st" = PASS ] && continue
       emit "$st" "invariant" "${res#*|}"; [ "$st" = FAIL ] && bad=1
     done <<EOF
 $out
 EOF
-    [ "$bad" -eq 0 ] && emit PASS invariants "$rows3 invariants checked, none failing"
+    if [ "$seen" -ne "$total" ] || [ "$total" -lt 1 ]; then emit FAIL invariants "got $seen rows, the pack defines $total"
+    elif [ "$bad" -eq 0 ]; then emit PASS invariants "$seen invariants checked, none failing"; fi
   fi
 
-  # watchdog log: no Traceback, no failed alert formatting
   out="$(vm "docker compose logs --since $LOG_SINCE watchdog 2>&1; echo \"logs_rc=\$?\"" 2>/dev/null | tr -d '\r')"
   if ! printf '%s\n' "$out" | grep -q '^logs_rc=0$'; then emit FAIL watchdog_log "could not read the watchdog log"
   else
@@ -346,6 +360,7 @@ EOF
 status() {
   local out now
   echo "deploy status of $DEPLOY_SSH (read-only)"
+  if [ "$(vm 'echo reachable' 2>/dev/null | tr -d '\r')" != reachable ]; then echo "FAIL  ssh $DEPLOY_SSH did not answer"; return 1; fi
   echo "== release marker"
   out="$(vm 'cat .deploy/release 2>/dev/null || echo "no marker: no deploy has been marked yet"' 2>/dev/null | tr -d '\r')"
   printf '%s\n' "${out:-could not read the VM tree}"
@@ -363,14 +378,16 @@ status() {
 mark() {
   local want="$1" full now stamp who
   [[ "$want" =~ ^[0-9a-fA-F]{7,40}$ ]] || { echo "usage: deploy.sh --mark <commit (7 to 40 hex characters)>" >&2; return 2; }
-  full="$(git rev-parse --verify -q "${want}^{commit}" 2>/dev/null)"
+  full="$(g rev-parse --verify -q "${want}^{commit}" 2>/dev/null)"
   [ -n "$full" ] || { echo "FAIL  cannot resolve '$want' to a commit" >&2; return 1; }
+  g fetch -q origin main 2>/dev/null
+  g merge-base --is-ancestor "$full" origin/main 2>/dev/null || { echo "FAIL  ${full:0:10} is not on origin/main; nothing written" >&2; return 1; }
   now="$(vm_now)"; [ -n "$now" ] || { echo "FAIL  could not read the VM time; nothing written" >&2; return 1; }
-  stamp="$(iso "$now")"; who="${USER:-${USERNAME:-unknown}}"
-  who="$(printf '%s' "$who" | tr -cd 'A-Za-z0-9._-')"
+  stamp="$(iso "$now")"; who="$(printf '%s' "${USER:-${USERNAME:-unknown}}" | tr -cd 'A-Za-z0-9._-')"
+  # the log line goes first and the marker is replaced last, so a failed log append leaves the old marker in place
   printf 'commit=%s\nmarked_utc=%s\nmarked_by=%s\n' "$full" "$stamp" "$who" \
-    | vm_in 'mkdir -p .deploy && cat > .deploy/release.new && mv .deploy/release.new .deploy/release && cat .deploy/release >> .deploy/release.log && echo "---" >> .deploy/release.log' \
-    || { echo "FAIL  could not write the marker" >&2; return 1; }
+    | vm_in 'mkdir -p .deploy && cat > .deploy/release.new && { cat .deploy/release.new; echo ---; } >> .deploy/release.log && mv .deploy/release.new .deploy/release' \
+    || { echo "FAIL  could not write the marker or its log; the previous marker (if any) is unchanged" >&2; return 1; }
   echo "PASS  marked ${full:0:10} at $stamp by $who (~/vatpac-statsV2/.deploy/release on the VM)"
 }
 
