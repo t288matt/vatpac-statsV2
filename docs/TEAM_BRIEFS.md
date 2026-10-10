@@ -1,6 +1,6 @@
 # Team briefs
 
-How to staff each role in `docs/WORKING_AGREEMENT.md` section 2 in a new session. A brief is the common preamble (section 1) plus the role section (section 2) plus the task. Keep briefs short and specific; name the issue, the files, and the proof required. The manager (Emma) briefs; the owner never has to.
+How to staff each role in a new session. What each role is and who it works with: [TEAM_ROLES.md](TEAM_ROLES.md); the rules: `docs/WORKING_AGREEMENT.md` section 10. A brief is the common preamble (section 1) plus the role section (section 2) plus the task. Keep briefs short and specific; name the issue, the files, and the proof required. The manager (Emma) briefs; the owner never has to.
 
 ## 1. Common preamble (every agent gets this)
 - Repo `t288matt/vatpac-statsV2`, local clone `C:\Users\mdora\Claude\vatpac-statsV2`. NEVER touch the old v1 folder `C:\Users\mdora\Claude\VATPAC-Stats V2` (read-only reference). British English, dates DD-MM-YYYY, times UTC, no emoji.

@@ -53,6 +53,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | [V1_COMPARISON.md](V1_COMPARISON.md) | The v1 against v3 comparison, its method, results and the owner's decisions (section 11) | Owner, analyst | HISTORICAL record (complete 09-10-2026; a short re-comparison is planned) |
 | [WORKING_AGREEMENT.md](WORKING_AGREEMENT.md) | How the team works: roles, flow, change tiers, approvals, limits | Owner, manager, agents | CURRENT (approved 09-10-2026) |
 | [TEAM_BRIEFS.md](TEAM_BRIEFS.md) | How to brief each role | Manager | CURRENT |
+| [TEAM_ROLES.md](TEAM_ROLES.md) | Job description of every team role, how the work flows, who decides, does and reviews | Owner, manager, agents | DRAFT for owner approval (10-10-2026) |
 | [reference/v1_metabase_cards.json](reference/v1_metabase_cards.json) | The exported v1 Metabase card definitions (source data) | Engineer | CURRENT as reference data |
 
 ## 4. History (dated records; do not edit)
