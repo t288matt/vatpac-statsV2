@@ -45,7 +45,8 @@ def test_frequency_199_998_means_none() -> None:
 
 
 @pytest.mark.parametrize("bad", [None, "", "   ", "abc", "12x.5", "121,700", "nan", "--1",
-                                 "inf", "Infinity", "-Infinity", "-inf", float("inf")])
+                                 "inf", "Infinity", "-Infinity", "-inf", float("inf"),
+                                 "1e999999", "1E+999999999", "-1e999999", "-1E+999999999"])
 def test_frequency_invalid_is_none(bad: str | float | None) -> None:
     assert parse_frequency_hz(bad) is None
 
