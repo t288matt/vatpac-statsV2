@@ -283,6 +283,21 @@ def check_backup_remote(cfg: Config, first_run: float) -> Result:
     return OK, f"last off-box copy {age_h:.1f} h ago"
 
 
+def check_telegram_outbox(cfg: Config, state: dict[str, Any], now: float | None = None) -> Result:
+    """WARN while undelivered Telegram messages are older than OUTBOX_WARN_AGE_S: the alerts are not reaching the owner.
+    The status file (and Uptime Kuma, if configured) still show it. OK when Telegram is not configured."""
+    if not (cfg.tg_token and cfg.tg_chat):
+        return OK, "telegram not configured"
+    now = time.time() if now is None else now
+    waiting = [m for m in state.get("outbox", []) if isinstance(m, dict) and not m.get("notice")]
+    if not waiting:
+        return OK, "no undelivered telegram messages"
+    oldest = min(float(m.get("at", now)) for m in waiting)
+    age = max(0.0, now - oldest)
+    detail = f"{len(waiting)} undelivered telegram message(s), oldest {age / 60:.0f} min old"
+    return (WARN if age >= OUTBOX_WARN_AGE_S else OK), detail
+
+
 def parse_restore_result(text: str) -> tuple[datetime | None, str]:
     """Parse the .last_restore_test line: '<UTC timestamp> OK|FAIL ...'. Returns (time, OK|FAIL|?)."""
     tokens = text.strip().split()
@@ -381,7 +396,10 @@ def check_containers(cfg: Config, containers: dict[str, dict[str, Any]], state: 
 OUTBOX_MAX = 20  # undelivered Telegram messages kept; the oldest is dropped (and logged) beyond this
 OUTBOX_BACKOFF_BASE_S = 30.0  # wait after the first failed delivery, doubling each time up to the maximum
 OUTBOX_BACKOFF_MAX_S = 900.0
-OUTBOX_MAX_REJECTIONS = 5  # HTTP 4xx (other than 429) this many times: Telegram will never take it, so drop it
+OUTBOX_MAX_REJECTIONS = 5  # HTTP 400 or 413 this many times: Telegram will never take this message, so drop it
+OUTBOX_POISON_STATUSES = (400, 413)  # bad request / too large: the message is at fault. 401, 403, 404 are configuration faults
+OUTBOX_MAX_SENDS_PER_CYCLE = 5  # a long backlog to a slow Telegram must not hold a watchdog cycle for minutes
+OUTBOX_WARN_AGE_S = 900.0  # the oldest undelivered message is this old: raise the telegram_outbox check
 
 
 def _retry_after(r: httpx.Response) -> float | None:
@@ -417,18 +435,39 @@ class Alerter:
         if not (self.cfg.tg_token and self.cfg.tg_chat):
             return
         body = messages.telegram_text(text, down_for, previous)  # the time shown in it is the time of the event
-        while len(self.outbox) >= OUTBOX_MAX:
-            self.outbox.pop(0)
-            log.warning("telegram outbox full (%d); dropped the oldest undelivered message", OUTBOX_MAX)
-        self.outbox.append({"body": body, "at": time.time(), "tries": 0})
+        self._enqueue({"body": body, "at": time.time(), "tries": 0, "ok": text.startswith("RECOVERED")})
         self.flush()
 
+    def _enqueue(self, item: dict[str, Any]) -> None:
+        """Append to the outbox. At the bound, drop the oldest all-clear message first (a lost RECOVERED matters least), then the
+        oldest message; one notice at the front counts what was dropped, so the owner knows the story has gaps."""
+        while len(self.outbox) >= OUTBOX_MAX:
+            victims = [i for i, m in enumerate(self.outbox) if not m.get("notice")]
+            if not victims:
+                break
+            idx = next((i for i in victims if self.outbox[i].get("ok")), victims[0])
+            self.outbox.pop(idx)
+            log.warning("telegram outbox full (%d); dropped the oldest undelivered message", OUTBOX_MAX)
+            if self.outbox and self.outbox[0].get("notice"):
+                notice = self.outbox[0]
+            else:
+                notice = {"notice": True, "dropped": 0, "at": time.time(), "tries": 0, "ok": False}
+                self.outbox.insert(0, notice)
+            notice["dropped"] = int(notice.get("dropped", 0)) + 1
+            notice["body"] = messages.dropped_notice(int(notice["dropped"]), float(notice["at"]))
+        self.outbox.append(item)
+
     def flush(self) -> None:
-        """Deliver the outbox in order. Stops at the first failure (so order is kept and a RECOVERED never overtakes its
-        problem message) and waits an increasing time before the next try. Never raises."""
+        """Deliver the outbox in order, at most OUTBOX_MAX_SENDS_PER_CYCLE per call. Stops at the first failure (so order is kept
+        and a RECOVERED never overtakes its problem message) and waits an increasing time before the next try. Never raises.
+
+        HTTP 400 and 413 mean this message itself is bad: after OUTBOX_MAX_REJECTIONS of them it is dropped and the next one is
+        tried at once. Anything else (401, 403, 404: a rotated token, a blocked bot, a wrong chat id; 5xx; network errors) is a
+        fault elsewhere, so the message is KEPT; 4xx faults retry at the maximum back-off."""
         if not (self.cfg.tg_token and self.cfg.tg_chat):
             return
-        while self.outbox:
+        sent = 0
+        while self.outbox and sent < OUTBOX_MAX_SENDS_PER_CYCLE:
             now = time.time()
             due = float(self.state.get("outbox_next_try", 0) or 0)
             if now < due <= now + OUTBOX_BACKOFF_MAX_S:  # a time further ahead than any back-off means the clock moved: ignore it
@@ -445,14 +484,19 @@ class Alerter:
                 if r.status_code == 200:
                     self.outbox.pop(0)
                     self.state.pop("outbox_next_try", None)
+                    sent += 1
                     continue
                 log.warning("telegram returned HTTP %s", r.status_code)
                 wait = _retry_after(r)
-                if 400 <= r.status_code < 500 and r.status_code != 429:  # a request Telegram will never accept
+                if r.status_code in OUTBOX_POISON_STATUSES:
                     item["rejected"] = int(item.get("rejected", 0)) + 1
                     if item["rejected"] >= OUTBOX_MAX_REJECTIONS:
                         self.outbox.pop(0)
+                        self.state.pop("outbox_next_try", None)
                         log.warning("telegram refused a message %d times; dropped it", OUTBOX_MAX_REJECTIONS)
+                        continue  # the next message is unrelated: no back-off for the one that was dropped
+                elif 400 <= r.status_code < 500 and r.status_code != 429:
+                    wait = OUTBOX_BACKOFF_MAX_S  # a configuration fault: keep the message, retry slowly
             except httpx.HTTPError as exc:  # never log the URL: it contains the bot token
                 log.warning("telegram send failed (%s)", type(exc).__name__)
             item["tries"] = int(item.get("tries", 0)) + 1
@@ -561,6 +605,7 @@ def cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, s
     results["backup_age"] = check_backup(cfg, first_run)
     results["restore_test"] = check_restore_test(cfg, first_run)
     results["backup_remote"] = check_backup_remote(cfg, first_run)
+    results["telegram_outbox"] = check_telegram_outbox(cfg, state)
 
     containers: dict[str, dict[str, Any]] = {}
     if cfg.docker:

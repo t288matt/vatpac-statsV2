@@ -176,6 +176,12 @@ def _backup_remote(level: str, detail: str) -> str:
             "on the VM) and the copy destination (see docs/RUNBOOKS/restore.md on the VM, Off-box copies).")
 
 
+def _telegram_outbox(level: str, detail: str) -> str:
+    return ("Alert messages are not reaching Telegram: the oldest has been waiting for a while and the watchdog keeps retrying. "
+            "Check the bot token and chat id in .env and whether Telegram is reachable from the VM (docker compose logs --tail=50 watchdog, "
+            "from ~/vatpac-statsV2 on the VM); problems are still visible in the status file.")
+
+
 def _restore_test(level: str, detail: str) -> str:
     if "FAILED" in detail:
         return ("The weekly test that proves a backup can really be restored has failed, so a recent backup may be unusable. "
@@ -302,6 +308,7 @@ _FIXED = {
     "disk": _disk,
     "backup_age": _backup_age,
     "backup_remote": _backup_remote,
+    "telegram_outbox": _telegram_outbox,
     "restore_test": _restore_test,
     "identity_flap": _identity_flap,
     "feed_archive": _feed_archive,
@@ -321,6 +328,7 @@ _RECOVERED = {
     "disk": "The disk has enough free space again.",
     "backup_age": "A fresh database backup now exists.",
     "backup_remote": "The off-box backup copy is working again.",
+    "telegram_outbox": "Alert messages are reaching Telegram again.",
     "restore_test": "The weekly backup restore test is in order again.",
     "identity_flap": "No duplicated sessions are left in the last 24 hours.",
     "feed_archive": "The raw-data archive is being written again.",
@@ -446,11 +454,23 @@ DELAY_NOTE_AFTER_S = 120  # a message delivered this long after it was raised sa
 
 def mark_delayed(body: str, raised_at: float, now: float) -> str:
     """Say that a message is late and when it was really raised (UTC, DD-MM-YYYY). The body already carries the time of the
-    event; a retried message that is more than DELAY_NOTE_AFTER_S old gets this extra note after the prefix."""
+    event ('VATPAC Stats: heads up (14:03 UTC). ...'); a retried message more than DELAY_NOTE_AFTER_S old gets the note
+    after that bracket: 'VATPAC Stats: heads up (14:03 UTC), delivered late (first raised 09-10-2026 14:03 UTC). ...'."""
     if now - raised_at < DELAY_NOTE_AFTER_S or not body.startswith(PREFIX):
         return body
     when = datetime.fromtimestamp(raised_at, UTC).strftime("%d-%m-%Y %H:%M UTC")
-    return f"{PREFIX} delayed message, first raised {when}." + body[len(PREFIX):]
+    head, sep, rest = body.partition("). ")
+    if not sep:
+        return body
+    return f"{head}), delivered late (first raised {when}). {rest}"
+
+
+def dropped_notice(n: int, first_at: float) -> str:
+    """The message that tells the owner earlier alerts were lost because Telegram stayed unreachable."""
+    stamp = datetime.fromtimestamp(first_at, UTC).strftime("%H:%M UTC")
+    return _ascii(f"{PREFIX} heads up ({stamp}). {n} earlier alert message{'s were' if n != 1 else ' was'} dropped while Telegram could not be "
+                  "reached, so the story may have gaps. Check the dashboards and docs/RUNBOOKS/alerts.md on the VM.\n"
+                  f"Technical: telegram_outbox, {n} dropped")
 
 
 def telegram_text(text: str, down_for: float | None = None, previous_level: str | None = None) -> str:

@@ -100,9 +100,10 @@ def test_a_late_message_says_so_and_keeps_the_original_time(clock: Clock, tg: Te
     clock.now += 600
     a.flush()
     sent = tg.delivered[0]
-    assert "delayed message, first raised" in sent and "UTC" in sent
+    assert "delivered late (first raised" in sent and "UTC" in sent
     assert original.split("(", 1)[1].split(")", 1)[0] in sent   # the event's own HH:MM UTC is still there
     assert sent.splitlines()[-1] == original.splitlines()[-1]
+    assert "). A disk" in sent and "delayed message" not in sent  # a capital after the full stop, no lowercase word
 
 
 def test_a_prompt_message_is_not_marked_delayed(clock: Clock, tg: Telegram) -> None:
@@ -180,15 +181,97 @@ def test_back_off_grows_and_is_capped(clock: Clock, tg: Telegram) -> None:
     assert gaps[0] > wd.OUTBOX_BACKOFF_BASE_S and gaps == sorted(gaps) and max(gaps) <= wd.OUTBOX_BACKOFF_MAX_S + 0.01
 
 
-def test_a_message_telegram_always_rejects_is_dropped_so_it_cannot_block_the_queue(clock: Clock, tg: Telegram) -> None:
+def test_a_poison_message_is_dropped_and_the_next_alert_goes_out_at_once(clock: Clock, tg: Telegram) -> None:
+    """HTTP 400 five times = the message itself is bad: drop it, and do not make the next alert wait for it."""
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = 400
     a.send("WARN x: d")
-    for _ in range(wd.OUTBOX_MAX_REJECTIONS):
+    for _ in range(wd.OUTBOX_MAX_REJECTIONS - 2):
         clock.now += 2000
         a.flush()
-    assert state["outbox"] == []
+    assert len(state["outbox"]) == 1
+    # the fifth refusal drops it; the CRIT queued behind it must be tried in the same pass, not after a back-off
+    a.outbox.append({"body": "VATPAC Stats: problem (10:00 UTC). CRIT y", "at": clock.now, "tries": 0})
+    clock.now += 2000
+    tg.status = 400
+    real = tg.handle
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if "CRIT y" in json.loads(request.content)["text"]:
+            tg.status = 200
+        return real(request)
+
+    a.client = httpx.Client(transport=httpx.MockTransport(handle))
+    a.flush()
+    assert state["outbox"] == [] and any("CRIT y" in t for t in tg.delivered)
+    assert "outbox_next_try" not in state
+
+
+@pytest.mark.parametrize("code", [401, 403, 404])
+def test_a_configuration_fault_never_drops_a_message(clock: Clock, tg: Telegram, code: int) -> None:
+    """A rotated token, a blocked bot or a wrong chat id must not eat a CRIT: keep it, retry at the maximum back-off."""
+    state: dict[str, Any] = {}
+    a = make(tg, state)
+    tg.status = code
+    a.send("CRIT disk: / 95% used")
+    assert state["outbox_next_try"] - clock.now >= wd.OUTBOX_BACKOFF_MAX_S - 1
+    for _ in range(6):
+        clock.now += wd.OUTBOX_BACKOFF_MAX_S + 1
+        a.flush()
+    assert len(state["outbox"]) == 1 and "rejected" not in state["outbox"][0]
+    tg.status = 200
+    clock.now += wd.OUTBOX_BACKOFF_MAX_S + 1
+    a.flush()
+    assert state["outbox"] == [] and len(tg.delivered) == 1
+
+
+def test_at_the_bound_all_clear_messages_go_first_and_a_notice_counts_the_loss(clock: Clock, tg: Telegram) -> None:
+    state: dict[str, Any] = {}
+    a = make(tg, state)
+    tg.status = 500
+    a.send("CRIT first: d")
+    for i in range(wd.OUTBOX_MAX - 2):
+        a.send(f"RECOVERED r{i} (was warn): d") if i % 2 else a.send(f"WARN w{i}: d")
+    a.send("RECOVERED late (was crit): d")
+    a.send("WARN newest: d")                      # over the bound
+    bodies = [m["body"] for m in state["outbox"]]
+    assert len(bodies) <= wd.OUTBOX_MAX
+    assert any("CRIT first" in b or "first" in b for b in bodies), "the oldest CRIT must survive while all-clears exist"
+    assert state["outbox"][0].get("notice") and "dropped" in state["outbox"][0]["body"]
+    assert any("newest" in b for b in bodies)
+    tg.status = 200
+    clock.now += 2000
+    a.flush()
+    assert any("dropped while Telegram" in t for t in tg.delivered)
+
+
+def test_a_long_backlog_is_sent_a_few_at_a_time(clock: Clock, tg: Telegram) -> None:
+    state: dict[str, Any] = {}
+    a = make(tg, state)
+    tg.status = 500
+    for i in range(12):
+        a.send(f"WARN c{i}: d")
+    tg.status = 200
+    clock.now += 2000
+    a.flush()
+    assert len(tg.delivered) == wd.OUTBOX_MAX_SENDS_PER_CYCLE and len(state["outbox"]) == 7
+    a.flush()
+    a.flush()
+    assert len(tg.delivered) == 12 and [t.split("WARN")[0] for t in tg.delivered][0] != ""  # delivered in order, all of them
+    assert [("c%d" % i) in tg.delivered[i] for i in range(12)] == [True] * 12
+
+
+def test_telegram_outbox_check(clock: Clock, tg: Telegram) -> None:
+    cfg = type("C", (), {"confirm": 1, "tg_token": "1:T", "tg_chat": "9"})()
+    assert wd.check_telegram_outbox(cfg, {})[0] == wd.OK                                   # type: ignore[arg-type]
+    young = {"outbox": [{"body": "x", "at": NOW - 60}]}
+    assert wd.check_telegram_outbox(cfg, young, NOW)[0] == wd.OK                           # type: ignore[arg-type]
+    old = {"outbox": [{"body": "x", "at": NOW - 901}, {"body": "y", "at": NOW}]}
+    level, detail = wd.check_telegram_outbox(cfg, old, NOW)                                # type: ignore[arg-type]
+    assert level == wd.WARN and "2 undelivered" in detail
+    off = type("C", (), {"tg_token": "", "tg_chat": ""})()
+    assert wd.check_telegram_outbox(off, old, NOW)[0] == wd.OK                             # type: ignore[arg-type]
 
 
 def test_no_telegram_settings_queue_nothing(clock: Clock, tg: Telegram) -> None:
