@@ -24,6 +24,7 @@ case "$FAKE_DUMP" in
   fail) echo "pg_dump: error: connection refused" >&2; exit 1 ;;
   junk) echo "this is not a dump" > "$out" ;;
   good) echo "GOODDUMP" > "$out" ;;
+  hang) echo partial > "$out"; exec sleep 30 ;;
 esac
 """
 FAKE_PG_RESTORE = """#!/bin/sh
@@ -32,7 +33,7 @@ grep -q GOODDUMP "$2" || { echo "pg_restore: error: unsupported version in file 
 """
 
 
-def _run(tmp_path: Path, mode: str, remote: bool = True) -> tuple[subprocess.CompletedProcess[str], Path]:
+def _run(tmp_path: Path, mode: str, remote: bool = True, marker_is_dir: bool = False, **extra_env: str) -> tuple[subprocess.CompletedProcess[str], Path]:
     bin_dir, backups = tmp_path / "bin", tmp_path / "backups"
     bin_dir.mkdir(exist_ok=True)
     backups.mkdir(exist_ok=True)
@@ -43,6 +44,9 @@ def _run(tmp_path: Path, mode: str, remote: bool = True) -> tuple[subprocess.Com
     env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}", BACKUP_DIR=str(backups),
                PGDATABASE="vatpac", FAKE_DUMP=mode, BACKUP_RETENTION_DAYS="14")
     env["BACKUP_REMOTE"] = f'touch "{backups}/remote_called"' if remote else ""
+    env.update(extra_env)
+    if marker_is_dir:
+        (backups / ".last_success").mkdir()
     old = backups / "vatpac_20200101T000000Z.dump"
     old.write_text("GOODDUMP")
     month_ago = time.time() - 30 * 86400
@@ -105,3 +109,22 @@ def test_good_path(tmp_path: Path) -> None:
     assert (backups / ".last_success").exists()
     assert (backups / "remote_called").exists() and (backups / ".last_remote_success").exists()
     assert not (backups / "vatpac_20200101T000000Z.dump").exists(), "old dump should be rotated after a good backup"
+
+
+def test_a_marker_that_cannot_be_written_does_not_skip_the_remote_copy_or_rotation(tmp_path: Path) -> None:
+    r, backups = _run(tmp_path, "good", marker_is_dir=True)
+    assert "WARNING: could not write .last_success" in r.stdout
+    assert len(_new_dumps(backups)) == 1                              # the good dump is kept
+    assert (backups / "remote_called").exists() and (backups / ".last_remote_success").exists()
+    assert not (backups / "vatpac_20200101T000000Z.dump").exists()     # rotation still ran
+    assert (backups / ".last_success").is_dir()                       # and success was not claimed by writing a marker
+
+
+def test_a_hung_pg_dump_times_out_as_a_failed_backup(tmp_path: Path) -> None:
+    t0 = time.time()
+    r, backups = _run(tmp_path, "hang", BACKUP_DUMP_TIMEOUT_S="1")
+    assert time.time() - t0 < 25
+    assert r.returncode != 0 and "timed out after 1s" in r.stdout
+    assert not _new_dumps(backups) and not list(backups.glob("*.partial"))
+    assert not (backups / ".last_success").exists() and not (backups / "remote_called").exists()
+    assert (backups / "vatpac_20200101T000000Z.dump").exists()         # nothing rotated after a failure

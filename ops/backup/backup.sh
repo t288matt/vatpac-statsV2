@@ -13,6 +13,9 @@ RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 BACKUP_TIME_UTC="${BACKUP_TIME_UTC:-02:00}"
 RESTORE_TEST_DAY="${BACKUP_RESTORE_TEST_DAY:-7}"
 BACKUP_REMOTE="${BACKUP_REMOTE:-}"
+# A hung pg_dump or pg_restore must not block the loop for ever: seconds allowed for each (a timeout is a failed backup).
+DUMP_TIMEOUT_S="${BACKUP_DUMP_TIMEOUT_S:-1800}"
+VALIDATE_TIMEOUT_S="${BACKUP_VALIDATE_TIMEOUT_S:-300}"
 
 log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) backup: $*"; }
 
@@ -24,15 +27,19 @@ take_backup() {
   file="${BACKUP_DIR}/${PGDATABASE}_${stamp}.dump"
   tmp="${file}.partial"
   log "starting ${file}"
-  if ! pg_dump -Fc --no-password -f "$tmp"; then
+  local rc=0
+  timeout -k 30 "$DUMP_TIMEOUT_S" pg_dump -Fc --no-password -f "$tmp" || rc=$?
+  if [ "$rc" -ne 0 ]; then
     rm -f "$tmp"
-    log "FAILED pg_dump"
+    if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then log "FAILED pg_dump (timed out after ${DUMP_TIMEOUT_S}s)"; else log "FAILED pg_dump"; fi
     return 1
   fi
   # A dump that pg_restore cannot list is not a backup: no rename, no success marker, no off-box copy, no rotation.
-  if ! pg_restore -l "$tmp" > /dev/null; then
+  rc=0
+  timeout -k 30 "$VALIDATE_TIMEOUT_S" pg_restore -l "$tmp" > /dev/null || rc=$?
+  if [ "$rc" -ne 0 ]; then
     rm -f "$tmp"
-    log "FAILED validation (pg_restore -l could not read the dump); nothing kept, older backups untouched"
+    log "FAILED validation (pg_restore -l could not read the dump, rc=${rc}); nothing kept, older backups untouched"
     return 1
   fi
   if ! mv "$tmp" "$file"; then
@@ -40,9 +47,10 @@ take_backup() {
     log "FAILED to move the finished dump into place"
     return 1
   fi
+  # The dump itself is good and already in place. If the marker cannot be written (the marker is only informational; the
+  # watchdog reads the dump files), warn and carry on, so the off-box copy and rotation still happen. Success is not claimed.
   if ! date -u +%Y-%m-%dT%H:%M:%SZ > "${BACKUP_DIR}/.last_success"; then
-    log "FAILED to write .last_success"
-    return 1
+    log "WARNING: could not write .last_success; the backup is kept and the remaining steps still run"
   fi
   log "ok $(du -h "$file" | cut -f1)"
   run_remote "$file"
