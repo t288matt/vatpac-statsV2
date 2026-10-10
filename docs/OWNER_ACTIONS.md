@@ -48,5 +48,8 @@ Postgres 16.15 (db and backup), Grafana 11.6.5 and dbmate 2.36.0 were tested on 
 **You do:** on the Metabase host delete the dump (`rm ~/<dump file>`; the file name is in the issue thread of T24), stop and remove the Metabase container if Metabase is retired (it is), and delete the exported card CSVs on your PC. v3 keeps the card definitions in docs/reference/v1_metabase_cards.json, so nothing is lost.
 **Emma does:** close #29 when you confirm.
 
+## 8. Off-VM backup copy on the Proxmox host (ADR-026 item 7)
+One-time set-up on the Proxmox host and the VM, step by step: [OWNER_BACKUP_COPY.md](OWNER_BACKUP_COPY.md). It does not replace item 3 (the untested PBS restore). Best done after deploy 1.
+
 ## Order I suggest
 Items 1, 4, 5 and 7 are decided or done. Still open: 3 (the Proxmox restore test, when convenient), then 6 (the folder rename) last.

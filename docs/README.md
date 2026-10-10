@@ -17,6 +17,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) | The text to paste into a new session so it knows what to read and how the owner works | Owner, new session | CURRENT (written 10-10-2026 about 15:00; will age quickly) |
 | [TRACKER.md](TRACKER.md) | The live task list (rows T1 onwards) and the map to GitHub issues | Owner, agents | CURRENT but rows are long; shorter rows queued |
 | [OWNER_ACTIONS.md](OWNER_ACTIONS.md) | What only the owner can do, step by step (branch protection, PBS restore test, folder rename and so on) | Owner | Needs update: items 1 and 4 are decided or done and still read as open |
+| [OWNER_BACKUP_COPY.md](OWNER_BACKUP_COPY.md) | Owner card: one-time Proxmox-side set-up of the off-VM backup copy (ADR-026 item 7) | Owner | CURRENT (written 10-10-2026; not yet run, steps marked UNVERIFIED) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the system fits together, what each container does; section 10 is the goal evidence | Engineers, agents | CURRENT (reviewed 08-10-2026; later changes are in the ADRs and runbooks) |
 
 ## 2. Operations (runbooks, in [RUNBOOKS/](RUNBOOKS/))
