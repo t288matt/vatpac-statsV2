@@ -4,9 +4,13 @@
 
 Live pilot and controller statistics for the VATPAC region, built from the public VATSIM data feed, running 24/7 in Docker.
 
+*Last reviewed 10-10-2026 against commit c89e544.*
+
 ## About
 
 One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist. PostgreSQL 16 stores the data and Grafana shows it as dashboards. Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
+
+**Current state (10-10-2026).** The goal is met and the system runs on an always-on VM. The VM runs commit 3eb81a3; `main` is ahead of it with reviewed fixes that are NOT deployed yet. The rule: every deploy to the VM needs the owner's explicit go. Current state and next steps: [docs/RESUME.md](docs/RESUME.md); what changed and when: [CHANGELOG.md](CHANGELOG.md).
 
 v3 replaces the original v1 system (a FastAPI service with Metabase). The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
 
@@ -53,7 +57,7 @@ Everything is set through `.env` (names and defaults in `.env.example`; every va
 | Variable | Default | Meaning |
 |---|---|---|
 | `POLL_INTERVAL_SECONDS` | 30 | How often the collector reads the feed. The airborne gap cap, the archive gap and the "online now" windows are all derived from it |
-| `POSITION_RETENTION_DAYS` | 90 | How long raw positions are kept (sessions and flights are kept forever) |
+| `POSITION_RETENTION_DAYS` | 90 | How long raw positions are kept (sessions and flights are kept forever). Retention is decided to move to 180 days before the first partition drop, about 06-01-2027 (ADR-026, not built yet) |
 | `HOME_ICAO_PREFIXES` | `Y` | Which airports count as the home region |
 | `GRAFANA_BIND`, `GRAFANA_PORT` | loopback, 3300 | Where Grafana listens |
 | `BACKUP_RETENTION_DAYS` | 14 | How many backup dumps are kept |
@@ -84,7 +88,7 @@ Both files are loaded when the collector starts and reloaded without a restart w
 | `db/migrations/`, `db/roles.sql` | SQL migrations and database roles |
 | `grafana/dashboards/`, `grafana/provisioning/` | Dashboards and data sources as code |
 | `config/` | Polygon and controller whitelist |
-| `ops/` | Backups, watchdog, smoke test, soak report, audit and heartbeat scripts |
+| `ops/` | Backups, watchdog, smoke test, soak report, audit and heartbeat scripts, and `ops/deploy.sh` (read-only deploy checks) |
 | `tests/`, `collector/tests/` | Unit and integration tests |
 | `docs/` | Documentation (start with [docs/RESUME.md](docs/RESUME.md)) |
 | `SPEC.md` | The specification |
@@ -95,10 +99,9 @@ On Windows without `make`, run the underlying commands.
 
 | Command | What it does |
 |---|---|
-| `make test` | Unit tests (no database, no network). Integration tests are skipped without `VATPAC_TEST_DSN` |
+| `make test` | Unit tests (no database, no network). Integration tests are skipped without `VATPAC_TEST_DSN`. Slow groups carry the markers `slow_fuzz` and `slow_shell`; skip them locally with `-m "not slow_fuzz and not slow_shell"` (CI runs them) |
 | `make lint` | ruff and mypy on the collector, ruff on `ops/` |
 | `make drift` | Collector settings, compose and `.env.example` agree |
-| (team and way of working) | see `docs/WORKING_AGREEMENT.md` and `docs/TEAM_BRIEFS.md` |
 | `make size` | Collector size budget (package under 1800 lines, no module over 300) |
 | `make smoke` | Health checks on a running stack |
 | `make config` | Validate the compose files with a throwaway env |
@@ -113,16 +116,16 @@ Unit tests need Python 3.11 or newer and the collector requirements:
 ```
 python -m venv collector/.venv
 collector/.venv/bin/pip install pytest -r collector/requirements.txt     # Windows: collector\.venv\Scripts\pip
-PYTHONPATH=collector/src collector/.venv/bin/python -m pytest -q -m "not integration" tests collector/tests
+PYTHONPATH=collector/src collector/.venv/bin/python -m pytest -q -m "not integration and not slow_fuzz and not slow_shell" tests collector/tests
 ```
 
-Integration tests need a real PostgreSQL 16 with the migrations applied, in a **scratch** database whose name ends in `_test` (the tests truncate every data table). Never point them at the live database, and never run `db/roles.sql` against the live VM (it resets the live role passwords). The safe step-by-step method is in [docs/RUNBOOKS/run-tests.md](docs/RUNBOOKS/run-tests.md). GitHub Actions runs everything on every push to `main`; read the result there.
+Integration tests need a real PostgreSQL 16 with the migrations applied, in a **scratch** database whose name ends in `_test` (the tests truncate every data table). Never point them at the live database, and never run `db/roles.sql` against the live VM (it resets the live role passwords). The safe step-by-step method is in [docs/RUNBOOKS/run-tests.md](docs/RUNBOOKS/run-tests.md). GitHub Actions runs everything on every push to `main` and on pull requests; read the result there.
 
 ## Operations
 
 | Runbook | When |
 |---|---|
-| [Deploy to the VM](docs/RUNBOOKS/deploy-to-vm.md) | First install, updating, rollback |
+| [Deploy to the VM](docs/RUNBOOKS/deploy-to-vm.md) | First install, updating, rollback, the scripted read-only checks |
 | [Daily and weekly checks](docs/RUNBOOKS/daily-checks.md) | Routine checks and the soak report |
 | [Alerts](docs/RUNBOOKS/alerts.md) | What each Telegram message means |
 | [Outside heartbeat](docs/RUNBOOKS/outside-heartbeat.md) | The check that runs outside the VM |
@@ -134,7 +137,10 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 
 | Document | Contents |
 |---|---|
+| [docs/README.md](docs/README.md) | Index of every document, with its status |
 | [docs/RESUME.md](docs/RESUME.md) | Entry point for a new operator or session: current state, rules, next actions |
+| [docs/WORKING_AGREEMENT.md](docs/WORKING_AGREEMENT.md), [docs/TEAM_BRIEFS.md](docs/TEAM_BRIEFS.md) | How the team works and how each role is briefed |
+| [docs/IF_CLAUDE_IS_UNAVAILABLE.md](docs/IF_CLAUDE_IS_UNAVAILABLE.md) | One-page card for the owner when Claude is not available |
 | [docs/TRACKER.md](docs/TRACKER.md) | The live task list; the single source of truth for status |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log (ADRs) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, data flow, containers, failure behaviour |
@@ -147,7 +153,7 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 
 ## Contributing
 
-The repository is private and run by one owner with Claude. Pushes go to `main` and GitHub Actions reads the result afterwards; the tracker ([docs/TRACKER.md](docs/TRACKER.md)) records every change. Work in a git worktree under `.worktrees/` so other sessions do not change your branch. Add a new numbered SQL migration instead of editing an applied one, keep the collector within the size budget (`make size`), and add a test with every fix. Deploy only on the owner's say-so.
+The repository is private and run by one owner with Claude. Every change gets an independent review. `main` must stay green: open a pull request so CI runs on the branch first, and read CI after every push to `main`. The tracker ([docs/TRACKER.md](docs/TRACKER.md)) records every change. Work in a git worktree under `.worktrees/` so other sessions do not change your branch. Add a new numbered SQL migration instead of editing an applied one, keep the collector within the size budget (`make size`), and add a test with every fix. Deploy only on the owner's say-so.
 
 ## Licence
 
