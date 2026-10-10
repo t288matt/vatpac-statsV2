@@ -2,7 +2,7 @@
 
 Written 09-10-2026. Each item says what it is for, the least you have to do, and what Emma (Claude) does so you do not have to. Order is by value. Tracker rows are in docs/TRACKER.md.
 
-## 1. Protect the main branch (issue #44, T37). About 2 minutes.
+## 1. Protect the main branch (issue #44, T37). WON'T DO: branch protection is not available on the GitHub plan in use; issue #44 closed 09-10-2026 (19:28 UTC). Kept below as a record only.
 **Why:** `main` is what gets deployed. Nothing stops a mistaken force push or deleting it.
 **You do:**
 1. Open https://github.com/t288matt/vatpac-statsV2/settings/rules and choose **New ruleset**, then **New branch ruleset**.
@@ -27,10 +27,10 @@ A Task Scheduler job on your PC checks Grafana every 5 minutes and messages you 
 5. Shut it down and delete the scratch VM.
 **Emma does:** record the result and close #26 when you tell her the outcome.
 
-## 4. Dependabot pull requests (issue #31, T9, T48). Tested and applied 09-10-2026; waiting for a deploy go.
-Postgres 16.15 (db and backup), Grafana 11.6.5 and dbmate 2.36.0 were tested on throwaway containers (all pass) and committed to main directly (commit aecec21, because the repo token cannot merge pull requests); the four PRs were closed with a note. They are NOT deployed yet. Deploying recreates the db and grafana containers (see docs/RUNBOOKS/deploy-to-vm.md section 4d).
-**You do:** say "go" when you want the deploy, in a quiet period. Postgres 17 or 18, numpy 2.x and other major bumps stay ignored.
-**Emma does:** the deploy (fresh dump first), the checks, and closes #31.
+## 4. Dependabot pull requests (issue #31, T9, T48). DONE: tested, applied and DEPLOYED 09-10-2026 at 13:46 to 13:47 UTC (commit 8905d85); issue #31 closed.
+Postgres 16.15 (db and backup), Grafana 11.6.5 and dbmate 2.36.0 were tested on throwaway containers (all pass) and committed to main directly (commit aecec21, because the repo token cannot merge pull requests); the four PRs were closed with a note. Deploying them recreated the db and grafana containers (see docs/RUNBOOKS/deploy-to-vm.md section 4d).
+**You do:** nothing. Postgres 17 or 18, Grafana 13, numpy 2.x and other major bumps stay ignored.
+**Emma did:** the deploy (fresh dump first) and the checks (tracker T48).
 
 ## 5. Read-only deploy key for the VM (issue #28, T8). WON'T DO: owner decision 09-10-2026, issue closed as not planned. Kept below as a record only.
 **Why:** today code is copied with `git archive` over ssh, which works. A deploy key would let the VM `git pull` a tag.
@@ -49,4 +49,4 @@ Postgres 16.15 (db and backup), Grafana 11.6.5 and dbmate 2.36.0 were tested on 
 **Emma does:** close #29 when you confirm.
 
 ## Order I suggest
-1 (2 minutes), then 4 and 5 by replying in chat, then 2 (one decision), then 3 and 7 when convenient, then 6 last.
+Items 1, 4, 5 and 7 are decided or done. Still open: 3 (the Proxmox restore test, when convenient), then 6 (the folder rename) last.
