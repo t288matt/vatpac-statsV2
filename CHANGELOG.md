@@ -10,7 +10,7 @@ The production VM runs the tree shipped from commit 3eb81a3 on 09-10-2026 at 19:
 
 Nothing in this section is running on the VM. Each deploy needs the owner's explicit go ([docs/DEPLOY_PLAN_REVIEW_FIXES.md](docs/DEPLOY_PLAN_REVIEW_FIXES.md)): deploy 1 (fix-ops and the Telegram wording) is planned for Sunday 11-10-2026 after the 02:00 backup and restore test have been read; deploy 2 (fix-collector) about 24 hours later.
 
-### fix-ops (merged 10-10-2026 09:42, merge commit d0ceaaa; independently reviewed in two rounds)
+### fix-ops (merged about 08:42 UTC on 10-10-2026, branch tip d0ceaaa; independently reviewed in two rounds)
 Safer backups, restores, roles and alerts. Fixes issues #81, #83, #84, #86, #90, #91, #95, #96, #97, #101 and #102.
 - A backup that fails its own check is no longer kept as good, and `pg_dump` and its check have time limits.
 - The restore test is stricter: it refuses a dump that is empty or stale, not only one that is missing tables.
@@ -20,7 +20,7 @@ Safer backups, restores, roles and alerts. Fixes issues #81, #83, #84, #86, #90,
 - Dates in integrity alerts read DD-MM-YYYY.
 - Review record: [docs/reviews/10-10-2026-fix-ops.md](docs/reviews/10-10-2026-fix-ops.md).
 
-### fix-collector (merged 10-10-2026 09:51, merge commit acc55db; independently reviewed in two rounds)
+### fix-collector (merged about 08:51 UTC on 10-10-2026, branch tip acc55db; independently reviewed in two rounds)
 A sturdier collector. Fixes issues #82, #85, #87, #88, #92, #99 and #100.
 - Odd or changed shapes in the VATSIM feed are counted as errors instead of stopping a poll.
 - Health thresholds follow the polling interval instead of fixed numbers.
@@ -83,10 +83,10 @@ At about 04:08 on 08-10-2026 the VATSIM feed changed the precision of logon time
 The first working stack (collector, Postgres, Grafana, backup, watchdog) was built and deployed to the VM on 07-10-2026, and live data started at 21:38 UTC (no history was copied from v1: ADR-011). The same evening the reboot test passed at 21:48 and a Telegram test alert reached the owner. The exact commit and time of this first deploy are not recorded in the repository. v1 stays running on its own VM as a read-only reference.
 
 ## Earlier work, same day as the first deployment (07-10-2026, before the first live data)
-Specification and scaffold (commits e5616a5 and 450b0fb, 17:09 to 17:10), the full first build of collector, schema, dashboards, compose stack, ops scripts and tests (d6d4398, 20:32), an architecture and docs pass (5aff4f3), and a round of review fixes: flights as an incrementally maintained table, least-privilege database roles, collector hardening, the soak report (1587ba9, 7c361d4). Decisions ADR-001 to ADR-019 date from this day.
+Specification and scaffold (commits e5616a5 and 450b0fb, about 16:10 UTC), the full first build of collector, schema, dashboards, compose stack, ops scripts and tests (d6d4398, about 19:32 UTC), an architecture and docs pass (5aff4f3), and a round of review fixes: flights as an incrementally maintained table, least-privilege database roles, collector hardening, the soak report (1587ba9, 7c361d4). Decisions ADR-001 to ADR-019 date from this day.
 
 ## Things this page could not confirm
 - The commit and time of the first deploy on 07-10-2026 (see above).
 - The deployed commits of the two small database-only changes on 09-10-2026 (about 15:57 and about 16:30); the tracker gives only the times.
 - Whether any deploy happened between 07-10-2026 and 08-10-2026 12:37 other than the first: the tracker and ARCHITECTURE.md record none.
-- The times of merges on 09-10-2026 are git commit times; deploy times come from the tracker rows and were not re-read from the VM, except that the VM's running containers (database, collector, grafana and backup up for about 24 hours, watchdog for about 20 hours at 15:24 on 10-10-2026) are consistent with the deploys above.
+- Merge times are git commit times converted to UTC (git records them in British Summer Time, one hour ahead of UTC); deploy times come from the tracker rows and were not re-read from the VM, except that the VM's running containers (database, collector, grafana and backup up for about 24 hours, watchdog for about 20 hours at 15:24 on 10-10-2026) are consistent with the deploys above.
