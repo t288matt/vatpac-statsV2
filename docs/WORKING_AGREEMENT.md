@@ -7,6 +7,7 @@ Language: British English. Dates DD-MM-YYYY, times UTC. Plain words; no emoji.
 Small, frequent, safe releases of VATPAC Stats, with the owner deciding what matters and not having to read everything. The aim is to remove the owner as the bottleneck without removing the safety: risk decides how much approval a change needs, and evidence replaces summaries.
 
 ## 2. The team
+The job description of every role is in [TEAM_ROLES.md](TEAM_ROLES.md); how to brief each role is in [TEAM_BRIEFS.md](TEAM_BRIEFS.md). The table below is the short form.
 | Role | Who | Owns |
 |---|---|---|
 | Owner and product lead | Matt | Priorities; approval of medium and high changes; data, privacy and retention decisions; every production deploy outside the pre-approved tier (section 5). |
@@ -81,3 +82,17 @@ Deploys per week; time from a change being ready to being live; share of deploys
 | Tier table in section 5 | APPROVED as written by the owner, 09-10-2026 |
 | Low tier deploys without a further yes once #104 exists | APPROVED by the owner, 09-10-2026 (effective only after #104 exists and is proven) |
 | Daily digest and default answers (section 6) | APPROVED by the owner, 09-10-2026: a short daily digest, recommendation first; a default is taken after two working days only for Low-tier or pre-agreed questions, never for Medium, High, retention or data |
+
+## 10. Standing rules (owner decisions, 10-10-2026 unless dated)
+- Every production deploy needs the owner's explicit go, every time; run `ops/deploy.sh --preflight` before and `--verify` after, and ship the exact commit named in the plan (deploys 1 and 2: 520dc3e, never the tip of main).
+- Main must stay green: no push to main until the change's database tests have passed; open a pull request so CI runs on the branch first; read CI after every push to main.
+- Never pin, skip or hide a product defect to get green: fix it or do not merge.
+- Every change gets an independent review by a different agent than the author.
+- ONE test container at a time on the live VM, only with the load average below 2.0 and MemAvailable above 3000 MB, capped at 512 MB memory, 512 MB swap and 1 CPU, named so it does not start with vatpac-, removed afterwards (incident #113).
+- New work gets a GitHub issue first, then a tracker row; ask before closing an issue.
+- Designs are tested against the real problem and sized against the pain they remove (the #104 lesson); ask for the smallest version first.
+- No new test infrastructure: the restore-test extension, weekly replay, a test VM and staging were dropped.
+- Opus 5.5 only as a second pass for complex database and code changes (owner told first), never for alerting or docs; Sonnet 5.5 for everything else.
+- Agent reports stay under 300 words, with detail in files.
+- Documents describe what is deployed and running, and are updated after each deploy is verified live (docs/PENDING_DOC_CHANGES.md holds the prepared changes).
+- British English, dates DD-MM-YYYY, times UTC, no emoji.
