@@ -9,7 +9,7 @@ The result is the same stack that runs in production: PostgreSQL 16, a collector
 - Docker Engine and the Docker Compose plugin (`docker compose version` must show v2.20 or newer). Install steps: section 1 of deploy-to-vm.md (`curl -fsSL https://get.docker.com | sudo sh`, then add your user to the `docker` group and log in again).
 - A synchronised clock. Check `timedatectl`: it must say `System clock synchronized: yes`. The collector rejects a feed snapshot dated more than `FEED_MAX_FUTURE_SECONDS` (120) ahead of the clock, and a clock that is more than about two minutes slow breaks polling.
 - Outbound internet access to `data.vatsim.net` and `status.vatsim.net` (HTTPS), and for the image builds.
-- `git`, `sh` (POSIX shell) and Python 3.11 or newer on the machine, for the helper scripts.
+- `git`, `sh` (POSIX shell), `make`, `openssl` (used by `ops/gen_env.sh` when present), `curl` (for the Docker install line), `sudo` (for the Docker install) and Python 3.11 or newer on the machine, for the helper scripts.
 - Access to the repository (it is private: you need a read credential from the owner). UNVERIFIED: the exact clone method you will be given.
 
 ## 2. Get the code

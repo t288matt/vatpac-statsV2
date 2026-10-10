@@ -1,5 +1,7 @@
 # Data dictionary
 
+*Describes main; behaviour added by changes not yet deployed is listed in CHANGELOG.md.*
+
 Checked against the live database and migrations up to 20261009000170 on 10-10-2026 (the live database is at 20261009000160; 20261009000170 is on branch fix-sql and not deployed yet). Source: `db/migrations/*.sql` (23 migrations, `20261007000001` to `20261009000170`; applied by the `migrate` service with dbmate; the first 22 are recorded in `schema_migrations` on the VM, in file-name order) and `db/roles.sql` (plus the `watchdog_ro` block of `ops/migrate/migrate.sh`). The database image is PostgreSQL 16.15 (CI tests on 16.4 until updated). All timestamps are `timestamptz` (UTC). Ids are `bigint` unless stated. The meaning of the derived measures is in [DEFINITIONS.md](DEFINITIONS.md); the decisions behind them are in [DECISIONS.md](DECISIONS.md) (ADR-018, 021, 023, 024, 025).
 
 Live objects at the time of checking: 18 base tables (17 ordinary plus the partitioned `pilot_position`, which has 11 daily partitions), 23 views, 8 functions, 4 declared foreign keys, no materialised views, no triggers.
