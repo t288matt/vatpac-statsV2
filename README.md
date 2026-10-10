@@ -4,13 +4,13 @@
 
 Live pilot and controller statistics for the VATPAC region, built from the public VATSIM data feed, running 24/7 in Docker.
 
-*Last reviewed 10-10-2026 against commit c89e544.*
+*Last reviewed 10-10-2026. Describes what is deployed and running (commit 3eb81a3 plus migration 160). Reviewed work that is merged but not yet deployed is listed in [CHANGELOG.md](CHANGELOG.md) and [docs/RESUME.md](docs/RESUME.md), not described here. Documents are updated after each deploy is verified live.*
 
 ## About
 
 One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist. PostgreSQL 16 stores the data and Grafana shows it as dashboards. Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
 
-**Current state (10-10-2026).** The goal is met and the system runs on an always-on VM. The VM runs commit 3eb81a3; `main` is ahead of it with reviewed fixes that are NOT deployed yet. The rule: every deploy to the VM needs the owner's explicit go. Current state and next steps: [docs/RESUME.md](docs/RESUME.md); what changed and when: [CHANGELOG.md](CHANGELOG.md).
+**Current state (10-10-2026).** The goal is met and the system runs on an always-on VM. The rule: every deploy to the VM needs the owner's explicit go. Current state and next steps: [docs/RESUME.md](docs/RESUME.md); what changed and when: [CHANGELOG.md](CHANGELOG.md).
 
 v3 replaces the original v1 system (a FastAPI service with Metabase). The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
 
@@ -50,6 +50,25 @@ Dashboards (as code in `grafana/dashboards/`): Pilots now, Pilots traffic, Pilot
 
 The collector serves `/health` and `/metrics` on port 8080 inside the Docker network only (not published). The database is not published either; the dev overlay (`make dev`) publishes it on `127.0.0.1:55432` only.
 
+## For dashboard users
+
+Ten dashboards, all in Grafana (folder: dashboard). Times are UTC. The exact rule behind every chart is in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md); the meaning of "flight", "session", "online now" and "airborne minutes" is in [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
+
+| Dashboard | What it shows |
+|---|---|
+| Pilots: online now | Who is flying in the region at this moment |
+| Pilots: traffic and aircraft | Flights, movements and aircraft types over time |
+| Pilots: onboarding and lapsed pilots | New pilots and those who stopped flying |
+| ATC: controllers | Who is controlling, where and for how long |
+| ATC: retention and reactivation | Controller hours, retention and returning controllers (needs 30 to 90 days of history to be meaningful) |
+| Demographics: pilot origins and cohorts | Where pilots come from and how groups of pilots behave |
+| Military: aircraft and routes | Military aircraft types and routes |
+| Events: Monday event | Traffic during the Monday 0700Z to 1200Z event |
+| Management: people online | Headline counts of people online |
+| Monitoring: collector and data freshness | Whether data is arriving; check this first if a number looks wrong |
+
+Charts start empty at go-live (07-10-2026) and fill as data arrives; flights still in progress are not counted in the flight totals.
+
 ## Configuration
 
 Everything is set through `.env` (names and defaults in `.env.example`; every variable is listed in [docs/CONFIG_MAP.md](docs/CONFIG_MAP.md)). The ones you are most likely to touch:
@@ -88,7 +107,7 @@ Both files are loaded when the collector starts and reloaded without a restart w
 | `db/migrations/`, `db/roles.sql` | SQL migrations and database roles |
 | `grafana/dashboards/`, `grafana/provisioning/` | Dashboards and data sources as code |
 | `config/` | Polygon and controller whitelist |
-| `ops/` | Backups, watchdog, smoke test, soak report, audit and heartbeat scripts, and `ops/deploy.sh` (read-only deploy checks) |
+| `ops/` | Backups, watchdog, smoke test, soak report, audit and heartbeat scripts |
 | `tests/`, `collector/tests/` | Unit and integration tests |
 | `docs/` | Documentation (start with [docs/RESUME.md](docs/RESUME.md)) |
 | `SPEC.md` | The specification |
@@ -125,7 +144,7 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 
 | Runbook | When |
 |---|---|
-| [Deploy to the VM](docs/RUNBOOKS/deploy-to-vm.md) | First install, updating, rollback, the scripted read-only checks |
+| [Deploy to the VM](docs/RUNBOOKS/deploy-to-vm.md) | First install, updating, rollback |
 | [Daily and weekly checks](docs/RUNBOOKS/daily-checks.md) | Routine checks and the soak report |
 | [Alerts](docs/RUNBOOKS/alerts.md) | What each Telegram message means |
 | [Outside heartbeat](docs/RUNBOOKS/outside-heartbeat.md) | The check that runs outside the VM |

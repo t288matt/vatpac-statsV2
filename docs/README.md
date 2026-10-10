@@ -1,6 +1,6 @@
 # Documentation index
 
-Written 10-10-2026 from the state of `origin/main` at commit f893585, by reading every file listed and [DOC_AUDIT.md](DOC_AUDIT.md). Nothing was moved, renamed or deleted. This page is a map; it is not a source of facts.
+Written 10-10-2026 and audited the same evening (branch `docs-audit`, against `origin/main` c89e544). The documents describe what is deployed and running (commit 3eb81a3 plus migration 160); merged work that is not yet deployed is in CHANGELOG.md, RESUME.md and [PENDING_DOC_CHANGES.md](PENDING_DOC_CHANGES.md); documents are updated after each deploy is verified live. Reading list: [DOC_AUDIT.md](DOC_AUDIT.md). Nothing was moved, renamed or deleted. This page is a map; it is not a source of facts.
 
 **Status key.** CURRENT: kept up to date, trust it (subject to the notes). HISTORICAL: a dated record of a moment; correct for that date, not maintained, do not edit. OBSOLETE: wrong or superseded; do not use. "Needs update" means the file is current in purpose but has a known stale statement (listed at the end).
 
@@ -12,6 +12,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 
 | File | What it is for | Who reads it | Status |
 |---|---|---|---|
+| [PENDING_DOC_CHANGES.md](PENDING_DOC_CHANGES.md) | Prepared document changes for merged work that is not deployed yet: one section per deploy, what text to switch in once that deploy is verified live | Writer, manager | CURRENT |
 | [IF_CLAUDE_IS_UNAVAILABLE.md](IF_CLAUDE_IS_UNAVAILABLE.md) | One-page card: how to see the system is healthy, what to check, how to restart, back up and restore, and what never to do | Owner | CURRENT (written 10-10-2026) |
 | [RESUME.md](RESUME.md) | Cold-start handover: state, deployed versus not, rules, test method, next actions | A new Claude session | CURRENT but long; needs update (see end). A short rewrite is queued (issue #107) |
 | [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) | The text to paste into a new session so it knows what to read and how the owner works | Owner, new session | CURRENT (written 10-10-2026 about 15:00; will age quickly) |
@@ -25,9 +26,9 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | File | What it is for | Who reads it | Status |
 |---|---|---|---|
 | [RUNBOOKS/daily-checks.md](RUNBOOKS/daily-checks.md) | Daily and weekly health checks; the soak report and its verdicts | Operator | CURRENT |
-| [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) | What each Telegram alert means and what to do | Operator, owner | CURRENT for main; describes the plain-language wording that is NOT yet deployed (the VM sends the older technical form) |
+| [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) | What each Telegram alert means and what to do | Operator, owner | CURRENT (deployed behaviour; the new wording is in PENDING_DOC_CHANGES.md) |
 | [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md) | How to install, deploy, roll back and verify; the special cases and traps (sections 4b to 4f) | Operator | CURRENT; long, accumulates one section per release |
-| [RUNBOOKS/restore.md](RUNBOOKS/restore.md) | Backups, restore, the restore drill, off-box copies | Operator | CURRENT for main; describes backup and restore hardening that is NOT yet deployed |
+| [RUNBOOKS/restore.md](RUNBOOKS/restore.md) | Backups, restore, the restore drill, off-box copies | Operator | CURRENT (deployed behaviour; the hardening is in PENDING_DOC_CHANGES.md) |
 | [RUNBOOKS/stuck-collector.md](RUNBOOKS/stuck-collector.md) | Collector up but not polling: diagnose and fix | Operator | CURRENT; plain restart allowed for a hung collector with no code change (owner decision 10-10-2026) |
 | [RUNBOOKS/feed-outage.md](RUNBOOKS/feed-outage.md) | VATSIM feed is down or unreachable | Operator | CURRENT |
 | [RUNBOOKS/feed-archive.md](RUNBOOKS/feed-archive.md) | The rolling archive of raw feed snapshots | Operator | CURRENT |

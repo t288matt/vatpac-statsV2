@@ -1,6 +1,6 @@
 # Runbook: deploy to the Linux VM
 
-Last reviewed 10-10-2026 against commit c89e544. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD**. The production VM is reached as `ssh vatpac-v3` (an alias in the owner's `~/.ssh/config`) and the stack lives in `~/vatpac-statsV2`. That VM has the git program installed (version 2.43.0 on 10-10-2026) but `~/vatpac-statsV2` is not a git checkout and the VM holds no GitHub credentials, so code is deployed with `git archive` (section 2c). Times in this runbook are UTC.
+Last reviewed 10-10-2026 against the deployed commit 3eb81a3. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD**. The production VM is reached as `ssh vatpac-v3` (an alias in the owner's `~/.ssh/config`) and the stack lives in `~/vatpac-statsV2`. That VM has the git program installed (version 2.43.0 on 10-10-2026) but `~/vatpac-statsV2` is not a git checkout and the VM holds no GitHub credentials, so code is deployed with `git archive` (section 2c). Times in this runbook are UTC.
 
 Disk sizing: about 2 to 3 GB of positions at 90 days, plus WAL (up to 2 GB), plus `BACKUP_RETENTION_DAYS` (default 14) dumps on the same disk, plus Docker images, logs and build cache. 20 GB is too tight. Provision 40 GB or more, or set `BACKUP_RETENTION_DAYS=7` and copy dumps off-box (`restore.md`, "Off-box copies"). The watchdog checks the filesystems listed in `WATCHDOG_DISK_PATHS` (default `/backups,/`, which is the Docker data-root filesystem that holds the `pgdata` and `backups` named volumes) and warns at `WATCHDOG_DISK_PCT` (80%). If you move a volume onto its own mount, mount that path into the watchdog and add it to the list.
 
@@ -88,34 +88,6 @@ Steps (all from `~/vatpac-statsV2` on the VM, after the `git archive` copy of th
 5. **Roll back.** `docker compose up -d --build watchdog` from the previous tree (the extra grants are harmless to leave). To switch the checks off without a rollback, set `WATCHDOG_INTEGRITY_INTERVAL_HOURS=0` and `WATCHDOG_CROSSCHECK_INTERVAL_DAYS=0` in `.env` and `docker compose up -d watchdog`.
 
 Runbook for the checks themselves: [integrity-checks.md](integrity-checks.md).
-
-## 4f. Special case: plain-language Telegram messages (T56, issue #79; NOT deployed yet)
-**Applies at deploy 1** (with fix-ops, exact commit 520dc3e, see [../DEPLOY_PLAN_REVIEW_FIXES.md](../DEPLOY_PLAN_REVIEW_FIXES.md)). Deployed today (commit 3eb81a3): the VM sends the older form `vatpac-stats: WARN <check>: <detail>`. The owner's go is needed.
-What it changes: the watchdog image only (new file `ops/watchdog/messages.py`, copied by the Dockerfile; a small change in `watchdog.py`). No migration, no setting, no `.env` edit, no change to the collector, so polling is not interrupted. Alert logic, the log text and the status-file detail strings keep their technical wording (the status file gains a `bad_since` entry per active alert, used for "the alert was active for ...").
-
-Steps (from `~/vatpac-statsV2` on the VM, after the `git archive` copy of the tree, section 2c):
-1. **Rollback copy.** `cp -a ~/vatpac-statsV2 ~/vatpac-statsV2.rollback-<dd-mm>` before copying the new tree over it.
-2. **Rebuild the watchdog only.** `docker compose up -d --build --no-deps watchdog`. `--no-deps` keeps Compose from touching anything the watchdog depends on; only the watchdog is recreated, its status volume is kept, the collector is not touched.
-3. **Checks afterwards.**
-   - `docker compose ps`: `watchdog` is `healthy`; `collector` has the same start time as before.
-   - `docker compose logs --tail=30 watchdog`: no `Traceback`, no `could not format the alert`.
-   - `docker compose exec -T watchdog python -c "import messages; print(messages.telegram_text('WARN disk: / 82% used'))"` prints a `VATPAC Stats: heads up` message with a `Technical:` last line (prints to the terminal only; sends nothing).
-   - The status file kept its state across the rebuild. Before the rebuild run `docker compose exec -T watchdog python -c "import json; s=json.load(open('/var/watchdog/watchdog_status.json'))['state']; print(sorted(s), s.get('alerts'))"` and note the output; after the rebuild run it again: the same keys (`alerts`, `first_run`, `integrity`, `known_near_miss`) and the same active alerts must be there (for example `data_integrity` while the power-cut gap is in the window), so no duplicate WARN is sent. `bad_since` is new and appears after the first cycle.
-   - `sh ops/smoke.sh` ends `SMOKE PASS`.
-4. **Live proof.** The next real alert arrives in the new form and the owner confirms it. Do not send a test message to the owner's chat without asking.
-5. **Roll back.** Restore the previous tree and `docker compose up -d --build --no-deps watchdog`. The extra `bad_since` entry in the status file is ignored by the old code.
-
-## Scripted checks (`ops/deploy.sh`; read-only, issue #104 trimmed)
-`ops/deploy.sh` does not deploy anything. It runs the checks of this runbook for you, from the PC in Git Bash (`bash ops/deploy.sh ...`, over `ssh vatpac-v3`), so none has to be remembered. The owner's explicit go is still needed for every deploy. It never starts, stops, builds or restarts anything, never uses sudo or `docker run`, and never prints `.env` values; a check that cannot run counts as FAIL. Exit 0 means no FAIL (a WARN is allowed).
-
-| When | Command | What it does |
-|---|---|---|
-| Before the deploy, once the owner has said go | `bash ops/deploy.sh --preflight <commit>` | PASS/FAIL with the value seen: the commit is on `origin/main`, CI is green for that exact sha, VM clock synchronised, `MemAvailable` at least 3000 MB, disk, all five stack containers healthy with restart counts 0, outside the 01:50 to 02:30 UTC backup window, no non-`vatpac-` containers left on the VM, a recent readable dump (age and size shown), 1-minute load average at most 2.0 (parallel test containers have caused snapshot timeouts), and a dump over 2 hours old is a WARN (run `backup.sh once` first). Fix every FAIL before starting. |
-| After the deploy steps | `bash ops/deploy.sh --verify` | Runs `ops/smoke.sh`, `ops/check_panels.py`, restart counts, prints the collector start time, polling gap from `poll_log`, collector `/health` with the archive block, `ops/check_identity_flap.sql` (three zeros), the invariant pack read-only and the watchdog log. `--verify` refuses to run the VM's `ops/smoke.sh` unless it is the guarded version (marker `ro-check-begin`), so the first verify after the guarded script is deployed is the first one that passes. A violation named in `ops/deploy_expected_warnings.txt` (name, highest count, expiry) shows as WARN up to that count until its expiry and as FAIL otherwise. A polling gap of 90 to 300 s is a WARN, above 300 s or a stale newest row a FAIL. |
-| After `--verify` is clean | `bash ops/deploy.sh --mark <commit>` | The only write: `~/vatpac-statsV2/.deploy/release` on the VM (commit, UTC time, who; no secrets), and a line appended to `.deploy/release.log`. Run it only for a deploy that has been verified. |
-| Any time | `bash ops/deploy.sh --status` | Prints the release marker, the containers with start times and restart counts, and the newest dump. |
-
-The first `--status` shows "no marker" until the first `--mark`. Not built on purpose (parked in the design on branch `design-deploy`): applying the deploy, automatic rollback, tier checking, a lock, a policy file.
 
 ## 5. Network exposure and firewall
 Only Grafana is published, and by default **only on loopback**: `127.0.0.1:${GRAFANA_PORT:-3300}`. The database is not published. To reach Grafana from the LAN, opt in explicitly in `.env`:

@@ -1,6 +1,6 @@
 # Data dictionary
 
-Checked against the live database and migrations up to 20261009000170 on 10-10-2026 (the live database is at 20261009000160; 20261009000170 is on branch fix-sql and not deployed yet). Source: `db/migrations/*.sql` (23 migrations, `20261007000001` to `20261009000170`; applied by the `migrate` service with dbmate; the first 22 are recorded in `schema_migrations` on the VM, in file-name order) and `db/roles.sql` (plus the `watchdog_ro` block of `ops/migrate/migrate.sh`). The database image is PostgreSQL 16.15 (CI tests on 16.4 until updated). All timestamps are `timestamptz` (UTC). Ids are `bigint` unless stated. The meaning of the derived measures is in [DEFINITIONS.md](DEFINITIONS.md); the decisions behind them are in [DECISIONS.md](DECISIONS.md) (ADR-018, 021, 023, 024, 025).
+Checked against the live database and migrations up to 20261009000160 on 09-10-2026. Source: `db/migrations/*.sql` (22 migrations, `20261007000001` to `20261009000160`; applied by the `migrate` service with dbmate; all 22 are recorded in `schema_migrations` on the VM, in file-name order) and `db/roles.sql` (plus the `watchdog_ro` block of `ops/migrate/migrate.sh`). The database image is PostgreSQL 16.15 (CI tests on 16.4 until updated). All timestamps are `timestamptz` (UTC). Ids are `bigint` unless stated. The meaning of the derived measures is in [DEFINITIONS.md](DEFINITIONS.md); the decisions behind them are in [DECISIONS.md](DECISIONS.md) (ADR-018, 021, 023, 024, 025).
 
 Live objects at the time of checking: 18 base tables (17 ordinary plus the partitioned `pilot_position`, which has 11 daily partitions), 23 views, 8 functions, 4 declared foreign keys, no materialised views, no triggers.
 
@@ -112,7 +112,7 @@ The daily partitions of `pilot_position` **inherit** the foreign key: each `pilo
 `pilot_position` is `PARTITION BY RANGE (observed_at)` with one partition per UTC day, named `pilot_position_YYYYMMDD` (bounds `00:00:00+00` to the next midnight). The primary key includes the partition key, as PostgreSQL requires.
 
 - **Created** by `ensure_pilot_position_partitions(days_ahead, p_today)`: yesterday through today + `days_ahead` (default 7). The collector calls it at start-up and daily. Existing partitions are skipped. On 09-10-2026 there are 11 partitions (`pilot_position_20261006` to `pilot_position_20261016`).
-- **Dropped** by `drop_old_pilot_position_partitions(retention_days, p_today)`: a partition is dropped when it ends on or before `today - retention_days` (collector setting `POSITION_RETENTION_DAYS`, default 90), unless it still holds positions of a session whose `last_seen` is inside the window (the partition is "pinned", and a notice is raised once it is pinned beyond twice the retention). Before a drop, the function finalises the flights of the partition's sessions in `flight_summary`, and keeps the partition if that fails. Since migration 20261009000170 a call finalises at most 10 eligible partitions, re-checks them, and drops them last in one short block (`LOCK ... NOWAIT`, 1 second lock timeout, up to three attempts while no drop has succeeded yet), so a catch-up does not hold the lock on `pilot_position` while it finalises later partitions; a partition that cannot be locked or changed meanwhile is kept with a notice and dropped by a later run; the collector calls the function until it drops nothing (issue 98). Flights therefore survive the 90 days; raw positions do not.
+- **Dropped** by `drop_old_pilot_position_partitions(retention_days, p_today)`: a partition is dropped when it ends on or before `today - retention_days` (collector setting `POSITION_RETENTION_DAYS`, default 90), unless it still holds positions of a session whose `last_seen` is inside the window (the partition is "pinned", and a notice is raised once it is pinned beyond twice the retention). Before a drop, the function finalises the flights of the partition's sessions in `flight_summary`, and keeps the partition if that fails. Flights therefore survive the 90 days; raw positions do not.
 - `pilot_session`, `controller_session`, the event tables, `network_snapshot` and `flight_summary` are **not** trimmed (data retention for them is an open owner decision, issue 21). Only `poll_log` is trimmed, to 400 days, by the collector's maintenance task.
 
 ## 2. Base tables
@@ -206,7 +206,7 @@ One row per processed snapshot; primary key `observed_at`. Written even when not
 | Column | Meaning |
 |---|---|
 | `observed_at` | Snapshot time. |
-| `pilots_in_region` | Pilots stored: inside the polygon and not rejected, so it equals `poll_log.pilots_kept` and the positions written for the snapshot (it is below `poll_log.pilots_inside` when a record was skipped). |
+| `pilots_in_region` | Pilots stored (inside the polygon). |
 | `controllers_in_region` | Controllers stored (on the whitelist). |
 | `pilots_global`, `controllers_global` | Totals in the whole feed. |
 
@@ -221,7 +221,7 @@ One row per poll attempt, including failures. Trimmed to 400 days by maintenance
 | `snapshot_ts` | timestamptz | yes | Feed timestamp, when one was read. |
 | `duration_ms`, `http_status` | integer | yes | Timing and HTTP status of the fetch. |
 | `pilots_seen` | integer | yes | Pilots in the whole feed. |
-| `pilots_inside` | integer | yes | Pilots inside the polygon, including any record that was rejected (compare `pilots_kept`). |
+| `pilots_inside` | integer | yes | Pilots inside the polygon. |
 | `pilots_with_plan` | integer | yes | Of those, pilots with non-empty departure and arrival (the flight gate, informational). |
 | `pilots_kept` | integer | yes | Pilots actually written; equals `pilots_inside` unless a malformed record was skipped. |
 | `controllers_seen`, `controllers_kept` | integer | yes | Controllers in the feed and on the whitelist. |
@@ -314,7 +314,7 @@ At the current cadence they agree. `flight.is_in_progress` uses the first defini
 | Function | Returns | Security | Purpose |
 |---|---|---|---|
 | `ensure_pilot_position_partitions(days_ahead int DEFAULT 7, p_today date DEFAULT NULL)` | int | DEFINER | Creates daily partitions for yesterday through today + `days_ahead` (UTC); returns the number created. `days_ahead` must be at least 0. Run by the collector at start-up and daily. |
-| `drop_old_pilot_position_partitions(retention_days int, p_today date DEFAULT NULL)` | int | DEFINER | Drops partitions older than the retention unless pinned by a recently seen session; finalises their flights first, then drops them together at the end (at most 10 per call; the collector repeats the call), keeping any partition it cannot lock or that changed meanwhile (section 1.5). Returns the number dropped. `retention_days` must be at least 1. |
+| `drop_old_pilot_position_partitions(retention_days int, p_today date DEFAULT NULL)` | int | DEFINER | Drops partitions older than the retention unless pinned by a recently seen session; finalises their flights first (section 1.5). Returns the number dropped. `retention_days` must be at least 1. |
 | `refresh_flight_summary(p_since interval DEFAULT '12 hours')` | int | DEFINER | Recomputes `flight_summary` for every non-final session seen within `p_since` (NULL means every session on or after the oldest partition). Idempotent; called by the collector every 5 minutes. Returns the rows changed. |
 | `refresh_flight_summary_sessions(p_ids bigint[], p_final boolean DEFAULT false)` | int | invoker | Internal worker for the two functions above: the gap, span and airborne rules. Not granted to the collector. |
 | `refresh_materialized_views()` | int | DEFINER | Refreshes every materialised view in `public` (concurrently where possible); none exist today. |
@@ -329,7 +329,7 @@ DEFINER functions run with owner rights and `search_path = public`, so the colle
 | Role | Created by | Rights |
 |---|---|---|
 | `vatpac` (owner, from `POSTGRES_USER`) | Postgres image | Owns everything; used by `migrate` and, for restores only, by the `backup` service's restore scripts (ADR-017). Not used by the collector. |
-| `collector` | `db/roles.sql` | Login. SELECT, INSERT, UPDATE on `pilot_session`, `pilot_position`, `controller_session`, `controller_rating_event`, `controller_frequency_event`, `network_snapshot`, `poll_log`, `controller_unlisted_sighting`, `reference_data_change`, `app_setting`, plus DELETE on `poll_log` only (the retention trim); USAGE on sequences; EXECUTE on `ensure_pilot_position_partitions`, `drop_old_pilot_position_partitions`, `refresh_flight_summary`, `refresh_materialized_views`. No DDL; no access to `flight_summary`, the lookups or the views. |
+| `collector` | `db/roles.sql` | Login. SELECT, INSERT, UPDATE, DELETE on `pilot_session`, `pilot_position`, `controller_session`, `controller_rating_event`, `controller_frequency_event`, `network_snapshot`, `poll_log`, `controller_unlisted_sighting`, `reference_data_change`, `app_setting`; USAGE on sequences; EXECUTE on `ensure_pilot_position_partitions`, `drop_old_pilot_position_partitions`, `refresh_flight_summary`, `refresh_materialized_views`. No DDL; no access to `flight_summary`, the lookups or the views. |
 | `grafana_ro` | `db/roles.sql` | Login; connection limit 10; `default_transaction_read_only = on`, `statement_timeout = 30s`, `work_mem = 16MB`, `TimeZone = UTC` (T27). SELECT on every view and the six lookup tables; nothing else; cannot create. Re-granted on every deploy so new views are picked up. |
 | `backup_ro` | `db/roles.sql` | Login; member of `pg_read_all_data`; read-only by default. Used by the nightly `pg_dump`. |
 | `watchdog_ro` | `ops/migrate/migrate.sh` | Login; read-only by default; `statement_timeout = 10s`; member of `pg_monitor`; SELECT on `poll_log`, `network_snapshot`, `controller_unlisted_sighting`, `pilot_session` and `controller_session` (the last two for the identity-flap alert), and, from the integrity-checks deploy (T16, not yet applied on the VM), `pilot_position`, `flight_summary` and `reference_data_change` (for the scheduled invariant sweep and archive cross-check). |
