@@ -82,24 +82,6 @@ def _stored(conn, ts) -> tuple[set[tuple[int, str, str]], set[tuple[int, str, st
     return {(r["cid"], r["callsign"], r["lt"]) for r in pil}, {(r["cid"], r["callsign"], r["lt"]) for r in ctl}
 
 
-# Cases pinned by a named strict xfail below (issues 111 and 114): the grids leave them out so they do not fail twice.
-def _known_defect(section: str, label: str) -> bool:
-    return label == "callsign=long_random_cjk" or (section == "controllers" and label in ("frequency=inf", "frequency=nan_inf"))
-
-
-# Issue 111: a long multi-byte value on an INDEXED text column overflows the btree row limit (ProgramLimitExceeded,
-# not bisected out). Indexed text columns, from db/migrations: pilot_session.callsign and controller_session.callsign
-# (UNIQUE (cid, callsign, logon_time) in 20261007000001), pilot_session.departure (pilot_session_departure_norm_idx,
-# 20261007000022) and pilot_session.arrival (pilot_session_arrival_norm_idx, 20261007000023). No other text column is
-# indexed on pilot_session or controller_session.
-_INDEXED_TEXT_INDEXES = ("pilot_session_identity", "controller_session_identity",
-                         "pilot_session_departure_norm_idx", "pilot_session_arrival_norm_idx")
-
-
-def _is_index_overflow(label: str, exc: Exception) -> bool:
-    return "long" in label and any(name in str(exc) for name in _INDEXED_TEXT_INDEXES)
-
-
 def _first_inside(base, ref) -> int:
     return next(i for i, p in enumerate(base["pilots"]) if inside_polygon(ref.polygon, p["latitude"], p["longitude"]))
 
@@ -145,7 +127,7 @@ def _check_snapshot(conn, ref, base, payload, bad: dict[str, set[int]], where: s
 def test_one_bad_entry_never_loses_the_rest_of_the_snapshot(db, ref, base) -> None:
     inside = {i for i, p in enumerate(base["pilots"]) if inside_polygon(ref.polygon, p["latitude"], p["longitude"])}
     listed = {i for i, c in enumerate(base["controllers"]) if c["callsign"] in ref.whitelist}
-    cases = [c for c in fz.sample_cases(SEED, base, inside, listed, CASES) if not _known_defect(c[0], c[2])]
+    cases = list(fz.sample_cases(SEED, base, inside, listed, CASES))
     assert len(cases) >= CASES - 2
     skipped_by_parser = rejected_by_database = kept = 0
     for n, (section, i, label, replacement) in enumerate(cases):
@@ -204,19 +186,8 @@ def test_duplicate_sessions_in_one_snapshot_store_one_position(db, ref, base) ->
     assert npos == net["pilots_in_region"] == res.pilots_kept
 
 
-# DEFECT found by this fuzz (issue 111, not fixed here): the callsign is capped at 2000 CHARACTERS, but the
-# unique index pilot_session_identity (cid, callsign, logon_time) takes at most about 2700 BYTES per row, and
-# multi-byte text that does not compress (here 2000 CJK characters, 6000 bytes) makes the INSERT raise
-# ProgramLimitExceeded. That is neither DataError nor IntegrityError, so store._write does not bisect it out: the
-# whole snapshot is lost for as long as that pilot is online (poll error every 30 s). Reachable only if the feed carries
-# an absurd callsign (VATSIM limits them today), so low likelihood, but the rest of the snapshot should not depend on it.
-_INDEX_OVERFLOW = pytest.mark.xfail(
-    strict=True, raises=psycopg.errors.ProgramLimitExceeded,
-    reason="issue 111: oversized multi-byte callsign overflows the btree index, ProgramLimitExceeded is not bisected out")
-
-
 @pytest.mark.parametrize("label", [
-    pytest.param("long_random_cjk", marks=_INDEX_OVERFLOW), "long_text", "surrogate", "nul"])
+    "long_random_cjk", "long_text", "surrogate", "nul"])
 def test_an_oversized_or_odd_pilot_callsign_never_loses_the_snapshot(db, ref, base, label) -> None:
     """The callsign is part of a unique index: text far over a btree row (about 2700 bytes) must not abort the apply."""
     hot = _first_inside(base, ref)
@@ -225,7 +196,7 @@ def test_an_oversized_or_odd_pilot_callsign_never_loses_the_snapshot(db, ref, ba
 
 
 @pytest.mark.parametrize("label", [
-    pytest.param("long_random_cjk", marks=_INDEX_OVERFLOW), "long_text", "surrogate", "nul"])
+    "long_random_cjk", "long_text", "surrogate", "nul"])
 def test_an_oversized_or_odd_unlisted_controller_callsign_never_loses_the_snapshot(db, ref, base, label) -> None:
     """A near-miss controller (unlisted, but a listed prefix) is written to controller_unlisted_sighting, whose primary
     key is the callsign: the same index limit applies there."""
@@ -246,35 +217,18 @@ def test_every_fault_on_one_listed_controller_and_one_inside_pilot(db, ref, base
     bad value, every flight_plan variant. CI runs it; skip locally with -m "not slow_fuzz"."""
     ci = next(i for i, c in enumerate(base["controllers"]) if c["callsign"] in ref.whitelist)
     n = 2000
-    pinned: list[str] = []
     for section, i in (("controllers", ci), ("pilots", _first_inside(base, ref))):
         for label, replacement in fz.entry_mutations(section, base[section][i]):
-            if _known_defect(section, label):
-                continue
             n += 1
             payload = _shift(fz.wire(fz.replace_entry(base, section, i, replacement)), n)
             bad: dict[str, set[int]] = {"pilots": set(), "controllers": set()}
             bad[section].add(i)
-            try:
-                _check_snapshot(db, ref, base, payload, bad, f"{section}[{i}] {label}")
-            except psycopg.errors.ProgramLimitExceeded as exc:
-                if not _is_index_overflow(label, exc):
-                    raise
-                db.rollback()
-                pinned.append(f"{section}[{i}] {label}")
-    # Every other case ran. The pinned ones are named here and the test passes while the defect (issue 111) exists, and
-    # fails when it is fixed so the pin is removed (the same effect as a strict xfail; an imperative xfail would be counted
-    # as a skip by the strict-mode detector in conftest.py).
-    assert pinned, "issue 111 looks fixed: no long indexed text case overflowed any more; remove the pin in this test"
-    print(f"issue 111 pinned, oversized indexed text, {len(pinned)} cases: {pinned}")
+            _check_snapshot(db, ref, base, payload, bad, f"{section}[{i}] {label}")
 
 
-@pytest.mark.parametrize("value", ["inf", "Infinity", "-Infinity", float("inf")])
-@pytest.mark.xfail(strict=True, raises=OverflowError,
-                   reason="issue 114: parse_frequency_hz does not catch OverflowError from int(Decimal('Infinity'))")
+@pytest.mark.parametrize("value", ["inf", "Infinity", "-Infinity", float("inf"), "1e999999", "1E+999999999", "-1e999999"])
 def test_a_listed_controller_with_an_infinite_frequency_never_loses_the_snapshot(db, ref, base, value) -> None:
-    """DEFECT (issue 114, not fixed here): model.parse_frequency_hz catches InvalidOperation and ValueError only, so
-    a whitelisted controller's frequency "inf" raises OverflowError out of store.apply_snapshot and the snapshot is lost."""
+    """Issue 114: a whitelisted controller's frequency "inf" must not raise OverflowError out of the apply."""
     ci = next(i for i, c in enumerate(base["controllers"]) if c["callsign"] in ref.whitelist)
     payload = _shift(fz.replace_entry(base, "controllers", ci, {**base["controllers"][ci], "frequency": value}), 905)
     _check_snapshot(db, ref, base, payload, {"pilots": set(), "controllers": {ci}}, f"frequency {value!r}")
