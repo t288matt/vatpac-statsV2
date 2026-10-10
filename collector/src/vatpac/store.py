@@ -181,7 +181,8 @@ def _write(conn: psycopg.Connection[Any], cur: psycopg.Cursor[Any], sql: str, ro
             log.warning("record rejected", extra={"callsign": rows[0]["callsign"], "error": type(exc).__name__})
             return 0, [], [rows[0]["callsign"]]
         mid = len(rows) // 2
-        (n1, f1, b1), (n2, f2, b2) = (_write(conn, cur, sql, half, ts, fetch, deadline) for half in (rows[:mid], rows[mid:]))
+        (n1, f1, b1), (n2, f2, b2) = (
+            _write(conn, cur, sql, half, ts, fetch, deadline) for half in (rows[:mid], rows[mid:]))
         return n1 + n2, f1 + f2, b1 + b2
 
 
