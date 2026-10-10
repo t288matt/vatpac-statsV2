@@ -19,6 +19,7 @@ log = logging.getLogger("watchdog.messages")
 PREFIX = "VATPAC Stats:"
 LABELS = {"warn": "heads up", "crit": "problem", "ok": "all clear"}
 MAX_TECH = 170  # characters of detail kept on the Technical line, so a whole message stays near 400
+MAX_TECH_INTEGRITY = 120  # the integrity line lists several long check names; the plain part above it is already long
 
 # One plain wording for every invariant in ops/audit/invariants.sql, keyed by the exact invariant name.
 # tests/test_humane_messages.py fails if the pack gains, loses or renames an invariant without this table following.
@@ -71,7 +72,6 @@ INVARIANT_ACTIONS: dict[str, str] = {
                                                     "(docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM)."),
     "reference file hashes in poll_log differ from reference_data_change": "An engineer should look (docs/RUNBOOKS/update-reference-files.md on the VM).",
 }
-_SEVERAL = f"Several checks failed; read {_IG} on the VM and the watchdog log to see which."
 
 
 def _clip(text: str, n: int = MAX_TECH) -> str:
@@ -170,10 +170,30 @@ def _backup_age(level: str, detail: str) -> str:
     return f"The newest database backup is {age} old; one should be made every night. Take one by hand (run make backup from ~/vatpac-statsV2 on the VM) and check the backup log."
 
 
+def _backup_remote(level: str, detail: str) -> str:
+    return ("The nightly backup is being made, but the copy to the second location (off the VM) has not succeeded recently, so losing "
+            "the VM disk could lose the backups too. Check the backup log (docker compose logs --tail=50 backup, from ~/vatpac-statsV2 "
+            "on the VM) and the copy destination (see docs/RUNBOOKS/restore.md on the VM, Off-box copies).")
+
+
+def _telegram_outbox(level: str, detail: str) -> str:
+    if "refuses" in detail:
+        return ("Telegram is refusing the alert messages, which usually means a wrong chat id or a wrong, revoked or blocked bot. "
+                "Nothing is lost yet: they are kept and retried. Check TELEGRAM_CHAT_ID and TELEGRAM_BOT_TOKEN in .env on the VM "
+                "(see docs/RUNBOOKS/alerts.md on the VM, telegram_outbox).")
+    return ("Alert messages are not reaching Telegram: the oldest has been waiting for a while and the watchdog keeps retrying. "
+            "Check the bot token and chat id in .env and whether Telegram is reachable from the VM (docker compose logs --tail=50 watchdog, "
+            "from ~/vatpac-statsV2 on the VM); problems are still visible in the status file.")
+
+
 def _restore_test(level: str, detail: str) -> str:
     if "FAILED" in detail:
         return ("The weekly test that proves a backup can really be restored has failed, so a recent backup may be unusable. "
                 "Run make backup-test from ~/vatpac-statsV2 on the VM and read the result (see docs/RUNBOOKS/restore.md on the VM).")
+    if "stale" in detail:
+        return ("The weekly restore test worked, but the newest data in the backup was old (a long outage or a quiet period before the dump). "
+                "Backups are probably fine; check the collector was running, then run make backup-test from ~/vatpac-statsV2 on the VM "
+                "(see docs/RUNBOOKS/restore.md on the VM).")
     if "unreadable" in detail:
         return "The result of the weekly backup restore test cannot be read. Run make backup-test from ~/vatpac-statsV2 on the VM to check (see docs/RUNBOOKS/restore.md on the VM)."
     return ("The weekly test that proves a backup can really be restored is overdue. Backups are probably fine, "
@@ -193,7 +213,33 @@ def _feed_archive(level: str, detail: str) -> str:
 
 
 def _integrity_failing_names(detail: str) -> list[str]:
+    """The invariant names in the detail, in the order the detail lists them."""
     return sorted((n for n in INVARIANT_WORDS if n in detail), key=detail.index)
+
+
+# Invariants whose failure needs action TODAY (data may stop or be wrong now), most urgent first. When several invariants fail
+# the message is built from the most urgent one so a same-day problem is never hidden behind a failure that can wait.
+SAME_DAY_INVARIANTS: tuple[str, ...] = (
+    "daily partitions missing for today..today+3",
+    "newest snapshot in the future or older than 5 minutes",
+    "flight_summary rows missing for sessions older than 12 h",
+    "positions outside plausibility caps",
+    "in-region count above global count",
+    "positions per snapshot differ from pilots_in_region",
+)
+
+
+def _by_urgency(names: list[str]) -> list[str]:
+    """Same-day invariants first (in SAME_DAY_INVARIANTS order), then the rest in their original order."""
+    rank = {n: i for i, n in enumerate(SAME_DAY_INVARIANTS)}
+    return sorted(names, key=lambda n: rank.get(n, len(rank)))  # sorted() is stable: the rest keep their order
+
+
+def _several_todo(names: list[str]) -> str:
+    """The action sentence when more than one invariant failed: the most urgent one's action, plus where to read the rest."""
+    todo = INVARIANT_ACTIONS[_by_urgency(names)[0]]
+    today = " Some need action today." if any(n in SAME_DAY_INVARIANTS for n in names) else ""
+    return f"{todo}{today} The rest: watchdog log."
 
 
 def _failing_count(detail: str, names: list[str]) -> int:
@@ -204,10 +250,10 @@ def _failing_count(detail: str, names: list[str]) -> int:
 
 def _data_integrity(level: str, detail: str) -> str:
     if detail.startswith("new violations since the last sweep"):
-        names = _integrity_failing_names(detail)
+        names = _by_urgency(_integrity_failing_names(detail))
         what = INVARIANT_WORDS[names[0]] if names else "another rule is now broken"
         more = f" (and {len(names) - 1} more)" if len(names) > 1 else ""
-        todo = _SEVERAL if len(names) > 1 else INVARIANT_ACTIONS[names[0]] if names else f"See {_IG} on the VM."
+        todo = _several_todo(names) if len(names) > 1 else INVARIANT_ACTIONS[names[0]] if names else f"See {_IG} on the VM."
         return f"The routine data check found a new problem on top of the earlier one: {what}{more}. {todo}"
     if "could not run" in detail or "did not report" in detail or "unexpected row" in detail or "no invariants found" in detail:
         return ("The routine data check could not run properly (it retries in an hour). Data collection is not affected. "
@@ -215,10 +261,11 @@ def _data_integrity(level: str, detail: str) -> str:
     names = _integrity_failing_names(detail)
     if not names:
         return f"A routine data check found a problem. See {_IG} on the VM for what to do."
-    first = INVARIANT_WORDS[names[0]]
+    first = INVARIANT_WORDS[_by_urgency(names)[0]]
     others = _failing_count(detail, names) - 1
     more = f" (plus {others} other{'s' if others > 1 else ''})" if others > 0 else ""
-    todo = _SEVERAL if others > 0 else INVARIANT_ACTIONS[names[0]]
+    # more than the six names the detail lists can fail: then at least two did, so the several-failed wording applies
+    todo = _several_todo(names) if others > 0 else INVARIANT_ACTIONS[names[0]]
     return f"A routine data check found a problem: {first}{more}. {todo}"
 
 
@@ -268,6 +315,8 @@ _FIXED = {
     "db_size": _db_size,
     "disk": _disk,
     "backup_age": _backup_age,
+    "backup_remote": _backup_remote,
+    "telegram_outbox": _telegram_outbox,
     "restore_test": _restore_test,
     "identity_flap": _identity_flap,
     "feed_archive": _feed_archive,
@@ -286,6 +335,8 @@ _RECOVERED = {
     "db_size": "The database size is back within the expected range.",
     "disk": "The disk has enough free space again.",
     "backup_age": "A fresh database backup now exists.",
+    "backup_remote": "The off-box backup copy is working again.",
+    "telegram_outbox": "Alert messages are reaching Telegram again.",
     "restore_test": "The weekly backup restore test is in order again.",
     "identity_flap": "No duplicated sessions are left in the last 24 hours.",
     "feed_archive": "The raw-data archive is being written again.",
@@ -356,10 +407,27 @@ def _tech_detail(name: str, detail: str) -> str:
         names = _integrity_failing_names(detail)
         counts = re.search(r"(\d+) of (\d+) invariants", detail)
         if names and counts:
-            others = _failing_count(detail, names) - 1
-            more = f" (+{others} more)" if others > 0 else ""
-            return _clip(f"{counts.group(1)} of {counts.group(2)} checks failing: {names[0]}{more}")
+            return _integrity_tech(names, _failing_count(detail, names), counts.group(1), counts.group(2))
+    if name == "data_integrity":
+        short = detail.replace("new violations since the last sweep:", "new violations:", 1)
+        return _clip(_strip_log_pointer(short), MAX_TECH_INTEGRITY + 20)
     return _clip(_strip_log_pointer(detail))
+
+
+def _integrity_tech(names: list[str], total: int, failing: str, of: str) -> str:
+    """'N of 18 checks failing: a; b; c (+K more)': every name the detail gave, most urgent first, as many as fit in MAX_TECH;
+    K counts the failing checks not named (including those the detail itself did not list)."""
+    head = f"{failing} of {of} checks failing: "
+    ordered = _by_urgency(names)
+    shown: list[str] = []
+    for n in ordered:
+        left = total - len(shown) - 1
+        reserve = len(f" (+{left} more)") if left > 0 else 0
+        if shown and len(head) + len("; ".join(shown + [n])) + reserve > MAX_TECH_INTEGRITY:
+            break
+        shown.append(n)
+    left = total - len(shown)
+    return _clip(head + "; ".join(shown) + (f" (+{left} more)" if left > 0 else ""), MAX_TECH_INTEGRITY + 20)
 
 
 def _strip_log_pointer(detail: str) -> str:
@@ -387,6 +455,30 @@ def from_alert_text(text: str, down_for: float | None = None, previous_level: st
         return humanise(f"restarted:{m.group(1)}", "warn", f"{m.group(2)}: {m.group(3)}", None, None, now)
     stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%H:%M UTC")
     return _ascii(f"{PREFIX} heads up ({stamp}). The monitoring system sent a message; see docs/RUNBOOKS/alerts.md on the VM.\nTechnical: {_clip(text, 300)}")
+
+
+DELAY_NOTE_AFTER_S = 120  # a message delivered this long after it was raised says so
+
+
+def mark_delayed(body: str, raised_at: float, now: float) -> str:
+    """Say that a message is late and when it was really raised (UTC, DD-MM-YYYY). The body already carries the time of the
+    event ('VATPAC Stats: heads up (14:03 UTC). ...'); a retried message more than DELAY_NOTE_AFTER_S old gets the note
+    after that bracket: 'VATPAC Stats: heads up (14:03 UTC), delivered late (first raised 09-10-2026 14:03 UTC). ...'."""
+    if now - raised_at < DELAY_NOTE_AFTER_S or not body.startswith(PREFIX):
+        return body
+    when = datetime.fromtimestamp(raised_at, UTC).strftime("%d-%m-%Y %H:%M UTC")
+    head, sep, rest = body.partition("). ")
+    if not sep:
+        return body
+    return f"{head}), delivered late (first raised {when}). {rest}"
+
+
+def dropped_notice(n: int, first_at: float) -> str:
+    """The message that tells the owner earlier alerts were lost because Telegram stayed unreachable."""
+    stamp = datetime.fromtimestamp(first_at, UTC).strftime("%H:%M UTC")
+    return _ascii(f"{PREFIX} heads up ({stamp}). {n} earlier alert message{'s were' if n != 1 else ' was'} dropped while Telegram could not be "
+                  "reached, so the story may have gaps. Check the dashboards and docs/RUNBOOKS/alerts.md on the VM.\n"
+                  f"Technical: telegram_outbox, {n} dropped")
 
 
 def telegram_text(text: str, down_for: float | None = None, previous_level: str | None = None) -> str:

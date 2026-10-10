@@ -70,6 +70,8 @@ Notes:
 
 ## 3. Integration tests: a throwaway Postgres container on a machine with working Docker
 
+CI builds its database with the production `ops/migrate` image (dbmate, then `db/roles.sql`, then the `watchdog_ro` block), not with the `sed | psql` loop below; the manual steps below are the shortcut for a machine without that image. To mirror CI exactly, run the image against your throwaway container (see the `integration-tests` job in `.github/workflows/ci.yml`).
+
 This also runs the role tests, because the throwaway container has its own cluster.
 
 ```sh

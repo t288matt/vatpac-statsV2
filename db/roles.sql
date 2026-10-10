@@ -9,7 +9,7 @@
 -- picked up. Roles:
 --   grafana_ro  SELECT on views, materialized views and lookup tables only; no base tables, no writes,
 --               statement timeout, at most 10 connections.
---   collector   the application role: DML on the tables the collector writes, USAGE on sequences, EXECUTE
+--   collector   the application role: SELECT, INSERT, UPDATE on the tables the collector writes (DELETE on poll_log only), USAGE on sequences, EXECUTE
 --               on the maintenance functions. No DDL (the partition functions are SECURITY DEFINER), no
 --               access to flight_summary or views, not a superuser.
 --   backup_ro   pg_read_all_data (pg_dump); read-only.
@@ -26,6 +26,12 @@
 \else
     DO $$ BEGIN RAISE EXCEPTION 'psql variable backup_password is not set'; END $$;
 \endif
+
+-- Everything below runs in ONE transaction (issue 84). The grants are re-applied with REVOKE then GRANT on every deploy; run
+-- as separate statements, a connection that checked its privileges between the two saw "permission denied" for a moment on
+-- a live system. In one transaction other sessions keep seeing the old privileges until COMMIT, so there is no gap. With
+-- ON_ERROR_STOP a failure leaves the transaction open and psql exits, which rolls everything back.
+BEGIN;
 
 -- ---------------------------------------------------------------------------------------------
 -- grafana_ro
@@ -82,12 +88,16 @@ REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM collector;
 REVOKE CREATE ON SCHEMA public FROM collector;
 GRANT USAGE ON SCHEMA public TO collector;
 
--- Data tables the collector writes (and reads back: upserts, RETURNING, retention trim).
-GRANT SELECT, INSERT, UPDATE, DELETE ON
+-- Data tables the collector writes (and reads back: upserts, RETURNING). Upserts are INSERT ... ON CONFLICT DO UPDATE, so
+-- they need INSERT and UPDATE; no table other than poll_log is ever deleted from by the collector (issue 95).
+GRANT SELECT, INSERT, UPDATE ON
     pilot_session, pilot_position, controller_session, controller_rating_event,
     controller_frequency_event, network_snapshot, poll_log, controller_unlisted_sighting,
     reference_data_change, app_setting
 TO collector;
+-- The one retention trim the collector runs itself (maintenance.py trim_poll_log). Position partitions are dropped and the
+-- flight summary is refreshed by the SECURITY DEFINER functions below, which need no DELETE right.
+GRANT DELETE ON poll_log TO collector;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO collector;
 
 -- Maintenance functions. The partition functions, the flight_summary refresh and the materialized view
@@ -112,3 +122,5 @@ SELECT format('ALTER ROLE backup_ro PASSWORD %L', :'backup_password')
 
 GRANT pg_read_all_data TO backup_ro;
 ALTER ROLE backup_ro SET default_transaction_read_only = on;
+
+COMMIT;

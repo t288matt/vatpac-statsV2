@@ -44,14 +44,27 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # `latest` moves only when this tag is the highest stable semver tag in the repository, and the `MAJOR.MINOR` tag only when
+      # this is the highest patch of its own MAJOR.MINOR line, so re-running an old release cannot move either backwards
+      # (issue 101). The exact `{{version}}` tag is always fine to (re)publish. ls-remote needs no history.
+      - id: latest
+        run: |
+          tags="$(git ls-remote --tags --refs origin 'refs/tags/v*' | sed 's#.*refs/tags/##' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$')"
+          highest="$(echo "$tags" | sort -V | tail -n1)"
+          line="$(echo "$GITHUB_REF_NAME" | sed -E 's/^(v[0-9]+\.[0-9]+)\..*/\1/')"
+          highest_line="$(echo "$tags" | grep -E "^${line}\." | sort -V | tail -n1)"
+          echo "highest stable tag: ${highest:-none}; highest in ${line}: ${highest_line:-none}; this tag: $GITHUB_REF_NAME"
+          if [ "$highest" = "$GITHUB_REF_NAME" ]; then echo "publish=true" >> "$GITHUB_OUTPUT"; else echo "publish=false" >> "$GITHUB_OUTPUT"; fi
+          if [ "$highest_line" = "$GITHUB_REF_NAME" ]; then echo "publish_minor=true" >> "$GITHUB_OUTPUT"; else echo "publish_minor=false" >> "$GITHUB_OUTPUT"; fi
       - id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/t288matt/vatpac-stats-${{ matrix.name }}
           tags: |
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.latest.outputs.publish_minor == 'true' }}
+            type=raw,value=latest,enable=${{ steps.latest.outputs.publish == 'true' }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ${{ matrix.context }}
