@@ -226,7 +226,7 @@ def test_every_fault_on_one_listed_controller_and_one_inside_pilot(db, ref, base
             _check_snapshot(db, ref, base, payload, bad, f"{section}[{i}] {label}")
 
 
-@pytest.mark.parametrize("value", ["inf", "Infinity", "-Infinity", float("inf")])
+@pytest.mark.parametrize("value", ["inf", "Infinity", "-Infinity", float("inf"), "1e999999", "1E+999999999", "-1e999999"])
 def test_a_listed_controller_with_an_infinite_frequency_never_loses_the_snapshot(db, ref, base, value) -> None:
     """Issue 114: a whitelisted controller's frequency "inf" must not raise OverflowError out of the apply."""
     ci = next(i for i, c in enumerate(base["controllers"]) if c["callsign"] in ref.whitelist)

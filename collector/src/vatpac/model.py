@@ -83,7 +83,7 @@ def parse_frequency_hz(text: str | None) -> int | None:
     """'121.700' -> 121700000. '199.998' (no frequency), None and junk -> None."""
     try:  # str(None) is not a number either, so None falls through to the except
         hz = int(Decimal(str(text).strip()) * 1_000_000)
-    except (InvalidOperation, ValueError, OverflowError):  # OverflowError: int(Decimal('Infinity')) (issue 114)
+    except (ArithmeticError, ValueError):  # InvalidOperation, decimal.Overflow ('1e999999'), OverflowError (int of inf)
         return None
     return None if hz <= 0 or hz == NO_FREQUENCY_HZ else hz
 
