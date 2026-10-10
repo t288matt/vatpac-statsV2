@@ -1,6 +1,6 @@
 # Changelog
 
-What changed in VATPAC Stats v3, newest first, in plain words. Dates are DD-MM-YYYY and times are UTC. Written 10-10-2026 from the git history, [docs/TRACKER.md](docs/TRACKER.md), [docs/DECISIONS.md](docs/DECISIONS.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) section 10; written for the state of `origin/main` at commit f893585.
+What changed in VATPAC Stats v3, newest first, in plain words. Dates are DD-MM-YYYY and times are UTC. Written 10-10-2026 from the git history, [docs/TRACKER.md](docs/TRACKER.md), [docs/DECISIONS.md](docs/DECISIONS.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) section 10; updated in the evening of 10-10-2026 (docs batch 2) for the state of `origin/main` at commit 27cb266 (CI green).
 
 How to read it. "Deployed" means running on the production VM, with the date and time and commit taken from the deploy records in the tracker and the runbooks. Where a record gives only part of that, the entry says "not recorded". The code history is much finer than this page; the full list is `git log`. Decision numbers (ADR-nnn) are in docs/DECISIONS.md and issue numbers (#nn) are on GitHub.
 
@@ -8,7 +8,7 @@ The production VM runs the tree shipped from commit 3eb81a3 on 09-10-2026 at 19:
 
 ## Merged to main but NOT yet deployed (as of 10-10-2026)
 
-Nothing in this section is running on the VM. Each deploy needs the owner's explicit go ([docs/DEPLOY_PLAN_REVIEW_FIXES.md](docs/DEPLOY_PLAN_REVIEW_FIXES.md)): deploy 1 (fix-ops and the Telegram wording) is planned for Sunday 11-10-2026 after the 02:00 backup and restore test have been read; deploy 2 (fix-collector) about 24 hours later.
+Nothing in this section is running on the VM. Each deploy needs the owner's explicit go ([docs/DEPLOY_PLAN_REVIEW_FIXES.md](docs/DEPLOY_PLAN_REVIEW_FIXES.md)): deploy 1 (fix-ops and the Telegram wording) is planned for Sunday 11-10-2026 after the 02:00 backup and restore test have been read; deploy 2 (fix-collector) about 24 hours later; fix-sql after those.
 
 ### fix-ops (merged about 08:42 UTC on 10-10-2026, branch tip d0ceaaa; independently reviewed in two rounds)
 Safer backups, restores, roles and alerts. Fixes issues #81, #83, #84, #86, #90, #91, #95, #96, #97, #101 and #102.
@@ -32,14 +32,33 @@ A sturdier collector. Fixes issues #82, #85, #87, #88, #92, #99 and #100.
 ### Plain-language Telegram messages (issue #79; commits 3c8df0e, aacd655, bed4dfa, cdfdc1b; on main 09-10-2026 evening)
 Alerts become a short sentence in everyday words with a last line starting `Technical:` for the detail, labelled "heads up", "problem" or "all clear". Today's messages still read `vatpac-stats: WARN ...`. When an alert clears, the message says how long it lasted. Independently reviewed. Details in [docs/RUNBOOKS/alerts.md](docs/RUNBOOKS/alerts.md).
 
+### fix-sql (on main by the evening of 10-10-2026; branch tip when reviewed b9f0170; the merge time is not recorded)
+Three database and dashboard fixes and one measurement. Fixes issues #93, #94 and #98; #89 is measured and documented only. Independently reviewed in two rounds (round-2 record is on branch `review-fix-sql-r2`; its low follow-ups are issue #112).
+- Controllers who log back in no longer count as "reactivated" unless they have an earlier session (ADR-028, confirmed by the owner; the live count goes from 53 to 0 until 90 days of history exist) (issue #93).
+- The Monday event panel shows this Monday, not last Monday, before 07:00 UTC (issue #94).
+- Dropping old position partitions is rewritten as migration 20261009000170: it takes locks without waiting, re-checks each partition before dropping and drops at most 10 per call; `maintenance.py` repeats the call. The first real drop is not due until about 06-01-2027 (issue #98).
+- The flight view's growth with history is measured (docs/FLIGHT_VIEW_SCALING.md); the fix is future work (issue #108).
+- Do NOT ship this with deploys 1 and 2: those use the exact commit 520dc3e, which does not contain it ([docs/DEPLOY_PLAN_REVIEW_FIXES.md](docs/DEPLOY_PLAN_REVIEW_FIXES.md)).
+
+### Replay and fuzz tests (issue #103; on main 10-10-2026, last commit 27cb266 at 20:39 UTC)
+Tests only; nothing to deploy. Two real raw-feed snapshots are kept as fixtures, with a replay tool, seeded fuzz generators, parser fuzz tests and ingest tests against Postgres. They found two real defects, now issues #111 (oversized multi-byte callsign) and #114 (infinite controller frequency), pinned as expected failures until fixed. The full fuzz grids run in CI.
+
+### Documentation (10-10-2026)
+- Batch 1: [docs/IF_CLAUDE_IS_UNAVAILABLE.md](docs/IF_CLAUDE_IS_UNAVAILABLE.md), the documentation index [docs/README.md](docs/README.md), this changelog, and fixes to ten stale statements (issue #110).
+- Owner card for the off-VM backup copy on the Proxmox host ([docs/OWNER_BACKUP_COPY.md](docs/OWNER_BACKUP_COPY.md), 10-10-2026 16:45 UTC; ADR-026 item 7; not yet run).
+- Deploy plan pins the commit to ship (520dc3e) and the owner decision that a hung collector with no code change may be restarted plainly (issue #110).
+- Batch 2 (RESUME.md rewritten short, tracker rows T66 to T70, working agreement additions, this section): branch `docs-batch-2`.
+
 ### Also on main, no effect on the running system
 - Collector size budget raised from 1700 to 1800 lines (ADR-027, 10-10-2026).
-- Retention rules decided (ADR-026, 09-10-2026): raw positions kept 180 days, sessions, flights and controller data kept forever, and more. The rules are decided but not built yet (issue #21).
-- Working agreement and team briefs ([docs/WORKING_AGREEMENT.md](docs/WORKING_AGREEMENT.md), [docs/TEAM_BRIEFS.md](docs/TEAM_BRIEFS.md)), the deploy plan, the cold-start prompt, the owner card [docs/IF_CLAUDE_IS_UNAVAILABLE.md](docs/IF_CLAUDE_IS_UNAVAILABLE.md) and this changelog.
+- Retention rules decided (ADR-026, 09-10-2026): raw positions kept 180 days, sessions, flights and controller data kept forever, and more. Decided but not built yet (issue #21).
+- Working agreement and team briefs ([docs/WORKING_AGREEMENT.md](docs/WORKING_AGREEMENT.md), [docs/TEAM_BRIEFS.md](docs/TEAM_BRIEFS.md)), the deploy plan and the cold-start prompt.
 - CI and release workflow fixes (a line-length error had kept CI red for four commits on 10-10-2026).
 
-### Not on main at all yet
-A branch `fix-sql` (reconnected controllers need an earlier session, ADR-028; the Monday event panel before 07:00; a safer way to drop old position partitions as a new migration; a measurement of flight-view speed). It is built and is waiting for a short second review. Do not rely on anything in it.
+### Not on main yet
+- `fix-111-114`: collector fix for issues #111 and #114 (in progress).
+- `deploy-checks` (pull request 116): read-only deploy checks and a release marker, issue #104 trimmed (under independent review).
+- Incident 10-10-2026 (issue #113): two snapshots were stored late (apply timeouts at 15:47 and 15:52 UTC) because several test containers ran on the live VM at once. No data was lost; new rule in the working agreement.
 
 ## Deployed
 
