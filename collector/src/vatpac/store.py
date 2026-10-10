@@ -166,7 +166,8 @@ def _guard(cur: psycopg.Cursor[Any], deadline: float | None) -> None:
 def _write(conn: psycopg.Connection[Any], cur: psycopg.Cursor[Any], sql: str, rows: list[dict[str, Any]],
            ts: datetime, fetch: bool, deadline: float | None = None) -> tuple[int, list[Any], list[str]]:
     """Run a batch statement in a savepoint. If one poisoned record makes it fail (DataError, IntegrityError,
-    ProgramLimitExceeded), bisect down to the offender and skip it. Returns (rowcount, fetched rows, rejected callsigns)."""
+    ProgramLimitExceeded), bisect down to the offender and skip it. Returns (rowcount, fetched rows, rejected
+    callsigns)."""
     try:
         with conn.transaction():
             _guard(cur, deadline)
