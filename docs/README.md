@@ -84,7 +84,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 8. **Reconcile the two collector-restart instructions** (stuck-collector.md versus deploy-to-vm.md 4c).
 9. **Add a "last reviewed against commit" line to every current document** (some have a date, some do not) so staleness is visible.
 
-## 6. Statements found to be stale or wrong (reported, not fixed)
+## 6. Statements found to be stale or wrong (found 10-10-2026; fixed on main on 10-10-2026 except the collector restart rule, which waits for an owner decision, issue #110)
 
 | Where | What | Evidence |
 |---|---|---|
