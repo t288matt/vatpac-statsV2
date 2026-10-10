@@ -20,6 +20,8 @@ v3 replaces the original v1 system (a FastAPI service with Metabase). The two we
 
 ## Getting started
 
+A complete step-by-step install for a new instance on a clean Linux machine is in [docs/INSTALL.md](docs/INSTALL.md). The short version:
+
 **Requirements:** Docker Desktop (Windows or macOS), or Docker Engine with the Compose plugin (Linux). Nothing else is needed to run the stack.
 
 ```
@@ -156,6 +158,7 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 
 | Document | Contents |
 |---|---|
+| [docs/INSTALL.md](docs/INSTALL.md) | Install a new instance from the source code |
 | [docs/README.md](docs/README.md) | Index of every document, with its status |
 | [docs/RESUME.md](docs/RESUME.md) | Entry point for a new operator or session: current state, rules, next actions |
 | [docs/WORKING_AGREEMENT.md](docs/WORKING_AGREEMENT.md), [docs/TEAM_BRIEFS.md](docs/TEAM_BRIEFS.md) | How the team works and how each role is briefed |
