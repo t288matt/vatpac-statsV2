@@ -43,7 +43,7 @@ The goal is met and the system is in routine operation (checklist at the end of 
 4. **v1 re-comparison**: DELAYED by the owner until 12 hours after ALL fixes are deployed. Read-only, predictions committed first, his go on the day. Then a final dump of v1 and stop v1 (his go).
 5. **Retention build** (#21, ADR-026): POSITION_RETENTION_DAYS=180 before the first drop about 06-01-2027, WATCHDOG_DB_MAX_GB=5, network_snapshot 5-year trim, BACKUP_REMOTE copy (the owner does the Proxmox side: OWNER_BACKUP_COPY.md), clean-up of about 70 leaked test volumes from an approved list.
 6. **Dated:** #27 on 14-10-2026 and 06-11-2026; #22 after 19-10-2026; #25 on 06-11-2026; delete the VM rollback copies about 16-10-2026 (`~/vatpac-statsV2.rollback-09-10-bumps`, `-mig150`, `-card65`, `-integrity`, and volume `vatpac_grafana_data_pre_bumps`; list names first); #18 needs a time from the owner. The data_integrity warning from incident #113 clears on 13-10-2026 about 15:52.
-7. Writer duty: update RESUME, TRACKER, CHANGELOG and runbooks within one working day of each merge (WORKING_AGREEMENT section 2).
+7. Writer duty: after each deploy is verified live, switch in the prepared changes (docs/PENDING_DOC_CHANGES.md, on branch `docs-audit`) and update RESUME, TRACKER, CHANGELOG and runbooks within one working day (WORKING_AGREEMENT section 2b). Documents describe the deployed state only.
 
 ## 5. Open issues (about 42 open on 10-10-2026 night; `gh issue list --repo t288matt/vatpac-statsV2 --label P1`)
 Labels: P1 deploy path, fixed on main, needs a verified deploy; P2 next build, in order; P3 soon, small; P4 dated, owner-only, later or low value.
