@@ -120,6 +120,9 @@ class Collector:
                 total = snapshot.pilots_global + snapshot.controllers_global
                 if snapshot.malformed > MAX_MALFORMED_FRACTION * total:
                     raise FeedError(f"{snapshot.malformed} of {total} feed entries malformed", 200)
+                if snapshot.bad_plans > MAX_MALFORMED_FRACTION * snapshot.pilots_global:  # the plan format changed
+                    raise FeedError(f"{snapshot.bad_plans} of {snapshot.pilots_global} pilots have a flight_plan "
+                                    "that is not an object", 200)
                 if snapshot.malformed:
                     err = f"{snapshot.malformed} malformed feed entries skipped"
                 result = await asyncio.wait_for(asyncio.to_thread(self._apply, snapshot, ref), APPLY_TIMEOUT_S)

@@ -76,6 +76,7 @@ class Snapshot:
     pilots_global: int
     controllers_global: int
     malformed: int = field(default=0, compare=False)
+    bad_plans: int = field(default=0, compare=False)  # pilots whose flight_plan is present but not an object
 
 
 def parse_frequency_hz(text: str | None) -> int | None:
@@ -172,7 +173,7 @@ def _nulled(raw: dict[str, Any], **parsed: object) -> int:
 
 def _pilot(raw: dict[str, Any]) -> Pilot:
     plan = raw.get("flight_plan")
-    fp = plan if isinstance(plan, dict) else {}  # a plan that is not an object means no plan, one rejected value
+    fp = plan if isinstance(plan, dict) else {}  # not an object: no plan; a truthy one is also one rejected value
     alt, gs, hdg = _i(raw.get("altitude")), _i(raw.get("groundspeed")), _heading(raw.get("heading"))
     prat, mrat = _i(raw.get("pilot_rating")), _i(raw.get("military_rating"))
     return Pilot(
@@ -186,7 +187,7 @@ def _pilot(raw: dict[str, Any]) -> Pilot:
         remarks=_s(fp.get("remarks")), planned_alt=_s(fp.get("altitude")), deptime=_s(fp.get("deptime")),
         pilot_rating=prat, military_rating=mrat,
         rejected=_nulled(raw, altitude=alt, groundspeed=gs, heading=hdg, pilot_rating=prat, military_rating=mrat)
-        + (fp is not plan and plan is not None),
+        + bool(plan and fp is not plan),
     )
 
 
@@ -210,7 +211,10 @@ def cap_text(rec: _R, limit: int) -> _R:
 def parse_snapshot(payload: dict[str, Any], max_text: int = MAX_TEXT) -> Snapshot:
     """Parse pilots and controllers only. Malformed entries are skipped, counted and logged; text is capped."""
     observed_at = update_timestamp(payload)
-    raw_pilots, raw_ctrls = (v if isinstance(v := payload.get(k), list) else [] for k in ("pilots", "controllers"))
+    raw_pilots, raw_ctrls = (payload.get(k) or [] for k in ("pilots", "controllers"))  # missing or null: none
+    for name, raws in (("pilots", raw_pilots), ("controllers", raw_ctrls)):
+        if not isinstance(raws, list):  # a changed feed shape is a poll error, not an empty snapshot
+            raise FeedError(f"feed {name} is not a list")
     malformed = 0
 
     def parse_all(raws: list[Any], build: Callable[[dict[str, Any]], _R]) -> list[_R]:
@@ -221,11 +225,15 @@ def parse_snapshot(payload: dict[str, Any], max_text: int = MAX_TEXT) -> Snapsho
                 if not isinstance(raw, dict):  # null, string, list or number in place of an entry
                     raise TypeError("feed entry is not an object")
                 out.append(cap_text(build(raw), max_text))
-            except (KeyError, TypeError, ValueError, OverflowError, AttributeError):  # OverflowError: int(inf) in cid
+            except (KeyError, TypeError, ValueError, OverflowError):  # OverflowError: int(inf) in cid
                 malformed += 1
         return out
 
     pilots, controllers = parse_all(raw_pilots, _pilot), parse_all(raw_ctrls, _controller)
     if malformed:
         log.warning("malformed feed entries skipped", extra={"count": malformed})
-    return Snapshot(observed_at, pilots, controllers, len(raw_pilots), len(raw_ctrls), malformed)
+    bad_plans = sum(isinstance(r, dict) and bool(r.get("flight_plan")) and not isinstance(r["flight_plan"], dict)
+                    for r in raw_pilots)
+    if bad_plans:
+        log.warning("flight plans that are not objects stored as no plan", extra={"count": bad_plans})
+    return Snapshot(observed_at, pilots, controllers, len(raw_pilots), len(raw_ctrls), malformed, bad_plans)

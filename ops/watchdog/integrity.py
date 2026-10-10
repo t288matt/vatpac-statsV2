@@ -172,6 +172,8 @@ def compare_sample(cur: Any, mine: dict[str, Any]) -> list[str]:
     if row is None:
         return [f"{label}: no network_snapshot row stored"]
     out = []
+    # pilots_in_region is the pilots stored: a pilot the collector rejected is missing from it, so it differs from the
+    # independent in-polygon count (and from the key-set comparison below) exactly when a record was skipped
     for (what, independent_n), stored in zip((("pilots_global", mine["pilots_global"]), ("pilots_in_region", mine["pilots_inside"]),
                                               ("controllers_global", mine["controllers_global"]),
                                               ("controllers_in_region", mine["controllers_kept"])), row, strict=True):

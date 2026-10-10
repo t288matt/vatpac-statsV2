@@ -485,3 +485,31 @@ def test_the_scheduled_cross_check_end_to_end(arc: Archive, conn: Any, dsn: str,
     state["integrity"]["feed_crosscheck"]["last_run"] = now - 14 * 86400  # fourteen days later
     res, _ = integrity.run_due(p, state, now=now)
     assert res["feed_crosscheck"][0] == "warn" and "controllers_in_region" in res["feed_crosscheck"][1]
+
+
+# issue 92: a record the collector rejected makes poll_log.pilots_inside exceed network_snapshot.pilots_in_region by
+# design; the two count invariants compare the stored pilots (pilots_kept), so neither fires
+def test_a_rejected_pilot_fires_neither_the_poll_log_count_nor_the_positions_invariant(
+        conn: Any, dsn: str, payload: dict, refdata: Any, role: str | None) -> None:
+    import dataclasses
+
+    from vatpac.filters import inside_polygon
+    from vatpac.model import parse_snapshot
+    from vatpac.store import apply_snapshot, write_poll_log
+
+    snap = parse_snapshot(at(payload))
+    partition_for(conn, snap.observed_at)
+    poly, wl = refdata
+    p = next(q for q in snap.pilots if inside_polygon(poly, q.latitude, q.longitude))
+    bad = dataclasses.replace(p, callsign="REJECTED1", logon_time=p.logon_time.replace(microsecond=500_000))  # breaks a CHECK
+    snap = dataclasses.replace(snap, pilots=[*snap.pilots, bad])
+    res = apply_snapshot(conn, snap, poly, wl, polygon_sha="a" * 64, whitelist_sha="b" * 64)
+    write_poll_log(conn, "ok", snapshot_ts=snap.observed_at, result=res, polygon_sha="a" * 64, whitelist_sha="b" * 64)
+    if not conn.autocommit:
+        conn.commit()
+    row = conn.execute("SELECT p.pilots_inside, p.pilots_kept, n.pilots_in_region FROM poll_log p "
+                       "JOIN network_snapshot n ON n.observed_at = p.snapshot_ts").fetchone()
+    assert row["pilots_inside"] == row["pilots_kept"] + 1 and row["pilots_in_region"] == row["pilots_kept"]
+    counts = sweep(dsn, role)
+    assert counts["ok poll_log counts differ from network_snapshot"] == 0
+    assert counts["positions per snapshot differ from pilots_in_region"] == 0

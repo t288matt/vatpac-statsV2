@@ -206,7 +206,7 @@ One row per processed snapshot; primary key `observed_at`. Written even when not
 | Column | Meaning |
 |---|---|
 | `observed_at` | Snapshot time. |
-| `pilots_in_region` | Pilots stored (inside the polygon). |
+| `pilots_in_region` | Pilots stored: inside the polygon and not rejected, so it equals `poll_log.pilots_kept` and the positions written for the snapshot (it is below `poll_log.pilots_inside` when a record was skipped). |
 | `controllers_in_region` | Controllers stored (on the whitelist). |
 | `pilots_global`, `controllers_global` | Totals in the whole feed. |
 
@@ -221,7 +221,7 @@ One row per poll attempt, including failures. Trimmed to 400 days by maintenance
 | `snapshot_ts` | timestamptz | yes | Feed timestamp, when one was read. |
 | `duration_ms`, `http_status` | integer | yes | Timing and HTTP status of the fetch. |
 | `pilots_seen` | integer | yes | Pilots in the whole feed. |
-| `pilots_inside` | integer | yes | Pilots inside the polygon. |
+| `pilots_inside` | integer | yes | Pilots inside the polygon, including any record that was rejected (compare `pilots_kept`). |
 | `pilots_with_plan` | integer | yes | Of those, pilots with non-empty departure and arrival (the flight gate, informational). |
 | `pilots_kept` | integer | yes | Pilots actually written; equals `pilots_inside` unless a malformed record was skipped. |
 | `controllers_seen`, `controllers_kept` | integer | yes | Controllers in the feed and on the whitelist. |
