@@ -7,6 +7,7 @@ import contextlib
 import logging
 import math
 import signal
+import threading
 import sys
 import time
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ from psycopg_pool import ConnectionPool
 
 from . import __version__
 from .archive import Archive
-from .errors import FeedError, RateLimitedError, ReferenceDataError
+from .errors import ApplyBusyError, FeedError, RateLimitedError, ReferenceDataError
 from .feed import FeedClient
 from .filters import ReferenceData, load_reference
 from .health import Stats, start_server
@@ -35,7 +36,8 @@ log = logging.getLogger("vatpac")
 UNCHANGED_RETRY_S = 2.0
 MAINTENANCE_INTERVAL_S = 86_400.0
 MAINTENANCE_RETRY_S = 60.0
-APPLY_TIMEOUT_S = 25.0
+APPLY_TIMEOUT_S = 25.0  # the poll stops waiting after this
+APPLY_DEADLINE_S = 20.0  # the worker stops itself after this (transaction scope), so it cannot outlive the wait
 MAX_MALFORMED_FRACTION, MIN_WHITELIST_FRACTION = 0.2, 0.7
 # fail fast on a stuck statement or lock; Collector._maintain raises statement_timeout for its own session
 DB_OPTIONS = "-c statement_timeout=20000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=30000"
@@ -54,6 +56,7 @@ class Collector:
         self.archive = Archive(settings, self.stats)
         self.stop = asyncio.Event()
         self.last_ts: datetime | None = None
+        self._apply_lock = threading.Lock()  # held by the apply worker thread: two applies never overlap
         self._tasks: set[asyncio.Task[None]] = set()  # strong refs so SIGHUP reload tasks are not collected
 
     @staticmethod
@@ -62,9 +65,15 @@ class Collector:
 
     # ---- blocking DB helpers (run in worker threads) ----
     def _apply(self, snapshot: Snapshot, ref: ReferenceData) -> ApplyResult:
-        with self.pool.connection() as conn:
-            return apply_snapshot(conn, snapshot, ref.polygon, ref.whitelist,
-                                  polygon_sha=ref.polygon_sha, whitelist_sha=ref.whitelist_sha, prefixes=ref.prefixes)
+        if not self._apply_lock.acquire(blocking=False):  # a timed-out apply may still be running: skip, never overlap
+            raise ApplyBusyError("previous snapshot apply is still running, poll skipped")
+        try:
+            with self.pool.connection() as conn:
+                return apply_snapshot(conn, snapshot, ref.polygon, ref.whitelist, polygon_sha=ref.polygon_sha,
+                                      whitelist_sha=ref.whitelist_sha, prefixes=ref.prefixes,
+                                      deadline=time.monotonic() + APPLY_DEADLINE_S)
+        finally:
+            self._apply_lock.release()
 
     def _db_last_ts(self) -> datetime | None:
         return db_last_ts(self.pool, self.settings.feed_max_future_seconds)
@@ -129,6 +138,9 @@ class Collector:
                 self.last_ts, status = snapshot.observed_at, "ok"
         except RateLimitedError as exc:
             err, http, retry_in = str(exc), 429, exc.retry_after
+        except ApplyBusyError as exc:
+            err = str(exc)
+            log.error("poll skipped", extra={"error": err})
         except FeedError as exc:
             err, http = str(exc), exc.http_status
         except psycopg.errors.CheckViolation as exc:  # no partition for observed_at: create them now

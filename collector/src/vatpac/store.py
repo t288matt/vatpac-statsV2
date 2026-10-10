@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
@@ -152,12 +153,23 @@ def _jsonb(rows: list[dict[str, Any]]) -> Jsonb:
     return Jsonb(rows, dumps=lambda o: json.dumps(o, default=lambda v: v.isoformat()))
 
 
+def _guard(cur: psycopg.Cursor[Any], deadline: float | None) -> None:
+    """Transaction-scope deadline (a time.monotonic() value): each statement may run only for the time that is left,
+    so a slow or blocked apply ends by the deadline instead of after a per-statement timeout for every statement."""
+    if deadline is not None:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("snapshot apply passed its deadline")
+        cur.execute("SELECT set_config('statement_timeout', %s, true)", (str(int(left * 1000) + 1),))
+
+
 def _write(conn: psycopg.Connection[Any], cur: psycopg.Cursor[Any], sql: str, rows: list[dict[str, Any]],
-           ts: datetime, fetch: bool) -> tuple[int, list[Any], list[str]]:
+           ts: datetime, fetch: bool, deadline: float | None = None) -> tuple[int, list[Any], list[str]]:
     """Run a batch statement in a savepoint. If one poisoned record makes it fail (DataError/IntegrityError), bisect
     down to the offender and skip it. Returns (rowcount, fetched rows, rejected callsigns)."""
     try:
         with conn.transaction():
+            _guard(cur, deadline)
             cur.execute(sql, {"rows": _jsonb(rows), "ts": ts})
             return max(cur.rowcount, 0), cur.fetchall() if fetch else [], []
     except (psycopg.DataError, psycopg.IntegrityError) as exc:
@@ -169,7 +181,7 @@ def _write(conn: psycopg.Connection[Any], cur: psycopg.Cursor[Any], sql: str, ro
             log.warning("record rejected", extra={"callsign": rows[0]["callsign"], "error": type(exc).__name__})
             return 0, [], [rows[0]["callsign"]]
         mid = len(rows) // 2
-        (n1, f1, b1), (n2, f2, b2) = (_write(conn, cur, sql, half, ts, fetch) for half in (rows[:mid], rows[mid:]))
+        (n1, f1, b1), (n2, f2, b2) = (_write(conn, cur, sql, half, ts, fetch, deadline) for half in (rows[:mid], rows[mid:]))
         return n1 + n2, f1 + f2, b1 + b2
 
 
@@ -182,6 +194,7 @@ def apply_snapshot(
     polygon_sha: str,
     whitelist_sha: str,
     prefixes: frozenset[str] | None = None,
+    deadline: float | None = None,
 ) -> ApplyResult:
     """Write one snapshot in a single transaction. Replaying it inserts zero rows."""
     ts = snapshot.observed_at
@@ -216,11 +229,11 @@ def apply_snapshot(
     with conn.transaction(), conn.cursor(row_factory=tuple_row) as cur:  # independent of the connection's row factory
         res.pilots_kept = len(pilots)
         if pilots:
-            res.positions_inserted, _, bad = _write(conn, cur, _PILOT_SQL, list(pilots.values()), ts, False)
+            res.positions_inserted, _, bad = _write(conn, cur, _PILOT_SQL, list(pilots.values()), ts, False, deadline)
             res.pilots_kept -= len(bad)
             res.rejected_values += len(bad)
         if controllers:
-            _, fetched, bad = _write(conn, cur, _CONTROLLER_SQL, list(controllers.values()), ts, True)
+            _, fetched, bad = _write(conn, cur, _CONTROLLER_SQL, list(controllers.values()), ts, True, deadline)
             res.controllers_kept -= len(bad)
             res.rejected_values += len(bad)
             ids = {(r[1], r[2], r[3]): r[0] for r in fetched}
@@ -229,14 +242,17 @@ def apply_snapshot(
                 ("controller_rating_event", "rating", "int", "rating"),
                 ("controller_frequency_event", "frequency_hz", "bigint", "frequency_hz"),
             ):
+                _guard(cur, deadline)
                 cur.execute(
                     _EVENT_SQL.format(table=table, col=col, typ=typ),
                     {"ts": ts, "ids": [ids[k] for k in keys], "vals": [controllers[k][field_name] for k in keys]},
                 )
         if near_miss:
             rows = [{"callsign": cs, "cid": cid} for cs, cid in near_miss.items()]
+            _guard(cur, deadline)
             cur.execute(_NEAR_MISS_SQL, {"rows": _jsonb(rows), "ts": ts})
             res.new_near_misses = [r[0] for r in cur.fetchall() if r[1]]
+        _guard(cur, deadline)
         cur.execute(
             _NETWORK_SQL,
             (ts, res.pilots_kept, res.controllers_kept, snapshot.pilots_global, snapshot.controllers_global),
