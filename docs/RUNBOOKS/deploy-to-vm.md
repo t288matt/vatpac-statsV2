@@ -104,6 +104,18 @@ Steps (from `~/vatpac-statsV2` on the VM, after the `git archive` copy of the tr
 4. **Live proof.** The next real alert arrives in the new form and the owner confirms it. Do not send a test message to the owner's chat without asking.
 5. **Roll back.** Restore the previous tree and `docker compose up -d --build --no-deps watchdog`. The extra `bad_since` entry in the status file is ignored by the old code.
 
+## Scripted checks (`ops/deploy.sh`; read-only, issue #104 trimmed)
+`ops/deploy.sh` does not deploy anything. It runs the checks of this runbook for you, from the PC in Git Bash (`bash ops/deploy.sh ...`, over `ssh vatpac-v3`), so none has to be remembered. The owner's explicit go is still needed for every deploy. It never starts, stops, builds or restarts anything, never uses sudo or `docker run`, and never prints `.env` values; a check that cannot run counts as FAIL. Exit 0 means no FAIL (a WARN is allowed).
+
+| When | Command | What it does |
+|---|---|---|
+| Before the deploy, once the owner has said go | `bash ops/deploy.sh --preflight <commit>` | PASS/FAIL with the value seen: the commit is on `origin/main`, CI is green for that exact sha, VM clock synchronised, `MemAvailable` at least 3000 MB, disk, all five stack containers healthy with restart counts 0, outside the 01:50 to 02:30 UTC backup window, no non-`vatpac-` containers left on the VM, a recent readable dump (age and size shown), no `.deploy/lock` file on the VM. Fix every FAIL before starting. |
+| After the deploy steps | `bash ops/deploy.sh --verify` | Runs `ops/smoke.sh`, `ops/check_panels.py`, restart counts, prints the collector start time, polling gap from `poll_log`, collector `/health` with the archive block, `ops/check_identity_flap.sql` (three zeros), the invariant pack read-only and the watchdog log. A violation named in `ops/deploy_expected_warnings.txt` shows as WARN until its expiry and as FAIL after it. Allow about 20 seconds (the smoke test can wait longer for a slow stack). |
+| After `--verify` is clean | `bash ops/deploy.sh --mark <commit>` | The only write: `~/vatpac-statsV2/.deploy/release` on the VM (commit, UTC time, who; no secrets), and a line appended to `.deploy/release.log`. Run it only for a deploy that has been verified. |
+| Any time | `bash ops/deploy.sh --status` | Prints the release marker, the containers with start times and restart counts, and the newest dump. |
+
+`.deploy/lock` is a flag a person may create by hand to say "a deploy is in progress"; nothing creates or removes it automatically. The first `--status` shows "no marker" until the first `--mark`. Not built on purpose (parked in the design on branch `design-deploy`): applying the deploy, automatic rollback, tier checking, a lock daemon, a policy file.
+
 ## 5. Network exposure and firewall
 Only Grafana is published, and by default **only on loopback**: `127.0.0.1:${GRAFANA_PORT:-3300}`. The database is not published. To reach Grafana from the LAN, opt in explicitly in `.env`:
 ```sh

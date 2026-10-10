@@ -76,7 +76,8 @@ classify_invariant() {
 
 # gap_ok <max gap seconds> <age of newest row seconds>: both numbers and under the limit.
 gap_ok() {
-  case "$1$2" in *[!0-9]*|'') return 1 ;; esac
+  case "$1" in ''|*[!0-9]*) return 1 ;; esac
+  case "$2" in ''|*[!0-9]*) return 1 ;; esac
   [ "$1" -lt "$MAX_GAP_S" ] && [ "$2" -lt "$MAX_GAP_S" ]
 }
 
