@@ -49,6 +49,8 @@ CASES: list[tuple[str, str, str, str]] = [
     ("disk", "warn", "/backups unreadable", "could not be read"),
     ("backup_age", "crit", "newest backup 27.3 h old", "27 hours old"),
     ("backup_age", "crit", "no backup yet (30.0 h since watchdog first ran)", "No database backup"),
+    ("backup_remote", "warn", "last off-box copy 30.1 h ago (limit 26)", "second location"),
+    ("backup_remote", "warn", "no off-box copy recorded after 27.0 h since watchdog first ran", "second location"),
     ("restore_test", "crit", "last restore test FAILED 2.1 days ago", "has failed"),
     ("restore_test", "warn", "last successful restore test 10.0 days ago (limit 9)", "overdue"),
     ("restore_test", "warn", "no restore test result after 10.0 days", "overdue"),
@@ -172,7 +174,8 @@ def test_each_invariant_produces_a_sentence_from_the_real_summary_text(name: str
 
 
 def test_several_failing_invariants_are_counted_in_words() -> None:
-    findings = [integrity.Finding(n, 1) for n in NAMES[:3]]
+    # NAMES[0], [1] and [4]: none is a same-day invariant, so the first listed still leads (the same-day order has its own tests below)
+    findings = [integrity.Finding(NAMES[i], 1) for i in (0, 1, 4)]
     _, detail = integrity.summarise_invariants(findings, [], len(NAMES))
     t = m.humanise("data_integrity", "warn", detail, now=NOW)
     assert "(plus 2 others)" in t and m.INVARIANT_WORDS[NAMES[0]] in t
@@ -185,7 +188,8 @@ def test_more_than_six_failing_are_counted_from_the_n_of_18_figure() -> None:
     assert "10 of 18 invariants" in detail and "and 4 more" in detail
     t = m.humanise("data_integrity", "warn", detail, now=NOW)
     assert "(plus 9 others)" in t
-    assert "10 of 18 checks failing" in t and "(+9 more)" in t.splitlines()[-1]
+    last = t.splitlines()[-1]
+    assert "10 of 18 checks failing" in last and "(+" in last and "more)" in last  # the Technical line now lists names, bounded, with the rest counted
     check_shape(t, "data_integrity")
 
 
@@ -214,7 +218,8 @@ def test_a_missing_partition_is_not_told_to_wait() -> None:
 def test_the_new_violations_notice_from_integrity_is_humanised() -> None:
     notice = f"WARN data_integrity: new violations since the last sweep: {NAMES[9]}, {NAMES[6]}"
     t = m.from_alert_text(notice, now=NOW)
-    assert "new problem" in t and m.INVARIANT_WORDS[NAMES[9]] in t and "(and 1 more)" in t and "Several checks failed" in t
+    # issue 79 re-review: the sentence now follows the MOST URGENT failing invariant (NAMES[6], the stale newest snapshot), not the first listed
+    assert "new problem" in t and m.INVARIANT_WORDS[NAMES[6]] in t and "(and 1 more)" in t and "Some need action today" in t
     check_shape(t, "data_integrity")
 
 
@@ -227,9 +232,19 @@ def test_the_pack_incomplete_problem_is_not_called_a_data_problem() -> None:
 
 
 def names_the_watchdog_can_alert_on() -> set[str]:
-    """Read from the watchdog source itself: every literal key put into the results dicts (`out["x"] = ...`, `results["x"] = ...`)
-    in ops/watchdog/watchdog.py, plus the two slow checks named in integrity.py. Keys starting with an underscore are internal."""
-    tree = ast.parse((REPO / "ops" / "watchdog" / "watchdog.py").read_text(encoding="utf-8"))
+    """Read from the watchdog source itself: every literal key put into the results dicts (`out["x"] = ...`, `results["x"] = ...`,
+    and the literal keys of `out.update({...})` / `results.update({...})`) in ops/watchdog/watchdog.py, plus the two slow checks
+    named in integrity.py. Keys starting with an underscore are internal.
+
+    LIMIT OF THIS GUARD: it is a static reading of the source. It cannot see a check name built from an f-string or a variable
+    (`results[f"container:{svc}"]`, `results[name]`), nor keys added by `results.update(some_function())` (that is why the
+    container, restart-cap and integrity names are covered by their own tests and prefixes). A check added in such a way needs its
+    wording added and tested by hand."""
+    return result_keys_in((REPO / "ops" / "watchdog" / "watchdog.py").read_text(encoding="utf-8")) | {integrity.INVARIANTS_KEY, integrity.CROSSCHECK_KEY}
+
+
+def result_keys_in(source: str) -> set[str]:
+    tree = ast.parse(source)
     found: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
@@ -237,7 +252,13 @@ def names_the_watchdog_can_alert_on() -> set[str]:
                 if (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name) and t.value.id in {"out", "results"}
                         and isinstance(t.slice, ast.Constant) and isinstance(t.slice.value, str) and not t.slice.value.startswith("_")):
                     found.add(t.slice.value)
-    return found | {integrity.INVARIANTS_KEY, integrity.CROSSCHECK_KEY}
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "update"
+                and isinstance(node.func.value, ast.Name) and node.func.value.id in {"out", "results"}):
+            for arg in node.args:
+                if isinstance(arg, ast.Dict):
+                    found |= {k.value for k in arg.keys
+                              if isinstance(k, ast.Constant) and isinstance(k.value, str) and not k.value.startswith("_")}
+    return found
 
 
 def test_every_check_name_the_watchdog_can_alert_on_has_its_own_wording() -> None:
@@ -335,3 +356,49 @@ def test_a_context_never_leaks_into_the_next_message() -> None:
     a.update("disk", "ok", "/ 40% used")
     a.send("NEAR-MISS controller callsign(s) not on whitelist: X_TWR")
     assert "active for" in seen[0] and "active for" not in seen[1]
+
+
+# ---------------------------------------------------------------- several failing invariants (issue 79 re-review)
+PARTITIONS = "daily partitions missing for today..today+3"
+GAPS = "snapshot gaps over 5 minutes (last 3 days)"
+
+
+def _detail_for(first_names: list[str]) -> str:
+    return integrity.summarise_invariants([integrity.Finding(n, 1) for n in first_names], [], len(NAMES))[1]
+
+
+def test_a_same_day_failure_listed_second_is_not_hidden() -> None:
+    detail = _detail_for([GAPS, PARTITIONS])                 # the poll-record style failure is listed first
+    t = m.humanise("data_integrity", "warn", detail, now=NOW)
+    first = t.splitlines()[0]
+    assert m.INVARIANT_WORDS[PARTITIONS] in first and "Writes will start to fail" in first
+    assert "Some need action today" in first and "(plus 1 other)" in first
+    assert "Several checks failed" not in first
+    check_shape(t, "data_integrity")
+
+
+def test_several_failures_none_urgent_do_not_claim_action_today() -> None:
+    detail = _detail_for([NAMES[0], NAMES[1]])
+    first = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[0]
+    assert m.INVARIANT_WORDS[NAMES[0]] in first and "action today" not in first
+
+
+def test_urgency_order_is_explicit_and_every_entry_is_a_real_invariant() -> None:
+    assert set(m.SAME_DAY_INVARIANTS) <= set(NAMES) and len(set(m.SAME_DAY_INVARIANTS)) == len(m.SAME_DAY_INVARIANTS)
+    detail = _detail_for([NAMES[0], m.SAME_DAY_INVARIANTS[3], m.SAME_DAY_INVARIANTS[0]])
+    first = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[0]
+    assert m.INVARIANT_WORDS[m.SAME_DAY_INVARIANTS[0]] in first
+
+
+def test_the_technical_line_names_every_failing_check_it_has_room_for_and_counts_the_rest() -> None:
+    detail = _detail_for([GAPS, PARTITIONS])
+    last = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[-1]
+    assert PARTITIONS in last and GAPS in last and "more)" not in last and len(last) <= len("Technical: data_integrity, ") + m.MAX_TECH
+    many = m.humanise("data_integrity", "warn", _detail_for(NAMES[:10]), now=NOW).splitlines()[-1]
+    assert "10 of 18 checks failing" in many and "more)" in many and len(many) <= len("Technical: data_integrity, ") + m.MAX_TECH
+
+
+def test_the_guard_reads_update_dict_literals_too() -> None:
+    src = chr(10).join(["results.update({'a_check': 1, '_hidden': 2})", "out.update({'b_check': 3})",
+                        "results['c_check'] = 1", "other.update({'x': 1})"])
+    assert result_keys_in(src) == {"a_check", "b_check", "c_check"}
