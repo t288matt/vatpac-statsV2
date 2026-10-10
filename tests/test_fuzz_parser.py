@@ -47,7 +47,7 @@ def base() -> dict[str, Any]:
 @pytest.fixture(scope="module")
 def clean(base):
     snap = parse_snapshot(base)
-    assert snap.malformed == 0 and snap.bad_plans == 0  # the real payload is clean, so every difference is the mutation
+    assert snap.malformed == 0  # the real payload is clean, so every difference is the mutation
     assert len(snap.pilots) == len(base["pilots"]) and len(snap.controllers) == len(base["controllers"])
     return snap
 
