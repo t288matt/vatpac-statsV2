@@ -17,6 +17,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+import psycopg
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
@@ -84,7 +85,7 @@ def _first_inside(base, ref) -> int:
     return next(i for i, p in enumerate(base["pilots"]) if inside_polygon(ref.polygon, p["latitude"], p["longitude"]))
 
 
-def _check_snapshot(conn, ref, base, payload, bad: dict[str, set[int]], where: str) -> None:
+def _check_snapshot(conn, ref, base, payload, bad: dict[str, set[int]], where: str) -> tuple[Any, Any]:
     """The property, for a payload built from `base` where only the entries listed in `bad` were changed."""
     ts = update_timestamp(payload)
     snap, res = _ingest(conn, ref, payload)                              # nothing may raise
@@ -111,6 +112,7 @@ def _check_snapshot(conn, ref, base, payload, bad: dict[str, set[int]], where: s
     again = apply_snapshot(conn, snap, ref.polygon, ref.whitelist, polygon_sha=ref.polygon_sha,
                            whitelist_sha=ref.whitelist_sha, prefixes=ref.prefixes)
     assert again.positions_inserted == 0 and again.snapshot_inserted is False, where
+    return snap, res
 
 
 def test_one_bad_entry_never_loses_the_rest_of_the_snapshot(db, ref, base) -> None:
@@ -118,11 +120,18 @@ def test_one_bad_entry_never_loses_the_rest_of_the_snapshot(db, ref, base) -> No
     listed = {i for i, c in enumerate(base["controllers"]) if c["callsign"] in ref.whitelist}
     cases = fz.sample_cases(SEED, base, inside, listed, CASES)
     assert len(cases) == CASES
+    skipped_by_parser = rejected_by_database = kept = 0
     for n, (section, i, label, replacement) in enumerate(cases):
         payload = _shift(fz.wire(fz.replace_entry(base, section, i, replacement)), n)
         bad: dict[str, set[int]] = {"pilots": set(), "controllers": set()}
         bad[section].add(i)
-        _check_snapshot(db, ref, base, payload, bad, f"{section}[{i}] {label}")
+        snap, res = _check_snapshot(db, ref, base, payload, bad, f"{section}[{i}] {label}")
+        skipped_by_parser += snap.malformed
+        rejected_by_database += res.pilots_inside - res.pilots_kept       # parsed, then refused by Postgres
+        kept += snap.malformed == 0
+    # the cases must reach all three outcomes, or the property is only being tested on one of them
+    assert skipped_by_parser >= 10 and kept >= 10, (skipped_by_parser, kept)
+    print(f"fuzz cases {CASES}: parser skipped {skipped_by_parser}, database rejected {rejected_by_database}, kept {kept}")
 
 
 def test_several_bad_entries_in_one_snapshot(db, ref, base) -> None:
@@ -166,3 +175,39 @@ def test_duplicate_sessions_in_one_snapshot_store_one_position(db, ref, base) ->
     npos = db.execute("SELECT count(*) AS n FROM pilot_position WHERE observed_at = %s", (snap.observed_at,)).fetchone()["n"]
     net = db.execute("SELECT pilots_in_region FROM network_snapshot WHERE observed_at = %s", (snap.observed_at,)).fetchone()
     assert npos == net["pilots_in_region"] == res.pilots_kept
+
+
+# DEFECT found by this fuzz (issue 103, not filed, not fixed here): the callsign is capped at 2000 CHARACTERS, but the
+# unique index pilot_session_identity (cid, callsign, logon_time) takes at most about 2700 BYTES per row, and
+# multi-byte text that does not compress (here 2000 CJK characters, 6000 bytes) makes the INSERT raise
+# ProgramLimitExceeded. That is neither DataError nor IntegrityError, so store._write does not bisect it out: the
+# whole snapshot is lost for as long as that pilot is online (poll error every 30 s). Reachable only if the feed carries
+# an absurd callsign (VATSIM limits them today), so low likelihood, but the rest of the snapshot should not depend on it.
+_INDEX_OVERFLOW = pytest.mark.xfail(
+    strict=True, raises=psycopg.errors.ProgramLimitExceeded,
+    reason="issue 103: oversized multi-byte callsign overflows the btree index, ProgramLimitExceeded is not bisected out")
+
+
+@pytest.mark.parametrize("label", [
+    pytest.param("long_random_cjk", marks=_INDEX_OVERFLOW), "long_text", "surrogate", "nul"])
+def test_an_oversized_or_odd_pilot_callsign_never_loses_the_snapshot(db, ref, base, label) -> None:
+    """The callsign is part of a unique index: text far over a btree row (about 2700 bytes) must not abort the apply."""
+    hot = _first_inside(base, ref)
+    payload = _shift(fz.replace_entry(base, "pilots", hot, {**base["pilots"][hot], "callsign": dict(fz.BAD_VALUES)[label]}), 903)
+    _check_snapshot(db, ref, base, payload, {"pilots": {hot}, "controllers": set()}, f"pilots {label}")
+
+
+@pytest.mark.parametrize("label", [
+    pytest.param("long_random_cjk", marks=_INDEX_OVERFLOW), "long_text", "surrogate", "nul"])
+def test_an_oversized_or_odd_unlisted_controller_callsign_never_loses_the_snapshot(db, ref, base, label) -> None:
+    """A near-miss controller (unlisted, but a listed prefix) is written to controller_unlisted_sighting, whose primary
+    key is the callsign: the same index limit applies there."""
+    prefix = sorted(ref.prefixes)[0]
+    extra = {"cid": 8000001, "name": "Fuzz Controller", "callsign": prefix + "_" + dict(fz.BAD_VALUES)[label],
+             "frequency": "199.998", "facility": 4, "rating": 3, "server": "FUZZ", "visual_range": 0,
+             "logon_time": "2026-10-10T14:00:00.1234567Z"}
+    payload = _shift(copy.deepcopy(base), 904)
+    payload["controllers"].append(extra)
+    ts = update_timestamp(payload)
+    _check_snapshot(db, ref, base, payload, {"pilots": set(), "controllers": set()}, f"near-miss {label}")
+    assert db.execute("SELECT count(*) AS n FROM network_snapshot WHERE observed_at = %s", (ts,)).fetchone()["n"] == 1

@@ -52,7 +52,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:
-    if STRICT and report.skipped:
+    if STRICT and report.skipped and not hasattr(report, "wasxfail"):  # a strict xfail (a known defect pinned) is not a skip
         _skipped.append(report.nodeid)
 
 
