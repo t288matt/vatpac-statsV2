@@ -47,8 +47,8 @@ jobs:
           ops/check_panels.py
       - name: shell syntax (ops scripts)
         run: |
-          for f in ops/*.sh ops/migrate/*.sh; do sh -n "$f"; done
-          for f in ops/backup/*.sh; do bash -n "$f"; done
+          for f in ops/*.sh ops/migrate/*.sh; do [ "$f" = ops/deploy.sh ] || sh -n "$f"; done
+          for f in ops/backup/*.sh ops/deploy.sh; do bash -n "$f"; done
 
   unit-tests:
     runs-on: ubuntu-latest

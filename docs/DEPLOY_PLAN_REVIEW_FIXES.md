@@ -14,6 +14,13 @@ Checks straight after: `sh ops/smoke.sh` SMOKE PASS; `python3 ops/check_panels.p
 Rollback: restore the previous tree, re-run `docker compose up -d --build migrate watchdog backup` (the old roles.sql restores the DELETE grants).
 Watch for 24 hours: the 02:00 UTC backup completes; no new watchdog alerts you did not expect; collector log free of "permission denied"; the first Telegram message in the new wording is read by the owner.
 
+### Extra checks for deploy 1 (added 10-10-2026 from the second review of the privilege and backup changes, docs/reviews/10-10-2026-fix-ops-opus.md on branch review-fix-ops-opus)
+1. Privileges: after the migrate job, do not rely on smoke.sh (it tests grafana_ro only). Run a read-only `has_table_privilege` check for the collector, grafana_ro, watchdog_ro and backup_ro on the data tables (the query is in the review record) and confirm the collector has no DELETE on the nine tables and still has DELETE on `poll_log`.
+2. The `poll_log` trim cannot be seen straight after the deploy: the next maintenance run is about 15:42 UTC on the day. Read the collector log for `maintenance finished` after that time (failed 0, no "permission denied"), or run the `SET ROLE collector` plus `DELETE ... WHERE false` test inside a rolled-back transaction.
+3. Do not deploy within 30 minutes of 15:42 UTC (daily partition creation) or inside 01:50 to 02:30 UTC (backup).
+4. Known weakness, not fixed by this deploy (issue #118): backup validation only proves the dump table of contents is readable. After deploy 1, read the first `.last_restore_test` result (the real proof) before trusting the backups.
+5. Rollback note: going back to the old roles.sql brings back the brief permission-denied gap on the nine tables.
+
 ## Deploy 2: fix-collector (MEDIUM tier) about 24 hours after deploy 1
 When: Monday 12-10-2026, after deploy 1's 24-hour watch is clean and the owner says go.
 What changes: the collector image only (parsing, error handling, health thresholds, one apply at a time with a deadline). No migration. Polling stops for about 45 seconds.
