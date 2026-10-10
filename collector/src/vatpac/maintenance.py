@@ -20,6 +20,7 @@ POLL_LOG_RETENTION_DAYS = 400
 PARTITIONS_AHEAD = 7
 FLIGHT_REFRESH_INTERVAL_S = 300.0  # main.py: how often to call refresh_flights
 FLIGHT_REFRESH_WINDOW = timedelta(hours=12)
+MAX_DROP_CALLS = 60  # safety bound for the drop loop (10 partitions per call, so 600 partitions)
 
 
 def sync_settings(conn: psycopg.Connection[Any], settings: Settings) -> None:
@@ -61,7 +62,13 @@ def drop_old_partitions(conn: psycopg.Connection[Any], today: date, retention_da
 
     conn.add_notice_handler(on_notice)
     try:
-        return _scalar(conn, "SELECT drop_old_pilot_position_partitions(%s, %s)", (retention_days, today))
+        total = 0
+        for _ in range(MAX_DROP_CALLS):  # the SQL function drops at most 10 per call, each call its own short transaction
+            dropped = _scalar(conn, "SELECT drop_old_pilot_position_partitions(%s, %s)", (retention_days, today))
+            total += dropped
+            if dropped == 0:
+                break
+        return total
     finally:
         conn.remove_notice_handler(on_notice)
 
