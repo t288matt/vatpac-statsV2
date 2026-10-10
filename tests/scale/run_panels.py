@@ -20,7 +20,7 @@ with psycopg.connect(dsn, autocommit=True) as c:
                 if only and key not in only: continue
                 nd = days(p.get("timeFrom"), d["time"]["from"])
                 sql = q.replace("$__timeFrom()", f"(now() - interval '{int(nd*24)} hours')").replace("$__timeTo()", "now()").rstrip().rstrip(";")
-                best = None; err = None; rows = None
+                best = None; err = None; 
                 for r in range(runs):
                     t0 = time.time()
                     try:
@@ -30,9 +30,11 @@ with psycopg.connect(dsn, autocommit=True) as c:
                     ex = [float(re.search(r"Execution Time: ([\d.]+)", l).group(1)) for l in txt if "Execution Time" in l][0]
                     tmp = [l.strip() for l in txt if "temp read" in l or "temp written" in l]
                     if best is None or ex < best[0]: best = (ex, tmp[:1])
-                    rows = txt[0][:0]
                 out.append((key, p["title"][:55], best[0] if best else None, err, (best[1] if best else None)))
                 print(f"{key:45s} {best[0] if best else float('nan'):10.0f} ms  {err or ''} {(best[1] if best else '') }", flush=True)
-json.dump(out, open(f"/tmp/panels_{label}.json", "w"))
+import tempfile
+with tempfile.NamedTemporaryFile("w", prefix=f"panels_{label}_", suffix=".json", delete=False) as fh:
+    json.dump(out, fh)
+print("results written to", fh.name)
 print("TOP 10 (ms):")
 for r in sorted([o for o in out if o[2]], key=lambda o: -o[2])[:10]: print(f"  {r[2]:9.0f} {r[0]} {r[1]}")

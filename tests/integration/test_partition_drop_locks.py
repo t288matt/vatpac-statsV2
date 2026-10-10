@@ -26,6 +26,12 @@ SESSION_SQL = ("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen
                "VALUES (%s,%s,%s,%s,%s,'YSSY','YMML') RETURNING id")
 
 
+@pytest.fixture(autouse=True)
+def _no_endless_waits(conn):
+    """A drop that waits for a lock must fail the test after 20 seconds, not hang the suite (a mutated function would)."""
+    conn.execute("SET lock_timeout = '20s'")
+
+
 @pytest.fixture()
 def v1(conn):
     text = OLD_MIGRATION.read_text(encoding="utf-8")
