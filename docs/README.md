@@ -28,7 +28,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) | What each Telegram alert means and what to do | Operator, owner | CURRENT for main; describes the plain-language wording that is NOT yet deployed (the VM sends the older technical form) |
 | [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md) | How to install, deploy, roll back and verify; the special cases and traps (sections 4b to 4f) | Operator | CURRENT; long, accumulates one section per release |
 | [RUNBOOKS/restore.md](RUNBOOKS/restore.md) | Backups, restore, the restore drill, off-box copies | Operator | CURRENT for main; describes backup and restore hardening that is NOT yet deployed |
-| [RUNBOOKS/stuck-collector.md](RUNBOOKS/stuck-collector.md) | Collector up but not polling: diagnose and fix | Operator | CURRENT; step 1 conflicts with the deploy runbook's "never restart collector" rule (see end) |
+| [RUNBOOKS/stuck-collector.md](RUNBOOKS/stuck-collector.md) | Collector up but not polling: diagnose and fix | Operator | CURRENT; plain restart allowed for a hung collector with no code change (owner decision 10-10-2026) |
 | [RUNBOOKS/feed-outage.md](RUNBOOKS/feed-outage.md) | VATSIM feed is down or unreachable | Operator | CURRENT |
 | [RUNBOOKS/feed-archive.md](RUNBOOKS/feed-archive.md) | The rolling archive of raw feed snapshots | Operator | CURRENT |
 | [RUNBOOKS/integrity-checks.md](RUNBOOKS/integrity-checks.md) | The scheduled data-integrity checks in the watchdog | Operator | CURRENT |
@@ -96,5 +96,5 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | daily-checks.md "Integrity checks ... once the watchdog with them is deployed" | The integrity checks are deployed (09-10-2026 19:13 UTC), so the qualifier is stale. | TRACKER T16 |
 | deploy-to-vm.md line 69 (section 4e header) | Says "owner's go needed" for the integrity checks, which were deployed 09-10-2026 19:13 UTC. (4f is correct: not yet deployed.) | TRACKER T16 |
 | restore.md and alerts.md | Written for code that is merged but not deployed (RESTORE_MAX_POLL_AGE_HOURS, plain-language messages); the VM still has the older scripts. Not wrong for main, but misleading for the VM until deploy 1. | `ssh vatpac-v3 'grep -n "vatpac-stats:" ops/watchdog/watchdog.py'` finds the old prefix |
-| stuck-collector.md step 1 | `docker compose restart collector` against deploy-to-vm.md 4c "never `docker compose restart collector`". | both files |
+| stuck-collector.md step 1 | RESOLVED 10-10-2026 (owner): plain restart allowed for a hung collector with no code change; code changes use stop then `up -d --build`. | deploy-to-vm.md 4c, stuck-collector.md |
 | TRACKER.md "Last updated: 09-10-2026" (line 12) | The tracker has rows added on 10-10-2026. | git log |

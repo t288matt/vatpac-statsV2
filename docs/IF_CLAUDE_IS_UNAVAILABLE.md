@@ -53,8 +53,8 @@ Check first: `docker compose ps -a`. Docker restarts a crashed container by itse
   docker compose up -d --build
   ```
   Not run here (it would interrupt live polling). Traps:
-  - **Never `docker compose restart collector`**, and never plain `docker compose up -d` without `--build` to bring back the collector after a code change. The deploy runbook ([RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md), section 4c) records an incident where an old or cached image left the archive volume unwritable and nothing looked wrong. With no code change the sequence above rebuilds from cache and is harmless.
-  - [RUNBOOKS/stuck-collector.md](RUNBOOKS/stuck-collector.md) still lists `docker compose restart collector` as step 1 for a stuck collector. The two runbooks disagree; this card follows the stricter rule. Ask the next Claude session to reconcile them.
+  - **Never use `docker compose restart collector` to pick up a code change**, and never plain `docker compose up -d` without `--build` to bring back the collector after a code change. The deploy runbook ([RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md), section 4c) records an incident where an old or cached image left the archive volume unwritable and nothing looked wrong. With no code change the sequence above rebuilds from cache and is harmless.
+  - [RUNBOOKS/stuck-collector.md](RUNBOOKS/stuck-collector.md) still lists `docker compose restart collector` as step 1 for a stuck collector. Owner decision 10-10-2026: a plain `docker compose restart collector` is fine for a stuck collector when there is no code change; for any code change use stop, then `up -d --build collector`.
   - Every collector restart costs about 45 seconds of snapshots. That is fine; just do not repeat it in a loop.
   - Before a planned restart of the whole VM, pause the outside heartbeat: `Disable-ScheduledTask -TaskName VatpacV3Heartbeat` in PowerShell on your PC, and `Enable-ScheduledTask -TaskName VatpacV3Heartbeat` afterwards.
 - After any restart: `docker compose ps` (all healthy, restart counts 0) and `sh ops/smoke.sh`.
