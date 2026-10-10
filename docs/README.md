@@ -13,6 +13,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | File | What it is for | Who reads it | Status |
 |---|---|---|---|
 | [PENDING_DOC_CHANGES.md](PENDING_DOC_CHANGES.md) | Prepared document changes for merged work that is not deployed yet: one section per deploy, what text to switch in once that deploy is verified live | Writer, manager | CURRENT |
+| [INSTALL.md](INSTALL.md) | How to install a new instance from the source code on a clean Linux machine | Operator, engineer | CURRENT (written 10-10-2026; UNVERIFIED on a fresh machine) |
 | [IF_CLAUDE_IS_UNAVAILABLE.md](IF_CLAUDE_IS_UNAVAILABLE.md) | One-page card: how to see the system is healthy, what to check, how to restart, back up and restore, and what never to do | Owner | CURRENT (written 10-10-2026) |
 | [RESUME.md](RESUME.md) | Cold-start handover: state, deployed versus not, rules, test method, next actions | A new Claude session | CURRENT but long; needs update (see end). A short rewrite is queued (issue #107) |
 | [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) | The text to paste into a new session so it knows what to read and how the owner works | Owner, new session | CURRENT (written 10-10-2026 about 15:00; will age quickly) |
