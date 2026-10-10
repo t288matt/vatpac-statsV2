@@ -47,7 +47,7 @@ Each line of the message is an invariant name and its count. The watchdog log ha
 
 | Invariant | Likely cause | Next step |
 |---|---|---|
-| snapshot rows without an ok poll_log row; ok poll_log counts differ from network_snapshot | A write path changed, or a manual edit | Compare the two tables for the timestamp; read the collector log around it. |
+| snapshot rows without an ok poll_log row; ok poll_log counts differ from network_snapshot (poll_log `pilots_kept` against `pilots_in_region`, so a skipped record does not fire it) | A write path changed, or a manual edit | Compare the two tables for the timestamp; read the collector log around it. |
 | in-region count above global count; positions per snapshot differ from pilots_in_region; position rows at a timestamp with no network_snapshot | Ingest bug, partial transaction, manual deletion | Same; the counts feed every live panel. |
 | snapshot gaps over 5 minutes | An outage: collector stopped, VM down, feed down. Real, and already alerted at the time by `collector_health`; this one stays for 3 days. The first run after the deploy will show the 6 minute power cut of 09-10-2026 (T51) until 12-10-2026 15:42 UTC | Nothing to repair; check the time against [feed-outage.md](feed-outage.md) and [stuck-collector.md](stuck-collector.md). Shorter gaps (a missed tick, a restart) are the soak report's job. |
 | newest snapshot in the future or older than 5 minutes | Feed or collector stalled at the moment of the sweep (also covered live by `network_snapshot_age`), or a future-dated feed timestamp | [feed-outage.md](feed-outage.md). |

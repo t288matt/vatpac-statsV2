@@ -130,3 +130,90 @@ def test_migrate_grants_the_watchdog_role_the_session_tables() -> None:
     assert {"pilot_session", "controller_session"} <= names
     assert {"pilot_position", "flight_summary", "reference_data_change"} <= names  # added for the invariant sweep (issue 20)
     assert not names & {"app_setting", "controller_rating_event"}  # nothing wider than the checks need
+
+
+def test_check_backup_skips_a_dump_deleted_between_listing_and_stat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Issue 97: rotation can delete a dump after the watchdog listed it; that must not crash the check."""
+    import os
+    import time as _t
+    good, gone = tmp_path / "a.dump", tmp_path / "b.dump"
+    good.write_text("x")
+    gone.write_text("x")
+    real_stat = Path.stat
+
+    def flaky(self: Path, *a: Any, **k: Any) -> Any:
+        if self.name == "b.dump":
+            raise FileNotFoundError(self.name)
+        return real_stat(self, *a, **k)
+
+    monkeypatch.setattr(Path, "stat", flaky)
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path))
+    level, detail = wd.check_backup(wd.Config(), _t.time())
+    assert level == wd.OK and "newest backup" in detail
+    assert os.path.exists(good)
+
+
+# ---------------------------------------------------------------- backup_remote (issue 91)
+def _remote_cfg(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, enabled: bool = True) -> Any:
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path))
+    if enabled:
+        monkeypatch.setenv("BACKUP_REMOTE_ENABLED", "1")
+    else:
+        monkeypatch.delenv("BACKUP_REMOTE_ENABLED", raising=False)
+    return wd.Config()
+
+
+def _stamp(hours_ago: float) -> str:
+    import time as _t
+    return _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime(_t.time() - hours_ago * 3600))
+
+
+def test_backup_remote_is_inactive_without_the_flag(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import time as _t
+    level, detail = wd.check_backup_remote(_remote_cfg(monkeypatch, tmp_path, enabled=False), _t.time() - 99 * 3600)
+    assert level == wd.OK and "not configured" in detail
+
+
+@pytest.mark.parametrize("hours,level", [(1, "ok"), (25.5, "ok"), (27, "warn"), (200, "warn")])
+def test_backup_remote_marker_age(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, hours: float, level: str) -> None:
+    import time as _t
+    cfg = _remote_cfg(monkeypatch, tmp_path)
+    (tmp_path / ".last_remote_success").write_text(_stamp(hours) + "\n")
+    assert wd.check_backup_remote(cfg, _t.time())[0] == level
+
+
+def test_backup_remote_missing_marker_waits_then_warns(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import time as _t
+    cfg = _remote_cfg(monkeypatch, tmp_path)
+    assert wd.check_backup_remote(cfg, _t.time() - 3600)[0] == wd.OK
+    assert wd.check_backup_remote(cfg, _t.time() - 30 * 3600)[0] == wd.WARN
+
+
+def test_backup_remote_unreadable_content_falls_back_to_the_file_time(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import time as _t
+    cfg = _remote_cfg(monkeypatch, tmp_path)
+    (tmp_path / ".last_remote_success").write_text("garbage")
+    assert wd.check_backup_remote(cfg, _t.time())[0] == wd.OK
+
+
+def test_compose_passes_only_a_flag_never_the_remote_command() -> None:
+    text = (REPO / "docker-compose.yml").read_text(encoding="utf-8")
+    wd_block = text[text.index("  watchdog:"):]
+    assert "BACKUP_REMOTE_ENABLED: ${BACKUP_REMOTE:+1}" in wd_block
+    assert "BACKUP_REMOTE: " not in wd_block
+
+
+def test_a_warn_line_from_the_weekly_restore_test_is_a_warning_not_critical(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import time as _t
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path))
+    cfg = wd.Config()
+    stamp = _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime(_t.time() - 3600))
+    (tmp_path / ".last_restore_test").write_text(f"{stamp} WARN /backups/x.dump STALE poll_log=3 pilot_session=2: old\n")
+    level, detail = wd.check_restore_test(cfg, _t.time())
+    assert level == wd.WARN and "stale" in detail
+    from importlib import import_module  # the plain wording for it
+    sys.path.insert(0, str(REPO / "ops" / "watchdog"))
+    messages = import_module("messages")
+    assert "worked, but the newest data in the backup was old" in messages.humanise("restore_test", "warn", detail)
+    (tmp_path / ".last_restore_test").write_text(f"{stamp} FAIL x\n")
+    assert wd.check_restore_test(cfg, _t.time())[0] == wd.CRIT                    # a real failure is still critical

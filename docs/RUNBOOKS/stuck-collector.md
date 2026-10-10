@@ -22,5 +22,7 @@ Common causes: a long lock held by a maintenance task or a migration; the databa
 3. If a blocked query is the cause, find the blocker in `pg_stat_activity` and `SELECT pg_terminate_backend(<pid>)` for that session only.
 4. Verify: `make smoke`; a `RECOVERED` message arrives.
 
+A snapshot with a very large number of records the database rejects (a mass-poison feed, for example hundreds of pilots) is bisected record by record and can take most of the 25 s the apply is allowed (900 poisoned pilots took 21.9 s in a test), so it can time out and show as `apply timed out`; the next ordinary snapshot recovers on its own. The apply is serialised and bounded by a deadline (issue 88), so a timed-out one cannot overlap the next poll or hold a connection for long.
+
 ## Deliberately stopping the collector
 Stopping it by hand raises the alerts above after about two minutes (the watchdog confirms a state over `WATCHDOG_CONFIRM_CYCLES` cycles, 2 by default) and a `RECOVERED` message when it is back. To avoid the noise stop the watchdog first, `docker compose stop watchdog collector`, and start both when done (`docker compose start collector watchdog`). A stop also leaves a gap in `poll_log`, which a running soak counts.

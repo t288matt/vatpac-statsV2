@@ -7,6 +7,10 @@ class ReferenceDataError(Exception):
     """A reference file (polygon, whitelist) is missing, unreadable or invalid."""
 
 
+class ApplyBusyError(Exception):
+    """The previous snapshot apply is still running in its worker thread: this poll is skipped, not overlapped."""
+
+
 class FeedError(Exception):
     """The feed could not be fetched or parsed. Never fatal to the process."""
 

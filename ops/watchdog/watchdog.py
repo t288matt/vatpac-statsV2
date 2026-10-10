@@ -58,6 +58,8 @@ class Config:
         self.db_max_gb = env_num("WATCHDOG_DB_MAX_GB", 20)
         self.backup_max_h = env_num("WATCHDOG_BACKUP_MAX_HOURS", 26)
         self.restore_test_max_days = env_num("WATCHDOG_RESTORE_TEST_MAX_DAYS", 9)
+        # On/off flag only (compose sets it to 1 when BACKUP_REMOTE is non-empty); the command itself never reaches the watchdog.
+        self.backup_remote = env("BACKUP_REMOTE_ENABLED").strip().lower() in ("1", "true", "yes", "on")
         # Filesystems to check. The pgdata and backups named volumes both live under the Docker data
         # root on the host; the watchdog sees /backups (and / for the container layer), which is
         # that same host filesystem. Add a path here if a volume is moved to its own mount.
@@ -241,15 +243,67 @@ def check_disk(cfg: Config) -> Result:
 
 
 def check_backup(cfg: Config, first_run: float) -> Result:
-    files = list(cfg.backup_dir.glob("*.dump")) if cfg.backup_dir.is_dir() else []
-    newest = max((f.stat().st_mtime for f in files), default=first_run)
+    mtimes: list[float] = []
+    try:
+        candidates = list(cfg.backup_dir.glob("*.dump")) if cfg.backup_dir.is_dir() else []
+    except OSError:
+        candidates = []
+    for f in candidates:
+        try:
+            mtimes.append(f.stat().st_mtime)
+        except OSError:  # rotation or a restore deleted it between the listing and the stat: skip it
+            continue
+    newest = max(mtimes, default=first_run)
     age_h = (time.time() - newest) / 3600
-    detail = f"newest backup {age_h:.1f} h old" if files else f"no backup yet ({age_h:.1f} h since watchdog first ran)"
+    detail = f"newest backup {age_h:.1f} h old" if mtimes else f"no backup yet ({age_h:.1f} h since watchdog first ran)"
     return (CRIT if age_h > cfg.backup_max_h else OK), detail
 
 
+def check_backup_remote(cfg: Config, first_run: float) -> Result:
+    """The off-box copy (BACKUP_REMOTE) must have succeeded within WATCHDOG_BACKUP_MAX_HOURS: the backup container writes
+    /backups/.last_remote_success after every successful hook run. Only active when BACKUP_REMOTE_ENABLED is set (issue 91)."""
+    if not cfg.backup_remote:
+        return OK, "off-box copy not configured (BACKUP_REMOTE is empty)"
+    path = cfg.backup_dir / ".last_remote_success"
+    try:
+        text = path.read_text()
+        mtime = path.stat().st_mtime
+    except OSError:
+        age_h = (time.time() - first_run) / 3600
+        if age_h > cfg.backup_max_h:
+            return WARN, f"no off-box copy recorded after {age_h:.1f} h since watchdog first ran"
+        return OK, "no off-box copy yet"
+    try:
+        ts = datetime.strptime(text.strip().split()[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC).timestamp()
+    except (ValueError, IndexError):
+        ts = mtime
+    age_h = (time.time() - ts) / 3600
+    if age_h > cfg.backup_max_h:
+        return WARN, f"last off-box copy {age_h:.1f} h ago (limit {cfg.backup_max_h:g})"
+    return OK, f"last off-box copy {age_h:.1f} h ago"
+
+
+def check_telegram_outbox(cfg: Config, state: dict[str, Any], now: float | None = None) -> Result:
+    """WARN while undelivered Telegram messages are older than OUTBOX_WARN_AGE_S: the alerts are not reaching the owner.
+    The status file (and Uptime Kuma, if configured) still show it. OK when Telegram is not configured."""
+    if not (cfg.tg_token and cfg.tg_chat):
+        return OK, "telegram not configured"
+    now = time.time() if now is None else now
+    waiting = [m for m in state.get("outbox", []) if isinstance(m, dict) and not m.get("notice")]
+    if not waiting:
+        return OK, "no undelivered telegram messages"
+    oldest = min(float(m.get("at", now)) for m in waiting)
+    age = max(0.0, now - oldest)
+    detail = f"{len(waiting)} undelivered telegram message(s), oldest {age / 60:.0f} min old"
+    refused = state.get("outbox_refused")
+    if isinstance(refused, dict):  # the last failure was a configuration fault: not transient, so warn at once
+        return WARN, (f"Telegram refuses the messages (HTTP {refused.get('status')}): check TELEGRAM_CHAT_ID and the bot token; "
+                      f"{detail}")
+    return (WARN if age >= OUTBOX_WARN_AGE_S else OK), detail
+
+
 def parse_restore_result(text: str) -> tuple[datetime | None, str]:
-    """Parse the .last_restore_test line: '<UTC timestamp> OK|FAIL ...'. Returns (time, OK|FAIL|?)."""
+    """Parse the .last_restore_test line: '<UTC timestamp> OK|FAIL|WARN ...'. Returns (time, OK|FAIL|WARN|?)."""
     tokens = text.strip().split()
     if len(tokens) < 2:
         return None, "?"
@@ -257,7 +311,7 @@ def parse_restore_result(text: str) -> tuple[datetime | None, str]:
         when: datetime | None = datetime.strptime(tokens[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     except ValueError:
         when = None
-    return when, tokens[1] if tokens[1] in ("OK", "FAIL") else "?"
+    return when, tokens[1] if tokens[1] in ("OK", "FAIL", "WARN") else "?"
 
 
 def check_restore_test(cfg: Config, first_run: float) -> Result:
@@ -279,6 +333,8 @@ def check_restore_test(cfg: Config, first_run: float) -> Result:
     age_d = (time.time() - ts) / 86400
     if verdict == "FAIL":
         return CRIT, f"last restore test FAILED {age_d:.1f} days ago"
+    if verdict == "WARN":
+        return WARN, f"last restore test restored fine but the data in the dump was stale ({age_d:.1f} days ago)"
     if verdict != "OK":
         return WARN, "last restore test result unreadable"
     if age_d > cfg.restore_test_max_days:
@@ -343,9 +399,53 @@ def check_containers(cfg: Config, containers: dict[str, dict[str, Any]], state: 
 
 # ---------------------------------------------------------------- alerting and restarts
 
+OUTBOX_MAX = 20  # undelivered Telegram messages kept; the oldest is dropped (and logged) beyond this
+OUTBOX_BACKOFF_BASE_S = 30.0  # wait after the first failed delivery, doubling each time up to the maximum
+OUTBOX_BACKOFF_MAX_S = 900.0
+OUTBOX_MAX_REJECTIONS = 5  # HTTP 400 or 413 this many times: Telegram will never take this message, so drop it
+OUTBOX_POISON_STATUSES = (400, 413)  # bad request / too large: the message may be at fault, unless the description says otherwise
+# Telegram answers a wrong chat id, a blocked bot and similar with HTTP 400 and a description: those are configuration faults, never
+# poison. Matched case-insensitively against the response's "description" text (be generous: a wrongly dropped CRIT is worse).
+OUTBOX_CONFIG_HINTS = ("chat not found", "chat_id", "bot was blocked", "bot was kicked", "user is deactivated", "unauthorized",
+                       "not enough rights", "have no rights", "forbidden", "peer_id_invalid", "bot token", "bot is not a member",
+                       "group chat was upgraded", "not found")
+
+
+def _telegram_description(r: httpx.Response) -> str:
+    """The 'description' text of a Telegram error answer (nothing else from the body), clipped, for the log and for the
+    configuration-fault test. Empty when there is none."""
+    try:
+        d = r.json().get("description", "")
+    except (ValueError, AttributeError, TypeError):
+        return ""
+    return " ".join(str(d).split())[:120]
+
+
+def _is_config_fault(status: int, description: str) -> bool:
+    """401, 403 and 404 are always configuration faults; a 400 is one when its description says so (e.g. 'chat not found')."""
+    if status in (401, 403, 404):
+        return True
+    return status == 400 and any(h in description.lower() for h in OUTBOX_CONFIG_HINTS)
+OUTBOX_MAX_SENDS_PER_CYCLE = 5  # sends per watchdog CYCLE (shared by every flush in it): a slow Telegram must not hold a cycle for minutes
+OUTBOX_WARN_AGE_S = 900.0  # the oldest undelivered message is this old: raise the telegram_outbox check
+
+
+def _retry_after(r: httpx.Response) -> float | None:
+    """Seconds Telegram asked us to wait (HTTP 429), capped, else None."""
+    try:
+        v = r.json().get("parameters", {}).get("retry_after") if r.status_code == 429 else None
+        return min(float(v), OUTBOX_BACKOFF_MAX_S) if v is not None else None
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
 class Alerter:
     def __init__(self, cfg: Config, client: httpx.Client, state: dict[str, Any]) -> None:
         self.cfg, self.client = cfg, client
+        self.state = state
+        # Undelivered Telegram messages (oldest first), persisted in the status file so a restart keeps them (issue 83).
+        self.outbox: list[dict[str, Any]] = state.setdefault("outbox", [])
+        self._budget: int | None = None  # sends left in the current cycle (None = no cycle running: each flush gets the full cap)
         self.confirmed: dict[str, str] = state.setdefault("alerts", {})
         self.pending: dict[str, tuple[str, int]] = {}
         # When each check went bad (epoch seconds), persisted in the status file so a restart keeps it. Used only to say how
@@ -354,23 +454,99 @@ class Alerter:
         self._context: tuple[str | None, float | None] = (None, None)  # (previous level, seconds bad) for the next send
 
     def send(self, text: str) -> None:
-        """Log the technical text; send the plain-language version to Telegram (messages.py)."""
+        """Log the technical text; queue the plain-language version for Telegram (messages.py) and try to deliver the queue.
+
+        A message that cannot be delivered stays in a small outbox in the watchdog state (the status file) and is retried on
+        later cycles, oldest first, until Telegram answers HTTP 200 (issue 83)."""
         log.info("ALERT %s", text)
         previous, down_for = self._context
         self._context = (None, None)
         if not (self.cfg.tg_token and self.cfg.tg_chat):
             return
-        body = messages.telegram_text(text, down_for, previous)
-        try:
-            r = self.client.post(
-                f"https://api.telegram.org/bot{self.cfg.tg_token}/sendMessage",
-                json={"chat_id": self.cfg.tg_chat, "text": body},
-                timeout=10,
-            )
-            if r.status_code != 200:
-                log.warning("telegram returned HTTP %s", r.status_code)
-        except httpx.HTTPError as exc:  # never log the URL: it contains the bot token
-            log.warning("telegram send failed (%s)", type(exc).__name__)
+        body = messages.telegram_text(text, down_for, previous)  # the time shown in it is the time of the event
+        self._enqueue({"body": body, "at": time.time(), "tries": 0, "ok": text.startswith("RECOVERED")})
+        self.flush()
+
+    def begin_cycle(self) -> None:
+        """Start a watchdog cycle: every flush() in it shares one budget of OUTBOX_MAX_SENDS_PER_CYCLE sends."""
+        self._budget = OUTBOX_MAX_SENDS_PER_CYCLE
+
+    def end_cycle(self) -> None:
+        self._budget = None
+
+    def _enqueue(self, item: dict[str, Any]) -> None:
+        """Append to the outbox. At the bound, drop the oldest all-clear message first (a lost RECOVERED matters least), then the
+        oldest message; one notice at the front counts what was dropped, so the owner knows the story has gaps."""
+        while len(self.outbox) >= OUTBOX_MAX:
+            victims = [i for i, m in enumerate(self.outbox) if not m.get("notice")]
+            if not victims:
+                break
+            idx = next((i for i in victims if self.outbox[i].get("ok")), victims[0])
+            self.outbox.pop(idx)
+            log.warning("telegram outbox full (%d); dropped the oldest undelivered message", OUTBOX_MAX)
+            if self.outbox and self.outbox[0].get("notice"):
+                notice = self.outbox[0]
+            else:
+                notice = {"notice": True, "dropped": 0, "at": time.time(), "tries": 0, "ok": False}
+                self.outbox.insert(0, notice)
+            notice["dropped"] = int(notice.get("dropped", 0)) + 1
+            notice["body"] = messages.dropped_notice(int(notice["dropped"]), float(notice["at"]))
+        self.outbox.append(item)
+
+    def flush(self) -> None:
+        """Deliver the outbox in order, at most OUTBOX_MAX_SENDS_PER_CYCLE per call. Stops at the first failure (so order is kept
+        and a RECOVERED never overtakes its problem message) and waits an increasing time before the next try. Never raises.
+
+        HTTP 400 and 413 mean this message itself is bad: after OUTBOX_MAX_REJECTIONS of them it is dropped and the next one is
+        tried at once. Anything else (401, 403, 404: a rotated token, a blocked bot, a wrong chat id; 5xx; network errors) is a
+        fault elsewhere, so the message is KEPT; 4xx faults retry at the maximum back-off."""
+        if not (self.cfg.tg_token and self.cfg.tg_chat):
+            return
+        budget = self._budget if self._budget is not None else OUTBOX_MAX_SENDS_PER_CYCLE
+        while self.outbox and budget > 0:
+            now = time.time()
+            due = float(self.state.get("outbox_next_try", 0) or 0)
+            if now < due <= now + OUTBOX_BACKOFF_MAX_S:  # a time further ahead than any back-off means the clock moved: ignore it
+                return
+            item = self.outbox[0]
+            body = messages.mark_delayed(str(item.get("body", "")), float(item.get("at", now)), now)
+            wait: float | None = None
+            try:
+                r = self.client.post(
+                    f"https://api.telegram.org/bot{self.cfg.tg_token}/sendMessage",
+                    json={"chat_id": self.cfg.tg_chat, "text": body},
+                    timeout=10,
+                )
+                if r.status_code == 200:
+                    self.outbox.pop(0)
+                    self.state.pop("outbox_next_try", None)
+                    self.state.pop("outbox_refused", None)
+                    budget -= 1
+                    if self._budget is not None:
+                        self._budget = budget
+                    continue
+                desc = _telegram_description(r).replace(self.cfg.tg_token, "***")
+                log.warning("telegram returned HTTP %s%s", r.status_code, f" ({desc})" if desc else "")
+                wait = _retry_after(r)
+                if _is_config_fault(r.status_code, desc):
+                    # wrong chat id, revoked token, blocked bot: never the message's fault. Keep it, retry slowly, and say so.
+                    wait = OUTBOX_BACKOFF_MAX_S
+                    self.state["outbox_refused"] = {"status": r.status_code, "at": time.time()}
+                elif r.status_code in OUTBOX_POISON_STATUSES:
+                    item["rejected"] = int(item.get("rejected", 0)) + 1
+                    if item["rejected"] >= OUTBOX_MAX_REJECTIONS:
+                        self.outbox.pop(0)
+                        self.state.pop("outbox_next_try", None)
+                        log.warning("telegram refused a message %d times; dropped it", OUTBOX_MAX_REJECTIONS)
+                        continue  # the next message is unrelated: no back-off for the one that was dropped
+                elif 400 <= r.status_code < 500 and r.status_code != 429:
+                    wait = OUTBOX_BACKOFF_MAX_S  # some other client error: keep the message, retry slowly
+            except httpx.HTTPError as exc:  # never log the URL: it contains the bot token
+                log.warning("telegram send failed (%s)", type(exc).__name__)
+            item["tries"] = int(item.get("tries", 0)) + 1
+            delay = min(OUTBOX_BACKOFF_BASE_S * 2 ** (int(item["tries"]) - 1), OUTBOX_BACKOFF_MAX_S)
+            self.state["outbox_next_try"] = time.time() + max(delay, wait or 0.0)
+            return
 
     def _track(self, name: str, level: str, current: str) -> None:
         """Keep the time a check went bad (best effort; never raises) and hand the context to the next send."""
@@ -454,6 +630,14 @@ def write_status(cfg: Config, results: dict[str, Result], state: dict[str, Any])
 
 
 def cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, state: dict[str, Any]) -> str:
+    alerter.begin_cycle()  # one send budget for every flush in this cycle (issue 83)
+    try:
+        return _cycle(cfg, client, docker, alerter, state)
+    finally:
+        alerter.end_cycle()
+
+
+def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, state: dict[str, Any]) -> str:
     results: dict[str, Result] = {}
     streak: dict[str, int] = state.setdefault("streak", {})
 
@@ -472,6 +656,8 @@ def cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, s
     first_run = state.setdefault("first_run", time.time())
     results["backup_age"] = check_backup(cfg, first_run)
     results["restore_test"] = check_restore_test(cfg, first_run)
+    results["backup_remote"] = check_backup_remote(cfg, first_run)
+    results["telegram_outbox"] = check_telegram_outbox(cfg, state)
 
     containers: dict[str, dict[str, Any]] = {}
     if cfg.docker:
@@ -514,6 +700,7 @@ def cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, s
             streak[svc] = 0
             try_restart(cfg, docker, alerter, state, svc, containers[svc], why)
 
+    alerter.flush()  # retry anything undelivered, just before the state (with the outbox) is saved
     overall = write_status(cfg, results, state)
     if cfg.kuma_url and overall != CRIT:
         try:
