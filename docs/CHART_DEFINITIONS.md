@@ -1,5 +1,8 @@
 # Chart definitions
 
+*Describes main; behaviour added by changes not yet deployed is listed in CHANGELOG.md.*
+
+
 Every in-scope v1 chart and what replaced it, for the Grafana dashboards in `grafana/dashboards/`. Dates are DD-MM-YYYY and all times UTC.
 
 Status key: **KEPT** same question and definition (SQL rewritten against the v3 views); **CHANGED** same question, definition altered (see the difference column); **UNVERIFIED** the definition is the analytics agent's best reading and awaits the owner's Metabase export; **DROPPED** not rebuilt (reason given).

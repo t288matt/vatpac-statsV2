@@ -1,6 +1,6 @@
 # Runbook: daily and weekly checks, and the soak report
 
-Last reviewed: 09-10-2026. All times are UTC. Run the commands from the stack folder: `~/vatpac-statsV2` on the production VM (reach it with `ssh vatpac-v3`). Read the clock on the VM with `date -u`; do not estimate times.
+Last reviewed 10-10-2026 against commit c89e544. All times are UTC. Run the commands from the stack folder: `~/vatpac-statsV2` on the production VM (reach it with `ssh vatpac-v3`). Read the clock on the VM with `date -u`; do not estimate times.
 
 The watchdog already alerts by Telegram on the worst failures ([alerts.md](alerts.md)). These checks catch what it does not, and prove the system is healthy rather than merely quiet.
 

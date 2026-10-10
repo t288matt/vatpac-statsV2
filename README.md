@@ -4,9 +4,13 @@
 
 Live pilot and controller statistics for the VATPAC region, built from the public VATSIM data feed, running 24/7 in Docker.
 
+*Last reviewed 10-10-2026. Describes what is deployed and running (commit 3eb81a3 plus migration 160). Reviewed work that is merged but not yet deployed is listed in [CHANGELOG.md](CHANGELOG.md) and [docs/RESUME.md](docs/RESUME.md), not described here. Documents are updated after each deploy is verified live.*
+
 ## About
 
 One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist. PostgreSQL 16 stores the data and Grafana shows it as dashboards. Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
+
+**Current state (10-10-2026).** The goal is met and the system runs on an always-on VM. The rule: every deploy to the VM needs the owner's explicit go. Current state and next steps: [docs/RESUME.md](docs/RESUME.md); what changed and when: [CHANGELOG.md](CHANGELOG.md).
 
 v3 replaces the original v1 system (a FastAPI service with Metabase). The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
 
@@ -15,6 +19,8 @@ v3 replaces the original v1 system (a FastAPI service with Metabase). The two we
 - Names and CIDs are stored and shown, as in v1.
 
 ## Getting started
+
+A complete step-by-step install for a new instance on a clean Linux machine is in [docs/INSTALL.md](docs/INSTALL.md). The short version:
 
 **Requirements:** Docker Desktop (Windows or macOS), or Docker Engine with the Compose plugin (Linux). Nothing else is needed to run the stack.
 
@@ -46,6 +52,25 @@ Dashboards (as code in `grafana/dashboards/`): Pilots now, Pilots traffic, Pilot
 
 The collector serves `/health` and `/metrics` on port 8080 inside the Docker network only (not published). The database is not published either; the dev overlay (`make dev`) publishes it on `127.0.0.1:55432` only.
 
+## For dashboard users
+
+Ten dashboards, all in Grafana (folder: dashboard). Times are UTC. The exact rule behind every chart is in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md); the meaning of "flight", "session", "online now" and "airborne minutes" is in [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
+
+| Dashboard | What it shows |
+|---|---|
+| Pilots: online now | Who is flying in the region at this moment |
+| Pilots: traffic and aircraft | Flights, movements and aircraft types over time |
+| Pilots: onboarding and lapsed pilots | New pilots and those who stopped flying |
+| ATC: controllers | Who is controlling, where and for how long |
+| ATC: retention and reactivation | Controller hours, retention and returning controllers (needs 30 to 90 days of history to be meaningful) |
+| Demographics: pilot origins and cohorts | Where pilots come from and how groups of pilots behave |
+| Military: aircraft and routes | Military aircraft types and routes |
+| Events: Monday event | Traffic during the Monday 0700Z to 1200Z event |
+| Management: people online | Headline counts of people online |
+| Monitoring: collector and data freshness | Whether data is arriving; check this first if a number looks wrong |
+
+Charts start empty at go-live (07-10-2026) and fill as data arrives; flights still in progress are not counted in the flight totals.
+
 ## Configuration
 
 Everything is set through `.env` (names and defaults in `.env.example`; every variable is listed in [docs/CONFIG_MAP.md](docs/CONFIG_MAP.md)). The ones you are most likely to touch:
@@ -53,7 +78,7 @@ Everything is set through `.env` (names and defaults in `.env.example`; every va
 | Variable | Default | Meaning |
 |---|---|---|
 | `POLL_INTERVAL_SECONDS` | 30 | How often the collector reads the feed. The airborne gap cap, the archive gap and the "online now" windows are all derived from it |
-| `POSITION_RETENTION_DAYS` | 90 | How long raw positions are kept (sessions and flights are kept forever) |
+| `POSITION_RETENTION_DAYS` | 90 | How long raw positions are kept (sessions and flights are kept forever). Retention is decided to move to 180 days before the first partition drop, about 06-01-2027 (ADR-026, not built yet) |
 | `HOME_ICAO_PREFIXES` | `Y` | Which airports count as the home region |
 | `GRAFANA_BIND`, `GRAFANA_PORT` | loopback, 3300 | Where Grafana listens |
 | `BACKUP_RETENTION_DAYS` | 14 | How many backup dumps are kept |
@@ -95,10 +120,9 @@ On Windows without `make`, run the underlying commands.
 
 | Command | What it does |
 |---|---|
-| `make test` | Unit tests (no database, no network). Integration tests are skipped without `VATPAC_TEST_DSN` |
+| `make test` | Unit tests (no database, no network). Integration tests are skipped without `VATPAC_TEST_DSN`. Slow groups carry the markers `slow_fuzz` and `slow_shell`; skip them locally with `-m "not slow_fuzz and not slow_shell"` (CI runs them) |
 | `make lint` | ruff and mypy on the collector, ruff on `ops/` |
 | `make drift` | Collector settings, compose and `.env.example` agree |
-| (team and way of working) | see `docs/WORKING_AGREEMENT.md` and `docs/TEAM_BRIEFS.md` |
 | `make size` | Collector size budget (package under 1800 lines, no module over 300) |
 | `make smoke` | Health checks on a running stack |
 | `make config` | Validate the compose files with a throwaway env |
@@ -113,10 +137,10 @@ Unit tests need Python 3.11 or newer and the collector requirements:
 ```
 python -m venv collector/.venv
 collector/.venv/bin/pip install pytest -r collector/requirements.txt     # Windows: collector\.venv\Scripts\pip
-PYTHONPATH=collector/src collector/.venv/bin/python -m pytest -q -m "not integration" tests collector/tests
+PYTHONPATH=collector/src collector/.venv/bin/python -m pytest -q -m "not integration and not slow_fuzz and not slow_shell" tests collector/tests
 ```
 
-Integration tests need a real PostgreSQL 16 with the migrations applied, in a **scratch** database whose name ends in `_test` (the tests truncate every data table). Never point them at the live database, and never run `db/roles.sql` against the live VM (it resets the live role passwords). The safe step-by-step method is in [docs/RUNBOOKS/run-tests.md](docs/RUNBOOKS/run-tests.md). GitHub Actions runs everything on every push to `main`; read the result there.
+Integration tests need a real PostgreSQL 16 with the migrations applied, in a **scratch** database whose name ends in `_test` (the tests truncate every data table). Never point them at the live database, and never run `db/roles.sql` against the live VM (it resets the live role passwords). The safe step-by-step method is in [docs/RUNBOOKS/run-tests.md](docs/RUNBOOKS/run-tests.md). GitHub Actions runs everything on every push to `main` and on pull requests; read the result there.
 
 ## Operations
 
@@ -134,7 +158,11 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 
 | Document | Contents |
 |---|---|
+| [docs/INSTALL.md](docs/INSTALL.md) | Install a new instance from the source code |
+| [docs/README.md](docs/README.md) | Index of every document, with its status |
 | [docs/RESUME.md](docs/RESUME.md) | Entry point for a new operator or session: current state, rules, next actions |
+| [docs/WORKING_AGREEMENT.md](docs/WORKING_AGREEMENT.md), [docs/TEAM_BRIEFS.md](docs/TEAM_BRIEFS.md) | How the team works and how each role is briefed |
+| [docs/IF_CLAUDE_IS_UNAVAILABLE.md](docs/IF_CLAUDE_IS_UNAVAILABLE.md) | One-page card for the owner when Claude is not available |
 | [docs/TRACKER.md](docs/TRACKER.md) | The live task list; the single source of truth for status |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log (ADRs) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, data flow, containers, failure behaviour |
@@ -147,7 +175,7 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 
 ## Contributing
 
-The repository is private and run by one owner with Claude. Pushes go to `main` and GitHub Actions reads the result afterwards; the tracker ([docs/TRACKER.md](docs/TRACKER.md)) records every change. Work in a git worktree under `.worktrees/` so other sessions do not change your branch. Add a new numbered SQL migration instead of editing an applied one, keep the collector within the size budget (`make size`), and add a test with every fix. Deploy only on the owner's say-so.
+The repository is private and run by one owner with Claude. Every change gets an independent review. `main` must stay green: open a pull request so CI runs on the branch first, and read CI after every push to `main`. The tracker ([docs/TRACKER.md](docs/TRACKER.md)) records every change. Work in a git worktree under `.worktrees/` so other sessions do not change your branch. Add a new numbered SQL migration instead of editing an applied one, keep the collector within the size budget (`make size`), and add a test with every fix. Deploy only on the owner's say-so.
 
 ## Licence
 

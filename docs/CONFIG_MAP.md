@@ -25,7 +25,7 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `GRAFANA_ROOT_URL` | `http://localhost:3300/` | grafana | External URL; set it when served through a proxy or tunnel. |
 | `VATSIM_FEED_URL` | `https://data.vatsim.net/v3/vatsim-data.json` | collector | Fallback feed URL, used if discovery fails. |
 | `VATSIM_STATUS_URL` | `https://status.vatsim.net/status.json` | collector | Discovery document (`data.v3[0]`). |
-| `POLL_INTERVAL_SECONDS` | `30` | collector | Poll cadence (ADR-024). The one place the interval is held: the airborne gap cap, the archive gap threshold, the online-now windows (2 x this), the collector `/health` ages (last good poll under max(60, 2 x this) s, newest snapshot under max(120, 4 x this) s: 60 and 120 s at 30 s), the soak report and the Snapshots-missed panel derive from it. Valid 5 to 300. The watchdog's `WATCHDOG_WARN_SECONDS` (60) does not scale with it: at 60 s or more, raise it as well or the watchdog warns on every healthy poll. |
+| `POLL_INTERVAL_SECONDS` | `30` | collector | Poll cadence (ADR-024). The one place the interval is held: the airborne gap cap, the archive gap threshold, the online-now windows (2 x this), the soak report and the Snapshots-missed panel derive from it. Valid 5 to 300. |
 | `HTTP_TIMEOUT_SECONDS` | `10` | collector | Request timeout (connect timeout is the lower of 5 s and this). Valid 1 to 60. |
 | `TEXT_MAX_LENGTH` | `2000` | collector | Free-text fields of a pilot or controller (name, route, remarks, server and so on) are cut to this many characters at ingest; each cut field counts once in `poll_log.rejected_values`. Valid 100 to 100000. |
 | `FEED_MAX_FUTURE_SECONDS` | `120` | collector | A feed snapshot whose `update_timestamp` is more than this many seconds ahead of the collector's clock is rejected as a feed error (`error` poll, nothing stored, `last seen` unchanged), so one future-dated snapshot cannot make every later real update look unchanged. Valid 15 to 3600. The collector host's clock must be correct to well within this bound. |
@@ -48,8 +48,6 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `VATPAC_VERSION` | `dev` | collector build arg | Version label baked into the image (the release workflow sets it from the git tag). |
 | `BACKUP_RETENTION_DAYS` | `14` | backup | Days of dumps kept. |
 | `BACKUP_TIME_UTC` | `02:00` | backup | Nightly backup time (HH:MM, UTC). |
-| `BACKUP_DUMP_TIMEOUT_S` | `1800` | backup | Seconds `pg_dump` may run before it is killed and the backup counts as failed. Raise it when the database has grown and the dump needs longer (the watchdog `backup_age` alert at 26 h shows a failure). |
-| `BACKUP_VALIDATE_TIMEOUT_S` | `300` | backup | Seconds allowed for the `pg_restore -l` check of the finished dump. |
 | `BACKUP_RESTORE_TEST_DAY` | `7` | backup | ISO weekday (1 Monday to 7 Sunday) on which the backup is restore-tested; `0` disables (then set `WATCHDOG_RESTORE_TEST_MAX_DAYS=0` too). |
 | `BACKUP_REMOTE` | empty | backup | Optional off-box copy: a shell command run after every successful nightly dump with `$BACKUP_FILE` set. See [restore runbook](RUNBOOKS/restore.md), "Off-box copies". |
 | `BACKUP_EXTRA_APT_PACKAGES` | empty | backup (build argument) | Debian packages added to the backup image for the `BACKUP_REMOTE` command (for example `rclone`); rebuild to apply. |
@@ -84,7 +82,6 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (watchdog) | `db`, `${POSTGRES_DB}`, `watchdog_ro`, `${WATCHDOG_DB_PASSWORD}` | Watchdog's database login. |
 | `ARCHIVE_DIR` (watchdog) | `/archive` | Set by compose: the `archive` volume mounted read-only into the watchdog for the cross-check. |
 | `REFERENCE_CONFIG_DIR` (watchdog) | `/config` | Set by compose: `./config` mounted read-only (polygon and whitelist the cross-check recomputes with). |
-| `BACKUP_REMOTE_ENABLED` (watchdog) | `1` when `BACKUP_REMOTE` is non-empty, else empty (`${BACKUP_REMOTE:+1}`) | On/off flag for the `backup_remote` check (is the off-box copy still succeeding). The `BACKUP_REMOTE` command itself is not passed to the watchdog. |
 | `BACKUP_DIR`, `STATUS_FILE` (watchdog) | `/backups`, `/var/watchdog/watchdog_status.json` | Volumes the watchdog reads and writes. |
 
 ### A3. Read by the code but not wired through compose
