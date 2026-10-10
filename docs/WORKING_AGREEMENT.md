@@ -23,6 +23,8 @@ Small, frequent, safe releases of VATPAC Stats, with the owner deciding what mat
 Not on the team for now: an outside non-Claude reviewer (future work, issue #105), incident responder, UX designer, compliance advisor, release manager.
 Limit of the team: all agent roles are the same model family, so they can share blind spots. That is why section 4 asks for evidence, and why #103 and #105 exist.
 
+How to brief each role (the common preamble, role scopes, skills and the proof each must return): `docs/TEAM_BRIEFS.md`.
+
 ## 3. How work flows (small and often)
 1. **Ready:** an issue and a tracker row exist (issue first, then the row), with a "done when" line.
 2. **Build:** one agent, one branch, one worktree (`.worktrees/<name>`). Characterise today's behaviour first, then change only the defect.
