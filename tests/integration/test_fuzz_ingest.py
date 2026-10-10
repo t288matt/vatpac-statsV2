@@ -81,6 +81,11 @@ def _stored(conn, ts) -> tuple[set[tuple[int, str, str]], set[tuple[int, str, st
     return {(r["cid"], r["callsign"], r["lt"]) for r in pil}, {(r["cid"], r["callsign"], r["lt"]) for r in ctl}
 
 
+# Cases pinned by a named strict xfail below (issues 111 and 114): the grids leave them out so they do not fail twice.
+def _known_defect(section: str, label: str) -> bool:
+    return label == "callsign=long_random_cjk" or (section == "controllers" and label in ("frequency=inf", "frequency=nan_inf"))
+
+
 def _first_inside(base, ref) -> int:
     return next(i for i, p in enumerate(base["pilots"]) if inside_polygon(ref.polygon, p["latitude"], p["longitude"]))
 
@@ -107,7 +112,15 @@ def _check_snapshot(conn, ref, base, payload, bad: dict[str, set[int]], where: s
     log = conn.execute("SELECT * FROM poll_log WHERE snapshot_ts = %s", (ts,)).fetchone()
     assert (log["pilots_seen"], log["pilots_kept"], log["controllers_kept"], log["rejected_values"]) == (
         len(payload["pilots"]), npos, len(ctrls), res.rejected_values), where
-    assert res.rejected_values >= snap.malformed and res.pilots_kept <= res.pilots_inside, where
+    # every skipped, nulled or database-refused value is counted: at least the parser's skips plus the refused pilots
+    assert res.rejected_values >= snap.malformed + (res.pilots_inside - res.pilots_kept), where
+    # stored VALUES of every good entry, worked out from the raw dicts (not from model.py)
+    problems = rp.value_problems(conn, ts, want.pilot_values, where)
+    assert problems == [], problems[:2]
+    for key, (rating, facility, hz) in want.controller_values.items():
+        row = conn.execute(f"SELECT s.rating, s.facility, s.frequency_hz FROM controller_session s WHERE s.cid = %s "
+                           f"AND s.callsign = %s AND {_LOGON} = %s", key).fetchone()
+        assert (row["rating"], row["facility"], row["frequency_hz"]) == (rating, facility, hz), f"{where}: {key}"
     # a second application of the same snapshot changes nothing, even with records the database rejects
     again = apply_snapshot(conn, snap, ref.polygon, ref.whitelist, polygon_sha=ref.polygon_sha,
                            whitelist_sha=ref.whitelist_sha, prefixes=ref.prefixes)
@@ -118,8 +131,8 @@ def _check_snapshot(conn, ref, base, payload, bad: dict[str, set[int]], where: s
 def test_one_bad_entry_never_loses_the_rest_of_the_snapshot(db, ref, base) -> None:
     inside = {i for i, p in enumerate(base["pilots"]) if inside_polygon(ref.polygon, p["latitude"], p["longitude"])}
     listed = {i for i, c in enumerate(base["controllers"]) if c["callsign"] in ref.whitelist}
-    cases = fz.sample_cases(SEED, base, inside, listed, CASES)
-    assert len(cases) == CASES
+    cases = [c for c in fz.sample_cases(SEED, base, inside, listed, CASES) if not _known_defect(c[0], c[2])]
+    assert len(cases) >= CASES - 2
     skipped_by_parser = rejected_by_database = kept = 0
     for n, (section, i, label, replacement) in enumerate(cases):
         payload = _shift(fz.wire(fz.replace_entry(base, section, i, replacement)), n)
@@ -177,7 +190,7 @@ def test_duplicate_sessions_in_one_snapshot_store_one_position(db, ref, base) ->
     assert npos == net["pilots_in_region"] == res.pilots_kept
 
 
-# DEFECT found by this fuzz (issue 103, not filed, not fixed here): the callsign is capped at 2000 CHARACTERS, but the
+# DEFECT found by this fuzz (issue 111, not fixed here): the callsign is capped at 2000 CHARACTERS, but the
 # unique index pilot_session_identity (cid, callsign, logon_time) takes at most about 2700 BYTES per row, and
 # multi-byte text that does not compress (here 2000 CJK characters, 6000 bytes) makes the INSERT raise
 # ProgramLimitExceeded. That is neither DataError nor IntegrityError, so store._write does not bisect it out: the
@@ -185,7 +198,7 @@ def test_duplicate_sessions_in_one_snapshot_store_one_position(db, ref, base) ->
 # an absurd callsign (VATSIM limits them today), so low likelihood, but the rest of the snapshot should not depend on it.
 _INDEX_OVERFLOW = pytest.mark.xfail(
     strict=True, raises=psycopg.errors.ProgramLimitExceeded,
-    reason="issue 103: oversized multi-byte callsign overflows the btree index, ProgramLimitExceeded is not bisected out")
+    reason="issue 111: oversized multi-byte callsign overflows the btree index, ProgramLimitExceeded is not bisected out")
 
 
 @pytest.mark.parametrize("label", [
@@ -211,3 +224,47 @@ def test_an_oversized_or_odd_unlisted_controller_callsign_never_loses_the_snapsh
     ts = update_timestamp(payload)
     _check_snapshot(db, ref, base, payload, {"pilots": set(), "controllers": set()}, f"near-miss {label}")
     assert db.execute("SELECT count(*) AS n FROM network_snapshot WHERE observed_at = %s", (ts,)).fetchone()["n"] == 1
+
+
+@pytest.mark.slow_fuzz
+def test_every_fault_on_one_listed_controller_and_one_inside_pilot(db, ref, base) -> None:
+    """The whole grid (not a sample) for one whitelisted controller and one pilot inside the region: every key, every
+    bad value, every flight_plan variant. CI runs it; skip locally with -m "not slow_fuzz"."""
+    ci = next(i for i, c in enumerate(base["controllers"]) if c["callsign"] in ref.whitelist)
+    n = 2000
+    for section, i in (("controllers", ci), ("pilots", _first_inside(base, ref))):
+        for label, replacement in fz.entry_mutations(section, base[section][i]):
+            if _known_defect(section, label):
+                continue
+            n += 1
+            payload = _shift(fz.wire(fz.replace_entry(base, section, i, replacement)), n)
+            bad: dict[str, set[int]] = {"pilots": set(), "controllers": set()}
+            bad[section].add(i)
+            _check_snapshot(db, ref, base, payload, bad, f"{section}[{i}] {label}")
+
+
+@pytest.mark.parametrize("value", ["inf", "Infinity", "-Infinity", float("inf")])
+@pytest.mark.xfail(strict=True, raises=OverflowError,
+                   reason="issue 114: parse_frequency_hz does not catch OverflowError from int(Decimal('Infinity'))")
+def test_a_listed_controller_with_an_infinite_frequency_never_loses_the_snapshot(db, ref, base, value) -> None:
+    """DEFECT (issue 114, not fixed here): model.parse_frequency_hz catches InvalidOperation and ValueError only, so
+    a whitelisted controller's frequency "inf" raises OverflowError out of store.apply_snapshot and the snapshot is lost."""
+    ci = next(i for i, c in enumerate(base["controllers"]) if c["callsign"] in ref.whitelist)
+    payload = _shift(fz.replace_entry(base, "controllers", ci, {**base["controllers"][ci], "frequency": value}), 905)
+    _check_snapshot(db, ref, base, payload, {"pilots": set(), "controllers": {ci}}, f"frequency {value!r}")
+
+
+def test_a_padded_callsign_is_the_same_session_as_the_plain_one(db, ref, base) -> None:
+    """' X ' collapses to 'X': one session, two positions (removing the strip in the parser would store two sessions)."""
+    i = _first_inside(base, ref)
+    plain = base["pilots"][i]["callsign"]
+    ts = []
+    for n, callsign in enumerate((plain, f"  {plain} 	")):
+        payload = _shift(fz.replace_entry(base, "pilots", i, {**base["pilots"][i], "callsign": callsign}), 910 + n)
+        _, res = _ingest(db, ref, payload)
+        ts.append(update_timestamp(payload))
+        assert res.pilots_kept == res.pilots_inside
+    rows = db.execute("SELECT count(*) AS n, count(DISTINCT session_id) AS s FROM pilot_position p JOIN pilot_session q "
+                      "ON q.id = p.session_id WHERE q.cid = %s", (base["pilots"][i]["cid"],)).fetchone()
+    assert (rows["n"], rows["s"]) == (2, 1)
+    assert db.execute("SELECT count(*) AS n FROM pilot_session WHERE callsign <> btrim(callsign)").fetchone()["n"] == 0
