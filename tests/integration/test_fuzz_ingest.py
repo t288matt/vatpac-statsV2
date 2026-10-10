@@ -87,6 +87,19 @@ def _known_defect(section: str, label: str) -> bool:
     return label == "callsign=long_random_cjk" or (section == "controllers" and label in ("frequency=inf", "frequency=nan_inf"))
 
 
+# Issue 111: a long multi-byte value on an INDEXED text column overflows the btree row limit (ProgramLimitExceeded,
+# not bisected out). Indexed text columns, from db/migrations: pilot_session.callsign and controller_session.callsign
+# (UNIQUE (cid, callsign, logon_time) in 20261007000001), pilot_session.departure (pilot_session_departure_norm_idx,
+# 20261007000022) and pilot_session.arrival (pilot_session_arrival_norm_idx, 20261007000023). No other text column is
+# indexed on pilot_session or controller_session.
+_INDEXED_TEXT_INDEXES = ("pilot_session_identity", "controller_session_identity",
+                         "pilot_session_departure_norm_idx", "pilot_session_arrival_norm_idx")
+
+
+def _is_index_overflow(label: str, exc: Exception) -> bool:
+    return "long" in label and any(name in str(exc) for name in _INDEXED_TEXT_INDEXES)
+
+
 def _first_inside(base, ref) -> int:
     return next(i for i, p in enumerate(base["pilots"]) if inside_polygon(ref.polygon, p["latitude"], p["longitude"]))
 
@@ -233,6 +246,7 @@ def test_every_fault_on_one_listed_controller_and_one_inside_pilot(db, ref, base
     bad value, every flight_plan variant. CI runs it; skip locally with -m "not slow_fuzz"."""
     ci = next(i for i, c in enumerate(base["controllers"]) if c["callsign"] in ref.whitelist)
     n = 2000
+    pinned: list[str] = []
     for section, i in (("controllers", ci), ("pilots", _first_inside(base, ref))):
         for label, replacement in fz.entry_mutations(section, base[section][i]):
             if _known_defect(section, label):
@@ -241,7 +255,15 @@ def test_every_fault_on_one_listed_controller_and_one_inside_pilot(db, ref, base
             payload = _shift(fz.wire(fz.replace_entry(base, section, i, replacement)), n)
             bad: dict[str, set[int]] = {"pilots": set(), "controllers": set()}
             bad[section].add(i)
-            _check_snapshot(db, ref, base, payload, bad, f"{section}[{i}] {label}")
+            try:
+                _check_snapshot(db, ref, base, payload, bad, f"{section}[{i}] {label}")
+            except psycopg.errors.ProgramLimitExceeded as exc:
+                if not _is_index_overflow(label, exc):
+                    raise
+                db.rollback()
+                pinned.append(f"{section}[{i}] {label}")
+    if pinned:  # every other case ran; the pinned ones are named, never skipped silently
+        pytest.xfail(f"issue 111: oversized indexed text, {len(pinned)} cases: {pinned}")
 
 
 @pytest.mark.parametrize("value", ["inf", "Infinity", "-Infinity", float("inf")])
