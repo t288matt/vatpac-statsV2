@@ -610,6 +610,7 @@ def test_retention_rate_needs_sessions_over_sixty_minutes(conn) -> None:
 
 def test_help_list_threshold_is_under_18_minutes(conn) -> None:
     """Mutant P11 (18 -> 25 minutes): a 20 minute session is not 'short'."""
+    ret.add_session(conn, 9000003, 120, 30)    # a real earlier session: without one nobody is reactivated (issue 93, ADR-028)
     ret.add_session(conn, 9000003, 5, 20)
     assert ret.cids(conn, "Who might need help reactivating?") == set()
     assert ret.cids(conn, "Who reactivated after being away for more than 60 days?") == {9000003}

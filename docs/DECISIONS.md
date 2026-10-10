@@ -66,7 +66,7 @@ Owner decision, confirming ADR-009: no retention or anonymisation rule. Names an
 Recorded here because SPEC.md says decisions belong in this log. Source: the owner's statements during the 08-10-2026 session, as written down in docs/RESUME.md section 2.
 - Cards 94 and 95 (when people are online) are rebuilt to match v1 counting; card 94 uses Monday to Friday (UTC), where v1 used Sunday, Monday and Saturday as a data workaround.
 - Cards 90 and 135 (most popular aircraft) keep the `aircraft_type` lookup categories, not v1's `LIKE` ladder.
-- The retention panels copy v1's rules exactly, including the quirk that "reactivated" needs no earlier session, so every controller counts as reactivated until 60 days of history exist.
+- The retention panels copy v1's rules exactly, including the quirk that "reactivated" needs no earlier session, so every controller counts as reactivated until 60 days of history exist. (The reactivated quirk is superseded by ADR-028.)
 - Accepted risk (owner, 07-10-2026): the Telegram bot token appeared once in a session transcript and was not rotated.
 Consequence: the corresponding rows in CHART_DEFINITIONS.md describe these rules. A later change needs a new ADR.
 
@@ -111,6 +111,11 @@ Consequences: nothing is deleted by these decisions today. Work to build, each n
 Context: the collector package stood at 1698 of 1700 lines after the fixes from the full code review (issue #80). The remaining fix, #88 (a timed-out database write keeps running and can hold a pool connection after its poll was abandoned), needs a lock held by the apply worker, a skip of the next poll while one is still running, and a deadline checked before every statement: the author built and tested it at 1767 lines. Shortening docstrings and dropping an unused function had already been used to stay under 1700; compressing more would hide logic.
 Decision (owner): the budget is 1800 lines (still no module over 300). This gives the #88 fix about 30 lines of room beyond its 1767 and a little headroom for later fixes. The guard stays: it exists to stop bloat, and exceeding 1800 again needs a new decision, not a quiet edit of the constant. `ops/check_size_budget.py`, README and ARCHITECTURE.md carry the new number.
 Consequences: ADR-022 is superseded for the number only; its reasoning (the rolling archive) stands. Nothing functional changes by this decision itself.
+## ADR-028 "Reactivated" needs an earlier session (10-10-2026, from the code review of issue 80; CONFIRMED by the owner on 10-10-2026)
+Problem (issue 93): ADR-020 copied v1's quirk that a controller is "reactivated" when they have a session in the last 30 days and none 30 to 90 days ago, with no earlier session required, so a brand-new controller counted as someone returning after a 60 day gap. The independent review found this wrong against v1's own stated intent ("Active now after 60+ day gap").
+Change: the three reactivation panels (cards 171, 172, 177) also require at least one session before 90 days ago. A brand-new controller is no longer reactivated. Because there is no backfill (ADR-011), the figure is zero until the database holds more than 90 days of history. The lapsed panels (cards 166, 168, 169) use the latest session only and are unaffected; card 176 (monthly trend) keeps its v1 month rule, which says in its description that first-time controllers count.
+Status: CONFIRMED by the owner on 10-10-2026. It reverses part of ADR-020. Consequence kept: the reactivated figure is zero until the database holds more than 90 days of history.
+
 ## OPEN decisions for the owner
 (Rewritten 09-10-2026. The live list is docs/TRACKER.md and docs/OWNER_ACTIONS.md.)
 - The backup container holds the owner password for the restore scripts (ADR-017); a dedicated restore-only role would be tighter.

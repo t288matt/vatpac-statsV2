@@ -13,6 +13,6 @@ for sub in ("ops/watchdog", "ops/audit"):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-
 def pytest_configure(config):  # type: ignore[no-untyped-def]
+    config.addinivalue_line("markers", "slow_fuzz: the full fuzz grids (about 20 s); CI runs them, skip locally with -m 'not slow_fuzz'")
     config.addinivalue_line("markers", "slow_shell: many shell processes (ops/deploy.sh harness); skip locally with -m 'not slow_shell'")
