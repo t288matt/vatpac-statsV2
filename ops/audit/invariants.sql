@@ -15,7 +15,9 @@ UNION ALL
 SELECT 'ok poll_log counts differ from network_snapshot', count(*), NULL
 FROM poll_log p JOIN network_snapshot n ON n.observed_at = p.snapshot_ts
 WHERE p.status = 'ok' AND p.polled_at >= now() - interval '3 days'
-  AND (p.pilots_seen, p.pilots_inside, p.controllers_seen, p.controllers_kept)
+  -- network_snapshot.pilots_in_region is the pilots actually stored, so it is compared with poll_log.pilots_kept
+  -- (a row without pilots_kept falls back to pilots_inside; pilots_inside counts every pilot in the polygon, rejected ones too; they differ only when a record was skipped)
+  AND (p.pilots_seen, coalesce(p.pilots_kept, p.pilots_inside), p.controllers_seen, p.controllers_kept)
       IS DISTINCT FROM (n.pilots_global, n.pilots_in_region, n.controllers_global, n.controllers_in_region)
 UNION ALL
 SELECT 'in-region count above global count', count(*), NULL

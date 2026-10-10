@@ -85,7 +85,7 @@ def compare(mine: dict, db: dict) -> list[tuple[str, str]]:
     ns = db["ns"]
     if ns is None:
         return [("snapshot_missing", "no network_snapshot row")]
-    for mk, dk in (
+    for mk, dk in (  # pilots_in_region is the pilots stored, so it also differs when the collector rejected a record
         ("pilots_global", "pilots_global"),
         ("controllers_global", "controllers_global"),
         ("pilots_inside", "pilots_in_region"),
