@@ -1,5 +1,7 @@
 # VATPAC Stats v3: Specification
 
+*Last reviewed 10-10-2026 against commit c89e544.*
+
 Authoritative spec. Agents build from this file; if it is wrong, change it here first (and record the change in `docs/DECISIONS.md`).
 
 ## 1. Goal
@@ -92,10 +94,10 @@ Dashboards show "data since <go-live>" because there is no backfill.
 
 ## 11. Tests and quality gates
 - Unit tests (no database, no network): filters (polygon: YPDN inside, NZAA outside, point on edge; whitelist formats, malformed, missing -> fail closed), parsing and plausibility caps, frequency conversion, `home_icao`, session split logic helpers, settings validation.
-- Fixture: an **anonymised** recorded feed snapshot (names/CIDs scrambled deterministically; callsigns kept) in `tests/fixtures/`. Golden test: expected kept pilots/controllers counts for the fixture; `_OBS` and ATIS never stored.
+- Fixture: a recorded feed snapshot in `tests/fixtures/` (the fixtures were anonymised when first built; the anonymisation check was removed on 08-10-2026 because names and CIDs are public data, ADR-019). Two real raw-feed snapshots for replay tests are in `tests/fixtures/replay/`. Golden test: expected kept pilots/controllers counts for the fixture; `_OBS` and ATIS never stored.
 - Integration tests (need Docker): compose up, migrate, ingest the fixture twice (second run inserts zero rows), views return expected rows, partition create/drop, `grafana_ro` cannot write, every provisioned panel query runs.
-- CI (GitHub Actions, `.github/workflows/ci.yml`): ruff, mypy, unit tests, integration tests against a Postgres service, `docker compose config`, dashboard validation, image build, gitleaks + a PII check on fixtures, config-reference drift check.
-- Size budget check in CI (collector package under 1400 lines, no module over 300).
+- CI (GitHub Actions, `.github/workflows/ci.yml`): ruff, mypy, unit tests, integration tests against a Postgres service, `docker compose config`, dashboard validation, image build, gitleaks, config-reference drift check, size budget, and the replay and fuzz tests (marker `slow_fuzz`; the `ops/deploy.sh` harness is `slow_shell`).
+- Size budget check in CI (collector package under 1800 lines, no module over 300; ADR-022, raised by ADR-027).
 
 ## 12. Acceptance (the goal)
 1. Clean clone + `.env` from `.env.example` + `docker compose up -d`: all services healthy.
