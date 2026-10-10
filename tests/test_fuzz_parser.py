@@ -95,9 +95,9 @@ def _check_parsed_entry(rec: Pilot | Controller) -> None:
     assert rec.logon_time.microsecond == 0 and rec.logon_time.tzinfo is not None
 
 
-def test_every_single_bad_entry_keeps_the_rest_of_the_snapshot(base, clean, hot_indices) -> None:
-    cases = _all_cases(base, hot_indices)
-    assert len(cases) > 1000  # a grid, not a handful
+def _grid(base, clean, hot_indices, per_section: int, minimum: int) -> None:
+    cases = _all_cases(base, hot_indices, per_section)
+    assert len(cases) > minimum  # a grid, not a handful
     for section, i, label, replacement in cases:
         where = f"{section}[{i}] {label}"
         mutated = fz.wire(fz.replace_entry(base, section, i, replacement))
@@ -115,6 +115,19 @@ def test_every_single_bad_entry_keeps_the_rest_of_the_snapshot(base, clean, hot_
         else:                                                             # kept: everything else is unchanged
             assert len(parsed) == len(good) and parsed[:i] + parsed[i + 1:] == other, where
             _check_parsed_entry(parsed[i])
+
+
+
+
+def test_every_single_bad_entry_keeps_the_rest_of_the_snapshot(base, clean, hot_indices) -> None:
+    """One inside pilot and one listed controller, every fault (the quick grid)."""
+    _grid(base, clean, hot_indices, 1, 300)
+
+
+@pytest.mark.slow_fuzz
+def test_the_full_grid_of_single_bad_entries(base, clean, hot_indices) -> None:
+    """Three entries per section, every fault: about 20 s. CI runs it; skip it locally with -m "not slow_fuzz"."""
+    _grid(base, clean, hot_indices, 3, 1000)
 
 
 @pytest.mark.parametrize("label,junk", fz.JUNK_ENTRIES)
@@ -151,24 +164,31 @@ def test_an_entry_without_its_identity_is_skipped_and_counted(base, clean, secti
 
 
 def test_many_bad_entries_at_once_leave_every_good_one(base, clean, hot_indices) -> None:
-    """The same property with a dozen simultaneous faults in both sections."""
+    """The same property with twelve simultaneous faults in both sections, compared EXACTLY: each fault alone decides
+    whether its entry is dropped or kept (and how); the combined snapshot must be the clean one with those outcomes."""
     import random
 
     rng = random.Random(SEED + 1)
     mutated = fz.wire(base)
-    bad: dict[str, set[int]] = {"pilots": set(), "controllers": set()}
+    faults: list[tuple[str, int, Any]] = []
     for section in fz.SECTIONS:
         for i in rng.sample(range(len(base[section])), 6):
-            label, rep = rng.choice(list(fz.entry_mutations(section, base[section][i])))
+            _, rep = rng.choice(list(fz.entry_mutations(section, base[section][i])))
             mutated[section][i] = rep
-            bad[section].add(i)
+            faults.append((section, i, rep))
+    expect = {"pilots": list(clean.pilots), "controllers": list(clean.controllers)}
+    dropped = {"pilots": set(), "controllers": set()}
+    for section, i, rep in faults:                                   # outcome of each fault on its own
+        alone = parse_snapshot(fz.wire(fz.replace_entry(base, section, i, rep)))
+        if alone.malformed:
+            dropped[section].add(i)
+        else:
+            expect[section][i] = (alone.pilots if section == "pilots" else alone.controllers)[i]
     snap = parse_snapshot(fz.wire(mutated))
-    for section, good in (("pilots", clean.pilots), ("controllers", clean.controllers)):
-        kept = snap.pilots if section == "pilots" else snap.controllers
-        survivors = [r for k, r in enumerate(good) if k not in bad[section]]
-        assert all(r in kept for r in survivors)
-        assert len(kept) >= len(survivors)
-    assert snap.malformed <= 12
+    for section in fz.SECTIONS:
+        want = [r for k, r in enumerate(expect[section]) if k not in dropped[section]]
+        assert (snap.pilots if section == "pilots" else snap.controllers) == want
+    assert snap.malformed == len(dropped["pilots"]) + len(dropped["controllers"])
 
 
 # ---- a changed feed shape is a poll error, never an empty snapshot (issue 82 follow-up, 92)
