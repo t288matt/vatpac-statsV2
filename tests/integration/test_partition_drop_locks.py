@@ -166,10 +166,13 @@ def test_at_most_ten_per_call_and_the_collector_loop_reaches_the_same_end_state(
 
 
 def test_lock_timeout_is_restored(conn) -> None:
+    """Inside the caller's own transaction the setting made for the drops must not leak into the rest of it."""
     old_partitions(conn, [200, 199])
-    conn.execute("SET lock_timeout = '7s'")
+    conn.execute("BEGIN")
+    conn.execute("SET LOCAL lock_timeout = '7s'")
     assert call(conn) == 2
     assert conn.execute("SHOW lock_timeout").fetchone()["lock_timeout"] == "7s"
+    conn.execute("ROLLBACK")
 
 
 # ------------------------------------------------------------------ busy partitions

@@ -63,7 +63,7 @@ def drop_old_partitions(conn: psycopg.Connection[Any], today: date, retention_da
     conn.add_notice_handler(on_notice)
     try:
         total = 0
-        for _ in range(MAX_DROP_CALLS):  # the SQL function drops at most 10 per call, each call its own short transaction
+        for _ in range(MAX_DROP_CALLS):  # SQL drops at most 10 per call: short transactions
             dropped = _scalar(conn, "SELECT drop_old_pilot_position_partitions(%s, %s)", (retention_days, today))
             total += dropped
             if dropped == 0:
