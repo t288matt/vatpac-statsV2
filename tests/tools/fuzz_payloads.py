@@ -23,7 +23,9 @@ BAD_VALUES: list[tuple[str, Any]] = [
     ("list", []), ("list1", [1]), ("dict", {}), ("dict1", {"a": 1}),
     ("surrogate", "ab\ud800cd"), ("nul", "a\x00b"), ("ctrl", "a\x01\x07\x1b\x7f\x85b"), ("rtl", "‮evil‬"),
     ("emoji", "\U0001f600\U0001f9d1‍\U0001f680"), ("combining", "é" * 50), ("tabs_nl", "a\tb\nc\r\nd"),
-    ("long_text", "x" * 100_000), ("long_digits", "9" * 400), ("sci_str", "1e999"), ("nan_str", "NaN"),
+    ("long_text", "x" * 100_000),
+    # incompressible multi-byte text: after the 2000-character cap it is still far over a btree index row (about 2700 bytes)
+    ("long_random_cjk", "".join(chr(0x4E00 + (i * 7919) % 20000) for i in range(3000))), ("long_digits", "9" * 400), ("sci_str", "1e999"), ("nan_str", "NaN"),
     ("neg_num_str", "-5"), ("float_str", "12.5"), ("sql", "'; DROP TABLE pilot_session; --"),
     ("bad_ts", "not-a-time"), ("ts_year0", "0000-01-01T00:00:00Z"), ("ts_far", "9999-12-31T23:59:59.9999999Z"),
 ]
