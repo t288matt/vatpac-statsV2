@@ -1,6 +1,6 @@
 # Changelog
 
-What changed in VATPAC Stats v3, newest first, in plain words. Dates are DD-MM-YYYY and times are UTC. Written 10-10-2026 from the git history, [docs/TRACKER.md](docs/TRACKER.md), [docs/DECISIONS.md](docs/DECISIONS.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) section 10; updated in the evening of 10-10-2026 (docs batch 2) for the state of `origin/main` at commit 27cb266 (CI green).
+What changed in VATPAC Stats v3, newest first, in plain words. Dates are DD-MM-YYYY and times are UTC. Written 10-10-2026 from the git history, [docs/TRACKER.md](docs/TRACKER.md), [docs/DECISIONS.md](docs/DECISIONS.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) section 10; updated in the evening of 10-10-2026 (docs batch 2) for the state of `origin/main` at commit 27cb266 (CI green at 27cb266; main then moved to c89e544).
 
 How to read it. "Deployed" means running on the production VM, with the date and time and commit taken from the deploy records in the tracker and the runbooks. Where a record gives only part of that, the entry says "not recorded". The code history is much finer than this page; the full list is `git log`. Decision numbers (ADR-nnn) are in docs/DECISIONS.md and issue numbers (#nn) are on GitHub.
 
@@ -55,9 +55,16 @@ Tests only; nothing to deploy. Two real raw-feed snapshots are kept as fixtures,
 - Working agreement and team briefs ([docs/WORKING_AGREEMENT.md](docs/WORKING_AGREEMENT.md), [docs/TEAM_BRIEFS.md](docs/TEAM_BRIEFS.md)), the deploy plan and the cold-start prompt.
 - CI and release workflow fixes (a line-length error had kept CI red for four commits on 10-10-2026).
 
-### Not on main yet
-- `fix-111-114`: collector fix for issues #111 and #114 (in progress).
-- `deploy-checks` (pull request 116): read-only deploy checks and a release marker, issue #104 trimmed (under independent review).
+### Collector fixes for oversized and odd feed values (10-10-2026, c89e544, PR 117; issues #111 and #114)
+A callsign, departure or arrival is capped in bytes and an index-size error is bisected out like a bad row; an infinite or huge controller frequency is treated as malformed. Before, either could lose the whole snapshot on every poll. Found by the replay and fuzz tests; the expected-failure pins are removed. Deploys after fix-sql.
+
+### Read-only deploy checks (10-10-2026, 991ddc0, PR 116; issue #104 trimmed)
+`ops/deploy.sh` with `--preflight`, `--verify`, `--status` and `--mark` (a release marker on the VM). Nothing is deployed by it; every deploy still needs the owner's go. The runner and automatic rollback are parked.
+
+### Second review of deploy 1 (10-10-2026)
+An Opus review of privileges and backup and restore says go with two extra checks, now in docs/DEPLOY_PLAN_REVIEW_FIXES.md (record on branch `review-fix-ops-opus`). It also filed issue #118 (backup validation accepts a dump of an empty or wrong database).
+
+### Not on main
 - Incident 10-10-2026 (issue #113): two snapshots were stored late (apply timeouts at 15:47 and 15:52 UTC) because several test containers ran on the live VM at once. No data was lost; new rule in the working agreement.
 
 ## Deployed
