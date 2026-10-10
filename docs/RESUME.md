@@ -1,6 +1,6 @@
 # Resume note for a cold start (rewritten 10-10-2026, issue #107 batch 2)
 
-Read this first. A new session pastes [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md). Then read [WORKING_AGREEMENT.md](WORKING_AGREEMENT.md) (team, flow, tiers, limits), [TEAM_BRIEFS.md](TEAM_BRIEFS.md) (how to brief each role), [DEPLOY_PLAN_REVIEW_FIXES.md](DEPLOY_PLAN_REVIEW_FIXES.md) and the live task list [TRACKER.md](TRACKER.md). Dates DD-MM-YYYY, times UTC, British English, no emoji. Facts below are as of 10-10-2026 about 21:00 UTC, taken from `origin/main` (27cb266, CI green), git history, GitHub and a read-only look at the VM.
+Read this first. A new session pastes [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md). Then read [WORKING_AGREEMENT.md](WORKING_AGREEMENT.md) (team, flow, tiers, limits), [TEAM_BRIEFS.md](TEAM_BRIEFS.md) (how to brief each role), [DEPLOY_PLAN_REVIEW_FIXES.md](DEPLOY_PLAN_REVIEW_FIXES.md) and the live task list [TRACKER.md](TRACKER.md). Dates DD-MM-YYYY, times UTC, British English, no emoji. Facts below are as of 10-10-2026 about 21:00 UTC, taken from `origin/main` (c89e544), git history, GitHub and a read-only look at the VM.
 
 Goal (owner, verbatim): "I want to be able to reproduce these graphs and have them live and available 24/7. I want the system to be dockerised."
 
@@ -18,15 +18,18 @@ The goal is met and the system is in routine operation (checklist at the end of 
 - Plain-language Telegram wording (#79).
 - `fix-sql`: migration 20261009000170 (lock-friendly partition drop, looped by `maintenance.py`), ADR-028 (reactivated controllers need an earlier session; the live count goes from 53 to 0 until 90 days of history exist), Monday event panel fix (#94), flight-view measurements (FLIGHT_VIEW_SCALING.md). Its round-2 review record is on branch `review-fix-sql-r2`, not on main; the low follow-ups are issue #112.
 - Replay and fuzz tests (#103): tests only, no deploy effect.
+- `fix-111-114` (c89e544, PR 117): #111 byte cap on callsign, departure and arrival plus a ProgramLimitExceeded bisect; #114 infinite or huge controller frequency no longer loses the snapshot. Medium tier; deploys after fix-sql.
+- `deploy-checks` (991ddc0, PR 116): `ops/deploy.sh` with read-only `--preflight`, `--verify`, `--status`, `--mark` (RUNBOOKS/deploy-to-vm.md, Scripted checks). The runner, rollback and Low-without-go policy stay parked on branch `design-deploy`.
 - Docs batch 1, the stale-statement fixes (#110), the backup copy card (OWNER_BACKUP_COPY.md), the deploy plan.
 
 **WHICH COMMIT TO SHIP.** Deploys 1 and 2 ship the exact commit **520dc3e** (fix-ops, fix-collector, wording; migration 170 absent), never the tip of main. Check: `git ls-tree -r --name-only 520dc3e db/migrations | grep 20261009000170` must print nothing. The fix-sql deploy ships the tip of main afterwards. Detail: DEPLOY_PLAN_REVIEW_FIXES.md.
 
-**Not on main yet:** `fix-111-114` (collector fix for #111 oversized callsign and #114 infinite controller frequency, in progress), `deploy-checks` (PR 116, trimmed #104: read-only preflight, verify, status and release marker in `ops/deploy.sh`, under independent review), `design-109` (architect, #109), `design-deploy` (parked full design for #104, not to be built). Docs batch 2 is branch `docs-batch-2`.
+**Not on main yet:** `design-109` (architect, #109), `design-deploy` (parked full design for #104, not to be built). Docs batch 2 is branch `docs-batch-2`.
 
 ## 3. The owner's standing rules
 1. **Every deploy needs his explicit go on the day**, whatever the tier. Never work round a denied action; report it.
-2. **Main must stay green.** No push to main until the change's database tests have passed; use a pull request so CI runs on the branch first (owner OK 10-10-2026). Read CI after EVERY push to main, docs-only included (CI was red unnoticed for four commits on 10-10-2026).
+2. **Models:** Opus 5.5 only for complex database and code changes, never alerting or docs; Sonnet for the rest.
+2b. **Main must stay green.** No push to main until the change's database tests have passed; use a pull request so CI runs on the branch first (owner OK 10-10-2026). Read CI after EVERY push to main, docs-only included (CI was red unnoticed for four commits on 10-10-2026).
 3. **Independent review** of every change by a different agent than the author; evidence (commits, CI, counts), not summaries. Tiers: WORKING_AGREEMENT section 5.
 4. **Token economy** (10-10-2026): short replies, short briefs, reports under 300 words, few agents, cheaper models for mechanical work. Hats not staff (WORKING_AGREEMENT 2a).
 5. **No new test infrastructure.** A separate test VM, staging copy, golden dataset, weekly replay and a restore-test extension were all DROPPED on 10-10-2026. Do not re-propose them.
@@ -34,19 +37,19 @@ The goal is met and the system is in routine operation (checklist at the end of 
 7. At most 3 code branches in flight; docs-only branches do not count (owner 10-10-2026).
 
 ## 4. Next actions, in order
-1. **Sunday 11-10-2026 after 02:00:** read the restore test result (`.last_restore_test`, watchdog `restore_test`) and the 02:00 backup, then ask for the go for **deploy 1** (fix-ops plus wording, high tier, exact commit 520dc3e).
+1. **Sunday 11-10-2026 after 02:00:** read the restore test result (`.last_restore_test`, watchdog `restore_test`) and the 02:00 backup, then ask for the go for **deploy 1** (fix-ops plus wording, high tier, exact commit 520dc3e). A second (Opus) review of deploy 1 says go with two extra checks, now in DEPLOY_PLAN_REVIEW_FIXES.md (record on branch `review-fix-ops-opus`). Run `ops/deploy.sh --preflight` and `--verify` as the read-only checks.
 2. **Monday 12-10-2026:** **deploy 2** (fix-collector, medium tier, polling gap about 45 s) after deploy 1's 24 h watch is clean and he says go.
-3. Finish `fix-111-114` (#111, #114: medium, own review and go), merge `deploy-checks` after review, then the **fix-sql deploy** (high tier: a function that drops tables) from the tip of main. #109 must be fixed before retention goes to 180 days.
+3. Then the **fix-sql deploy** (high tier: a function that drops tables) from the tip of main. #109 must be fixed before retention goes to 180 days.
 4. **v1 re-comparison**: DELAYED by the owner until 12 hours after ALL fixes are deployed. Read-only, predictions committed first, his go on the day. Then a final dump of v1 and stop v1 (his go).
 5. **Retention build** (#21, ADR-026): POSITION_RETENTION_DAYS=180 before the first drop about 06-01-2027, WATCHDOG_DB_MAX_GB=5, network_snapshot 5-year trim, BACKUP_REMOTE copy (the owner does the Proxmox side: OWNER_BACKUP_COPY.md), clean-up of about 70 leaked test volumes from an approved list.
 6. **Dated:** #27 on 14-10-2026 and 06-11-2026; #22 after 19-10-2026; #25 on 06-11-2026; delete the VM rollback copies about 16-10-2026 (`~/vatpac-statsV2.rollback-09-10-bumps`, `-mig150`, `-card65`, `-integrity`, and volume `vatpac_grafana_data_pre_bumps`; list names first); #18 needs a time from the owner. The data_integrity warning from incident #113 clears on 13-10-2026 about 15:52.
 7. Writer duty: update RESUME, TRACKER, CHANGELOG and runbooks within one working day of each merge (WORKING_AGREEMENT section 2).
 
-## 5. Open issues (44 open on 10-10-2026; `gh issue list --repo t288matt/vatpac-statsV2 --label P1`)
+## 5. Open issues (about 42 open on 10-10-2026 night; `gh issue list --repo t288matt/vatpac-statsV2 --label P1`)
 Labels: P1 deploy path, fixed on main, needs a verified deploy; P2 next build, in order; P3 soon, small; P4 dated, owner-only, later or low value.
-- **P1** (stay open until deployed and verified; the owner closes): #79, #80 and findings #81 to #98 (fix-ops: #81 #83 #84 #86 #90 #91 #95 #97; fix-collector: #82 #85 #87 #88 #92; fix-sql: #89 #93 #94 #98). #111 and #114 carry P1 and P2.
-- **P2:** #21 retention, #109 partition probing, #110 stale docs (fixed on main, still open), #111, #112, #113 (incident), #114.
-- **P3:** #18, #96 and #99 to #102 (small fix-ops and fix-collector items), #103 (merged), #104 (trimmed, PR 116), #107 (this writer work).
+- **P1** (stay open until deployed and verified; the owner closes): #79, #80 and findings #81 to #98 (fix-ops: #81 #83 #84 #86 #90 #91 #95 #97; fix-collector: #82 #85 #87 #88 #92; fix-sql: #89 #93 #94 #98). #111, #114 and #118 are P2 (#111, #114 also P1).
+- **P2:** #21 retention, #109 partition probing, #111, #112, #114, #118 (backup validation accepts a dump of an empty or wrong database). Closed 10-10-2026 with the owner: #103, #110, #113.
+- **P3:** #18, #96 and #99 to #102 (small fix-ops and fix-collector items), #104 (trimmed, checks merged), #107 (this writer work).
 - **P4:** #14, #22, #23, #25, #26, #27, #76, #105, #108.
 - **Owner only:** #26 Proxmox restore test of VM 100 (never boot a restored copy on the LAN); #23 folder rename; heartbeat task check; the Proxmox side of the backup copy; SSD wear check (#14); VM memory (8 GiB, live stack about 0.65 GB; reduce only after tests are off the VM).
 

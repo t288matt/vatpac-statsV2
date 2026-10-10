@@ -1,6 +1,6 @@
 # Documentation index
 
-Written 10-10-2026 and updated the same evening (docs batch 2) for `origin/main` at commit 27cb266, by reading every file listed and [DOC_AUDIT.md](DOC_AUDIT.md). Nothing was moved, renamed or deleted. This page is a map; it is not a source of facts.
+Written 10-10-2026 and updated the same evening (docs batch 2) for `origin/main` at commit c89e544, by reading every file listed and [DOC_AUDIT.md](DOC_AUDIT.md). Nothing was moved, renamed or deleted. This page is a map; it is not a source of facts.
 
 **Status key.** CURRENT: kept up to date, trust it (subject to the notes). HISTORICAL: a dated record of a moment; correct for that date, not maintained, do not edit. OBSOLETE: wrong or superseded; do not use. "Needs update" means the file is current in purpose but has a known stale statement (listed at the end).
 
