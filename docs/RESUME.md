@@ -47,8 +47,8 @@ The goal is met and the system is in routine operation (checklist at the end of 
 
 ## 5. Open issues (41 open on 10-10-2026 night; `gh issue list --repo t288matt/vatpac-statsV2 --label P1`)
 Labels: P1 deploy path, fixed on main, needs a verified deploy; P2 next build, in order; P3 soon, small; P4 dated, owner-only, later or low value.
-- **P1** (stay open until deployed and verified; the owner closes): #79, #80 and findings #81 to #102 (fix-ops: #81 #83 #84 #86 #90 #91 #95 #96 #97 #101 #102; fix-collector: #82 #85 #87 #88 #92 #99 #100; fix-sql: #89 #93 #94 #98), and #114 (fixed on main, not deployed; also P2).
-- **P2:** #21 retention, #109 partition probing, #112 fix-sql follow-ups, #114, #118 (backup validation accepts a dump of an empty or wrong database). Closed 10-10-2026: #103, #110, #113 (with the owner) and #111 (callsign byte cap, fixed on main, not deployed).
+- **P1** (stay open until deployed and verified; the owner closes): #79, #80 and findings #81 to #102 (fix-ops: #81 #83 #84 #86 #90 #91 #95 #96 #97 #101 #102; fix-collector: #82 #85 #87 #88 #92 #99 #100; fix-sql: #89 #93 #94 #98), #111 and #114 (both fixed on main in c89e544, not deployed; both also P2).
+- **P2:** #21 retention, #109 partition probing, #111, #112 fix-sql follow-ups, #114, #118 (backup validation accepts a dump of an empty or wrong database). Closed 10-10-2026 with the owner: #103, #110, #113. #111 (callsign byte cap) is open: fixed on main, not deployed.
 - **P3:** #18, #104 (trimmed, checks merged), #107 (this writer work).
 - **P4:** #14, #22, #23, #25, #26, #27, #76, #105, #108.
 - **Owner only:** #26 Proxmox restore test of VM 100 (never boot a restored copy on the LAN); #23 folder rename; heartbeat task check; the Proxmox side of the backup copy; SSD wear check (#14); VM memory (8 GiB, live stack about 0.65 GB; reduce only after tests are off the VM).
