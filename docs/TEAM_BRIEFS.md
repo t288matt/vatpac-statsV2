@@ -1,4 +1,4 @@
-﻿# Team briefs
+# Team briefs
 
 How to staff each role in `docs/WORKING_AGREEMENT.md` section 2 in a new session. A brief is the common preamble (section 1) plus the role section (section 2) plus the task. Keep briefs short and specific; name the issue, the files, and the proof required. The manager (Emma) briefs; the owner never has to.
 
@@ -25,7 +25,12 @@ How to staff each role in `docs/WORKING_AGREEMENT.md` section 2 in a new session
 | Data quality analyst | Do dashboard numbers match raw data. Integrity pack, v1 comparison, replay checks. Read-only SQL on the live database (`default_transaction_read_only = on`), strictly SELECT-only on v1 (`ssh vatpac`). Predictions are written and committed BEFORE results. | `data:analyze`, `data:validate-data`, `data:explore-data` | Predictions, then results, then differences explained one by one. |
 | Technical writer | Docs from the MERGED code, not from agents' reports: `RESUME.md` (short, current, one deployed commit), short tracker rows (detail goes in the issue or an ADR), runbooks, the "if Claude is unavailable" page, alert wording in plain language. | `engineering:documentation` | A list of files changed and what was checked against the code. |
 
-## 3. Rules for the manager when staffing
+## 3. Rules for the manager when staffing (hats, not staff: working agreement section 2a)
+- Default staffing for a change is ONE builder plus ONE independent reviewer. Do not start the architect, security reviewer, data analyst or technical writer unless the task is of that kind (section 2a point 2).
+- Search the repo, the tracker and the open issues for existing work before briefing anyone.
+- Do small work (tracker, issues, ADR text, short docs) directly; no agent.
+- Match review depth to the tier: Low = light check; Medium = full review; High = full review plus rehearsal and the security checklist. A re-review after fixes covers only the new commits, and the brief says so.
+- Ask every agent to leave progress notes on its branch as it goes, so a limit-killed agent can be resumed or replaced cheaply.
 - At most 3 branches in flight (working agreement section 3). Brief one agent per branch, with disjoint files.
 - Every code branch gets a reviewer who is not its author, and the author gets the findings back to fix; the reviewer then re-checks.
 - The manager checks evidence (commits exist, CI result, counts) before telling the owner anything is done.
