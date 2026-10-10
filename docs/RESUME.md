@@ -1,5 +1,7 @@
 # Resume note for a cold start (rewritten 09-10-2026 as a full handover for a fresh Claude session)
 
+**Team and way of working (read second): [docs/WORKING_AGREEMENT.md](WORKING_AGREEMENT.md) (the team, the flow, change tiers and who approves, limits on every agent) and [docs/TEAM_BRIEFS.md](TEAM_BRIEFS.md) (how to brief each role). Agreed by the owner on 09-10-2026: small frequent releases, independent review of every change, evidence not summaries, at most 3 branches in flight.**
+
 Read this file first, then docs/TRACKER.md (the live task list; the map of GitHub issues is at its top), then docs/RUNBOOKS/ (deploy-to-vm.md, run-tests.md, daily-checks.md). Work in the folder `vatpac-statsV2` (v3), and inside it only in a git worktree under `.worktrees/` (section 4). The folder `VATPAC-Stats V2` (capital S, space) is the owner's ORIGINAL v1 system: read-only reference, never edit or delete it.
 Goal (owner, verbatim): "I want to be able to reproduce these graphs and have them live and available 24/7. I want the system to be dockerised."
 
