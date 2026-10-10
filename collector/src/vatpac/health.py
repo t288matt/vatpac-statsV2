@@ -1,6 +1,7 @@
 """Collector health state and the /health and /metrics HTTP endpoints (aiohttp).
 
-/health is 200 only when the last "ok" poll is under 60 s old AND the newest stored snapshot is under 120 s old.
+/health is 200 only when the last "ok" poll is under max(60, 2 x POLL_INTERVAL_SECONDS) s old AND the newest stored
+snapshot is under max(120, 4 x POLL_INTERVAL_SECONDS) s old (60 s and 120 s at the default 30 s; ADR-024).
 "skipped_unchanged" never counts as a successful poll (it does not move last_ok_wall), so a frozen upstream feed
 turns /health 503 although HTTP polls succeed. The body also has reload_rejected and last_reload_error (SIGHUP).
 """
@@ -17,8 +18,7 @@ from aiohttp import web
 
 from . import __version__
 
-HEALTH_MAX_AGE_S = 60.0
-SNAPSHOT_MAX_AGE_S = 120.0
+HEALTH_MAX_AGE_S, SNAPSHOT_MAX_AGE_S = 60.0, 120.0  # floors, reached at the default 30 s poll interval
 
 
 @dataclass(slots=True)
@@ -43,6 +43,7 @@ class Stats:
     reload_rejected: int = 0
     last_reload_error: str | None = None
     reference: dict[str, str] = field(default_factory=dict)
+    poll_interval_s: float = 30.0  # the ages below scale with it (ADR-024)
     archive_info: Callable[[], dict[str, Any]] | None = None  # set by archive.Archive
 
     def last_ok_age(self, now: float | None = None) -> float | None:
@@ -50,7 +51,8 @@ class Stats:
 
     def healthy(self, now: float | None = None) -> bool:
         age, snap_age = self.last_ok_age(now), self.snapshot_age(now)
-        return age is not None and age < HEALTH_MAX_AGE_S and snap_age is not None and snap_age < SNAPSHOT_MAX_AGE_S
+        return (age is not None and age < max(HEALTH_MAX_AGE_S, 2 * self.poll_interval_s) and snap_age is not None
+                and snap_age < max(SNAPSHOT_MAX_AGE_S, 4 * self.poll_interval_s))
 
     def snapshot_age(self, now: float | None = None) -> float | None:
         if self.last_snapshot_ts is None:

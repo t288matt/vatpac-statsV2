@@ -61,15 +61,24 @@ else
 fi
 
 # 5. grafana_ro cannot write (the role is read-only by default, but a session can switch that off, so
-#    switch it off here and prove the privileges themselves deny the write)
+#    switch it off here and prove the privileges themselves deny the write). The attempts can NEVER change data (issue 86):
+#    each runs inside BEGIN READ WRITE ... ROLLBACK, and the statements match no rows (WHERE false / SELECT ... WHERE false).
+#    PostgreSQL checks the privilege before it looks at any row, so a missing privilege still gives "permission denied",
+#    while a wrongly granted one succeeds on zero rows and the check fails without touching anything.
 RO_PW="$(sed -n 's/^GRAFANA_RO_PASSWORD=//p' .env 2>/dev/null | head -n1)"
+# ro-check-begin
 ro_try() {
-  dc exec -T -e PGPASSWORD="$RO_PW" db sh -c 'psql -X -tA -h 127.0.0.1 -U grafana_ro -d "$POSTGRES_DB" -c "SET default_transaction_read_only = off" -c "$1" 2>&1' sh "$1"
+  dc exec -T -e PGPASSWORD="$RO_PW" db sh -c 'psql -X -tA -h 127.0.0.1 -U grafana_ro -d "$POSTGRES_DB" -c "BEGIN READ WRITE" -c "$1" -c "ROLLBACK" 2>&1' sh "$1"
 }
-denied=0
-for stmt in "CREATE TABLE smoke_should_fail (i int)" "INSERT INTO poll_log (status) VALUES ('ok')" "DELETE FROM poll_log"; do
-  if ro_try "$stmt" | grep -qi 'permission denied'; then denied=$((denied + 1)); fi
-done
+ro_denied_count() {
+  denied=0
+  for stmt in "CREATE TABLE smoke_should_fail (i int)" "INSERT INTO poll_log (status) SELECT 'ok' WHERE false" "DELETE FROM poll_log WHERE false"; do
+    if ro_try "$stmt" | grep -qi 'permission denied'; then denied=$((denied + 1)); fi
+  done
+  echo "$denied"
+}
+# ro-check-end
+denied="$(ro_denied_count)"
 if [ "$denied" -eq 3 ]; then pass "grafana_ro cannot create, insert or delete"; else fail "grafana_ro write attempts denied: $denied of 3"; fi
 
 if [ "$FAILS" -eq 0 ]; then echo "SMOKE PASS"; exit 0; fi

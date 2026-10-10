@@ -206,7 +206,7 @@ One row per processed snapshot; primary key `observed_at`. Written even when not
 | Column | Meaning |
 |---|---|
 | `observed_at` | Snapshot time. |
-| `pilots_in_region` | Pilots stored (inside the polygon). |
+| `pilots_in_region` | Pilots stored: inside the polygon and not rejected, so it equals `poll_log.pilots_kept` and the positions written for the snapshot (it is below `poll_log.pilots_inside` when a record was skipped). |
 | `controllers_in_region` | Controllers stored (on the whitelist). |
 | `pilots_global`, `controllers_global` | Totals in the whole feed. |
 
@@ -221,7 +221,7 @@ One row per poll attempt, including failures. Trimmed to 400 days by maintenance
 | `snapshot_ts` | timestamptz | yes | Feed timestamp, when one was read. |
 | `duration_ms`, `http_status` | integer | yes | Timing and HTTP status of the fetch. |
 | `pilots_seen` | integer | yes | Pilots in the whole feed. |
-| `pilots_inside` | integer | yes | Pilots inside the polygon. |
+| `pilots_inside` | integer | yes | Pilots inside the polygon, including any record that was rejected (compare `pilots_kept`). |
 | `pilots_with_plan` | integer | yes | Of those, pilots with non-empty departure and arrival (the flight gate, informational). |
 | `pilots_kept` | integer | yes | Pilots actually written; equals `pilots_inside` unless a malformed record was skipped. |
 | `controllers_seen`, `controllers_kept` | integer | yes | Controllers in the feed and on the whitelist. |
@@ -329,7 +329,7 @@ DEFINER functions run with owner rights and `search_path = public`, so the colle
 | Role | Created by | Rights |
 |---|---|---|
 | `vatpac` (owner, from `POSTGRES_USER`) | Postgres image | Owns everything; used by `migrate` and, for restores only, by the `backup` service's restore scripts (ADR-017). Not used by the collector. |
-| `collector` | `db/roles.sql` | Login. SELECT, INSERT, UPDATE, DELETE on `pilot_session`, `pilot_position`, `controller_session`, `controller_rating_event`, `controller_frequency_event`, `network_snapshot`, `poll_log`, `controller_unlisted_sighting`, `reference_data_change`, `app_setting`; USAGE on sequences; EXECUTE on `ensure_pilot_position_partitions`, `drop_old_pilot_position_partitions`, `refresh_flight_summary`, `refresh_materialized_views`. No DDL; no access to `flight_summary`, the lookups or the views. |
+| `collector` | `db/roles.sql` | Login. SELECT, INSERT, UPDATE on `pilot_session`, `pilot_position`, `controller_session`, `controller_rating_event`, `controller_frequency_event`, `network_snapshot`, `poll_log`, `controller_unlisted_sighting`, `reference_data_change`, `app_setting`, plus DELETE on `poll_log` only (the retention trim); USAGE on sequences; EXECUTE on `ensure_pilot_position_partitions`, `drop_old_pilot_position_partitions`, `refresh_flight_summary`, `refresh_materialized_views`. No DDL; no access to `flight_summary`, the lookups or the views. |
 | `grafana_ro` | `db/roles.sql` | Login; connection limit 10; `default_transaction_read_only = on`, `statement_timeout = 30s`, `work_mem = 16MB`, `TimeZone = UTC` (T27). SELECT on every view and the six lookup tables; nothing else; cannot create. Re-granted on every deploy so new views are picked up. |
 | `backup_ro` | `db/roles.sql` | Login; member of `pg_read_all_data`; read-only by default. Used by the nightly `pg_dump`. |
 | `watchdog_ro` | `ops/migrate/migrate.sh` | Login; read-only by default; `statement_timeout = 10s`; member of `pg_monitor`; SELECT on `poll_log`, `network_snapshot`, `controller_unlisted_sighting`, `pilot_session` and `controller_session` (the last two for the identity-flap alert), and, from the integrity-checks deploy (T16, not yet applied on the VM), `pilot_position`, `flight_summary` and `reference_data_change` (for the scheduled invariant sweep and archive cross-check). |

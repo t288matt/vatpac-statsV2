@@ -172,6 +172,8 @@ def compare_sample(cur: Any, mine: dict[str, Any]) -> list[str]:
     if row is None:
         return [f"{label}: no network_snapshot row stored"]
     out = []
+    # pilots_in_region is the pilots stored: a pilot the collector rejected is missing from it, so it differs from the
+    # independent in-polygon count (and from the key-set comparison below) exactly when a record was skipped
     for (what, independent_n), stored in zip((("pilots_global", mine["pilots_global"]), ("pilots_in_region", mine["pilots_inside"]),
                                               ("controllers_global", mine["controllers_global"]),
                                               ("controllers_in_region", mine["controllers_kept"])), row, strict=True):
@@ -287,8 +289,16 @@ def run_due(plan: Plan, state: dict[str, Any], now: float | None = None) -> tupl
     for key, on in ((INVARIANTS_KEY, plan.invariants_interval_s > 0), (CROSSCHECK_KEY, plan.crosscheck_interval_s > 0)):
         e = sched.get(key, {})
         if on and e.get("level"):
-            results[key] = (e["level"], f"{e['detail']} (checked {e.get('last_run_utc', '?')})")
+            results[key] = (e["level"], f"{e['detail']} (checked {_checked_text(e)})")
     return results, notices
+
+
+def _checked_text(entry: dict[str, Any]) -> str:
+    """When the check last ran, as DD-MM-YYYY HH:MM UTC for people (the status file keeps last_run_utc in ISO form)."""
+    try:
+        return datetime.fromtimestamp(float(entry["last_run"]), UTC).strftime("%d-%m-%Y %H:%M UTC")
+    except (KeyError, TypeError, ValueError, OverflowError, OSError):
+        return "at an unknown time"
 
 
 def find_pack(path: Path) -> Path:

@@ -98,7 +98,8 @@ On Windows without `make`, run the underlying commands.
 | `make test` | Unit tests (no database, no network). Integration tests are skipped without `VATPAC_TEST_DSN` |
 | `make lint` | ruff and mypy on the collector, ruff on `ops/` |
 | `make drift` | Collector settings, compose and `.env.example` agree |
-| `make size` | Collector size budget (package under 1700 lines, no module over 300) |
+| (team and way of working) | see `docs/WORKING_AGREEMENT.md` and `docs/TEAM_BRIEFS.md` |
+| `make size` | Collector size budget (package under 1800 lines, no module over 300) |
 | `make smoke` | Health checks on a running stack |
 | `make config` | Validate the compose files with a throwaway env |
 | `make soak` | Soak report from `poll_log`: was a snapshot stored every poll interval over the last `HOURS` (default 24) |

@@ -6,7 +6,7 @@ Rules under test (owner's Metabase export, 08-10-2026):
   active      = distinct CIDs with a session that started in the last 30 days
   lapsed 30   = latest session 30 to 60 days ago;  lapsed 60 = 60 to 90 days ago;  lapsed 90+ = over 90 days
   reactivated = a session in the last 30 days, none 30 to 90 days ago, and at least one session before 90 days ago
-                (v1 did not require the earlier session, so a brand-new controller counted; corrected, issue 93, ADR-027)
+                (v1 did not require the earlier session, so a brand-new controller counted; corrected, issue 93, ADR-028)
   help        = reactivated and every session in the last 30 days under 18 minutes
   retention   = active (30 days, sessions over 60 min) / (that + lapsed 30 to 90 days with none in the last 30)
 """
