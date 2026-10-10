@@ -201,3 +201,19 @@ def test_compose_passes_only_a_flag_never_the_remote_command() -> None:
     wd_block = text[text.index("  watchdog:"):]
     assert "BACKUP_REMOTE_ENABLED: ${BACKUP_REMOTE:+1}" in wd_block
     assert "BACKUP_REMOTE: " not in wd_block
+
+
+def test_a_warn_line_from_the_weekly_restore_test_is_a_warning_not_critical(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import time as _t
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path))
+    cfg = wd.Config()
+    stamp = _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime(_t.time() - 3600))
+    (tmp_path / ".last_restore_test").write_text(f"{stamp} WARN /backups/x.dump STALE poll_log=3 pilot_session=2: old\n")
+    level, detail = wd.check_restore_test(cfg, _t.time())
+    assert level == wd.WARN and "stale" in detail
+    from importlib import import_module  # the plain wording for it
+    sys.path.insert(0, str(REPO / "ops" / "watchdog"))
+    messages = import_module("messages")
+    assert "worked, but the newest data in the backup was old" in messages.humanise("restore_test", "warn", detail)
+    (tmp_path / ".last_restore_test").write_text(f"{stamp} FAIL x\n")
+    assert wd.check_restore_test(cfg, _t.time())[0] == wd.CRIT                    # a real failure is still critical

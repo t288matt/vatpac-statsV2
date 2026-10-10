@@ -84,7 +84,13 @@ psql -X -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${STAGING}\""
 # Roles are not in the dump; ownership and ACLs are dropped (the migrate job re-applies grants).
 pg_restore --no-owner --no-acl --exit-on-error -d "$STAGING" "$FILE"
 
-if ! counts="$(sanity_check "$STAGING" "$FILE")"; then
+rc=0
+counts="$(sanity_check "$STAGING" "$FILE")" || rc=$?
+if [ "$rc" -eq 2 ]; then
+  echo "restore: ${counts}" >&2
+  echo "restore: this dump is complete but its newest poll data is old. If that is expected (a known outage), accept it by running again with RESTORE_MAX_POLL_AGE_HOURS=0 (no age check) or a larger number of hours. '${TARGET}' was not touched" >&2
+  exit 1
+elif [ "$rc" -ne 0 ]; then
   echo "restore: sanity checks failed on the restored copy; '${TARGET}' was not touched" >&2
   exit 1
 fi

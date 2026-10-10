@@ -186,6 +186,10 @@ def _restore_test(level: str, detail: str) -> str:
     if "FAILED" in detail:
         return ("The weekly test that proves a backup can really be restored has failed, so a recent backup may be unusable. "
                 "Run make backup-test from ~/vatpac-statsV2 on the VM and read the result (see docs/RUNBOOKS/restore.md on the VM).")
+    if "stale" in detail:
+        return ("The weekly restore test worked, but the newest data in the backup was old (a long outage or a quiet period before the dump). "
+                "Backups are probably fine; check the collector was running, then run make backup-test from ~/vatpac-statsV2 on the VM "
+                "(see docs/RUNBOOKS/restore.md on the VM).")
     if "unreadable" in detail:
         return "The result of the weekly backup restore test cannot be read. Run make backup-test from ~/vatpac-statsV2 on the VM to check (see docs/RUNBOOKS/restore.md on the VM)."
     return ("The weekly test that proves a backup can really be restored is overdue. Backups are probably fine, "

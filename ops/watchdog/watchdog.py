@@ -299,7 +299,7 @@ def check_telegram_outbox(cfg: Config, state: dict[str, Any], now: float | None 
 
 
 def parse_restore_result(text: str) -> tuple[datetime | None, str]:
-    """Parse the .last_restore_test line: '<UTC timestamp> OK|FAIL ...'. Returns (time, OK|FAIL|?)."""
+    """Parse the .last_restore_test line: '<UTC timestamp> OK|FAIL|WARN ...'. Returns (time, OK|FAIL|WARN|?)."""
     tokens = text.strip().split()
     if len(tokens) < 2:
         return None, "?"
@@ -307,7 +307,7 @@ def parse_restore_result(text: str) -> tuple[datetime | None, str]:
         when: datetime | None = datetime.strptime(tokens[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     except ValueError:
         when = None
-    return when, tokens[1] if tokens[1] in ("OK", "FAIL") else "?"
+    return when, tokens[1] if tokens[1] in ("OK", "FAIL", "WARN") else "?"
 
 
 def check_restore_test(cfg: Config, first_run: float) -> Result:
@@ -329,6 +329,8 @@ def check_restore_test(cfg: Config, first_run: float) -> Result:
     age_d = (time.time() - ts) / 86400
     if verdict == "FAIL":
         return CRIT, f"last restore test FAILED {age_d:.1f} days ago"
+    if verdict == "WARN":
+        return WARN, f"last restore test restored fine but the data in the dump was stale ({age_d:.1f} days ago)"
     if verdict != "OK":
         return WARN, "last restore test result unreadable"
     if age_d > cfg.restore_test_max_days:
