@@ -47,7 +47,7 @@ Tests only; nothing to deploy. Two real raw-feed snapshots are kept as fixtures,
 - Batch 1: [docs/IF_CLAUDE_IS_UNAVAILABLE.md](docs/IF_CLAUDE_IS_UNAVAILABLE.md), the documentation index [docs/README.md](docs/README.md), this changelog, and fixes to ten stale statements (issue #110).
 - Owner card for the off-VM backup copy on the Proxmox host ([docs/OWNER_BACKUP_COPY.md](docs/OWNER_BACKUP_COPY.md), 10-10-2026 16:45 UTC; ADR-026 item 7; not yet run).
 - Deploy plan pins the commit to ship (520dc3e) and the owner decision that a hung collector with no code change may be restarted plainly (issue #110).
-- Batch 2 (RESUME.md rewritten short, tracker rows T66 to T70, working agreement additions, this section): branch `docs-batch-2`.
+- Batch 2 (RESUME.md rewritten short, tracker rows T66 to T71, working agreement additions, this section): branch `docs-batch-2`.
 
 ### Also on main, no effect on the running system
 - Collector size budget raised from 1700 to 1800 lines (ADR-027, 10-10-2026).
