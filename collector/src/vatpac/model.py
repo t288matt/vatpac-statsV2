@@ -83,7 +83,7 @@ def parse_frequency_hz(text: str | None) -> int | None:
     """'121.700' -> 121700000. '199.998' (no frequency), None and junk -> None."""
     try:  # str(None) is not a number either, so None falls through to the except
         hz = int(Decimal(str(text).strip()) * 1_000_000)
-    except (InvalidOperation, ValueError):
+    except (InvalidOperation, ValueError, OverflowError):  # OverflowError: int(Decimal('Infinity')) (issue 114)
         return None
     return None if hz <= 0 or hz == NO_FREQUENCY_HZ else hz
 
@@ -201,10 +201,23 @@ def _controller(raw: dict[str, Any]) -> Controller:
     )
 
 
+INDEXED_TEXT = ("callsign", "departure", "arrival")  # btree-indexed text columns (issue 111)
+MAX_INDEXED_BYTES = 500  # UTF-8 bytes; a btree row holds at most 2704, and 2000 CJK characters are 6000 bytes
+
+
 def cap_text(rec: _R, limit: int) -> _R:
-    """Cut every text field of a parsed record to `limit` characters; each cut counts as one rejected value."""
-    cut: dict[str, Any] = {
-        f.name: v[:limit] for f in fields(rec) if isinstance(v := getattr(rec, f.name), str) and len(v) > limit}
+    """Cut every text field of a parsed record to `limit` characters, and indexed ones to MAX_INDEXED_BYTES UTF-8
+    bytes; each cut field counts as one rejected value."""
+    cut: dict[str, Any] = {}
+    for f in fields(rec):
+        v = getattr(rec, f.name)
+        if not isinstance(v, str):
+            continue
+        new = v[:limit]
+        if f.name in INDEXED_TEXT and len(new.encode("utf-8", "surrogatepass")) > MAX_INDEXED_BYTES:
+            new = new.encode("utf-8", "surrogatepass")[:MAX_INDEXED_BYTES].decode("utf-8", "ignore")
+        if new != v:
+            cut[f.name] = new
     return replace(rec, rejected=rec.rejected + len(cut), **cut) if cut else rec
 
 

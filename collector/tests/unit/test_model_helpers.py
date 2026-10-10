@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from vatpac.model import clamp_pilot, home_icao, parse_frequency_hz
+from vatpac.model import MAX_INDEXED_BYTES, _pilot, cap_text, clamp_pilot, home_icao, parse_frequency_hz
 
 
 # ------------------------------------------------------------------ parse_frequency_hz
@@ -44,9 +44,39 @@ def test_frequency_199_998_means_none() -> None:
     assert parse_frequency_hz("199.998") is None
 
 
-@pytest.mark.parametrize("bad", [None, "", "   ", "abc", "12x.5", "121,700", "nan", "--1"])
-def test_frequency_invalid_is_none(bad: str | None) -> None:
+@pytest.mark.parametrize("bad", [None, "", "   ", "abc", "12x.5", "121,700", "nan", "--1",
+                                 "inf", "Infinity", "-Infinity", "-inf", float("inf")])
+def test_frequency_invalid_is_none(bad: str | float | None) -> None:
     assert parse_frequency_hz(bad) is None
+
+
+# ------------------------------------------------------------------ cap_text (byte cap on indexed text, issue 111)
+def _pilot_with(**over: object) -> object:
+    raw = {"cid": 1, "name": "N", "callsign": "QFA1", "latitude": 1.0, "longitude": 2.0, "altitude": 0,
+           "groundspeed": 0, "logon_time": "2026-10-10T14:00:00Z",
+           "flight_plan": {"departure": "YSSY", "arrival": "YMML"}}
+    raw.update(over)
+    return _pilot(raw)
+
+
+def test_indexed_text_is_capped_by_utf8_bytes_and_counted_once() -> None:
+    p = _pilot_with(callsign="漢" * 2000)
+    out = cap_text(p, 2000)
+    assert 0 < len(out.callsign.encode()) <= MAX_INDEXED_BYTES
+    assert set(out.callsign) == {"漢"}  # cut on a character boundary, no replacement characters
+    assert out.rejected == p.rejected + 1
+
+
+def test_indexed_text_within_the_byte_cap_is_unchanged() -> None:
+    p = _pilot_with(callsign="QFA1", name="漢" * 1000)  # non-indexed text keeps the character cap only
+    assert cap_text(p, 2000) is p
+
+
+def test_departure_and_arrival_are_byte_capped_too() -> None:
+    p = _pilot_with(flight_plan={"departure": "漢" * 900, "arrival": "é" * 900})
+    out = cap_text(p, 2000)
+    assert len(out.departure.encode()) <= MAX_INDEXED_BYTES and len(out.arrival.encode()) <= MAX_INDEXED_BYTES
+    assert out.rejected == p.rejected + 2
 
 
 # ------------------------------------------------------------------ home_icao
