@@ -1,6 +1,6 @@
 # Runbook: the raw-feed archive
 
-Last reviewed: 08-10-2026, against `collector/src/vatpac/archive.py`. Times are UTC. Added for GitHub issue 20 (T16) after the T30 audit: the 04:08 event behind issue 15 could not be replayed because no feed payload had been kept.
+Last reviewed 10-10-2026 against commit c89e544. Checked against `collector/src/vatpac/archive.py`. Times are UTC. Added for GitHub issue 20 (T16) after the T30 audit: the 04:08 event behind issue 15 could not be replayed because no feed payload had been kept.
 
 ## What is kept
 

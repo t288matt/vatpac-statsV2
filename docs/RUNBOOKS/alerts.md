@@ -1,6 +1,8 @@
 # Runbook: alerts (what each Telegram message means)
 
-Last reviewed: 09-10-2026 (data_integrity and feed_crosscheck added; plain-language Telegram wording, issue 79), against `ops/watchdog/watchdog.py` and `ops/watchdog/integrity.py`. Times are UTC.
+Last reviewed 10-10-2026 against commit c89e544. Written for `main`; the plain-language wording and the `telegram_outbox`, `backup_remote` and stricter `restore_test` checks are NOT deployed yet.
+
+> **Applies after deploy 1** (fix-ops and the Telegram wording, exact commit 520dc3e). **Deployed today (commit 3eb81a3):** Telegram messages read `vatpac-stats: WARN <check>: <detail>`, `vatpac-stats: CRIT <check>: <detail>` and `vatpac-stats: RECOVERED <check> ...`, with no label, no plain sentence and no `Technical:` line; a message that fails to send is not retried; there is no `telegram_outbox` or `backup_remote` check. Every check below that already existed means the same thing in both forms.
 
 ## How alerts work
 
