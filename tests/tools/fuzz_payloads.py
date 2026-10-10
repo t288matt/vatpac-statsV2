@@ -44,7 +44,7 @@ JUNK_ENTRIES: list[tuple[str, Any]] = [
 
 
 def replace_entry(payload: dict[str, Any], section: str, index: int, entry: Any) -> dict[str, Any]:
-    out = copy.deepcopy(payload)
+    out = {**payload, section: list(payload[section])}  # shallow: the other entries are shared, never changed
     out[section][index] = copy.deepcopy(entry)
     return out
 
