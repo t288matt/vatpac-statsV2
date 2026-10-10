@@ -2,6 +2,8 @@
 
 Backups: the `backup` service writes `vatpac_<UTC stamp>.dump` (pg_dump custom format) to the `backups` named volume at `BACKUP_TIME_UTC` (default 02:00) and keeps `BACKUP_RETENTION_DAYS` (default 14) days. The dump runs as the read-only role `backup_ro` (member of `pg_read_all_data`; password `BACKUP_DB_PASSWORD`). The dump holds data and schema, not roles (the migrate job recreates roles).
 
+`pg_dump` runs under a time limit, `BACKUP_DUMP_TIMEOUT_S` (default 1800 s; validation by `pg_restore -l` has `BACKUP_VALIDATE_TIMEOUT_S`, default 300 s). A dump that takes longer is killed, logged as `FAILED pg_dump (timed out after ...)` and counts as a failed backup, so raise `BACKUP_DUMP_TIMEOUT_S` in `.env` (and pass it to the backup service) when the database has grown enough for the dump to need longer; the watchdog `backup_age` alert at 26 h is how this shows up.
+
 Monitoring:
 - The `backup` container has a healthcheck: healthy while a dump younger than about 25 h exists, or the backup loop started less than 24 h ago.
 - The watchdog alerts if the newest dump is older than `WATCHDOG_BACKUP_MAX_HOURS` (26 h), if the last weekly restore test is `FAIL` (critical), and if the last successful restore test is older than `WATCHDOG_RESTORE_TEST_MAX_DAYS` (9 days, warning).
