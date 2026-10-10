@@ -132,4 +132,5 @@ def test_the_deadline_is_passed_to_apply_snapshot(fixture_payload: dict, monkeyp
     col, _ = _collector(fixture_payload)
     t0 = time.monotonic()
     assert asyncio.run(col.poll_once()).status == "ok"
-    assert seen[0] is not None and 0 < seen[0] - t0 <= main.APPLY_DEADLINE_S + 1 and main.APPLY_DEADLINE_S < main.APPLY_TIMEOUT_S
+    assert seen[0] is not None and 0 < seen[0] - t0 <= main.APPLY_DEADLINE_S + 1
+    assert main.APPLY_DEADLINE_S < main.APPLY_TIMEOUT_S
