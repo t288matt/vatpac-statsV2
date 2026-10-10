@@ -1,4 +1,4 @@
-﻿# Deploy plan: the code-review fixes (issue #80)
+# Deploy plan: the code-review fixes (issue #80)
 
 Agreed with the owner 10-10-2026: deploy the fixes one branch at a time, each followed by about 24 hours of watching, so any problem can be traced to a single change. This plan is not a go: each deploy needs the owner's explicit yes (working agreement section 5, until the scripted deploy of issue #104 exists). Merged to main and CI-green: fix-ops (d0ceaaa, review record docs/reviews/10-10-2026-fix-ops.md) and fix-collector (acc55db, docs/reviews/10-10-2026-fix-collector.md). fix-sql is still being built and reviewed; it gets its own deploy later.
 
@@ -20,7 +20,7 @@ Rollback: restore the previous tree and rebuild the collector (no migration to u
 Watch for 24 hours: `poll_log` error rate no higher than before; no "previous snapshot apply is still running" lines; no `bad flight plans` or `feed ... is not a list` errors unless the feed really changed; the next integrity sweep (every 3 days) clean.
 
 ## Afterwards
-1. The v1 against v3 re-comparison (owner's go needed) on a 24-hour window after deploy 2, as an independent regression check on the numbers.
+1. The v1 against v3 re-comparison (owner's go needed), DELAYED by the owner on 10-10-2026 until 12 hours after ALL the fixes are deployed (deploys 1 and 2 and the fix-sql deploy), run on the data after the last deploy, as an independent regression check on the numbers. v1 on VM 111 stays up until it is done.
 2. fix-sql: review, merge, then its own deploy (dashboard changes load within 30 seconds, and any migration runs through the migrate job).
 3. The technical writer batch (issue #107) after all three branches are merged.
 4. Delete the rollback copies about a week after each clean deploy.
