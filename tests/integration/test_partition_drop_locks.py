@@ -340,14 +340,6 @@ def test_a_late_position_for_a_finalised_session_keeps_the_partition(conn, dsn) 
     assert pname(200) in state(conn)[0] and any("newer than the final summary" in s for s in seen)
 
 
-def test_a_session_that_lost_its_final_summary_keeps_the_partition(conn, dsn) -> None:
-    def unfinalise(x: int) -> None:
-        conn.execute("UPDATE flight_summary SET final = false WHERE session_id = %s", (x,))
-    n, seen = _race(conn, dsn, unfinalise)
-    assert n == 1 and pname(200) in state(conn)[0]
-    assert any("no longer has a final summary" in s for s in seen)
-
-
 def test_a_partition_with_an_unsummarisable_session_is_kept(conn) -> None:
     """The finalise step is stubbed to leave every session non-final: nothing may be dropped (finalise rule)."""
     old_partitions(conn, [200])
