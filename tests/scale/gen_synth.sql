@@ -1,6 +1,12 @@
 -- synthetic flight history. psql vars: nflights, days. Throwaway DB only.
 \set ON_ERROR_STOP on
 SELECT setseed(0.42);
+-- refuse to run anywhere but a throwaway database: this script TRUNCATEs the real tables
+SELECT current_database() !~ '_test$' AS refuse \gset
+\if :refuse
+    \echo 'REFUSING: database name must end in _test'
+    DO $$ BEGIN RAISE EXCEPTION 'gen_synth.sql only runs on a database whose name ends in _test'; END $$;
+\endif
 TRUNCATE pilot_position, pilot_session, network_snapshot RESTART IDENTITY CASCADE;
 CREATE TEMP TABLE airports(i serial, icao text, w int);
 INSERT INTO airports(icao,w) VALUES ('YSSY',30),('YMML',28),('YBBN',14),('YPPH',10),('YPAD',6),('YBCG',4),('YSCB',4),('YMHB',2),('YBCS',3),('YPDN',2),('NZAA',3),('NZWN',2),('WSSS',2),('VHHH',2),('KLAX',3),('EGLL',3),('YSRI',2),('YMAV',2),('YMEN',2),('YSBK',2);

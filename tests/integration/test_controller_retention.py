@@ -121,14 +121,17 @@ def test_a_returning_controller_is_reactivated(conn):
         assert cids(conn, title) == {9000020}
 
 
-def test_a_session_exactly_at_the_edges_of_the_windows(conn):
-    """Earlier activity must be before 90 days ago: 89 days ago is the gap window (so not reactivated), 91 days ago is real."""
+def test_a_session_just_either_side_of_the_90_day_edge(conn):
+    """Earlier activity must be before 90 days ago: 89 days ago is the gap window (so not reactivated); 90 days ago (made
+    a moment before the query, so just beyond the window) and 91 days ago are real earlier activity."""
     add_session(conn, 9000030, 89, 30)     # inside 30 to 90: not reactivated
     add_session(conn, 9000030, 5, 30)
-    add_session(conn, 9000031, 91, 30)     # just before 90 days: real earlier activity
+    add_session(conn, 9000031, 91, 30)     # before 90 days: real earlier activity
     add_session(conn, 9000031, 5, 30)
-    assert cids(conn, REACTIVATED_LISTS[0]) == {9000031}
-    assert scalar(conn, REACTIVATED) == 1
+    add_session(conn, 9000032, 90, 30)     # exactly 90 days (a moment older by the time the panel runs)
+    add_session(conn, 9000032, 5, 30)
+    assert cids(conn, REACTIVATED_LISTS[0]) == {9000031, 9000032}
+    assert scalar(conn, REACTIVATED) == 2
 
 
 def add_session_on(conn, cid: int, day: str, minutes: int = 30) -> None:
