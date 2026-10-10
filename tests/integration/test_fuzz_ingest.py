@@ -66,6 +66,7 @@ def _shift(payload: dict[str, Any], n: int) -> dict[str, Any]:
 
 def _ingest(conn, ref, payload: dict[str, Any]):
     snap = parse_snapshot(payload)
+    rp.ensure_partitions(conn, [snap.observed_at])  # the whole-grid test runs past midnight (30 s per case)
     res = apply_snapshot(conn, snap, ref.polygon, ref.whitelist, polygon_sha=ref.polygon_sha,
                          whitelist_sha=ref.whitelist_sha, prefixes=ref.prefixes)
     write_poll_log(conn, "ok", snapshot_ts=snap.observed_at, result=res, polygon_sha=ref.polygon_sha,
