@@ -68,10 +68,33 @@ class Expected:
     pilot_keys: frozenset[tuple[int, str, str]]  # (cid, callsign, logon second) of pilots inside the region
     pilots_with_plan: int
     controller_keys: frozenset[tuple[int, str, str]]  # whitelisted controllers
+    # stored values, worked out from the raw dicts: key -> (lat, lon, alt_ft, gs_kt, hdg); the last duplicate wins
+    pilot_values: dict[tuple[int, str, str], tuple[Any, ...]]
+    # key -> (rating, facility, frequency_hz) of whitelisted controllers
+    controller_values: dict[tuple[int, str, str], tuple[Any, ...]]
 
 
 def _key(e: dict[str, Any]) -> tuple[int, str, str]:
     return int(e["cid"]), str(e["callsign"]).strip(), str(e["logon_time"])[:19]  # whole seconds, as stored
+
+
+def _num(v: Any, lo: int, hi: int) -> int | None:
+    """What the plausibility rules store for a raw number: whole value inside lo..hi, else NULL. Only real JSON numbers
+    are handled (a clean payload has no others); a bool or string is outside what this oracle models."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or v in (float("inf"), float("-inf")):
+        return None
+    n = int(v)
+    return n if lo <= n <= hi else None
+
+
+def _hz(text: Any) -> int | None:
+    from decimal import Decimal
+
+    try:
+        hz = int(Decimal(str(text).strip()) * 1_000_000)
+    except (ArithmeticError, ValueError):
+        return None
+    return None if hz <= 0 or hz == 199_998_000 else hz
 
 
 def expected(payload: dict[str, Any], polygon: Any, whitelist: frozenset[str]) -> Expected:
@@ -79,6 +102,7 @@ def expected(payload: dict[str, Any], polygon: Any, whitelist: frozenset[str]) -
 
     pilots, ctrls = payload.get("pilots") or [], payload.get("controllers") or []
     keys: set[tuple[int, str, str]] = set()
+    values: dict[tuple[int, str, str], tuple[Any, ...]] = {}
     plan = 0
     for p in pilots:
         if not (isinstance(p, dict) and str(p.get("callsign") or "").strip()):
@@ -92,8 +116,13 @@ def expected(payload: dict[str, Any], polygon: Any, whitelist: frozenset[str]) -
             plan += isinstance(fp, dict) and bool(str(fp.get("departure") or "").strip()) \
                 and bool(str(fp.get("arrival") or "").strip())
         keys.add(k)
-    ckeys = {_key(c) for c in ctrls if isinstance(c, dict) and str(c.get("callsign") or "").strip() in whitelist}
-    return Expected(len(pilots), len(ctrls), frozenset(keys), plan, frozenset(ckeys))
+        values[k] = (None if lat is None else float(lat), None if lon is None else float(lon),
+                     _num(p.get("altitude"), -1500, 65000), _num(p.get("groundspeed"), 0, 700),
+                     _num(p.get("heading"), 0, 360))
+    cvalues = {_key(c): (_num(c.get("rating"), -(2**31), 2**31 - 1), _num(c.get("facility"), -(2**31), 2**31 - 1),
+                         _hz(c.get("frequency")))
+               for c in ctrls if isinstance(c, dict) and str(c.get("callsign") or "").strip() in whitelist}
+    return Expected(len(pilots), len(ctrls), frozenset(keys), plan, frozenset(cvalues), values, cvalues)
 
 
 # ------------------------------------------------------------------------------------------------ replaying
@@ -166,7 +195,19 @@ def check(conn: Any, outcomes: list[Outcome]) -> list[str]:
         if stored_utc != set(e.pilot_keys):
             bad.append(f"{o.name}: stored sessions differ from the payload: missing "
                        f"{sorted(set(e.pilot_keys) - stored_utc)[:3]}, extra {sorted(stored_utc - set(e.pilot_keys))[:3]}")
+        bad += value_problems(conn, ts, e.pilot_values, o.name)
     return bad
+
+
+def value_problems(conn: Any, ts: datetime, want: dict[tuple[int, str, str], tuple[Any, ...]], where: str) -> list[str]:
+    """Stored position columns of each expected pilot at `ts` against the values worked out from the raw payload."""
+    rows = conn.execute(
+        "SELECT s.cid, s.callsign, to_char(s.logon_time AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS') AS lt, "
+        "p.lat, p.lon, p.alt_ft, p.gs_kt, p.hdg FROM pilot_position p JOIN pilot_session s ON s.id = p.session_id "
+        "WHERE p.observed_at = %s", (ts,)).fetchall()
+    got = {(r["cid"], r["callsign"], r["lt"]): (r["lat"], r["lon"], r["alt_ft"], r["gs_kt"], r["hdg"]) for r in rows}
+    return [f"{where}: stored (lat, lon, alt, gs, hdg) of {k} is {got[k]} but the payload gives {v}"
+            for k, v in want.items() if k in got and got[k] != v]
 
 
 # ------------------------------------------------------------------------------------------------ dump and diff
