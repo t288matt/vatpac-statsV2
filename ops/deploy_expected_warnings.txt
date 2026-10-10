@@ -1,0 +1,6 @@
+# Known-expected invariant violations for `bash ops/deploy.sh --verify` (one per line):
+#   check name (exactly as the invariant pack prints it) | highest count tolerated | expiry DD-MM-YYYY HH:MM UTC | reason
+# Up to that count and before the expiry the check prints WARN instead of FAIL. A higher count, an expired entry or a
+# malformed line is a FAIL, so an entry cannot hide a real problem for ever. Delete the line when it has expired.
+snapshot gaps over 5 minutes (last 3 days)|1|12-10-2026 15:42|6 minute gap of the power cut on 09-10-2026 (tracker T51) stays inside the 3 day window
+snapshot rows without an ok poll_log row|2|13-10-2026 16:00|two timed-out polls on 10-10-2026 (issue 113) stay inside the 3 day window
