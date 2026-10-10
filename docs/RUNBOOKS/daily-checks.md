@@ -26,7 +26,7 @@ The watchdog already alerts by Telegram on the worst failures ([alerts.md](alert
    docker compose exec -T watchdog cat /var/watchdog/watchdog_status.json
    ```
    Expect `"overall": "ok"` and an `updated` time within the last couple of minutes. Any `warn` or `crit` check is named in the file; [alerts.md](alerts.md) says what each means.
-5. **Integrity checks are running (once the watchdog with them is deployed).** The same status file has `data_integrity` (every 3 days) and `feed_crosscheck` (every 14 days). Both should be `ok`, with a `(checked <time>)` inside the last 3 and 14 days respectively. A `last_run` older than that, in `state.integrity`, means the check is not running: see [integrity-checks.md](integrity-checks.md). To look now instead of waiting, run the sweep by hand (one second, read-only) with the command in that runbook.
+5. **Integrity checks are running (deployed 09-10-2026 at 19:13 UTC).** The same status file has `data_integrity` (every 3 days) and `feed_crosscheck` (every 14 days). Both should be `ok`, with a `(checked <time>)` inside the last 3 and 14 days respectively. A `last_run` older than that, in `state.integrity`, means the check is not running: see [integrity-checks.md](integrity-checks.md). To look now instead of waiting, run the sweep by hand (one second, read-only) with the command in that runbook.
 
 ## Weekly (about ten minutes)
 
