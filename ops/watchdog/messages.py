@@ -177,6 +177,10 @@ def _backup_remote(level: str, detail: str) -> str:
 
 
 def _telegram_outbox(level: str, detail: str) -> str:
+    if "refuses" in detail:
+        return ("Telegram is refusing the alert messages, which usually means a wrong chat id or a wrong, revoked or blocked bot. "
+                "Nothing is lost yet: they are kept and retried. Check TELEGRAM_CHAT_ID and TELEGRAM_BOT_TOKEN in .env on the VM "
+                "(see docs/RUNBOOKS/alerts.md on the VM, telegram_outbox).")
     return ("Alert messages are not reaching Telegram: the oldest has been waiting for a while and the watchdog keeps retrying. "
             "Check the bot token and chat id in .env and whether Telegram is reachable from the VM (docker compose logs --tail=50 watchdog, "
             "from ~/vatpac-statsV2 on the VM); problems are still visible in the status file.")

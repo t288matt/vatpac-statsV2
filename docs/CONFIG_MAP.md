@@ -48,6 +48,8 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `VATPAC_VERSION` | `dev` | collector build arg | Version label baked into the image (the release workflow sets it from the git tag). |
 | `BACKUP_RETENTION_DAYS` | `14` | backup | Days of dumps kept. |
 | `BACKUP_TIME_UTC` | `02:00` | backup | Nightly backup time (HH:MM, UTC). |
+| `BACKUP_DUMP_TIMEOUT_S` | `1800` | backup | Seconds `pg_dump` may run before it is killed and the backup counts as failed. Raise it when the database has grown and the dump needs longer (the watchdog `backup_age` alert at 26 h shows a failure). |
+| `BACKUP_VALIDATE_TIMEOUT_S` | `300` | backup | Seconds allowed for the `pg_restore -l` check of the finished dump. |
 | `BACKUP_RESTORE_TEST_DAY` | `7` | backup | ISO weekday (1 Monday to 7 Sunday) on which the backup is restore-tested; `0` disables (then set `WATCHDOG_RESTORE_TEST_MAX_DAYS=0` too). |
 | `BACKUP_REMOTE` | empty | backup | Optional off-box copy: a shell command run after every successful nightly dump with `$BACKUP_FILE` set. See [restore runbook](RUNBOOKS/restore.md), "Off-box copies". |
 | `BACKUP_EXTRA_APT_PACKAGES` | empty | backup (build argument) | Debian packages added to the backup image for the `BACKUP_REMOTE` command (for example `rclone`); rebuild to apply. |

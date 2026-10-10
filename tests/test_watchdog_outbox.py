@@ -33,6 +33,7 @@ class Telegram:
 
     def __init__(self) -> None:
         self.status: int | Exception = 200
+        self.description = ""
         self.delivered: list[str] = []
         self.attempts = 0
 
@@ -42,6 +43,8 @@ class Telegram:
             raise self.status
         if self.status == 200:
             self.delivered.append(json.loads(request.content)["text"])
+        if self.description:
+            return httpx.Response(self.status, json={"ok": False, "description": self.description})
         return httpx.Response(self.status)
 
 
@@ -312,3 +315,86 @@ def test_a_fixed_run_of_check_results_sends_exactly_the_golden_messages(clock: C
     a.send("RESTARTED collector (1/3 this hour, ok=True): stuck")
     got = [re.sub(r"\(\d\d:\d\d UTC\)", "(HH:MM UTC)", t) for t in tg.delivered]
     assert got == json.loads((REPO / "tests" / "fixtures" / "alerter_replay_golden.json").read_text())
+
+
+def test_a_wrong_chat_id_answered_with_400_never_drops_the_crit(clock: Clock, tg: Telegram) -> None:
+    """Telegram says HTTP 400 'Bad Request: chat not found' for a wrong TELEGRAM_CHAT_ID: a configuration fault, not poison."""
+    state: dict[str, Any] = {}
+    a = make(tg, state)
+    tg.status, tg.description = 400, "Bad Request: chat not found"
+    a.send("CRIT disk: / 95% used")
+    for _ in range(8):
+        clock.now += wd.OUTBOX_BACKOFF_MAX_S + 1
+        a.flush()
+    assert len(state["outbox"]) == 1 and "rejected" not in state["outbox"][0]
+    cfg = type("C", (), {"tg_token": "123:SECRET", "tg_chat": "42"})()
+    level, detail = wd.check_telegram_outbox(cfg, state, clock.now)                          # type: ignore[arg-type]
+    assert level == wd.WARN and "Telegram refuses the messages" in detail and "TELEGRAM_CHAT_ID" in detail
+    tg.status, tg.description = 200, ""
+    clock.now += wd.OUTBOX_BACKOFF_MAX_S + 1
+    a.flush()
+    assert len(tg.delivered) == 1 and "outbox_refused" not in state
+    assert wd.check_telegram_outbox(cfg, state, clock.now)[0] == wd.OK                       # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("desc", ["Bad Request: bot was blocked by the user", "Forbidden: bot was kicked from the group chat",
+                                  "Bad Request: chat_id is empty", "Unauthorized", "Bad Request: not enough rights to send text messages"])
+def test_other_configuration_descriptions_are_never_poison(clock: Clock, tg: Telegram, desc: str) -> None:
+    state: dict[str, Any] = {}
+    a = make(tg, state)
+    tg.status, tg.description = 400, desc
+    a.send("CRIT x: d")
+    for _ in range(wd.OUTBOX_MAX_REJECTIONS + 2):
+        clock.now += wd.OUTBOX_BACKOFF_MAX_S + 1
+        a.flush()
+    assert len(state["outbox"]) == 1
+
+
+def test_a_400_about_the_text_is_poison_and_the_next_alert_goes_at_once(clock: Clock, tg: Telegram) -> None:
+    state: dict[str, Any] = {}
+    a = make(tg, state)
+    tg.status, tg.description = 400, "Bad Request: can't parse entities: Can't find end of the entity"
+    a.send("WARN bad: d")
+    for _ in range(wd.OUTBOX_MAX_REJECTIONS - 2):
+        clock.now += 2000
+        a.flush()
+    a.outbox.append({"body": "VATPAC Stats: problem (10:00 UTC). CRIT good", "at": clock.now, "tries": 0})
+    real = tg.handle
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if "CRIT good" in json.loads(request.content)["text"]:
+            tg.status, tg.description = 200, ""
+        return real(request)
+
+    a.client = httpx.Client(transport=httpx.MockTransport(handle))
+    clock.now += 2000
+    a.flush()
+    assert state["outbox"] == [] and any("CRIT good" in t for t in tg.delivered)
+    assert "outbox_refused" not in state
+
+
+def test_the_log_shows_the_description_but_never_the_token(clock: Clock, tg: Telegram, caplog: pytest.LogCaptureFixture) -> None:
+    a = make(tg, {})
+    tg.status, tg.description = 401, "Unauthorized 123:SECRET"
+    with caplog.at_level(logging.WARNING, logger="watchdog"):
+        a.send("CRIT x: d")
+    assert "Unauthorized" in caplog.text and "SECRET" not in caplog.text
+
+
+def test_the_send_cap_is_per_cycle_not_per_flush(clock: Clock, tg: Telegram) -> None:
+    state: dict[str, Any] = {}
+    a = make(tg, state)
+    tg.status = 500
+    for i in range(12):
+        a.send(f"WARN c{i}: d")
+    tg.status = 200
+    clock.now += 2000
+    a.begin_cycle()
+    a.flush()
+    a.flush()
+    a.flush()                                      # three flushes in ONE cycle share a single budget
+    assert len(tg.delivered) == wd.OUTBOX_MAX_SENDS_PER_CYCLE
+    a.end_cycle()
+    a.begin_cycle()                                # the next cycle gets a fresh budget
+    a.flush()
+    assert len(tg.delivered) == 2 * wd.OUTBOX_MAX_SENDS_PER_CYCLE
