@@ -32,6 +32,8 @@ The roles above are hats. They are not nine permanent staff and not nine agent r
 5. **Review depth follows the tier (section 5):** Low = a light independent check (a short read and the tests, no full attack); Medium = the full review; High = the full review plus a rehearsal and the security checklist. A re-review after fixes covers only the new commits.
 6. **Finish before a session limit.** Agents write progress notes to their branch as they go (a short handover file or commit message) so a killed agent can be resumed or replaced cheaply. After a restart the manager looks for orphaned branches, worktrees and throwaway containers first.
 7. **Measure it.** The weekly measures (section 8) include agent tokens per merged change, reported from the agents' own usage, so cost is seen and not guessed.
+### 2b. The technical writer keeps the documents current (owner decision 10-10-2026)
+The owner wants the documents kept up to date as changes merge. After each merge to `main` the manager passes the writer a list of the merges since the last batch. The writer then updates `docs/RESUME.md`, `docs/TRACKER.md`, `CHANGELOG.md` and the affected runbooks within one working day, working from merged code, git history and GitHub issues (not from agents' reports), and does not close issues. The writer may edit RESUME and TRACKER for this purpose; a light independent check precedes the merge of each batch. Documents must not quote test counts.
 How to brief each role (the common preamble, role scopes, skills and the proof each must return): `docs/TEAM_BRIEFS.md`.
 
 ## 3. How work flows (small and often)
@@ -39,10 +41,10 @@ How to brief each role (the common preamble, role scopes, skills and the proof e
 2. **Build:** one agent, one branch, one worktree (`.worktrees/<name>`). Characterise today's behaviour first, then change only the defect.
 3. **Check:** unit tests, the full integration suite in UTC and Australia/Sydney, ruff, mypy, the validators, size budget.
 4. **Review:** a different agent reviews the branch (section 4).
-5. **Merge:** fast-forward to `main` only after an approved review; read CI on `main`.
+5. **Merge:** fast-forward to `main` only after an approved review; read CI on `main`. **Main must stay green:** do not push to `main` until the change's database tests have passed; open a pull request so CI runs on the branch first (owner OK 10-10-2026). The repo token cannot merge pull requests, so the manager fast-forwards `main` locally once the pull request's CI is green.
 6. **Deploy:** per the tier (section 5). Verify with the smoke test, panel check, restart counts, identity check and polling gap. Roll back if any fails.
 7. **Close:** the issue is closed with the evidence; the owner closes anything they asked to close themselves.
-Work in progress limit: at most 3 branches in flight at once. Finish and merge before starting another. Releases are small and frequent; there is no weekly batch.
+Work in progress limit: at most 3 code branches in flight at once; docs-only branches do not count towards the limit (owner decision 10-10-2026). Finish and merge before starting another. Releases are small and frequent; there is no weekly batch.
 
 ## 4. Review and evidence
 - Every change gets an independent review before it reaches `main` (owner rule of 09-10-2026). Docs-only changes that state no operational fact may be merged by the manager.
@@ -65,10 +67,10 @@ Until #104 exists, every production deploy needs the owner's explicit go, whatev
 
 ## 7. Limits on every agent
 - Never print, store or commit secrets; never enter credentials; never expose Grafana publicly.
-- Never run `db/roles.sql` by hand on the live database; never run tests or throwaway databases on the production VM without memory, swap, CPU and time caps and cleanup (until #104 moves them off).
+- Never run `db/roles.sql` by hand on the live database; never run tests or throwaway databases on the production VM without memory, swap, CPU and time caps and cleanup. **One test container at a time on the live VM, and only while the load average is below 2.0** (check `uptime` first; incident 10-10-2026, issue #113: several at once pushed the load to about 24 and two snapshots timed out). Memory caps alone are not enough.
 - Never deploy, restart live services, send messages to the owner's real Telegram, close issues or delete branches, volumes or data without the approval the tier requires.
 - Never skip hooks or checks, force-push, or amend commits. Never edit applied migrations; add a new numbered one.
-- Stay inside the assigned files. Do not edit `docs/TRACKER.md` or `docs/RESUME.md` from a branch (the manager updates them).
+- Stay inside the assigned files. Do not edit `docs/TRACKER.md` or `docs/RESUME.md` from a branch (the manager updates them), except the technical writer when the manager's brief says so (section 2b).
 - Report honestly: what was done, what failed, what was not verified.
 
 ## 8. Measures (weekly, kept by the manager in the digest)
