@@ -37,7 +37,7 @@ The goal is met and the system is in routine operation (checklist at the end of 
 7. At most 3 code branches in flight; docs-only branches do not count (owner 10-10-2026).
 
 ## 4. Next actions, in order
-1. **Sunday 11-10-2026 after 02:00:** read the restore test result (`.last_restore_test`, watchdog `restore_test`) and the 02:00 backup, then ask for the go for **deploy 1** (fix-ops plus wording, high tier, exact commit 520dc3e). A second (Opus) review of deploy 1 says go with two extra checks, now in DEPLOY_PLAN_REVIEW_FIXES.md (record on branch `review-fix-ops-opus`). Run `ops/deploy.sh --preflight` and `--verify` as the read-only checks.
+1. **Sunday 11-10-2026 after 02:00:** read the restore test result (`.last_restore_test`, watchdog `restore_test`) and the 02:00 backup, then ask for the go for **deploy 1** (fix-ops plus wording, high tier, exact commit 520dc3e). A second (Opus) review of deploy 1 says go with two extra checks, now in DEPLOY_PLAN_REVIEW_FIXES.md (record on branch `review-fix-ops-opus`). `ops/deploy.sh --preflight` and `--verify` are read-only checks that run from the PC clone of main (they are not in commit 520dc3e and not on the VM); use them from there.
 2. **Monday 12-10-2026:** **deploy 2** (fix-collector, medium tier, polling gap about 45 s) after deploy 1's 24 h watch is clean and he says go.
 3. Then the **fix-sql deploy** (high tier: a function that drops tables) from the tip of main. #109 must be fixed before retention goes to 180 days.
 4. **v1 re-comparison**: DELAYED by the owner until 12 hours after ALL fixes are deployed. Read-only, predictions committed first, his go on the day. Then a final dump of v1 and stop v1 (his go).
@@ -45,11 +45,11 @@ The goal is met and the system is in routine operation (checklist at the end of 
 6. **Dated:** #27 on 14-10-2026 and 06-11-2026; #22 after 19-10-2026; #25 on 06-11-2026; delete the VM rollback copies about 16-10-2026 (`~/vatpac-statsV2.rollback-09-10-bumps`, `-mig150`, `-card65`, `-integrity`, and volume `vatpac_grafana_data_pre_bumps`; list names first); #18 needs a time from the owner. The data_integrity warning from incident #113 clears on 13-10-2026 about 15:52.
 7. Writer duty: after each deploy is verified live, switch in the prepared changes (docs/PENDING_DOC_CHANGES.md, on branch `docs-audit`) and update RESUME, TRACKER, CHANGELOG and runbooks within one working day (WORKING_AGREEMENT section 2b). Documents describe the deployed state only.
 
-## 5. Open issues (about 42 open on 10-10-2026 night; `gh issue list --repo t288matt/vatpac-statsV2 --label P1`)
+## 5. Open issues (41 open on 10-10-2026 night; `gh issue list --repo t288matt/vatpac-statsV2 --label P1`)
 Labels: P1 deploy path, fixed on main, needs a verified deploy; P2 next build, in order; P3 soon, small; P4 dated, owner-only, later or low value.
-- **P1** (stay open until deployed and verified; the owner closes): #79, #80 and findings #81 to #98 (fix-ops: #81 #83 #84 #86 #90 #91 #95 #97; fix-collector: #82 #85 #87 #88 #92; fix-sql: #89 #93 #94 #98). #111, #114 and #118 are P2 (#111, #114 also P1).
-- **P2:** #21 retention, #109 partition probing, #111, #112, #114, #118 (backup validation accepts a dump of an empty or wrong database). Closed 10-10-2026 with the owner: #103, #110, #113.
-- **P3:** #18, #96 and #99 to #102 (small fix-ops and fix-collector items), #104 (trimmed, checks merged), #107 (this writer work).
+- **P1** (stay open until deployed and verified; the owner closes): #79, #80 and findings #81 to #102 (fix-ops: #81 #83 #84 #86 #90 #91 #95 #96 #97 #101 #102; fix-collector: #82 #85 #87 #88 #92 #99 #100; fix-sql: #89 #93 #94 #98), and #114 (fixed on main, not deployed; also P2).
+- **P2:** #21 retention, #109 partition probing, #112 fix-sql follow-ups, #114, #118 (backup validation accepts a dump of an empty or wrong database). Closed 10-10-2026: #103, #110, #113 (with the owner) and #111 (callsign byte cap, fixed on main, not deployed).
+- **P3:** #18, #104 (trimmed, checks merged), #107 (this writer work).
 - **P4:** #14, #22, #23, #25, #26, #27, #76, #105, #108.
 - **Owner only:** #26 Proxmox restore test of VM 100 (never boot a restored copy on the LAN); #23 folder rename; heartbeat task check; the Proxmox side of the backup copy; SSD wear check (#14); VM memory (8 GiB, live stack about 0.65 GB; reduce only after tests are off the VM).
 
