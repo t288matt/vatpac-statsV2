@@ -1,6 +1,6 @@
 # Runbook: run the tests and checks
 
-Last reviewed: 09-10-2026. The unit tests are `collector/tests` and `tests` outside `tests/integration`; the integration tests are `tests/integration` (counts are deliberately not quoted here, because they go stale; section 4 gives the command that prints the current ones, and a report quotes what the run printed; the integration tests include `test_watchdog_flap.py`, whose role tests need `watchdog_ro`: CI creates it from the migrate script). GitHub Actions runs all of them on every push to `main` and `dev` and on pull requests (`.github/workflows/ci.yml`); the owner reads the result on GitHub. The integration job runs the whole suite twice on the same database: once as it is, once with the test connection set to the `Australia/Sydney` time zone (section 5), and both passes run in strict mode (section 5). The sections below are for running them yourself.
+Last reviewed: 10-10-2026. The unit tests are `collector/tests` and `tests` outside `tests/integration`; the integration tests are `tests/integration` (counts are deliberately not quoted here, because they go stale; section 4 gives the command that prints the current ones, and a report quotes what the run printed; the integration tests include `test_watchdog_flap.py`, whose role tests need `watchdog_ro`: CI creates it from the migrate script). GitHub Actions runs all of them on every push to `main` and `dev` and on pull requests (`.github/workflows/ci.yml`); the owner reads the result on GitHub. The integration job runs the whole suite twice on the same database: once as it is, once with the test connection set to the `Australia/Sydney` time zone (section 5), and both passes run in strict mode (section 5). The sections below are for running them yourself.
 
 > **Never run `db/roles.sql` by hand against the live database or the VM's Postgres container.** Roles are cluster-wide: running it with throwaway passwords resets the live `grafana_ro`, `collector` and `backup_ro` passwords and the stack stops working until `docker compose up -d` re-applies the real ones. It is safe only in a throwaway container (section 3).
 >
@@ -12,7 +12,7 @@ From the repository root. These are the same commands CI runs.
 
 ```sh
 # unit tests (pytest, pyyaml, shapely and the collector requirements installed; Python 3.11 or newer)
-PYTHONPATH=collector/src python -m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv    # expect all passed; the strict xfails (known defects pinned by tests) show as xfailed
+PYTHONPATH=collector/src python -m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv    # expect all passed; add -m "not integration and not slow_fuzz" for the quick local run (section 6); the strict xfails (known defects pinned by tests) are integration tests and show as xfailed there
 python grafana/validate_dashboards.py          # dashboard shape and SQL syntax; pip install sqlglot to parse SQL
 python grafana/check_columns.py                # every dashboard column exists in a view; expect "bad 0"
 python ops/check_config_drift.py               # collector settings, compose and .env.example agree (needs PyYAML)
@@ -100,3 +100,34 @@ Report the exact counts you saw (the last line pytest printed, for example `N pa
 - **Strict mode** (`VATPAC_TEST_STRICT=1`, set by CI): a missing `VATPAC_TEST_DSN` aborts the integration run (exit 4) instead of skipping every test, and any skipped integration test (a missing role, a missing module) makes the run fail with the list of skipped tests. Use it only when the roles and `watchdog_ro` exist (a full run). Without it a skip is allowed and shows as `skipped` in the last line: read that line.
 - **Time-zone pass**: production runs in UTC, so a SQL expression that forgot `AT TIME ZONE 'UTC'` is invisible there. CI therefore repeats the integration tests with the session time zone `Australia/Sydney`: add `?options=-c%20TimeZone%3DAustralia/Sydney` to `VATPAC_TEST_DSN` (leave `VATPAC_TEST_GRAFANA_RO_DSN` alone: that role is pinned to UTC) and set `VATPAC_TEST_EXPECT_TZ=Australia/Sydney`, which makes `test_the_session_time_zone_is_what_the_run_asked_for` fail if the option was ignored. `tests/integration/test_time_zones.py` also moves its own session to Sydney and Los Angeles, so those tests fail in a plain UTC run too.
 - **Test housekeeping**: the `conn` fixture empties the data tables and puts `app_setting` back to what the migrations seeded, so no test leaves a setting for the next one. `poll_interval_seconds` is not seeded (the collector publishes it), so a test that needs it calls `helpers.set_poll_interval`.
+
+## 6. Replay and fuzz tests (issue 103)
+
+Real feed data and malformed variants of it are the witness that does not share the authors' blind spots (issue 80 found a defect, issue 82, in code with hundreds of green tests).
+
+| File | What it asserts | Needs |
+|---|---|---|
+| `tests/integration/test_replay_real_feed.py` | The committed replay set (`tests/fixtures/replay/`: one full and one compact real raw-feed snapshot of 10-10-2026, cut down; plus the anonymised sample) goes through `parse_snapshot`, `apply_snapshot` and `write_poll_log` without raising; every snapshot is stored; `network_snapshot`, `poll_log` and the stored positions equal a count taken straight from the raw payload (not from `model.py`); replaying again changes nothing; the checker itself fails when a stored row is damaged; the command line runs twice to identical dumps, and refuses a database not ending in `_test` | Postgres |
+| `tests/integration/test_fuzz_ingest.py` | Seeded malformed variants of the real payload (one bad entry, or several) go through parser, database and `poll_log`: every other entry is stored, the counts agree, a second apply is a no-op. Named cases: a cid outside bigint is bisected out and counted, a fractional logon time, duplicate sessions, odd or oversized callsigns. One known defect is pinned as a strict xfail (see below) | Postgres |
+| `tests/test_fuzz_parser.py` | The same property on `parse_snapshot` alone over a grid of single-entry faults (null, wrong types, missing keys, huge, negative, non-finite numbers, odd Unicode, non-object `flight_plan`), plus changed feed shapes, truncated JSON at many cut points, a duplicated key, and the `1e999` / `NaN` literals, through `FeedClient` | none |
+| `tests/test_replay_tool.py` | The committed replay set is small, real and overlapping; the independent count agrees with the parser; the dump diff | none |
+
+The cases are generated by `tests/tools/fuzz_payloads.py` from fixed lists and a seeded `random.Random`, so a failure names its case (for example `pilots[43] cid=inf`) and repeats on every machine. `hypothesis` is not a dependency and was not added.
+
+**The replay script.** `tests/tools/replay.py` replays any files or folders of raw payloads (`.json` or `.json.gz`, the feed archive layout works as it is) into a throwaway database, checks them, and can dump the stored rows:
+
+```sh
+python tests/tools/replay.py run tests/fixtures/replay --dsn "$VATPAC_TEST_DSN" --dump new.json    # this checkout
+python tests/tools/replay.py run tests/fixtures/replay --dsn "$OTHER_TEST_DSN" --src /path/to/old/collector/src --dump old.json
+python tests/tools/replay.py diff old.json new.json                                                   # exit 1 and the differing rows
+```
+
+To compare old code with new code, extract the old commit (`mkdir -p /tmp/old && git archive <commit> | tar -x -C /tmp/old`), run it with `--src /tmp/old/collector/src` against a SECOND migrated database whose name ends in `_test`, and diff the two dumps. `run` empties the data tables of the database it is given. The dump holds natural keys only (no surrogate ids, no clock values, timestamps in UTC), so identical code gives identical dumps. Replaying from the live archive: copy a handful of files off the VM read-only (feed-archive.md, "Read a file"), keep them outside the repository, and pass their folder.
+
+**New replay fixtures.** `tests/tools/make_replay_fixtures.py --full <full file> --compact <compact file>` rebuilds `tests/fixtures/replay/` from two archive files (deterministic selection, every in-region pilot and listed controller kept).
+
+**Proof the tests have teeth.** After changing the parser or `store.py`, re-run the proof: copy the checkout to a scratch folder (never edit the real source), apply one fault, and the named tests must fail. Faults used when these tests were written: the model before the issue 82 fix (`git show 48dde6e^:collector/src/vatpac/model.py`) fails `test_every_single_bad_entry_keeps_the_rest_of_the_snapshot` and the non-object entry and flight-plan cases; removing `OverflowError` from the `parse_all` except clause fails the grid test at `cid=inf`; narrowing the `except` in `store._write` to `IntegrityError` fails the bigint cid cases; skipping the polygon test in `apply_snapshot` fails the replay count checks.
+
+**Quick and full runs.** The full fuzz grids carry the marker `slow_fuzz` (about 20 s of the parser grid plus the whole-grid ingest test). CI runs them with everything else; `-m "not integration and not slow_fuzz"` skips them for a quick local run.
+
+**Known defects pinned (issues 111 and 114).** An absurd multi-byte callsign (2000 incompressible characters) makes the `pilot_session_identity` or `controller_unlisted_sighting` index insert raise `ProgramLimitExceeded`, which `store._write` does not bisect out, so the whole snapshot is lost while that entry is in the feed. Issue 111 is pinned by two strict xfails (`raises=ProgramLimitExceeded`); issue 114 (a listed controller with frequency `inf`, `Infinity` or `-Infinity` raises `OverflowError` from `parse_frequency_hz` and loses the snapshot) by one strict xfail with four values (`raises=OverflowError`). When a defect is fixed its pin passes unexpectedly, which fails the run, and the marker must then be removed. The strict-mode skip detector in `tests/integration/conftest.py` ignores only strict xfails that run (`run=False` and non-strict xfails still count as skips), because a pinned defect is not a skipped test.

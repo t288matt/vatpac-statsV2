@@ -40,7 +40,13 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "integration: needs PostgreSQL (VATPAC_TEST_DSN)")
 
 
+_strict_xfails: set[str] = set()
+
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    for item in items:  # only a strict xfail that runs is a pinned defect; run=False or a non-strict xfail may hide a test that never ran
+        if any(m.kwargs.get("strict") is True and m.kwargs.get("run", True) is not False for m in item.iter_markers("xfail")):
+            _strict_xfails.add(item.nodeid)
     if DSN:
         return
     if STRICT:
@@ -52,7 +58,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:
-    if STRICT and report.skipped:
+    if STRICT and report.skipped and not (hasattr(report, "wasxfail") and report.nodeid in _strict_xfails):  # a pinned defect is not a skip
         _skipped.append(report.nodeid)
 
 
