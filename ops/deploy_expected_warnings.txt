@@ -1,0 +1,5 @@
+# Known-expected invariant violations for `bash ops/deploy.sh --verify` (one per line):
+#   check name (exactly as the invariant pack prints it) | expiry DD-MM-YYYY HH:MM UTC | reason
+# Before the expiry the check prints WARN (expected) instead of FAIL. After it, or if the date is malformed, it is a FAIL,
+# so an entry cannot hide a real problem for ever. Delete the line when the expiry has passed.
+snapshot gaps over 5 minutes (last 3 days)|12-10-2026 15:42|6 minute gap of the power cut on 09-10-2026 (tracker T51) stays inside the 3 day window
