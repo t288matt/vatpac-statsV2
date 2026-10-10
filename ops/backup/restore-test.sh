@@ -1,7 +1,8 @@
 #!/bin/bash
 # Prove the newest backup restores: restore into a scratch database, sanity-check, drop it.
 # Exit non-zero on any failure; the scratch database is dropped on every exit path.
-# Result (first token is always a UTC timestamp) is written to $BACKUP_DIR/.last_restore_test.
+# Result (first token is always a UTC timestamp, the second OK, FAIL or WARN = restored fine but the data in the dump is old)
+# is written to $BACKUP_DIR/.last_restore_test.
 set -euo pipefail
 # shellcheck source=restore-lib.sh
 . "${RESTORE_LIB:-/usr/local/bin/restore-lib.sh}"
@@ -27,7 +28,17 @@ fail() { echo "$(stamp) FAIL $1 ($newest)" | tee "$RESULT"; exit 1; }
 drop_db "$SCRATCH"
 psql -X -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${SCRATCH}\"" || fail "create scratch database"
 pg_restore --no-owner --no-acl --exit-on-error -d "$SCRATCH" "$newest" || fail "restore"
-counts="$(sanity_check "$SCRATCH" "$newest" 2>&1)" || fail "sanity: $counts"
+rc=0
+counts="$(sanity_check "$SCRATCH" "$newest" 2>&1)" || rc=$?
+if [ "$rc" -eq 2 ]; then
+  # The dump restored and holds data, but its newest poll row is old (a long outage or a quiet period before the dump).
+  # That is worth a warning, not a failed restore test: the first tokens are "<UTC timestamp> WARN".
+  export PGDATABASE="$LIVE_DB"
+  echo "$(stamp) WARN ${newest} ${counts}" | tee "$RESULT"
+  exit 0
+elif [ "$rc" -ne 0 ]; then
+  fail "sanity: $counts"
+fi
 
 export PGDATABASE="$LIVE_DB"
 echo "$(stamp) OK ${newest} ${counts}" | tee "$RESULT"

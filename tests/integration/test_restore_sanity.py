@@ -96,7 +96,8 @@ def test_a_good_dump_passes_with_the_same_output_format_as_before(dsn: str, scra
 def test_a_dump_whose_newest_poll_is_older_than_48_hours_before_the_dump_fails(dsn: str, scratch: dict[str, str]) -> None:
     _fill(dsn, 1, ["2026-10-04 01:00:00+00"])               # 73 h before the dump
     r = _sanity(scratch, "vatpac_20261007T020000Z.dump")
-    assert r.returncode == 1 and "more than 48 h older than the dump" in r.stderr
+    # return code 2 = stale only (everything else fine): the weekly test warns, restore.sh refuses and names the override
+    assert r.returncode == 2 and r.stdout.startswith("STALE poll_log=1 pilot_session=1") and "more than 48 h older" in r.stdout
 
 
 def test_an_old_dump_is_judged_against_its_own_time_not_todays(dsn: str, scratch: dict[str, str]) -> None:
@@ -120,3 +121,24 @@ def test_a_file_name_without_a_stamp_still_needs_rows_but_skips_the_age_check(ds
 def test_a_new_empty_install_can_be_allowed_explicitly(dsn: str, scratch: dict[str, str]) -> None:
     r = _sanity(scratch, "vatpac_20261007T020000Z.dump", RESTORE_SANITY_ALLOW_EMPTY="1")
     assert r.returncode == 0 and r.stdout.strip() == "poll_log=0 pilot_session=0"
+
+
+def test_decimal_hours_are_accepted(dsn: str, scratch: dict[str, str]) -> None:
+    _fill(dsn, 1, ["2026-10-07 00:00:00+00"])               # 2 h before the dump
+    assert _sanity(scratch, "vatpac_20261007T020000Z.dump", RESTORE_MAX_POLL_AGE_HOURS="2.5").returncode == 0
+    assert _sanity(scratch, "vatpac_20261007T020000Z.dump", RESTORE_MAX_POLL_AGE_HOURS="1.5").returncode == 2
+    assert _sanity(scratch, "vatpac_20261007T020000Z.dump", RESTORE_MAX_POLL_AGE_HOURS="0.0").returncode == 0
+
+
+@pytest.mark.parametrize("bad", ["abc", "1,5", "-3", "1.2.3", ".", "5.", "1 h"])
+def test_a_non_numeric_age_limit_gets_a_clear_message_not_a_sql_error(dsn: str, scratch: dict[str, str], bad: str) -> None:
+    _fill(dsn, 1, ["2026-10-07 01:00:00+00"])
+    r = _sanity(scratch, "vatpac_20261007T020000Z.dump", RESTORE_MAX_POLL_AGE_HOURS=bad)
+    assert r.returncode == 1 and "must be a number of hours" in r.stderr and "ERROR" not in r.stderr
+
+
+def test_allow_empty_waives_only_the_row_counts_not_the_age_limit(dsn: str, scratch: dict[str, str]) -> None:
+    _fill(dsn, 0, ["2026-10-01 00:00:00+00"])               # no sessions (waived), but poll data far older than the dump
+    r = _sanity(scratch, "vatpac_20261007T020000Z.dump", RESTORE_SANITY_ALLOW_EMPTY="1")
+    assert r.returncode == 2 and r.stdout.startswith("STALE")
+    assert _sanity(scratch, "vatpac_20261007T020000Z.dump", RESTORE_SANITY_ALLOW_EMPTY="1", RESTORE_MAX_POLL_AGE_HOURS="0").returncode == 0
