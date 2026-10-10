@@ -6,7 +6,7 @@ Files (mounted read-only at `/app/config`): `config/australian_airspace_polygon.
 1. Edit the file in git on your workstation (never on the VM). Keep a copy of the old one.
 2. Validate locally: polygon must be a closed GeoJSON Polygon (lon,lat order, lon -180..180, lat -90..90); whitelist lines are `CALLSIGN, FREQ` or `CALLSIGN`, `#` comments allowed, case-sensitive.
 3. Commit, push, tag if you version deployments.
-4. Put the new files on the VM. The production VM has no git, so from the PC: `git archive --format=tar HEAD | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'` (see [deploy-to-vm.md](deploy-to-vm.md)); on a host with git, `git pull` (or `git checkout <tag>`). `config/` is mounted into the container, so no rebuild is needed.
+4. Put the new files on the VM. The production VM is not a git checkout (the program is installed, but the folder has no `.git` and the VM holds no GitHub credentials), so from the PC: `git archive --format=tar HEAD | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'` (see [deploy-to-vm.md](deploy-to-vm.md)); on a host with git, `git pull` (or `git checkout <tag>`). `config/` is mounted into the container, so no rebuild is needed.
 5. Reload without restart:
    ```sh
    docker compose kill -s HUP collector
