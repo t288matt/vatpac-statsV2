@@ -165,14 +165,15 @@ def _guard(cur: psycopg.Cursor[Any], deadline: float | None) -> None:
 
 def _write(conn: psycopg.Connection[Any], cur: psycopg.Cursor[Any], sql: str, rows: list[dict[str, Any]],
            ts: datetime, fetch: bool, deadline: float | None = None) -> tuple[int, list[Any], list[str]]:
-    """Run a batch statement in a savepoint. If one poisoned record makes it fail (DataError/IntegrityError), bisect
-    down to the offender and skip it. Returns (rowcount, fetched rows, rejected callsigns)."""
+    """Run a batch statement in a savepoint. If one poisoned record makes it fail (DataError, IntegrityError,
+    ProgramLimitExceeded), bisect down to the offender and skip it. Returns (rowcount, fetched rows, rejected
+    callsigns)."""
     try:
         with conn.transaction():
             _guard(cur, deadline)
             cur.execute(sql, {"rows": _jsonb(rows), "ts": ts})
             return max(cur.rowcount, 0), cur.fetchall() if fetch else [], []
-    except (psycopg.DataError, psycopg.IntegrityError) as exc:
+    except (psycopg.DataError, psycopg.IntegrityError, psycopg.errors.ProgramLimitExceeded) as exc:
         # a missing partition is a check_violation (23514) from tuple routing that names no constraint; a bad record
         # that breaks a real CHECK names it. The message quotes row values, so its text is never inspected.
         if isinstance(exc, psycopg.errors.CheckViolation) and exc.diag.constraint_name is None:
