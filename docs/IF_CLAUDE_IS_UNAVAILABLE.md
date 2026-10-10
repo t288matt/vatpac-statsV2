@@ -69,7 +69,7 @@ docker compose exec backup cat /backups/.last_success /backups/.last_restore_tes
 ```
 (Run on the VM on 10-10-2026: the first worked. `.last_restore_test` does not exist until the first Sunday restore test, 11-10-2026; each line reads `<time> OK|FAIL <detail>`.)
 
-**Where the second copy is.** There is no off-box copy made by the stack itself yet (`BACKUP_REMOTE` is empty in the VM's `.env` as checked on 10-10-2026). The cover against losing the VM disk is your Proxmox Backup Server job for the VM (tracker T17; a restore of that copy has not been tested, owner action in [OWNER_ACTIONS.md](OWNER_ACTIONS.md) item 3). Never boot a restored copy of the v1 clone VM on the LAN.
+**Where the second copy is.** There is no off-box copy made by the stack itself yet (`BACKUP_REMOTE` is empty in the VM's `.env` as checked on 10-10-2026). The cover against losing the VM disk is your Proxmox Backup Server job for the VM (tracker T17; a restore of that copy has not been tested, owner action in [OWNER_ACTIONS.md](OWNER_ACTIONS.md) item 3). When test-restoring the Proxmox backup of this VM, remove its network device before starting it (it is a clone of the v1 machine and would clash on the LAN); see [OWNER_ACTIONS.md](OWNER_ACTIONS.md) item 3.
 
 **Take a backup now:** `make backup` (this is `docker compose exec backup backup.sh once`; `make` is installed on the VM). Check it with the `ls` command above. Not run here, to avoid a dump on the live database for a documentation task; the same command is the first step of every deploy.
 
@@ -82,13 +82,13 @@ docker compose exec backup cat /backups/.last_success /backups/.last_restore_tes
 make restore FILE=/backups/vatpac_20261007T020000Z.dump TARGET=vatpac_restore CONFIRM=vatpac_restore
 docker compose exec db psql -U vatpac -d vatpac_restore -c "SELECT count(*) FROM poll_log"
 ```
-Use a real file name from the `ls` output. `CONFIRM` must equal `TARGET` exactly. The script refuses system databases, refuses to run if `<target>_old` exists, and leaves the live database alone.
+Use a real file name from the `ls` output. These `make` targets use `docker compose exec` without `-T`, so run them in an interactive `ssh vatpac-v3` session, not as a one-line `ssh vatpac-v3 'make ...'` (not tested). After deploy 1 (planned 11-10-2026) `restore.sh` also refuses a dump whose newest poll data is more than 48 hours older than the time in the dump's file name (`RESTORE_MAX_POLL_AGE_HOURS`; the setting is explained in [RUNBOOKS/restore.md](RUNBOOKS/restore.md)). If it refuses because the dump is stale and you know why (for example a long outage before that night), ask for help or read restore.md first. The version running on the VM today has no such check. `CONFIRM` must equal `TARGET` exactly. The script refuses system databases, refuses to run if `<target>_old` exists, and leaves the live database alone.
 
 *B. Disaster recovery, replacing the live database (only if the live database is lost or corrupt):*
 1. `docker compose stop collector grafana watchdog` (the restore refuses if anything else is connected).
 2. `make restore FILE=/backups/<file>.dump TARGET=vatpac CONFIRM=vatpac` (`vatpac` is the default database name; use `POSTGRES_DB` from `.env` if it was changed). The old database is kept as `vatpac_old` and a safety dump of it is saved in `/backups/` as `*.prerestore`.
 3. `docker compose up migrate` (re-applies roles and grants, which the dump does not carry).
-4. `docker compose up -d`, then `make smoke`.
+4. `docker compose up -d` (no code change, so no build is needed), then `make smoke`. Keep this order: step 3 must come before the smoke test, because the deployed `ops/smoke.sh` contains a `DELETE FROM poll_log` that is only safe once `migrate` has restored the correct grants (issue #86).
 5. Only when you are satisfied, drop the old copy (it uses disk until then): `docker compose exec db psql -U vatpac -d postgres -c 'DROP DATABASE "vatpac_old"'`.
 6. Data between the backup and the failure is gone; there is no backfill. Note the gap.
 
