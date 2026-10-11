@@ -41,11 +41,13 @@ case "$1" in
     case "$last" in 0000000*) exit 1 ;; origin/main) echo "$FAKE_GIT_TIP"; exit 0 ;; *) echo "$FAKE_GIT_FULL"; exit 0 ;; esac ;;
   merge-base) exit "${FAKE_ANCESTOR_RC:-0}" ;;
   rev-list) echo 3 ;;
+  log) [ -f "$FAKE_DIR/gitlog.txt" ] && cat "$FAKE_DIR/gitlog.txt" ;;
 esac
 """,
     "gh": r"""#!/bin/sh
 echo "$*" >> "$FAKE_DIR/gh.log"
 case ",$FAKE_BREAK," in *,gh,*) exit 1 ;; esac
+[ "$1" = issue ] && { case ",$FAKE_BREAK," in *,ghissues,*) exit 1 ;; esac; cat "$FAKE_DIR/issues.tsv"; exit 0; }
 cat "$FAKE_DIR/ci.txt"
 """,
     "date": r"""#!/bin/sh
@@ -315,13 +317,13 @@ def test_status_and_mark(tmp_path: Path) -> None:
     assert rc == 0 and "no marker" in out and "vatpac-collector-1" in out and "vatpac_20261010T020000Z.dump, 1 h old" in out
     tree = f.home / "vatpac-statsV2"
     before = {p.relative_to(tree).as_posix() for p in tree.rglob("*")}
-    rc, out = f.run("--mark", "f893585")
+    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")  # the first ever mark has no previous marker to compare with
     assert rc == 0, out
     assert {p.relative_to(tree).as_posix() for p in tree.rglob("*")} - before == {".deploy", ".deploy/release", ".deploy/release.log"}
     assert (tree / ".deploy" / "release").read_text() == f"commit={FULL}\nmarked_utc=2026-10-10T15:00:00Z\nmarked_by=tester\n"
     assert "no marker" not in f.run("--status")[1]
     f.set(FAKE_GIT_FULL="a" * 40)
-    f.run("--mark", "aaaaaaa")
+    f.run("--mark", "aaaaaaa", "--allow-silent-issues")
     assert (tree / ".deploy" / "release").read_text().startswith("commit=" + "a" * 40)
     assert (tree / ".deploy" / "release.log").read_text().count("commit=") == 2
 
@@ -334,12 +336,12 @@ def test_mark_refusals_and_failed_log_keeps_the_old_marker(tmp_path: Path) -> No
     rc, out = f.run("--mark", "f893585")  # not on origin/main
     assert rc == 1 and "not on origin/main" in out and not (tree / ".deploy").exists()
     f.set(FAKE_ANCESTOR_RC="0")
-    assert f.run("--mark", "f893585")[0] == 0
+    assert f.run("--mark", "f893585", "--allow-silent-issues")[0] == 0
     old = (tree / ".deploy" / "release").read_text()
     (tree / ".deploy" / "release.log").unlink()
     (tree / ".deploy" / "release.log").mkdir()  # the log append will fail
     f.set(FAKE_GIT_FULL="b" * 40)
-    rc, out = f.run("--mark", "bbbbbbb")
+    rc, out = f.run("--mark", "bbbbbbb", "--allow-silent-issues")
     assert rc == 1 and "unchanged" in out and (tree / ".deploy" / "release").read_text() == old
     f.set(FAKE_SSH_DOWN="1")
     assert f.run("--mark", "f893585")[0] == 1
@@ -355,7 +357,7 @@ def test_read_only_modes_write_nothing_and_run_nothing_forbidden(tmp_path: Path)
     for mode in (["--preflight", "f893585"], ["--verify"], ["--status"]):
         f.run(*mode)
     assert sorted(str(p.relative_to(f.home)) for p in f.home.rglob("*")) == before
-    f.run("--mark", "f893585")
+    f.run("--mark", "f893585", "--allow-silent-issues")
     log = f.ssh_log() + (f.dir / "docker.log").read_text()
     one_read = "sed -n 's/^BACKUP_TIME_UTC=//p' .env"  # the one deliberate read of .env: a single key
     assert one_read in log
@@ -369,3 +371,96 @@ def test_read_only_modes_write_nothing_and_run_nothing_forbidden(tmp_path: Path)
 def test_ci_checks_deploy_sh_with_bash_not_sh() -> None:
     ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert "ops/backup/*.sh ops/deploy.sh; do bash -n" in ci and "= ops/deploy.sh ] || sh -n" in ci
+
+
+# ------------------------------------------------------------------ silent-issue guard (issue 104)
+
+STALE = REPO / "ops" / "stale_issues.sh"
+PREV = "c" * 40
+
+
+def _commit(sha: str, when: str, msg: str) -> str:
+    return f"\x01{sha}\x1f{when}\x1f{msg}\n"
+
+
+def _guard_fake(tmp_path: Path, commits: list[str], issues: list[tuple[int, str, str]]) -> Fake:
+    f = Fake(tmp_path)
+    f.write("gitlog.txt", "".join(commits))
+    f.write("issues.tsv", "".join(f"{n}\t{t}\t{c}\n" for n, t, c in issues))
+    tree = f.home / "vatpac-statsV2" / ".deploy"
+    tree.mkdir()
+    (tree / "release").write_text(f"commit={PREV}\nmarked_utc=2026-10-09T10:00:00Z\nmarked_by=x\n", newline="\n")
+    return f
+
+
+def _marker(f: Fake) -> str:
+    return (f.home / "vatpac-statsV2" / ".deploy" / "release").read_text()
+
+
+COMMITS = [
+    _commit("a" * 40, "2026-10-10T10:00:00+10:00", "Fix thing (#93)\n\nRefs #94"),  # 00:00Z
+    _commit("b" * 40, "2026-10-10T12:00:00+00:00", "Docs for issues 95, 96 and 97"),
+    _commit("d" * 40, "2026-10-10T13:00:00+00:00", "Merge pull request #139 from x/dev"),
+]
+
+
+def test_guard_refuses_silent_issues_and_lists_them(tmp_path: Path) -> None:
+    issues = [(93, "ninety-three", "2026-10-10T01:00:00Z"),   # commented after the commit: fine
+              (94, "ninety-four", "2026-10-09T23:00:00Z"),    # comment older than the commit: silent
+              (95, "ninety-five", ""),                        # no comment at all: silent
+              (96, "ninety-six", "2026-10-10T12:00:00Z"),     # same second as the commit: not newer, silent
+              (97, "ninety-seven", "2026-10-10T12:00:01Z"),   # newer: fine
+              (50, "unrelated", "")]                          # not named in any commit
+    f = _guard_fake(tmp_path, COMMITS, issues)
+    rc, out = f.run("--mark", "f893585")
+    assert rc == 1 and "nothing written" in out, out
+    assert all(x in out for x in ("#94", "#95", "#96", "ninety-five", "no comments"))
+    assert not any(x in out for x in ("#93 ", "#97", "#50", "#139"))
+    assert PREV in _marker(f)  # untouched
+
+
+def test_guard_allows_with_warning_and_passes_when_all_commented(tmp_path: Path) -> None:
+    f = _guard_fake(tmp_path, COMMITS, [(94, "x", "2026-10-09T00:00:00Z")])
+    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
+    assert rc == 0 and "WARN" in out and "#94" in out and FULL in _marker(f)
+    f = _guard_fake(tmp_path / "ok", COMMITS, [(n, "t", "2026-10-11T00:00:00Z") for n in (93, 94, 95, 96, 97)])
+    rc, out = f.run("--mark", "f893585")
+    assert rc == 0 and "PASS" in out and FULL in _marker(f)
+    f = _guard_fake(tmp_path / "none", [_commit("e" * 40, "2026-10-10T10:00:00Z", "Tidy")], [])
+    assert f.run("--mark", "f893585")[0] == 0
+
+
+def test_guard_fails_closed(tmp_path: Path) -> None:
+    f = _guard_fake(tmp_path, COMMITS, [])
+    f.brk("ghissues")
+    rc, out = f.run("--mark", "f893585")
+    assert rc == 1 and "could not run" in out and PREV in _marker(f)
+    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
+    assert rc == 0 and "WARN" in out and FULL in _marker(f)
+    f = Fake(tmp_path / "nomarker")  # no previous marker to take a range from
+    rc, out = f.run("--mark", "f893585")
+    assert rc == 1 and "no previous marker" in out and not (f.home / "vatpac-statsV2" / ".deploy").exists()
+    assert f.run("--mark", "f893585", "--bogus")[0] == 2
+
+
+def test_stale_issues_script_table_and_exit_codes(tmp_path: Path) -> None:
+    f = _guard_fake(tmp_path, COMMITS, [(94, "ninety-four", "2026-10-09T23:00:00Z"), (97, "ok", "2026-10-11T00:00:00Z")])
+    f.set(GH_BIN=str(f.bin / "gh"), REPO="o/r")
+
+    def run(*a: str) -> tuple[int, str]:
+        p = subprocess.run([str(BASH), str(STALE), *a], capture_output=True, text=True, env=f.env, cwd=REPO, timeout=60)
+        return p.returncode, p.stdout + p.stderr
+
+    rc, out = run("--since", "f893585")
+    assert rc == 1 and "#94" in out and "ninety-four" in out and "2026-10-09T23:00:00Z" in out and "#97" not in out
+    assert "aaaaaaaaaa" in out and "2026-10-10T10:00:00+10:00" in out
+    assert run("--range", "x..y")[0] == 1
+    f.write("issues.tsv", "94\tninety-four\t2026-10-11T00:00:00Z\n")
+    assert run("--since", "2026-10-01")[0] == 0
+    f.brk("ghissues")
+    rc, out = run("--since", "2026-10-01")
+    assert rc == 2 and "gh could not list" in out
+    assert run("--since")[0] == 2 and run("--nope")[0] == 2
+    f.brk()
+    f.write("gitlog.txt", "")
+    assert run("--since", "2026-10-01") == (0, "no issue numbers in the commits checked\n")
