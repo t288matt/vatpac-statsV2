@@ -170,10 +170,6 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 | [docs/HANDOVER.md](docs/HANDOVER.md) | Point-in-time hand-over of 07-10-2026 (history) |
 | [docs/OWNER_ACTIONS.md](docs/OWNER_ACTIONS.md) | Steps only the owner can do |
 
-## Contributing
-
-The repository is private and run by one owner with Claude. Every change gets an independent review. `main` must stay green: open a pull request so CI runs on the branch first, and read CI after every push to `main`. The tracker ([docs/TRACKER.md](docs/TRACKER.md)) records every change. Work in a git worktree under `.worktrees/` so other sessions do not change your branch. Add a new numbered SQL migration instead of editing an applied one, keep the collector within the size budget (`make size`), and add a test with every fix. Deploy only on the owner's say-so.
-
 ## Licence
 
 MIT, see [LICENSE](LICENSE). The repository is written to be public-safe (no secrets, no real personal data in fixtures). Before any public exposure, check the VATSIM data-use policy and put the dashboards behind a login, because names and CIDs are shown.
