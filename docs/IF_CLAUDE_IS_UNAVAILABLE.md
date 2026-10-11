@@ -98,7 +98,7 @@ Restores were drilled on 08-10-2026 ([RESTORE_DRILL.md](RESTORE_DRILL.md)); the 
 
 ## 6. Who to ask for help
 
-- **Claude.** Start a new session in the folder `C:\Users\mdora\Claude\vatpac-statsV2` (not the folder `VATPAC-Stats V2`, which is the old v1 system) and paste the prompt in [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md). It tells the session what to read first ([RESUME.md](RESUME.md), then [TRACKER.md](TRACKER.md)).
+- **Claude.** Start a new session in the folder `C:\Users\mdora\Claude\vatpac-statsV2` (not the folder `VATPAC-Stats V2`, which is the old v1 system) and paste the prompt in `NEXT_SESSION_PROMPT.md` (a Claude working file, kept outside the repo). It tells the session what to read first (`RESUME.md` (a Claude working file, kept outside the repo), then [TRACKER.md](TRACKER.md)).
 - **The repository and its issues:** https://github.com/t288matt/vatpac-statsV2 (the open issues list is the live backlog).
 - **A human engineer:** any engineer who knows Docker and PostgreSQL can work from [RUNBOOKS/](RUNBOOKS/) and [ARCHITECTURE.md](ARCHITECTURE.md). The repository names no other person or support contact. I could not verify one, so add a name here if you have one.
 - **VATSIM outages:** `https://status.vatsim.net/status.json`.
