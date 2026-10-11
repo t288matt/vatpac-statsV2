@@ -39,3 +39,11 @@ Thumbs.db
 # git worktrees for branch work live here
 .worktrees/
 ops/heartbeat/heartbeat_state.json
+
+# Claude working files (not project documentation); kept locally, copy in vatpac-claude-setup
+.claude/agents/
+docs/TEAM_BRIEFS.md
+docs/TEAM_ROLES.md
+docs/RESUME.md
+docs/NEXT_SESSION_PROMPT.md
+docs/WRITER_HANDOVER.md

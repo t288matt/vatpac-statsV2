@@ -7,7 +7,7 @@ Language: British English. Dates DD-MM-YYYY, times UTC. Plain words; no emoji.
 Small, frequent, safe releases of VATPAC Stats, with the owner deciding what matters and not having to read everything. The aim is to remove the owner as the bottleneck without removing the safety: risk decides how much approval a change needs, and evidence replaces summaries.
 
 ## 2. The team
-The job description of every role is in [TEAM_ROLES.md](TEAM_ROLES.md); how to brief each role is in [TEAM_BRIEFS.md](TEAM_BRIEFS.md). The table below is the short form.
+The job description of every role is in `TEAM_ROLES.md` (a Claude working file, kept outside the repo); how to brief each role is in `TEAM_BRIEFS.md` (a Claude working file, kept outside the repo). The table below is the short form.
 | Role | Who | Owns |
 |---|---|---|
 | Owner and product lead | Matt | Priorities; approval of medium and high changes; data, privacy and retention decisions; every production deploy outside the pre-approved tier (section 5). |

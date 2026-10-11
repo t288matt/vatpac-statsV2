@@ -4,13 +4,11 @@
 
 Live pilot and controller statistics for the VATPAC region, built from the public VATSIM data feed, running 24/7 in Docker.
 
-*Last reviewed 10-10-2026. Describes what is deployed and running (commit 3eb81a3 plus migration 160). Reviewed work that is merged but not yet deployed is listed in [CHANGELOG.md](CHANGELOG.md) and [docs/RESUME.md](docs/RESUME.md), not described here. Documents are updated after each deploy is verified live.*
-
 ## About
 
 One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist. PostgreSQL 16 stores the data and Grafana shows it as dashboards. Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
 
-**Current state (10-10-2026).** The goal is met and the system runs on an always-on VM. The rule: every deploy to the VM needs the owner's explicit go. Current state and next steps: [docs/RESUME.md](docs/RESUME.md); what changed and when: [CHANGELOG.md](CHANGELOG.md).
+**Current state (10-10-2026).** The goal is met and the system runs on an always-on VM. The rule: every deploy to the VM needs the owner's explicit go. What changed and when: [CHANGELOG.md](CHANGELOG.md).
 
 v3 replaces the original v1 system (a FastAPI service with Metabase). The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
 
@@ -111,7 +109,7 @@ Both files are loaded when the collector starts and reloaded without a restart w
 | `config/` | Polygon and controller whitelist |
 | `ops/` | Backups, watchdog, smoke test, soak report, audit and heartbeat scripts |
 | `tests/`, `collector/tests/` | Unit and integration tests |
-| `docs/` | Documentation (start with [docs/RESUME.md](docs/RESUME.md)) |
+| `docs/` | Documentation (index: [docs/README.md](docs/README.md)) |
 | `SPEC.md` | The specification |
 
 ## Testing and development
@@ -160,8 +158,7 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 |---|---|
 | [docs/INSTALL.md](docs/INSTALL.md) | Install a new instance from the source code |
 | [docs/README.md](docs/README.md) | Index of every document, with its status |
-| [docs/RESUME.md](docs/RESUME.md) | Entry point for a new operator or session: current state, rules, next actions |
-| [docs/WORKING_AGREEMENT.md](docs/WORKING_AGREEMENT.md), [docs/TEAM_BRIEFS.md](docs/TEAM_BRIEFS.md) | How the team works and how each role is briefed |
+| [docs/WORKING_AGREEMENT.md](docs/WORKING_AGREEMENT.md) | How the team works |
 | [docs/IF_CLAUDE_IS_UNAVAILABLE.md](docs/IF_CLAUDE_IS_UNAVAILABLE.md) | One-page card for the owner when Claude is not available |
 | [docs/TRACKER.md](docs/TRACKER.md) | The live task list; the single source of truth for status |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log (ADRs) |
