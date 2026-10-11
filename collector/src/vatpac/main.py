@@ -33,7 +33,7 @@ from .settings import Settings
 from .store import ApplyResult, apply_snapshot, record_reference_change, write_poll_log
 
 log = logging.getLogger("vatpac")
-UNCHANGED_RETRY_S = 2.0
+UNCHANGED_RETRY_S = 30.0  # no faster than the feed floor (feed.MIN_REQUEST_GAP_S)
 MAINTENANCE_INTERVAL_S = 86_400.0
 MAINTENANCE_RETRY_S = 60.0
 APPLY_TIMEOUT_S = 25.0  # the poll stops waiting after this
@@ -56,7 +56,6 @@ class Collector:
         self.archive = Archive(settings, self.stats)
         self.stop = asyncio.Event()
         self.last_ts: datetime | None = None
-        self._last_new_at = time.monotonic()  # when the feed last gave a newer snapshot (or the start)
         self._apply_lock = threading.Lock()  # held by the apply worker thread: two applies never overlap
         self._tasks: set[asyncio.Task[None]] = set()  # strong refs so SIGHUP reload tasks are not collected
 
@@ -123,8 +122,6 @@ class Collector:
                 snap_ts = ts
             if payload is None or (self.last_ts is not None and snap_ts is not None and snap_ts <= self.last_ts):
                 status, retry_in = "skipped_unchanged", max(UNCHANGED_RETRY_S, min(fetched.max_age or 0, 5.0))
-                if time.monotonic() - self._last_new_at >= self.settings.poll_interval_seconds:
-                    retry_in = self.settings.poll_interval_seconds  # feed stalled: stop the fast retry, poll at the normal pace
             else:
                 snapshot = parse_snapshot(payload, self.settings.text_max_length)
                 if not snapshot.pilots_global and not snapshot.controllers_global:
@@ -139,7 +136,6 @@ class Collector:
                     err = f"{snapshot.malformed} malformed feed entries skipped"
                 result = await asyncio.wait_for(asyncio.to_thread(self._apply, snapshot, ref), APPLY_TIMEOUT_S)
                 self.last_ts, status = snapshot.observed_at, "ok"
-                self._last_new_at = time.monotonic()
         except RateLimitedError as exc:
             err, http, retry_in = str(exc), 429, exc.retry_after
         except ApplyBusyError as exc:
