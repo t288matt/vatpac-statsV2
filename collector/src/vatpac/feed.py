@@ -47,9 +47,10 @@ def parse_retry_after(value: str | None, default: float = 30.0) -> float:
 
 class FeedClient:
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None,
-                 min_gap_s: float = MIN_REQUEST_GAP_S) -> None:
+                 min_gap_s: float = MIN_REQUEST_GAP_S, stop: asyncio.Event | None = None) -> None:
         self._settings = settings
         self._min_gap_s = min_gap_s
+        self.stop = stop  # set on SIGTERM: waits end at once so the container stops inside its grace period
         self._last_request_at: float | None = None
         self.url = settings.vatsim_feed_url
         self._last_modified: str | None = None
@@ -61,12 +62,22 @@ class FeedClient:
             follow_redirects=True,
         )
 
+    async def _wait(self, seconds: float) -> None:
+        if self.stop is None:
+            await asyncio.sleep(seconds)
+            return
+        try:
+            await asyncio.wait_for(self.stop.wait(), seconds)
+        except TimeoutError:
+            return
+        raise FeedError("collector is stopping")
+
     async def _throttle(self) -> None:
         """Wait until min_gap_s has passed since the previous request started, then stamp this one."""
         if self._last_request_at is not None:
             wait = self._last_request_at + self._min_gap_s - time.monotonic()
             if wait > 0:
-                await asyncio.sleep(wait)
+                await self._wait(wait)
         self._last_request_at = time.monotonic()
 
     async def aclose(self) -> None:
@@ -118,7 +129,7 @@ class FeedClient:
         last: FeedError | None = None
         for attempt in range(RETRIES + 1):
             if attempt:
-                await asyncio.sleep(backoff_delay(attempt - 1))
+                await self._wait(backoff_delay(attempt - 1))
             try:
                 return await self._get_once()
             except RateLimitedError:

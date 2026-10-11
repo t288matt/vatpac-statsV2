@@ -10,11 +10,6 @@ from vatpac import main as vmain
 from vatpac.settings import Settings
 
 
-def _client(statuses: list[int]) -> httpx.AsyncClient:
-    it = iter(statuses)
-    return httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(next(it), content=b"{}")))
-
-
 def test_floor_is_30_seconds_everywhere() -> None:
     assert vfeed.MIN_REQUEST_GAP_S == 30.0
     assert vmain.UNCHANGED_RETRY_S >= vfeed.MIN_REQUEST_GAP_S
@@ -43,3 +38,18 @@ def test_requests_are_never_closer_than_the_floor(monkeypatch: pytest.MonkeyPatc
     asyncio.run(go())
     assert len(starts) == 5
     assert all(b - a >= vfeed.MIN_REQUEST_GAP_S for a, b in zip(starts, starts[1:], strict=False))
+
+
+def test_stop_ends_the_wait_at_once() -> None:
+    from vatpac.errors import FeedError
+
+    async def go() -> None:
+        stop = asyncio.Event()
+        client = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(304)))
+        feed = vfeed.FeedClient(Settings(_env_file=None), client, stop=stop)  # type: ignore[call-arg]
+        await feed.fetch()  # first request is immediate
+        stop.set()
+        with pytest.raises(FeedError, match="stopping"):
+            await asyncio.wait_for(feed.fetch(), 2)  # would wait 30 s without the stop
+
+    asyncio.run(go())

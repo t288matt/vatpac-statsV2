@@ -256,6 +256,7 @@ async def run(settings: Settings, ref: ReferenceData) -> None:
     pool.open(wait=False)  # keeps retrying in the background if the database is not up yet
     feed = FeedClient(settings)
     collector = Collector(settings, ref, pool, feed)
+    feed.stop = collector.stop
     runner = await start_server(collector.stats, settings.health_port)
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
