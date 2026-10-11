@@ -41,7 +41,7 @@ case "$1" in
     case "$last" in 0000000*) exit 1 ;; origin/main) echo "$FAKE_GIT_TIP"; exit 0 ;; *) echo "$FAKE_GIT_FULL"; exit 0 ;; esac ;;
   merge-base) exit "${FAKE_ANCESTOR_RC:-0}" ;;
   rev-list) echo 3 ;;
-  log) [ -f "$FAKE_DIR/gitlog.txt" ] && cat "$FAKE_DIR/gitlog.txt" ;;
+  log) echo "$*" >> "$FAKE_DIR/gitlog.args"; [ -f "$FAKE_DIR/gitlog.txt" ] && cat "$FAKE_DIR/gitlog.txt" ;;
 esac
 """,
     "gh": r"""#!/bin/sh
@@ -370,7 +370,8 @@ def test_read_only_modes_write_nothing_and_run_nothing_forbidden(tmp_path: Path)
 
 def test_ci_checks_deploy_sh_with_bash_not_sh() -> None:
     ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    assert "ops/backup/*.sh ops/deploy.sh; do bash -n" in ci and "= ops/deploy.sh ] || sh -n" in ci
+    assert "ops/backup/*.sh ops/deploy.sh ops/stale_issues.sh; do bash -n" in ci
+    assert '"$f" = ops/deploy.sh ] || [ "$f" = ops/stale_issues.sh ] || sh -n' in ci
 
 
 # ------------------------------------------------------------------ silent-issue guard (issue 104)
@@ -417,6 +418,7 @@ def test_guard_refuses_silent_issues_and_lists_them(tmp_path: Path) -> None:
     assert all(x in out for x in ("#94", "#95", "#96", "ninety-five", "no comments"))
     assert not any(x in out for x in ("#93 ", "#97", "#50", "#139"))
     assert PREV in _marker(f)  # untouched
+    assert f"{PREV}..{FULL}" in (f.dir / "gitlog.args").read_text()  # the range starts at the previous marker
 
 
 def test_guard_allows_with_warning_and_passes_when_all_commented(tmp_path: Path) -> None:
