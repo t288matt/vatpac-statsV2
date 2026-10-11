@@ -103,7 +103,7 @@ sudo ufw allow OpenSSH
 sudo ufw allow from <your LAN CIDR> to any port 3300 proto tcp
 sudo ufw enable
 ```
-Docker publishes ports by editing iptables directly and can bypass ufw. If the VM has a public interface, bind Grafana to the LAN address instead of `0.0.0.0`, or put the VM behind a cloud firewall. Do not expose Grafana directly to the internet. Any tunnel or reverse proxy (for example Cloudflare) is set up externally by the owner and is not configured in this repo; real pilot and controller names are visible on the dashboards, so put a login in front of any public exposure. When the proxy terminates TLS, set `GRAFANA_ROOT_URL=https://...` and `GRAFANA_COOKIE_SECURE=true`.
+Docker publishes ports by editing iptables directly and can bypass ufw. If the VM has a public interface, bind Grafana to the LAN address instead of `0.0.0.0`, or put the VM behind a cloud firewall. Do not publish Grafana's port directly to the internet. The public read-only setup (Grafana public dashboards behind a Cloudflare Tunnel and a reverse proxy on another machine) is described in [public-access.md](public-access.md). When the proxy terminates TLS, set `GRAFANA_ROOT_URL=https://...` and `GRAFANA_COOKIE_SECURE=true`.
 
 Grafana is also hardened with: external snapshots disabled, Gravatar disabled, viewers cannot edit, anonymous access and sign-up off, all Linux capabilities dropped, `no-new-privileges`. (A read-only root filesystem for Grafana is not enabled; it has not been validated.)
 

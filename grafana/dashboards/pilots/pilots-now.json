@@ -33,18 +33,6 @@
         "multi": false,
         "current": {},
         "options": []
-      },
-      {
-        "name": "airport",
-        "type": "textbox",
-        "label": "Departure board airport",
-        "query": "YSSY",
-        "current": {
-          "text": "YSSY",
-          "value": "YSSY"
-        },
-        "hide": 0,
-        "options": []
       }
     ]
   },
@@ -310,7 +298,7 @@
       "id": 7,
       "type": "table",
       "title": "Departure board",
-      "description": "v1 card 138. Pilots whose flight plan departs the chosen airport (default YSSY) and who were seen in the last 3 hours, newest first within status. Changed from v1: no invented gate or 'ON TIME' columns; status is derived from ground speed (60 kt or more = airborne, the same threshold as airborne minutes).",
+      "description": "v1 card 138. Pilots whose flight plan departs Sydney (YSSY) and who were seen in the last 3 hours, newest first within status. Changed from v1: no invented gate or 'ON TIME' columns; status is derived from ground speed (60 kt or more = airborne, the same threshold as airborne minutes).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -331,7 +319,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT callsign AS \"Flight\",\n       COALESCE(arrival, 'N/A') AS \"Destination\",\n       status AS \"Status\",\n       COALESCE(deptime, 'N/A') AS \"Planned departure (UTC)\",\n       gs_kt AS \"Speed (kt)\",\n       alt_ft AS \"Altitude (ft)\",\n       COALESCE(flight_rules, 'N/A') AS \"Rules\",\n       COALESCE(aircraft_icao, 'N/A') AS \"Aircraft\",\n       last_seen AS \"Last seen\"\nFROM (\n  SELECT l.*,\n         CASE WHEN NOT l.is_online THEN 'LOGGED OFF'\n              WHEN l.gs_kt >= 60 THEN 'AIRBORNE'\n              WHEN l.gs_kt > 0 THEN 'TAXIING'\n              WHEN l.gs_kt = 0 THEN 'ON GROUND'\n              ELSE 'UNKNOWN' END AS status,\n         CASE WHEN NOT l.is_online THEN 5\n              WHEN l.gs_kt >= 60 THEN 4\n              WHEN l.gs_kt > 0 THEN 3\n              WHEN l.gs_kt = 0 THEN 1\n              ELSE 6 END AS status_rank\n  FROM pilot_latest l\n  WHERE l.departure = upper(btrim(${airport:sqlstring}))\n) b\nORDER BY status_rank, last_seen DESC\nLIMIT 25"
+          "rawSql": "SELECT callsign AS \"Flight\",\n       COALESCE(arrival, 'N/A') AS \"Destination\",\n       status AS \"Status\",\n       COALESCE(deptime, 'N/A') AS \"Planned departure (UTC)\",\n       gs_kt AS \"Speed (kt)\",\n       alt_ft AS \"Altitude (ft)\",\n       COALESCE(flight_rules, 'N/A') AS \"Rules\",\n       COALESCE(aircraft_icao, 'N/A') AS \"Aircraft\",\n       last_seen AS \"Last seen\"\nFROM (\n  SELECT l.*,\n         CASE WHEN NOT l.is_online THEN 'LOGGED OFF'\n              WHEN l.gs_kt >= 60 THEN 'AIRBORNE'\n              WHEN l.gs_kt > 0 THEN 'TAXIING'\n              WHEN l.gs_kt = 0 THEN 'ON GROUND'\n              ELSE 'UNKNOWN' END AS status,\n         CASE WHEN NOT l.is_online THEN 5\n              WHEN l.gs_kt >= 60 THEN 4\n              WHEN l.gs_kt > 0 THEN 3\n              WHEN l.gs_kt = 0 THEN 1\n              ELSE 6 END AS status_rank\n  FROM pilot_latest l\n  WHERE l.departure = 'YSSY'\n) b\nORDER BY status_rank, last_seen DESC\nLIMIT 25"
         }
       ],
       "options": {},

@@ -51,7 +51,7 @@ updates:
     ignore:
       - dependency-name: postgres
         update-types: ["version-update:semver-major"]
-      - dependency-name: grafana/grafana-oss
+      - dependency-name: grafana/grafana
         update-types: ["version-update:semver-major"]
       - dependency-name: amacneil/dbmate
         update-types: ["version-update:semver-major"]

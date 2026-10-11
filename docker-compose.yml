@@ -118,7 +118,7 @@ services:
     networks: [vatpac]
 
   grafana:
-    image: grafana/grafana-oss:11.6.5
+    image: grafana/grafana:12.4.12  # the OSS edition; grafana-oss stops at 11.6.5 and 11.6 is out of support (last patch 03-06-2026)
     restart: unless-stopped
     logging: *logging
     mem_limit: 512m
