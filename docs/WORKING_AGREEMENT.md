@@ -91,7 +91,7 @@ Weekly: agent tokens per merged change (from the agents' own usage reports; the 
 - Never pin, skip or hide a product defect to get green: fix it or do not merge.
 - Every change gets an independent review by a different agent than the author. Blind review: the reviewer gets the issue and the diff, not the builder's report. Every fix names a test that fails if the fix is reverted. (Docs-only changes that state no operational fact: section 4.)
 - ONE test container at a time on the live VM, only with the load average below 2.0 (`uptime`) and MemAvailable above 3000 MB, capped at 512 MB memory, 512 MB swap and 1 CPU, named so it does not start with `vatpac-`, removed afterwards (incident #113).
-- Issues are never left silent: step 8 of section 3. `ops/deploy.sh --mark` is to list the issue numbers in the commits since the last release marker and flag any with no newer comment (owner approval pending, 11-10-2026).
+- Issues are never left silent: step 8 of section 3. `ops/deploy.sh --mark` lists the issues in the commits since the last marker and refuses to mark if any has no newer comment (`--allow-silent-issues` overrides); `ops/stale_issues.sh` is the read-only check. Built in the pull request of 11-10-2026; it takes effect only after a deploy, which needs the owner's go.
 - New work gets a GitHub issue first, then a tracker row. Closing an issue is ask-first (the owner closes, or says so). In pull requests write `Refs #N`, never `Fixes #N`, so GitHub does not close an issue by accident.
 - Designs are tested against the real problem and sized against the pain they remove (the #104 lesson); ask for the smallest version first.
 - No new test infrastructure: the restore-test extension, weekly replay, a test VM and staging were dropped.
