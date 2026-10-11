@@ -170,10 +170,6 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 | [docs/HANDOVER.md](docs/HANDOVER.md) | Point-in-time hand-over of 07-10-2026 (history) |
 | [docs/OWNER_ACTIONS.md](docs/OWNER_ACTIONS.md) | Steps only the owner can do |
 
-## Licence
-
-MIT, see [LICENSE](LICENSE). The repository is written to be public-safe (no secrets, no real personal data in fixtures). Before any public exposure, check the VATSIM data-use policy and put the dashboards behind a login, because names and CIDs are shown.
-
 ## Credits
 
 Built by the owner with Claude. Data from the public VATSIM data feed.
