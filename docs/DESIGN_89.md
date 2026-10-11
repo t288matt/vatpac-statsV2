@@ -139,3 +139,41 @@ Not much. The migration is small because of the design, not because of the data.
 - First catch-up run: one INSERT over all unwritten sessions; bound it by a time window or batch it if history is large (not at today's size).
 - A collector outage longer than the quiet period: flights are written late, never lost, because the rule is "quiet and not yet written", not a time window.
 - For (c) only: the rewritten partition-drop gate guards irreversible deletion and its 11 lock tests would change; this is the one database-risky piece that warrants an Opus second pass. For (b) the Opus pass is only worthwhile on the writer function and the `flight` view swap.
+
+---
+
+# Final recommendation 11-10-2026: balanced, with all of the owner's guidance
+
+Written before reading docs/OPUS_REVIEW_89.md or docs/DESIGN_89_FINAL.md. Design only; nothing run.
+
+## Verdict
+
+**Recommend (c), done as one migration: `flight_summary` becomes the final record of the merged flight, written once, 3 hours after the flight went quiet, straight from `pilot_session` and `pilot_position`.** This reverses my addendum above, which preferred (b). The new guidance changes the test: the owner wants one clean end state, not a stepping stone. (b) would leave two tables for ever with the wrong names (`flight_summary` holding pieces, a second table holding flights), which breaks guidance 1 and 9. (a) is the worst: it keeps everything and adds the most delicate code.
+
+## Ranking
+
+1. **(c)** One table, one writer, nothing recomputed, nothing live. Net about -150 lines of logic.
+2. **(b)** Cheapest to build, least risk now, but permanent two-layer duplication and a later migration if the owner wants the tidy shape.
+3. **(a)** Most new code (live joins, tie-break, delete and reinsert, in-progress overlap), no simplification.
+
+## Simplest correct end state
+
+- Table `flight_summary`: one row per finished flight (all 31 `flight` columns, plus the list of session ids). Written once, never updated. The old `flight_summary` is dropped and the name reused in the same migration, so there is no overlap period.
+- One writer function (about 100 lines), called by the existing 5-minute maintenance call (rename the SQL function name only; no Python growth). Per guidance 8, it looks only at sessions not yet in a flight, groups them by CID, callsign, departure and arrival, applies today's rules (gap, 8 hour span, 120 minute merge, flight gate), and writes a chain only when its latest end is older than 3 hours.
+- `flight_ext`, `movements`, `cohorts`, `monday_attendance` read it. `is_in_progress` and the `online_now` dependency go (guidance 7). Delete: old `flight_summary`, `final`, `flight_part`, `flight`'s window view, `refresh_flight_summary(_sessions)`, placeholder rows, and the finalisation and three re-checks in the partition drop. The drop keeps one gate: do not drop a partition holding a gated session with no written flight.
+
+## Cost and risk
+
+One migration, about 300 lines written, about 290 deleted. Tests: about 20 files touch the old names, but most go through `tests/integration/helpers.py` (7 references), so one helper change carries most of them; new tests for the writer and the gate. Proven code kept: ingest, tables, the rules themselves (copied), `flight_ext`, `movements`, `cohorts`. New untested: about 130 lines. Prove it by running old and new pipelines on the same synthetic data and comparing `flight_ext` with `EXCEPT ALL`. High-tier pieces: the writer, and the drop gate (never run live, so little proven value is lost by rewriting it). Also changed: 11 panels if `flight` is dropped.
+
+## Lost versus today
+
+5-minute freshness (now 3 hours), live in-progress rows in `flight`, per-part rows, and the unproven finalisation block. If the owner wipes data, the history too; if not, the first writer run writes existing sessions with no conversion code.
+
+## Owner must decide
+
+1. Keep a `flight` view or edit the 11 panels to read `flight_summary` (I recommend editing: one name per thing).
+2. Quiet period: 3 hours or v1's 8.
+3. Tie-break for equal end times.
+4. Keep the 8 hour span split as separate flights.
+5. Monday attendance lags 3 hours.
