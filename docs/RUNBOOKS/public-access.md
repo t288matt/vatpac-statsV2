@@ -21,6 +21,7 @@ visitor -> Cloudflare (rate limit) -> tunnel (cloudflared, docker machine) -> Tr
 cd ~/vatpac-statsV2
 python3 ops/grafana_public.py --public-url https://vatpac.mpengor.com
 ```
+The script finds Grafana at `GRAFANA_BIND` and `GRAFANA_PORT` from `.env` (on this VM the LAN address, not 127.0.0.1); wait about a minute after a Grafana restart.
 It reads the admin login from `.env` (never printed), creates a link for every provisioned dashboard with a fixed time range and no annotations, fixes a link whose settings differ, and prints the 10 URLs. It is safe to run again, and should be run after a new dashboard is added. `--list` changes nothing. `--remove` removes every link, which stops public access at once.
 
 The links live in Grafana's own database (the `grafana_data` volume): they survive restarts and deploys but not a wiped volume; run the script again then (the URLs change). Keep the list of links somewhere you can find it.

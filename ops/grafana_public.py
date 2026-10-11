@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import socket
 import sys
 import urllib.error
 import urllib.parse
@@ -59,12 +60,34 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def is_this_machine(host: str | None) -> bool:
+    """True when the address belongs to this machine (a socket can be bound to it)."""
+    if not host:
+        return False
+    if host == "localhost":
+        return True
+    try:
+        with socket.socket(socket.AF_INET6 if ":" in host else socket.AF_INET) as sock:
+            sock.bind((host, 0))
+        return True
+    except OSError:
+        return False
+
+
 def check_url(url: str) -> None:
     """Basic auth in clear text only to this machine; any other address must be https."""
     parsed = urllib.parse.urlparse(url)
-    if parsed.scheme == "https" or (parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "localhost", "::1")):
+    if parsed.scheme == "https" or (parsed.scheme == "http" and is_this_machine(parsed.hostname)):
         return
-    raise ValueError(f"refusing to send the Grafana login to {url}: use https, or http to this machine (127.0.0.1)")
+    raise ValueError(f"refusing to send the Grafana login to {url}: use https, or http to an address of this machine")
+
+
+def default_url(env: dict[str, str]) -> str:
+    """Where Grafana listens on this machine: GRAFANA_BIND and GRAFANA_PORT from .env (loopback when unset or 0.0.0.0)."""
+    bind = env.get("GRAFANA_BIND") or "127.0.0.1"
+    if bind == "0.0.0.0":
+        bind = "127.0.0.1"
+    return f"http://{bind}:{env.get('GRAFANA_PORT') or '3300'}"
 
 
 class Grafana:
@@ -102,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--list", action="store_true", help="print the links, change nothing")
     ap.add_argument("--remove", action="store_true", help="remove every public link")
-    ap.add_argument("--url", default="http://127.0.0.1:3300", help="Grafana address as seen from this machine")
+    ap.add_argument("--url", default=None, help="Grafana address as seen from this machine (default: from .env)")
     ap.add_argument("--public-url", default=None, help="public address to print in the links, e.g. https://vatpac.mpengor.com")
     ap.add_argument("--env", default=".env", help="file with GRAFANA_ADMIN_USER and GRAFANA_ADMIN_PASSWORD")
     args = ap.parse_args(argv)
@@ -116,6 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     if not password:
         print("GRAFANA_ADMIN_PASSWORD is not set in", args.env, file=sys.stderr)
         return 2
+    args.url = args.url or default_url(env)
     try:
         g = Grafana(args.url, env.get("GRAFANA_ADMIN_USER", "admin"), password)
         return run(g, args)
