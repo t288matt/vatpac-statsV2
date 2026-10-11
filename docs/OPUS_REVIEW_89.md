@@ -1,5 +1,12 @@
 # Independent review of issue #89 (and #108): the `flight` view and history growth
 
+**In plain English (five lines):**
+1. **Problem:** every time a chart opens, the database rebuilds every flight ever recorded from its pieces, so charts get slower each year (about 25 s for the worst chart with 5 years of data, against a 30 s limit).
+2. **Recommendation:** keep a stored list of finished-and-merged flights, and update only the flights of pilots who flew in the last 12 hours, every 5 minutes.
+3. **Why:** in a test with 5 years of made-up data the worst chart fell from 24.5 s to 0.3 s, and the results matched today's on all but 15 of nearly a million flights.
+4. **Risk:** this changes the base of about 35 charts, so it needs a careful test against a copy of the live data before it goes live; if it goes wrong, the fix is to restore the backup taken just before.
+5. **You decide:** which pilot details to show when two pieces of one flight end in the same second (we recommend the later connection's), whether to rename tables (we recommend not now), and when to build it (we recommend in the next few months).
+
 Written 11-10-2026 by an independent reviewer (Opus 5.5), branch `opus-89`, from `origin/main` at e575996. Design only: no migration, no product code, nothing on the live VM. Part 1 was written and committed BEFORE reading `docs/DESIGN_89.md` (branch design-89). Part 2 reviews that design. Part 3 is the verdict. Part 4 answers the owner's naming question.
 
 All measurements: a private PostgreSQL 17.5 cluster created with `initdb` on this PC (port 55433, `shared_buffers` 512 MB, `work_mem` 16 MB, no parallel workers, JIT off), all migrations from main applied, the 5-year synthetic set from `tests/scale/gen_synth.sql` (925000 flights over 1825 days: 1,029,076 sessions, 1,059,703 `flight_summary` rows, 978,357 merged flights, the same counts as `docs/FLIGHT_VIEW_SCALING.md`). Production runs PostgreSQL 16 on a slower 1 CPU VM, so compare the numbers here with each other, not with the VM. Times are single warm runs as the owner role (not `grafana_ro`). The cluster was deleted afterwards.
@@ -73,6 +80,42 @@ Expected effect: every panel on `flight`, `flight_ext`, `movements` and `cohorts
 - **Tests**: every test that inserts `flight_summary` rows directly (the helper in `tests/integration/helpers.py` and seven test files do) will see no flights until the merged table is refreshed, so the helper must call the rebuild. This is a known, mechanical change, not a design problem.
 
 ### 1.6 The "write once when final" option (owner's question, assessed independently)
+
+#### In plain English
+
+**The idea.** This is how v1 worked. A flight is written down once, after the pilot has been gone long enough that nothing more can happen to it. After that it is never changed. Flights that are still going on, or only just finished, are worked out fresh each time a chart asks.
+
+**Two words used below.**
+- A *piece* is one stretch of a pilot's connection. If a pilot disconnects and reconnects, that makes two pieces.
+- The *quiet period* is how long we wait after the pilot's last sign of life before we write the flight down for good.
+
+**A worked example.** A pilot flies Sydney to Melbourne and loses the connection halfway. The quiet period is 12 hours.
+
+| Time (UTC) | What happens | Stored, finished flights | Worked out fresh each time a chart asks |
+|---|---|---|---|
+| 09:00 | Pilot connects (connection A) and takes off | nothing | one flight, still in the air, not counted yet |
+| 10:10 | Connection drops | nothing | one flight, 09:00 to 10:10, now counted |
+| 10:40 | Pilot reconnects (connection B), same callsign and route | nothing | still one flight, A and B joined because the gap was under 120 minutes; in the air again, so not counted |
+| 11:30 | Lands and disconnects | nothing | one flight, 09:00 to 11:30, counted |
+| 23:30 | 12 quiet hours have passed | **one row written: 09:00 to 11:30, made of A and B. Never changed again.** | this flight is no longer worked out fresh |
+
+Our recommended design handles the same flight like this. The one stored row is updated at about 10:15, 10:45 and 11:35, then left alone, because the pilot is no longer active.
+
+**What it fixes.** Charts would no longer rebuild years of old flights every time they open, which is the real cause of the slowness. Old flights would never change, which is tidy.
+
+**What it costs.**
+- Every chart has to read two things and stitch them together: the stored old flights plus the fresh recent ones.
+- The database must also remember which pieces are already inside a stored flight, so nothing is counted twice or missed.
+- It is not faster than our recommendation, and it needs more parts to build and test.
+
+**What could go wrong.**
+- *Too short a quiet period splits flights.* Suppose the flight above were written down 5 minutes after 10:10. When the pilot reconnects at 10:40, connection B becomes a second flight, and the reconnect problem that v1's rule fixed comes back. The wait must be longer than the 120-minute reconnect rule plus any delay in our 5-minute updates. Twelve hours is safe and matches v1. Under about 3 hours is not.
+- *Mistakes at the join.* If the line between "stored" and "worked out fresh" is drawn wrongly, a flight that crosses it is counted twice or not at all.
+- *Small differences from today.* A pilot can come back on the same connection hours later, for example after leaving and re-entering Australian airspace, with a changed flight plan. Today the charts would move the whole flight to the new airports; a written-down flight would keep the old ones. You have not decided which is right.
+
+**Plain verdict.** It would work with a 12-hour wait, but it is no faster and has more parts that can go wrong. We recommend the stored list that is updated only for active pilots.
+
+#### Technical detail
 
 The idea, as in v1: once every session of a flight has been gone for a quiet period, write one final row for the flight and never touch it again; recent and in-progress flights are computed live by the old logic; `flight` = stored finished flights UNION live recent ones.
 
