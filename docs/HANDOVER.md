@@ -174,7 +174,7 @@ The owner asked: "VM 100 (LAN address omitted here) has been created as a Proxmo
 | `db` | `postgres:16.15-bookworm` (16.4 until 09-10-2026), named volume `pgdata`, `--data-checksums`, `ops/postgres/postgresql.conf` mounted, port NOT published | the database (small box tuning) |
 | `migrate` | built from `ops/migrate` (dbmate 2.36.0 + psql; 2.21.0 until 09-10-2026), `restart: "no"` | applies `db/migrations/*.sql`, then `db/roles.sql`, creates `watchdog_ro` |
 | `collector` | built from `collector/Dockerfile` (python:3.12-slim, non-root, read-only root, no capabilities) | polls and stores; `/health` and `/metrics` on port 8080 inside the container |
-| `grafana` | `grafana/grafana-oss:11.6.5` (11.2.2 until 09-10-2026), provisioning mounted read-only from `grafana/`, login required, port `${GRAFANA_BIND:-127.0.0.1}:${GRAFANA_PORT:-3300}` | dashboards |
+| `grafana` | `grafana/grafana:12.4.12` since 11-10-2026 (ADR-029; this row said `grafana/grafana-oss:11.6.5` from 09-10-2026 and 11.2.2 before), provisioning mounted read-only from `grafana/`, login required, port `${GRAFANA_BIND:-127.0.0.1}:${GRAFANA_PORT:-3300}` | dashboards |
 | `backup` | built from `ops/backup` (postgres client) | nightly dump, rotation, restore scripts, weekly restore test, optional `BACKUP_REMOTE` hook |
 | `watchdog` | built from `ops/watchdog` (python, psycopg, httpx) | health and DB checks, Telegram alerts, writes `/var/watchdog/watchdog_status.json`; alert-only |
 All have `restart: unless-stopped` (except migrate), json-file log rotation (10 MB x 5), memory limits, one internal network `vatpac`. No socket proxy and no Cloudflare service by owner decision.
@@ -302,7 +302,7 @@ His global instructions say scheduled/routine tasks should use the Haiku 4.5 mod
 ## 19. Things you must NOT do
 - Do not touch v1 (original VM or its repo) or the owner's Uptime Kuma, Proxmox, Unraid or PBS.
 - Do not commit `.env`, tokens, dumps, backups or internal IP addresses. *Update 08-10-2026: names and CIDs are public and kept forever (ADR-019), so the anonymisation rule and its check `ops/check_fixture_pii.py` were removed (TRACKER T29); the existing fixtures stay anonymised (names `Pilot NNNN`/`Controller NNNN`, CIDs 9000000 to 9999999).*
-- Do not expose Grafana to the internet; do not add Cloudflare or a Docker socket proxy to the repo (owner's choice).
+- (Superseded 11-10-2026 by ADR-029: the 10 dashboards are now public read-only; Grafana itself is still never exposed.) Do not expose Grafana to the internet; do not add Cloudflare or a Docker socket proxy to the repo (owner's choice).
 - Do not edit applied migrations; add new ones. Do not rename the public interfaces in `SPEC.md` section 7 without updating the tests.
 - Do not claim the goal is met before section 1 items 4 and 5 have evidence.
 - Do not redeploy the VM during the soak unless necessary, and say so if you do (it creates a gap in the soak evidence).
