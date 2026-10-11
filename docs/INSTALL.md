@@ -63,7 +63,7 @@ What happens, in order:
 2. The one-shot `migrate` container runs **dbmate** over every SQL file in `db/migrations/`, then applies `db/roles.sql` (it creates the least-privilege roles from the passwords in `.env`) and the read grants for the watchdog role, then exits. In `docker compose ps`, `migrate` showing `exited (0)` is correct and expected. It runs again on every `docker compose up`; re-running changes nothing.
 3. `collector`, `grafana`, `backup` and `watchdog` start once `migrate` has finished.
 
-**Grafana 12.x and an existing `grafana_data` volume:** the first start of Grafana 12.x migrates the `grafana_data` volume one way. There is no downgrade: an older Grafana cannot read the upgraded volume without the tarball taken before the upgrade. If you upgrade an install from before Grafana 12 (production did on 11-10-2026), copy the volume first (the command is in RUNBOOKS/public-access.md, "Things to watch") and keep the copy until you are sure. A fresh install with an empty volume is not affected.
+**Grafana 12.x and an existing `grafana_data` volume:** the first start of Grafana 12.x migrates the `grafana_data` volume one way. There is no downgrade: an older Grafana cannot read the upgraded volume without the tarball taken before the upgrade. If you upgrade an install from before Grafana 12 (production did on 11-10-2026), copy the volume first (the command is in RUNBOOKS/public-access.md, "Roll back") and keep the copy until you are sure. A fresh install with an empty volume is not affected.
 
 Within about two minutes `db`, `collector`, `grafana`, `backup` and `watchdog` should all be `healthy`. If `migrate` is not `exited (0)`, read `docker compose logs migrate`.
 
