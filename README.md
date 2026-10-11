@@ -169,7 +169,3 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 | [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md) | v3 against v1 on overlapping hours |
 | [docs/HANDOVER.md](docs/HANDOVER.md) | Point-in-time hand-over of 07-10-2026 (history) |
 | [docs/OWNER_ACTIONS.md](docs/OWNER_ACTIONS.md) | Steps only the owner can do |
-
-## Credits
-
-Built by the owner with Claude. Data from the public VATSIM data feed.
