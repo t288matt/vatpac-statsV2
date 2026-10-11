@@ -120,7 +120,7 @@ def test_main_list_changes_nothing_and_never_prints_the_password(tmp_path: Path,
 def test_refuses_to_send_the_login_in_clear_to_another_host(tmp_path: Path, capsys) -> None:
     env = tmp_path / ".env"
     env.write_text("GRAFANA_ADMIN_PASSWORD=pw\n", encoding="utf-8")
-    assert gp.main(["--url", "http://192.168.1.50:3000", "--env", str(env)]) == 2
+    assert gp.main(["--url", "http://203.0.113.9:3000", "--env", str(env)]) == 2
     assert "refusing" in capsys.readouterr().err
     gp.check_url("https://vatpac.example")
     gp.check_url("http://127.0.0.1:3300")
@@ -140,3 +140,14 @@ def test_list_shows_links_of_dashboards_that_are_no_longer_provisioned(tmp_path:
     orphan["title"] = "Old dashboard"
     run_main(tmp_path, {"zz": orphan}, "--list")
     assert "Old dashboard" in capsys.readouterr().out
+
+
+def test_default_url_follows_grafana_bind_and_port() -> None:
+    assert gp.default_url({}) == "http://127.0.0.1:3300"
+    assert gp.default_url({"GRAFANA_BIND": "192.168.1.222"}) == "http://192.168.1.222:3300"
+    assert gp.default_url({"GRAFANA_BIND": "0.0.0.0", "GRAFANA_PORT": "3400"}) == "http://127.0.0.1:3400"
+
+
+def test_http_is_allowed_only_to_addresses_of_this_machine() -> None:
+    assert gp.is_this_machine("127.0.0.1") and gp.is_this_machine("localhost")
+    assert not gp.is_this_machine("203.0.113.9") and not gp.is_this_machine(None)
