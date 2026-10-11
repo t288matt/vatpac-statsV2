@@ -18,7 +18,7 @@ D3 = {"uid": "c3", "title": "Gamma"}
 
 
 def pub(dash: str, uid: str, **over) -> dict:
-    return {"dashboardUid": dash, "uid": uid, "accessToken": f"tok-{uid}", **gp.WANTED, **over}
+    return {"dashboardUid": dash, "uid": uid, "accessToken": gp.stable_token(dash), **gp.WANTED, **over}
 
 
 def test_plan_creates_missing_fixes_wrong_and_keeps_right() -> None:
@@ -106,7 +106,7 @@ def test_main_creates_then_is_idempotent_then_removes(tmp_path: Path, capsys) ->
     capsys.readouterr()
     code, state, _ = run_main(tmp_path, dict(state["public"]), "--public-url", "https://x.example")
     out = capsys.readouterr().out
-    assert code == 0 and out.count("ok  https://x.example/public-dashboards/tok-a1") == 1 and "created" not in out
+    assert code == 0 and out.count(f"ok  https://x.example/public-dashboards/{gp.stable_token('a1')}") == 1 and "created" not in out
     code, state, _ = run_main(tmp_path, dict(state["public"]), "--remove")
     assert code == 0 and state["public"] == {}
 
@@ -151,3 +151,33 @@ def test_default_url_follows_grafana_bind_and_port() -> None:
 def test_http_is_allowed_only_to_addresses_of_this_machine() -> None:
     assert gp.is_this_machine("127.0.0.1") and gp.is_this_machine("localhost")
     assert not gp.is_this_machine("203.0.113.9") and not gp.is_this_machine(None)
+
+
+def test_stable_token_is_32_hex_and_always_the_same() -> None:
+    t = gp.stable_token("vatpac-pilots-now")
+    assert len(t) == 32 and all(c in "0123456789abcdef" for c in t)
+    assert t == gp.stable_token("vatpac-pilots-now") and t != gp.stable_token("vatpac-atc-overview")
+
+
+def test_a_link_with_another_token_is_replaced(tmp_path: Path, capsys) -> None:
+    random_token = pub("a1", "p1", accessToken="0" * 32)
+    assert gp.plan([D1], [random_token])[0][0] == "recreate"
+    code, state, _ = run_main(tmp_path, {"a1": random_token, "b2": pub("b2", "p2")})
+    assert code == 0 and state["public"]["a1"]["accessToken"] == gp.stable_token("a1")
+    assert state["public"]["b2"]["accessToken"] == gp.stable_token("b2")
+
+
+def test_every_provisioned_dashboard_has_a_short_name() -> None:
+    uids = {json.loads(f.read_text(encoding="utf-8"))["uid"] for f in (REPO / "grafana" / "dashboards").glob("*/*.json")}
+    assert uids == set(gp.SHORT_NAMES), "add or remove the short name when a dashboard is added or removed"
+    assert len(set(gp.SHORT_NAMES.values())) == len(gp.SHORT_NAMES)
+
+
+def test_traefik_labels_redirect_each_short_name_to_its_stable_link(capsys) -> None:
+    assert gp.main(["--traefik-labels", "--host", "vpac.example"]) == 0
+    out = capsys.readouterr().out
+    for uid, name in gp.SHORT_NAMES.items():
+        assert f"Host(`vpac.example`) && Path(`/{name}`)" in out
+        assert f"redirectregex.replacement=https://vpac.example/public-dashboards/{gp.stable_token(uid)}" in out
+    assert out.count("redirectregex.regex=") == len(gp.SHORT_NAMES) and "/?$$" in out
+    assert gp.main(["--traefik-labels"]) == 2

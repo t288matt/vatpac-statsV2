@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import socket
 import sys
@@ -26,6 +27,44 @@ from pathlib import Path
 from typing import Any
 
 WANTED = {"isEnabled": True, "timeSelectionEnabled": False, "annotationsEnabled": False, "share": "public"}
+
+# Short, readable addresses (https://<host>/live) that redirect to a dashboard's public link. Grafana only accepts a
+# 32-character hex token in its own address, so words can only be a redirect, done by Traefik labels (--traefik-labels).
+SHORT_NAMES = {
+    "vatpac-pilots-now": "live",
+    "vatpac-pilots-traffic": "traffic",
+    "vatpac-pilot-onboarding": "new-pilots",
+    "vatpac-demographics": "origins",
+    "vatpac-atc-overview": "atc",
+    "vatpac-atc-retention": "atc-retention",
+    "vatpac-monday-events": "monday",
+    "vatpac-military": "military",
+    "vatpac-management": "monthly",
+    "vatpac-monitoring": "health",
+}
+
+
+def stable_token(uid: str) -> str:
+    """The same dashboard always gets the same public token (32 hex characters), so the short addresses never go stale."""
+    return hashlib.sha256(f"vatpac-public:{uid}".encode()).hexdigest()[:32]
+
+
+def traefik_labels(host: str) -> str:
+    """Traefik label lines (for the helper container's compose file) that redirect each short address to its public link."""
+    lines = []
+    for uid, name in sorted(SHORT_NAMES.items(), key=lambda kv: kv[1]):
+        r = f"vatpac-{name}"
+        lines += [
+            f"      # /{name}  ->  {uid}",
+            f'      - "traefik.http.routers.{r}.entrypoints=https"',
+            f'      - "traefik.http.routers.{r}.rule=Host(`{host}`) && Path(`/{name}`)"',
+            f'      - "traefik.http.routers.{r}.tls=true"',
+            f'      - "traefik.http.routers.{r}.service=vatpac"',
+            f'      - "traefik.http.routers.{r}.middlewares={r}-go"',
+            f'      - "traefik.http.middlewares.{r}-go.redirectregex.regex=^https://[^/]+/{name}/?$$"',
+            f'      - "traefik.http.middlewares.{r}-go.redirectregex.replacement=https://{host}/public-dashboards/{stable_token(uid)}"',
+        ]
+    return "\n".join(lines)
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -39,13 +78,15 @@ def read_env(path: Path) -> dict[str, str]:
 
 
 def plan(dashboards: list[dict[str, Any]], public: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any], dict[str, Any] | None]]:
-    """What to do for each dashboard: ('create', d, None), ('update', d, existing), ('keep', d, existing)."""
+    """What to do for each dashboard: create, recreate (wrong token), update (wrong settings) or keep."""
     by_dash = {p["dashboardUid"]: p for p in public}
     steps: list[tuple[str, dict[str, Any], dict[str, Any] | None]] = []
     for d in sorted(dashboards, key=lambda x: x["title"]):
         existing = by_dash.get(d["uid"])
         if existing is None:
             steps.append(("create", d, None))
+        elif existing.get("accessToken") != stable_token(d["uid"]):
+            steps.append(("recreate", d, existing))
         elif any(existing.get(k) != v for k, v in WANTED.items()):
             steps.append(("update", d, existing))
         else:
@@ -125,10 +166,19 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--list", action="store_true", help="print the links, change nothing")
     ap.add_argument("--remove", action="store_true", help="remove every public link")
+    ap.add_argument("--traefik-labels", action="store_true", help="print the Traefik labels for the short addresses (needs --host)")
+    ap.add_argument("--host", default=None, help="public host name for --traefik-labels, e.g. vpac.mpengor.com")
     ap.add_argument("--url", default=None, help="Grafana address as seen from this machine (default: from .env)")
     ap.add_argument("--public-url", default=None, help="public address to print in the links, e.g. https://vatpac.mpengor.com")
     ap.add_argument("--env", default=".env", help="file with GRAFANA_ADMIN_USER and GRAFANA_ADMIN_PASSWORD")
     args = ap.parse_args(argv)
+
+    if args.traefik_labels:
+        if not args.host:
+            print("--traefik-labels needs --host", file=sys.stderr)
+            return 2
+        print(traefik_labels(args.host))
+        return 0
 
     try:
         env = read_env(Path(args.env))
@@ -186,11 +236,16 @@ def run(g: Grafana, args: argparse.Namespace) -> int:
         token: str | None = existing["accessToken"] if existing else None
         res = None
         if args.list:
-            print(f"{d['title']}: {link(token, args.public_url) if token else 'not public'}"
-                  + ("" if action == "keep" or not existing else "  (settings differ)"))
+            short = f"  (short: /{SHORT_NAMES[d['uid']]})" if d["uid"] in SHORT_NAMES else ""
+            note = "" if action == "keep" or not existing else "  (token or settings differ: run without --list)"
+            print(f"{d['title']}: {link(token, args.public_url) if token else 'not public'}{short}{note}")
             continue
+        if action == "recreate" and existing is not None:  # a link with another token: replace it (its address changes once)
+            status, res = g.call("DELETE", f"/api/dashboards/uid/{d['uid']}/public-dashboards/{existing['uid']}")
+            action = "create" if status == 200 else "recreate"
         if action == "create":
-            status, res = g.call("POST", f"/api/dashboards/uid/{d['uid']}/public-dashboards", dict(WANTED))
+            status, res = g.call("POST", f"/api/dashboards/uid/{d['uid']}/public-dashboards",
+                                 {**WANTED, "accessToken": stable_token(d["uid"])})
             if status == 200:
                 token = res["accessToken"]
         elif action == "update" and existing is not None:
@@ -199,7 +254,7 @@ def run(g: Grafana, args: argparse.Namespace) -> int:
             status = 200
         ok = status == 200 and bool(token)
         failures += not ok
-        verb = {"create": "created", "update": "fixed", "keep": "ok"}[action]
+        verb = {"create": "created", "update": "fixed", "keep": "ok", "recreate": "FAILED to replace"}[action]
         shown = link(token, args.public_url) if token else ""
         print(f"{d['title']}: " + (f"{verb}  {shown}" if ok else f"FAILED ({status}) {json.dumps(res)[:120]}"))
     return 1 if failures else 0
