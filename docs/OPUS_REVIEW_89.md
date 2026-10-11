@@ -5,7 +5,7 @@
 2. **Recommendation:** keep a stored list of finished-and-merged flights, and update only the flights of pilots who flew in the last 12 hours, every 5 minutes.
 3. **Why:** in a test with 5 years of made-up data the worst chart fell from 24.5 s to 0.3 s, and the results matched today's on all but 15 of nearly a million flights.
 4. **Risk:** this changes the base of about 35 charts, so it needs a careful test against a copy of the live data before it goes live; if it goes wrong, the fix is to restore the backup taken just before.
-5. **You decide:** which pilot details to show when two pieces of one flight end in the same second (we recommend the later connection's), whether to rename tables (we recommend not now), and when to build it (we recommend in the next few months).
+5. **You decide:** one question: may a finished flight reach the charts up to 3 hours after it ends? If yes, the simpler "write once when final" design (section 1.6) is as good, and arguably closer to v1; if no, build the recommended one. Smaller choices: the tie-break (we recommend the later connection's details) and table names (we recommend no rename now).
 
 Written 11-10-2026 by an independent reviewer (Opus 5.5), branch `opus-89`, from `origin/main` at e575996. Design only: no migration, no product code, nothing on the live VM. Part 1 was written and committed BEFORE reading `docs/DESIGN_89.md` (branch design-89). Part 2 reviews that design. Part 3 is the verdict. Part 4 answers the owner's naming question.
 
@@ -79,59 +79,78 @@ Expected effect: every panel on `flight`, `flight_ext`, `movements` and `cohorts
 - **Backup and restore**: the table is in every dump (derived data, about 160 MB more per dump at 5 years, under 1 MB today). After a restore it is already consistent with the restored `flight_summary` (one dump snapshot). The restore test should add one check: the table equals a recomputation for a sample of pilots.
 - **Tests**: every test that inserts `flight_summary` rows directly (the helper in `tests/integration/helpers.py` and seven test files do) will see no flights until the merged table is refreshed, so the helper must call the rebuild. This is a known, mechanical change, not a design problem.
 
-### 1.6 The "write once when final" option (owner's question, assessed independently)
+### 1.6 The "write once when final" option (re-assessed 11-10-2026 after the owner's correction)
 
 #### In plain English
 
-**The idea.** This is how v1 worked. A flight is written down once, after the pilot has been gone long enough that nothing more can happen to it. After that it is never changed. Flights that are still going on, or only just finished, are worked out fresh each time a chart asks.
+**A correction first.** My first version of this section was wrong on one point. Flights that are still connected are never shown in any chart. All 35 flight charts count finished flights only (owner decision, issue #38; CHART_DEFINITIONS.md "In-progress flights"). The charts that show who is online now read other views and never touch flights. So charts do NOT need "stored old flights stitched to freshly worked-out recent ones". That stitching was my main objection, and it was not needed. I have redone the comparison below.
+
+**The idea.** As in v1: once a flight is over and the pilot has been quiet for a set time (the *quiet period*), write the flight down once, as one row, and never change it. The charts read only these written rows.
 
 **Two words used below.**
-- A *piece* is one stretch of a pilot's connection. If a pilot disconnects and reconnects, that makes two pieces.
-- The *quiet period* is how long we wait after the pilot's last sign of life before we write the flight down for good.
+- A *piece* is one stretch of a pilot's connection. A disconnect and reconnect makes two pieces.
+- *Reference merge* is today's merge logic, kept unchanged as the definition of a correct flight. We compare stored rows against it.
 
-**A worked example.** A pilot flies Sydney to Melbourne and loses the connection halfway. The quiet period is 12 hours.
+**A worked example** (a 3-hour quiet period). A pilot flies Sydney to Melbourne and loses the connection halfway.
 
-| Time (UTC) | What happens | Stored, finished flights | Worked out fresh each time a chart asks |
-|---|---|---|---|
-| 09:00 | Pilot connects (connection A) and takes off | nothing | one flight, still in the air, not counted yet |
-| 10:10 | Connection drops | nothing | one flight, 09:00 to 10:10, now counted |
-| 10:40 | Pilot reconnects (connection B), same callsign and route | nothing | still one flight, A and B joined because the gap was under 120 minutes; in the air again, so not counted |
-| 11:30 | Lands and disconnects | nothing | one flight, 09:00 to 11:30, counted |
-| 23:30 | 12 quiet hours have passed | **one row written: 09:00 to 11:30, made of A and B. Never changed again.** | this flight is no longer worked out fresh |
+| Time (UTC) | What happens | Pieces table (`flight_summary`) | Stored flights (charts read this) | Chart counts |
+|---|---|---|---|---|
+| 09:00 | Connects (connection A), takes off | piece A from the next 5-minute update | nothing | not counted (in the air) |
+| 10:10 | Connection drops | A: 09:00 to 10:10 | nothing | not counted yet |
+| 10:40 | Reconnects (connection B), same callsign and route | A, and B from 10:40 | nothing | not counted |
+| 11:30 | Lands, disconnects | A, B: 10:40 to 11:30 | nothing | not counted yet (today's design: counted from about 11:31) |
+| 14:30 | 3 quiet hours since 11:30 | unchanged | **one row: 09:00 to 11:30, made of A and B; never changed again** | counted |
 
-Our recommended design handles the same flight like this. The one stored row is updated at about 10:15, 10:45 and 11:35, then left alone, because the pilot is no longer active.
+If the quiet period were only 20 minutes, A would be written down at 10:30 as its own flight. B would then become a second flight, and the reconnect would be counted twice. That is why the quiet period must be longer than the 120-minute reconnect rule.
 
-**What it fixes.** Charts would no longer rebuild years of old flights every time they open, which is the real cause of the slowness. Old flights would never change, which is tidy.
+**What quiet period is safe?** More than 120 minutes. The write-down happens in the same 5-minute update that brings the pieces up to date, so any reconnect seen before the write-down is already in the pieces table. **3 hours** gives a safe margin. The 8-hour split of long connections does not matter: a flight is only written down once every connection in it has gone quiet, however long it lasted. v1 waited 8 hours, but that adds nothing to safety. It only delays the charts.
+
+**What it fixes.** Charts stop rebuilding years of flights; they read finished rows, as fast as the recommended design (same stored table, same indexes). Old flights can never be changed by a later update, so a bug in the update can only affect new flights.
 
 **What it costs.**
-- Every chart has to read two things and stitch them together: the stored old flights plus the fresh recent ones.
-- The database must also remember which pieces are already inside a stored flight, so nothing is counted twice or missed.
-- It is not faster than our recommendation, and it needs more parts to build and test.
+- **Every flight appears in the charts up to 3 hours after it ends** (today: about 1 to 6 minutes). This undoes part of ADR-025 ("counted once the pilot has been gone 60 s"), so it needs your decision and a new ADR. The panels that notice (from the real SQL):
+  - Servers used by home-region pilots, last 24 hours: the newest 3 hours are missing (about an eighth of the window).
+  - Highest groundspeeds, RAAFv flights and "most time online", all last 7 days: the newest 3 hours are missing.
+  - Monday event share of YMML-YSSY airborne time (07:00 to 12:00Z): this Monday's figure appears from about 15:00Z instead of about 12:05Z.
+  - Busiest days, monthly management and onboarding panels: today's day or month reads slightly low until 3 hours have passed.
+  - 30-day route, airport and aircraft panels: the last 3 hours of 30 days, under 0.5 percent.
+  - Not affected: Monday attendance and the watchdog's integrity checks (they read the pieces table, not flights), the restore test, and every live "online now" panel.
+- About the same amount of SQL as the recommended design (about 200 lines), but more test changes: every test that makes a flight and checks a chart straight away must either make it older than the quiet period or set the quiet period to zero.
 
-**What could go wrong.**
-- *Too short a quiet period splits flights.* Suppose the flight above were written down 5 minutes after 10:10. When the pilot reconnects at 10:40, connection B becomes a second flight, and the reconnect problem that v1's rule fixed comes back. The wait must be longer than the 120-minute reconnect rule plus any delay in our 5-minute updates. Twelve hours is safe and matches v1. Under about 3 hours is not.
-- *Mistakes at the join.* If the line between "stored" and "worked out fresh" is drawn wrongly, a flight that crosses it is counted twice or not at all.
-- *Small differences from today.* A pilot can come back on the same connection hours later, for example after leaving and re-entering Australian airspace, with a changed flight plan. Today the charts would move the whole flight to the new airports; a written-down flight would keep the old ones. You have not decided which is right.
+**What could go wrong, side by side with the recommended design.** Both keep a stored table that could disagree with the reference merge. Both are checked the same way and repaired the same way. The question is how each can go wrong.
 
-**Plain verdict.** It would work with a 12-hour wait, but it is no faster and has more parts that can go wrong. We recommend the stored list that is updated only for active pilots.
+| | Write once when final (charts read only stored rows) | Update active pilots every 5 minutes (DESIGN_89 / my Part 1) |
+|---|---|---|
+| How it could be wrong | (1) A flight is never written down: the write-down step missed it, or the updates were stopped for longer than it looks back. The charts then undercount, silently. (2) A flight is written down too early, if the quiet period is set or coded wrong: a reconnect is counted twice. (3) A later data fix (like the 08-10-2026 duplicate-session repair) does not reach rows already written. | (1) A pilot is missed by an update (a code bug): that pilot's flights go stale until their next update. (2) The updates stop for more than 12 hours: flights from that gap stay stale until finalisation or a rebuild. A half-done update cannot happen: each update is all-or-nothing. (3) A bug in the update code rewrites the whole history of every active pilot, every 5 minutes. |
+| How far damage can spread | Only new flights. Old rows are never touched. | Every flight of every pilot active that day, old ones included. |
+| How it is detected | A nightly comparison with the reference merge, limited to flights older than the quiet period, plus "every piece older than 4 hours belongs to a stored flight". There are a few expected differences (a pilot who comes back on the same connection with a new plan, see below), so the check must allow for them. | A nightly comparison with the reference merge over all flights. Zero differences expected (exact ties excepted), so any difference is a bug. A simpler, stricter check. |
+| How it is repaired | Delete that pilot's rows and write them again from the pieces table (one function call); or a full rebuild. | The same. |
+| Effect after restoring a backup | None: the dump is one consistent moment. | The same. |
+
+**On the boundary risk I raised before.** With no stitching, the "counted twice or missed at the join" risk is gone. What remains is the same kind of risk in both designs: the stored table drifting from the reference merge. Write-once can only drift on new flights. The 5-minute design can drift on any flight of an active pilot, but its drift is easier to spot, because the expected difference is exactly zero.
+
+**Pilot comes back on the same connection hours later with a new plan.** For example, a pilot leaves Australian airspace and comes back with a different destination. Today's view moves the whole connection, old part included, to the new airports. Write-once keeps the old part under the old airports and makes the new part a new flight. The docs say "a changed plan is a different flight, as in v1" (ADR-023), and v1 grouped each sample by the plan it had at that moment. So **write-once is closer to v1 and to the written rule.** Today's behaviour here is a side effect of storing the plan per connection. It is rare.
+
+**Collector outage.** If the collector stops, nothing is in progress and today every flight counts at once. With write-once, flights that ended before the outage are written down when the collector restarts and its first update runs (as long as the look-back covers the outage; the look-back should be days, not hours, to make that safe).
+
+**Can the "final" flag be shared?** No. `flight_summary.final` means "this connection's raw positions may now be deleted" and is set 90 (soon 180) days later, just before positions are dropped. The update skips final connections, so setting it after 3 hours would stop a returning connection's new pieces from ever being summarised. Write-once needs its own record of what was written down; the stored rows themselves can be that record.
+
+**Combining the two** (stored rows when final, today's live merge for the last 3 hours, joined together) would give speed with no lag. But it brings back the joining step, and the 5-minute design already gives no lag with one code path. Not worth it.
+
+**Plain verdict.** Both designs are equally fast and about the same size, and both are safe if built carefully. Write-once is simpler to reason about, cannot damage old flights, and matches v1 and the written plan-change rule; its price is that flights reach the charts up to 3 hours after they end, plus more test changes. The 5-minute design keeps today's behaviour exactly, with a stricter check. The choice is yours: it turns on whether that 3-hour delay is acceptable.
 
 #### Technical detail
 
-The idea, as in v1: once every session of a flight has been gone for a quiet period, write one final row for the flight and never touch it again; recent and in-progress flights are computed live by the old logic; `flight` = stored finished flights UNION live recent ones.
-
-**What it gets right.** It names the real root cause (re-merging settled history), it is immutable (good for audit and backups, no churn) and it matches v1's mental model.
-
-**Where it is weaker than per-pilot maintenance:**
-
-1. **The union boundary must be exact.** "Live" must mean "every piece not already inside a stored flight", decided by stored membership, not by a time test, or a flight straddling the boundary is counted twice or not at all. That needs a per-piece marker (a column on `flight_summary` or a membership table), which is more stored state than my design, plus an anti-join in every panel query.
-2. **Two code paths for every panel.** Each query runs the union: an index read of the stored part plus a live window computation over the recent pieces (a few thousand rows, tens of milliseconds). Correct, but every panel now depends on the planner handling a UNION ALL with a window branch, and there are two places where the merge rule could drift.
-3. **It is not identical to today on revived sessions.** A session can come back after a long silence with the same logon (a pilot who leaves the polygon and re-enters, or a collector outage). If its plan has changed when it comes back, today's view moves ALL its pieces, including the old ones, to the new airports; a frozen row keeps the old airports. Arguably the frozen answer is more correct, but it is a behaviour change the owner has not decided, and `is_in_progress` for the frozen row must still be computed live (the revived session is online).
-4. **Late reconnects are safe only with a long enough quiet period.** A new piece appears in `flight_summary` within one refresh (5 minutes, about 13 minutes if a refresh fails during a partition drop, issue #112 item 5, and much longer if the refresh job is broken while ingest continues). A stored flight can still be extended by any piece that starts within 120 minutes of its end. So the quiet period must be more than 120 minutes plus the worst refresh lag, and freezing must happen in the same transaction as the summary refresh. The 8 hour part rule does not shorten it: parts of one session are never joined, and a live session's flight is not final whatever its age.
-5. **It is not cheaper.** The stored part is the same size as mine; the live part adds per-query work; the write path is similar (a freeze step instead of an upsert of active pilots).
-
-**The quiet period, if the owner prefers this model anyway:** 12 hours. That is exactly when a session leaves the 12 hour refresh window (`FLIGHT_REFRESH_WINDOW`), after which `flight_summary` stops changing for it anyway, it is far above 120 minutes plus any realistic refresh lag, and it is what v1 did. Anything under about 3 hours is unsafe.
-
-**Plainly: it is not better for v3.** It solves the same problem with more moving parts (union, membership marker, two code paths) and a behaviour change on revived sessions. The per-pilot maintained table gives the same speed with one code path and rows identical to today's view except on exact ties. The good idea to keep from it: settled flights should not be recomputed on read, and the maintenance should touch only active pilots, which is what 1.3 does.
+- **Premise correction.** Every panel reading `flight` filters `NOT is_in_progress`, and all the others read `flight_ext`, `movements` or `cohorts`, which filter it. A script over `grafana/dashboards` found no panel that needs in-progress rows from `flight`. LIVE panels read `pilot_online_now`, `pilot_latest` and `network_history`. So `flight` can be "stored rows only" with `is_in_progress` false for them, and no union is needed.
+- **Write-down step** (inside the refresh, after the pieces update, under the same advisory lock):
+  - For pilots with a session whose `last_seen` is between now minus (Q plus a look-back L) and now minus Q, run the reference merge over pieces not yet inside a stored flight. A piece is stored when its session is in a stored row's `session_ids` and the piece lies inside that row's time range.
+  - Insert, with `ON CONFLICT DO NOTHING`, the flights all of whose sessions have `last_seen` older than now minus Q.
+  - Append-only. About 60 lines. L should be several days, so a refresh outage cannot leave flights unwritten, with a nightly "unrecorded piece older than Q plus 1 h" invariant as the backstop.
+- **Safety of Q.** A new piece B can join a flight F only if B.start - F.end <= 120 min. When the write-down runs in the same transaction as the pieces refresh, any session first seen before that transaction is already in `flight_summary`, and any later one starts after the write-down time, which is at least F.end + Q. So any Q > 120 min is safe. 3 h leaves margin for clock and poll jitter. Parts of one session are never joined (the lag-row rule), so a session that comes back after Q starts a new flight in both the reference merge and write-once. The only difference is which airports the old part keeps, if the plan changed.
+- **Stored columns.** Plan and pilot fields can be frozen at write-down time (v1 style). That removes the join to `pilot_session` and makes the rows fully immutable. Or they stay live via `last_session_id` (identical to today). Freezing is simpler; it differs from today only for the returning-session case.
+- **Measured costs carry over.** The table size (273 MB with indexes at 5 years), the panel times (0.2 to 0.4 s), the pushdown and the index needs are the same as in 1.2 and Part 2, because it is the same stored table. The write cost is lower: about 700 inserts a day, against an upsert read of about 9,300 flights every 5 minutes (about 0.2 s).
+- **Tests.** `tests/integration/helpers.py` and the panel tests make flights that end "now"; they need Q set to 0 through an `app_setting` key, or older fixtures. Reconnect tests still work with Q = 0 because both pieces exist before the refresh runs.
+- **Rollback and restore** are the same as the 5-minute design: pre-deploy dump; forward migration restoring the old body; the table is in the dump.
 
 ---
 
@@ -182,7 +201,7 @@ DESIGN_89 (option A) and my own answer reached the same architecture independent
 
 ## Part 3. Verdict
 
-**Build option A of DESIGN_89 with the amendments above (write only changed rows, two more indexes, test helper, migration locking, COALESCE). Do not extend `flight_summary`, do not use a materialised view, do not adopt write-once-when-final.**
+**Build a stored table of merged flights read by a thin `flight` view. Two designs qualify, equally fast and about the same size, and the choice is one owner question (3.3 item 1): (a) DESIGN_89 option A with the amendments above (write only changed rows, two more indexes, test helper, migration locking, COALESCE), which keeps today's behaviour exactly; or (b) write once when final with a 3-hour quiet period (section 1.6, revised), which cannot damage old flights and matches v1, at the price of a 3-hour delay before a flight is counted. My default if the owner has no preference: (a), because it changes nothing users see and its nightly check expects exactly zero differences. Do not extend `flight_summary` and do not use a materialised view.** (Revised 11-10-2026: the first version rejected write-once on a wrong premise, see 1.6.)
 
 ### 3.1 Smallest first version (one migration, no Python, no roles.sql, no panel change)
 
@@ -204,10 +223,11 @@ About 220 SQL lines and 170 test lines. Medium tier by the table (existing colum
 
 ### 3.3 Owner decisions
 
-1. **Tie-break**: when two pieces of one flight end in the same second, take the plan and pilot fields from the session with the higher id (the later one created). Today the answer is arbitrary; about 15 flights per million. Recommend yes.
+1. **The main question: may a finished flight appear in the charts up to 3 hours after it ends (today about 1 to 6 minutes; v1 8 hours)?** Yes: build write-once when final (1.6). No: build the 5-minute design (3.1). If (b) is chosen, 3.1 changes to: append-only write-down step instead of the upsert, quiet period as a setting, a nightly "no unrecorded piece older than 4 hours" check, test fixtures older than the quiet period; the indexes, locking and helper changes stay.
+1a. **Tie-break**: when two pieces of one flight end in the same second, take the plan and pilot fields from the session with the higher id (the later one created). Today the answer is arbitrary; about 15 flights per million. Recommend yes.
 2. **Names** (Part 4): name the new objects clearly now; do not rename `flight_summary` in this change.
 3. **When to build**: no timeouts for about three years, but the dashboards are public (ADR-029), so each visitor's page load runs about ten of these queries on one CPU, and at one year of history (mid-2027) the airport and route panels take 7 to 12 s each. Recommend building in the next few months, while the backfill is trivial.
-4. **Write-once-when-final**: recommend no (Part 1.6).
+4. Folded into item 1 above (revised 11-10-2026).
 
 ### 3.4 What I could not verify
 
