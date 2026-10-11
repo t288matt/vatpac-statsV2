@@ -387,7 +387,7 @@ mark() {
   g merge-base --is-ancestor "$full" origin/main 2>/dev/null || { echo "FAIL  ${full:0:10} is not on origin/main; nothing written" >&2; return 1; }
   now="$(vm_now)"; [ -n "$now" ] || { echo "FAIL  could not read the VM time; nothing written" >&2; return 1; }
   # silent-issue guard (fails closed): each issue named since the previous marker needs a comment newer than its newest commit
-  prev="$(vm 'cat .deploy/release 2>/dev/null' 2>/dev/null | tr -d '' | sed -n 's/^commit=\([0-9a-fA-F]\{40\}\)$//p' | head -n 1)"
+  prev="$(vm 'cat .deploy/release 2>/dev/null' 2>/dev/null | tr -d '\r' | sed -n 's/^commit=\([0-9a-fA-F]\{40\}\)$/\1/p' | head -n 1)"
   if [ -z "$prev" ]; then rc=2; echo "no previous marker could be read, so the commits to check are unknown" >&2
   else DEPLOY_SSH="$DEPLOY_SSH" DEPLOY_DIR="$DEPLOY_DIR" GH_BIN="$(gh_bin)" REPO="$DEPLOY_REPO" bash "$HERE/stale_issues.sh" --range "$prev..$full"; rc=$?; fi
   if [ "$rc" -ne 0 ]; then
