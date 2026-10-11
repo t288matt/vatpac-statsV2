@@ -89,3 +89,122 @@ The idea, as in v1: once every session of a flight has been gone for a quiet per
 **The quiet period, if the owner prefers this model anyway:** 12 hours. That is exactly when a session leaves the 12 hour refresh window (`FLIGHT_REFRESH_WINDOW`), after which `flight_summary` stops changing for it anyway, it is far above 120 minutes plus any realistic refresh lag, and it is what v1 did. Anything under about 3 hours is unsafe.
 
 **Plainly: it is not better for v3.** It solves the same problem with more moving parts (union, membership marker, two code paths) and a behaviour change on revived sessions. The per-pilot maintained table gives the same speed with one code path and rows identical to today's view except on exact ties. The good idea to keep from it: settled flights should not be recomputed on read, and the maintenance should touch only active pilots, which is what 1.3 does.
+
+---
+
+## Part 2. Review of docs/DESIGN_89.md (branch design-89, read after Part 1 was committed)
+
+### 2.1 Overall
+
+DESIGN_89 (option A) and my own answer reached the same architecture independently: a stored table of merged flights, the old merge body kept as a reference view, per-pilot recompute inside `refresh_flight_summary_sessions` under its advisory lock, `flight` as a thin view with live plan fields via `last_session_id` and live `is_in_progress` via `session_ids`, highest session id as the tie-break, no Python and no panel change. I **agree** with its core and with its reasons for rejecting B (merged columns on `flight_summary`) and C. Below: where I add evidence, and seven points where I disagree or find a gap.
+
+### 2.2 Where I agree, with evidence the design did not have
+
+| Design claim | My evidence |
+|---|---|
+| "A cid predicate should push below the window functions; confirm with EXPLAIN" (its open check 1) | Confirmed: the filter reaches an index scan on `pilot_session_identity` through all three window passes; 477 active pilots, full history, 130 ms at 5 years. |
+| "NOT measured: the join to `pilot_session` for the live plan fields" (open check 2) | Measured with the join, the online-now lookup and the full `flight_ext` / `movements` stack: 0.2 to 0.4 s for the 30-day and 6-month panels at 5 years, 1.8 s for an all-time monthly panel. The join does not shrink the gain. |
+| Per CID, not per group | Agree; it also makes plan changes, gate changes and part moves correct with no old-key tracking. Heaviest pilot (2,226 flights): 29 ms. |
+| Equivalence by construction | Confirmed: all 32 columns identical on 978,342 of 978,357 flights; the 15 others are exact ties on `end_time` where the old pick is arbitrary. `is_in_progress` identical for all 211 online flights; `movements` identical. |
+| Option C "stored narrow chain key": "not measured" | Measured: 2.7 s at 5 years (16.9 s with the home-airport test), still linear. Rejection confirmed. |
+| B is the riskier place (retention-critical table) | Agree; the strongest argument in the design. |
+
+### 2.3 Where I disagree, or the design has a gap
+
+1. **Delete-and-reinsert churns the table; write only what changed (DISAGREE, small).** At 5 years the pilots seen in 12 hours own about 9,300 flights; delete-and-reinsert rewrites all of them every 5 minutes, about 2.7 million dead row versions a day across a ~1M-row table and its indexes, for nothing (measured: 0 rows actually change in a normal run, 1 after a plan change). Use the pattern `refresh_flight_summary_sessions` already uses: upsert with `WHERE row IS DISTINCT FROM EXCLUDED`, then delete keys that no longer exist. Same correctness and lock, about 15 more SQL lines, measured 160 to 250 ms.
+2. **Indexes on (cid) and (end_time) are not enough (GAP).** Panels also filter on `start_time` (the departure half of `movements`, busiest days by flights) and `logon_time` (RAAFv flights, busiest days by pilots, onboarding and management panels). Measured at 5 years without those two indexes: busiest airports 1.3 s instead of 0.34 s, RAAFv flights (7 days) 905 ms instead of 11 ms, both linear again. Add `(start_time)` and `(logon_time)`.
+3. **Existing tests will break, and the design does not say so (GAP).** `tests/integration/helpers.py` (used by seven panel test files: events, military, online hours, panel rules, pilots people, time zones, watchdog flap) INSERTs `flight_summary` rows directly and never calls the refresh. With a stored table those flights do not appear in `flight` until it is rebuilt. The helper must call the rebuild (one line). It belongs in the plan and the size estimate.
+4. **The migration's locking is not specified (GAP).** (a) The backfill must take the refresh advisory lock (`pg_advisory_xact_lock(hashtext('vatpac.flight_summary_refresh'))`), or a 5-minute refresh during the deploy can interleave with it. (b) `CREATE OR REPLACE VIEW flight` needs an exclusive lock on the view: it waits for running panel queries (up to 30 s each; the dashboards are now public, ADR-029) and every new panel query queues behind it. Set a `lock_timeout` (for example 5 s) in the migration so a busy moment fails the deploy cleanly instead of stalling the dashboards; `migrate.sh` sets none.
+5. **The `is_in_progress` expression has a trap (GAP, caught by existing tests).** `session_ids && (SELECT array_agg(...) FROM online_now ...)` is NULL when `online_now` is empty (collector stale); `NOT is_in_progress` is then NULL and `flight_ext` would hide EVERY flight. It must be wrapped in `COALESCE(..., false)`. `test_stale_collector_does_not_hide_flights` and `test_nothing_is_in_progress_when_the_collector_is_stale` would catch a mistake; a builder warning, not a design change.
+6. **"Live, as today" is slightly overstated.** Pilot and plan fields are live, but departure and arrival are **stored** (they are the merge key), so they lag a plan change by up to one refresh. The flight is in progress then, so no counting panel sees it; the design and the data dictionary should say so.
+7. **Stop-gap materialised view "refreshed hourly" (DISAGREE, minor)** — `refresh_materialized_views()` runs only in the daily maintenance; hourly needs a collector (Python) change. The only no-code emergency lever is raising `grafana_ro`'s `statement_timeout`. And on **rollback**: dbmate down steps are not run in deploys; the real rollback is the pre-deploy dump or a forward migration restoring the old body (possible because the columns are unchanged). The deploy plan should name the dump.
+
+### 2.4 The other review topics
+
+- **Reconnect chains (within, exactly at, after 120 minutes)**: inherited unchanged from the reference body; the design's test list covers them. Agree.
+- **Plan changes**: correct with per-pilot recompute (with the wording in 2.3 item 6).
+- **In-progress flights**: agree (live via `session_ids`, with the COALESCE).
+- **Flights spanning the position drop and finalisation**: the hook sits in the worker that finalisation calls, so merged rows are recomputed in the same transaction; drops never touch the new table; no drop safety check changes. About 0.2 s more per finalised partition, inside the lock window already noted in #112 item 5. Agree.
+- **Session deletes and ADR-026 / #21**: agree with "delete by CID and rebuild"; write it into ADR-026 item 2 as a rule; no foreign key (a cascade would delete a whole merged flight when one piece goes).
+- **Duplicates**: the key is the first piece's key, unique by construction; ADR-021 twins are merged at source; the upsert cannot create duplicates.
+- **Race with the 5-minute refresh and the collector**: one writer (advisory lock); readers see before or after (one transaction); a plan change committed during a refresh is picked up by the next, because the session stays in the 12-hour window. Agree.
+- **Migration and backfill on the live database**: milliseconds today (about 1,100 sessions), about 7 s at 5 years on this PC; lock points in 2.3 item 4.
+- **Backup and restore**: an ordinary table in the dump, consistent with `flight_summary` because a dump is one snapshot. The design's restore check (`EXCEPT ALL` against the reference view) is right; at 5 years several seconds on the VM, acceptable weekly, or limit it to a sample of pilots.
+- **Role grants**: no `roles.sql` change. Note that `roles.sql` grants SELECT on every view, so the reference view becomes readable by `grafana_ro`; harmless (public dashboards cannot run free SQL), but it is the slow query, so `validate_dashboards.py` should refuse it in a panel.
+- **Effect on the 35 panels**: no SQL change; at 5 years from 8 to 30 s (or cancelled) to well under 1 s, all-time panels about 2 s. The 15-in-a-million tie rows may show a different aircraft or name.
+- **Smallest sufficient change?** Yes, once items 1 and 2 are added (a few lines each).
+- **Test adequacy**: the design's six test groups are right. Add: the helper change (item 3); a session gaining or losing the flight gate (plan filled in later) moves into and out of `flight` after one refresh; and "a second refresh with nothing changed writes 0 rows", which catches churn regressions.
+
+---
+
+## Part 3. Verdict
+
+**Build option A of DESIGN_89 with the amendments above (write only changed rows, two more indexes, test helper, migration locking, COALESCE). Do not extend `flight_summary`, do not use a materialised view, do not adopt write-once-when-final.**
+
+### 3.1 Smallest first version (one migration, no Python, no roles.sql, no panel change)
+
+1. Reference view = today's `flight` body plus `last_session_id` (latest piece, ties by highest session id) and `session_ids`.
+2. Table of merged flights, key = first piece; indexes on `cid`, `start_time`, `end_time`, `logon_time`.
+3. A function that recomputes the given pilots from the reference view and writes only rows that changed, deleting vanished keys; a full-rebuild wrapper for repairs, tests and restores.
+4. One added call at the end of `refresh_flight_summary_sessions` for the cids it processed.
+5. `flight` replaced by the thin view (same 32 columns), `is_in_progress` wrapped in COALESCE.
+6. Backfill under the refresh advisory lock, with `lock_timeout` set.
+7. Tests: helper calls the rebuild; equivalence both ways on `flight`, `flight_ext`, `movements`, `cohorts`; incremental cases; finalisation; idempotence with zero writes. Data dictionary, a short ADR, a line in ADR-026.
+
+About 220 SQL lines and 170 test lines. Medium tier by the table (existing columns identical), but deploy it like High: rehearse on a restore of a live dump, fresh dump first.
+
+### 3.2 Checks before building
+
+1. Repeat the pushdown EXPLAIN on **PostgreSQL 16** (I ran 17.5; production and CI are 16). The per-pilot recompute depends on it; without it the maintenance would read all history every 5 minutes.
+2. Run the equivalence comparison on a restore of a recent live dump (real reconnects, real ties), on a private local database.
+3. Time the slowest panels at 5 years as `grafana_ro` with its limits, ideally under a 1 CPU cap.
+
+### 3.3 Owner decisions
+
+1. **Tie-break**: when two pieces of one flight end in the same second, take the plan and pilot fields from the session with the higher id (the later one created). Today the answer is arbitrary; about 15 flights per million. Recommend yes.
+2. **Names** (Part 4): name the new objects clearly now; do not rename `flight_summary` in this change.
+3. **When to build**: no timeouts for about three years, but the dashboards are public (ADR-029), so each visitor's page load runs about ten of these queries on one CPU, and at one year of history (mid-2027) the airport and route panels take 7 to 12 s each. Recommend building in the next few months, while the backfill is trivial.
+4. **Write-once-when-final**: recommend no (Part 1.6).
+
+### 3.4 What I could not verify
+
+- PostgreSQL 16 behaviour (tested 17.5), the 1 CPU VM's speed, and timings as `grafana_ro` with its limits (I ran as the owner role).
+- Real data: synthetic only; no live dump used.
+- Concurrency under load (dashboards, collector and refresh together) and the actual lock wait of `CREATE OR REPLACE VIEW` on the live system.
+- The integration suite: nothing was built, so no test was run.
+
+---
+
+## Part 4. Naming (owner's question)
+
+### 4.1 Proposed names for every object in the recommended solution
+
+| Object | Name today | Proposed | What it is, in plain words |
+|---|---|---|---|
+| Per-piece table | `flight_summary` | keep now; `flight_part_summary` later if wanted | one row per connection piece (session, gap segment, 8 hour part); the source of truth that gates raw-position drops |
+| Per-piece view | `flight_part` | keep | the pieces with plan fields and the flight gate |
+| Old merge logic | body of `flight` | `flight_merge_reference` (design: `flight_chain`) | the definition of how pieces become flights; used to build and check the stored table, never by a panel |
+| New stored table | new (design: `flight_merged`) | `flight_record` | one stored row per real flight, after merging reconnects |
+| Public view | `flight` | keep | what every panel reads |
+| New functions | new | `refresh_flight_record(cids)`, `rebuild_flight_record()` | keep the stored table current; full rebuild for repairs |
+
+### 4.2 Why the new table should not be called `flight_summary`
+
+Reusing a name for a different meaning is the riskiest kind of rename. The old and new tables share column names (`session_id`, `start_time`, `end_time`, `sample_count`), so any script, runbook, watchdog check, audit query or person working from an older document would still run against the reused name and get **wrong answers without any error** (for example the watchdog's "sample_count differs from stored positions" check would compare a whole flight with one piece). The 14 days of kept dumps hold `flight_summary` with the old meaning. A new, unused name cannot be confused with anything.
+
+### 4.3 What renaming today's `flight_summary` to `flight_part_summary` would cost
+
+`flight_summary` appears 187 times in 56 files. To change:
+
+- **Database code**: the bodies of `refresh_flight_summary_sessions`, `refresh_flight_summary` and `drop_old_pilot_position_partitions` (function bodies name tables as text, so they fail at their next call unless replaced in the same migration), and the views `flight_part` and `monday_attendance` (views follow a rename automatically, but their text and the docs change). The drop function decides when raw positions are deleted for ever, so any edit to it is High-tier work.
+- **Grants**: `ops/migrate/migrate.sh` grants `watchdog_ro` SELECT on `flight_summary` by name on every deploy; it must change in the same deploy or the next deploy fails. Grants make the rename High tier.
+- **Operations**: `ops/audit/invariants.sql` and four other audit scripts, the watchdog check names and messages (`ops/watchdog/messages.py`), the scale generator, the restore drill notes.
+- **Tests**: about 20 test files, plus the data dictionary test that ties table names to the document.
+- **Documents**: DATA_DICTIONARY, ARCHITECTURE, SPEC, CHART_DEFINITIONS, runbooks; old ADRs keep the old name (they are history) with a note.
+- **Live database**: `ALTER TABLE ... RENAME` is instant but takes a brief exclusive lock on a table the refresh uses every 5 minutes; index and constraint names (`flight_summary_pkey`, the foreign key) should follow. Restoring a dump from before the rename still works, because the migration is re-applied.
+
+Rough size: a migration of about 150 lines (mostly re-creating three function bodies with only the name changed), about 60 file edits, High tier, a rehearsal.
+
+### 4.4 Recommendation
+
+**Keep today's names for existing objects and give the new objects clear names now. Do the `flight_summary` rename later as its own change, or not at all.** Putting it into the #89 migration would roughly double the change, move it from Medium to High tier and touch the irreversible partition-drop function for a cosmetic gain, and it would make the behaviour-preserved proof for #89 harder to read. If the owner still wants it, do it as a separate migration after #89 has been live and stable for a few weeks, and never reuse `flight_summary` for the merged table. Meanwhile the database comment and the data dictionary entry for `flight_summary` should say plainly "one row per piece of a flight, not per flight".
