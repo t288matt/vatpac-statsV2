@@ -9,6 +9,7 @@ Today the nightly database dumps sit in a Docker volume on the VM's own disk (`B
 What it covers and what it does not:
 - It covers: a dead or corrupted VM disk, or a deleted VM.
 - It does NOT cover loss of the Proxmox host itself (same physical machine). The Proxmox Backup Server job and its offsite sync stay the cover for that, and **this card does not replace them and does not replace the still-untested restore of the PBS copy** (issue #26, item 3 of OWNER_ACTIONS.md). Do that test too.
+- It does NOT copy Grafana's own data (the `grafana_data` volume: public links and admin password); that is not in `ops/backup` at all. To rebuild it: `docker compose up -d grafana`, then `python3 ops/grafana_public.py --public-url https://vpac.mpengor.com`. The tokens are stable (the first 32 hex characters of sha256 of `vatpac-public:` followed by the dashboard uid), so the same addresses return. Keep your own copy of the links list (card 9 in OWNER_ACTIONS.md).
 - The dumps contain real names and CIDs (public data, ADR-019, but keep them private). That is why the Proxmox user is locked down below.
 
 ## The least you have to do
