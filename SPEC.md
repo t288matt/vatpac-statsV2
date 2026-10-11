@@ -1,6 +1,6 @@
 # VATPAC Stats v3: Specification
 
-*Last reviewed 10-10-2026 against commit c89e544.*
+*Last reviewed 11-10-2026 against commit 264742a.*
 
 Authoritative spec. Agents build from this file; if it is wrong, change it here first (and record the change in `docs/DECISIONS.md`).
 
