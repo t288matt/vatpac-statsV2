@@ -177,3 +177,20 @@ One migration, about 300 lines written, about 290 deleted. Tests: about 20 files
 3. Tie-break for equal end times.
 4. Keep the 8 hour span split as separate flights.
 5. Monday attendance lags 3 hours.
+
+## Note after reading the Opus review (docs/OPUS_REVIEW_89.md on opus-89; DESIGN_89_FINAL.md does not exist on that branch)
+
+Written and committed after my own answer above.
+
+**Agree.**
+- Its section 1.9 reaches the same shape as my (c): one table written once, `flight` kept as a thin view, `is_in_progress` constant false (zero panel edits, better than my "edit 11 panels"), the quiet period 3 hours (any value over 120 minutes is safe), and building it before the first raw-position drop on 06-01-2027 so nothing needs converting.
+- A "used up to" marker on `pilot_session` is better than my "session not in a flight" test. It also covers sessions with no flight plan, which I missed in the drop gate.
+- Monday attendance counts a reconnect gap as present when it reads flights. That is a behaviour change on top of the 3 hour lag, and I had only mentioned the lag.
+- The measured numbers (0.2 to 0.4 s at 5 years, 130 ms pushdown), the lock timeout in the migration, the `COALESCE` trap and the extra `start_time` and `logon_time` indexes apply to any stored-table option.
+
+**Disagree.**
+- Its final pick (a), in section 1.10, weighs proven code heavily. That was written before guidance 1, 6 and 9: one clean end state with no later migration, a finalisation gate that has never run live, and a table called `flight_summary` that is the final record. (a) and (b) leave two layers for ever, and renaming later means a second migration across 187 references in 56 files. Rewriting the gate costs less than it looks because it has no production history to lose, and the rules themselves are copied, not rewritten.
+- It advises naming the new table `flight_record` and renaming later. I would reuse `flight_summary` inside the same migration that drops the old one, so no script can read the wrong kind of row; the exposure is only the 14 days of old dumps, which keep the old shape. If the owner prefers its caution, name it `flight_record` and accept the name differs from guidance 9.
+- "(a), no delay, exact today's behaviour" is a fair choice only if the owner prefers not to touch the drop gate before January. If so, (b) is the fallback, not (a).
+
+My recommendation stands: (c), one migration, before 06-01-2027.
