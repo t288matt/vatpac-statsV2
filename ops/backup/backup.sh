@@ -16,6 +16,13 @@ BACKUP_REMOTE="${BACKUP_REMOTE:-}"
 # A hung pg_dump or pg_restore must not block the loop for ever: seconds allowed for each (a timeout is a failed backup).
 DUMP_TIMEOUT_S="${BACKUP_DUMP_TIMEOUT_S:-1800}"
 VALIDATE_TIMEOUT_S="${BACKUP_VALIDATE_TIMEOUT_S:-300}"
+# A dump must hold real data to be kept (issue 118): at least MIN_SIZE_PERCENT of the newest previous good dump (a database does
+# not halve overnight), or MIN_FIRST_BYTES when there is no previous dump; and data entries for the key tables. Rotation never
+# leaves fewer than MIN_KEEP good dumps.
+MIN_SIZE_PERCENT="${BACKUP_MIN_SIZE_PERCENT:-50}"
+MIN_FIRST_BYTES="${BACKUP_MIN_FIRST_BYTES:-1048576}"
+MIN_KEEP="${BACKUP_MIN_KEEP:-3}"
+KEY_TABLES="poll_log pilot_session network_snapshot app_setting pilot_position"
 
 log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) backup: $*"; }
 
@@ -42,6 +49,13 @@ take_backup() {
     log "FAILED validation (pg_restore -l could not read the dump, rc=${rc}); nothing kept, older backups untouched"
     return 1
   fi
+  # Readable is not enough: an empty or wrong database also lists fine. Rejected dumps are moved aside, never deleted.
+  local why
+  if ! why="$(check_content "$tmp")"; then
+    log "FAILED content check: ${why}; dump moved aside to ${file}.rejected, older backups untouched, nothing rotated"
+    mv "$tmp" "${file}.rejected" || rm -f "$tmp"
+    return 1
+  fi
   if ! mv "$tmp" "$file"; then
     rm -f "$tmp"
     log "FAILED to move the finished dump into place"
@@ -55,6 +69,27 @@ take_backup() {
   log "ok $(du -h "$file" | cut -f1)"
   run_remote "$file"
   rotate
+  return 0
+}
+
+# check_content DUMP : prints the reason and returns 1 when the dump is too small or lacks data for a key table.
+# The previous good dump is the newest *.dump; rejected dumps are named *.rejected and so never count.
+check_content() {
+  local dump="$1" size prev prev_size min toc t
+  size="$(stat -c %s "$dump")"
+  prev="$(ls -1t "$BACKUP_DIR"/*.dump 2>/dev/null | head -n 1 || true)"
+  if [ -n "$prev" ]; then
+    prev_size="$(stat -c %s "$prev")"
+    min=$((prev_size * MIN_SIZE_PERCENT / 100))
+    [ "$size" -ge "$min" ] || { echo "dump is ${size} bytes, under ${MIN_SIZE_PERCENT}% of the previous good dump ($(basename "$prev"), ${prev_size} bytes)"; return 1; }
+  else
+    [ "$size" -ge "$MIN_FIRST_BYTES" ] || { echo "first dump is ${size} bytes, under the minimum ${MIN_FIRST_BYTES}"; return 1; }
+  fi
+  toc="$(timeout -k 30 "$VALIDATE_TIMEOUT_S" pg_restore -l "$dump")" || { echo "could not list the dump"; return 1; }
+  for t in $KEY_TABLES; do
+    # TOC data lines look like "123; 0 16400 TABLE DATA public poll_log owner"; a partitioned table has <name>_<suffix> entries.
+    echo "$toc" | grep -Eq "TABLE DATA public ${t}(_[A-Za-z0-9_]+)? " || { echo "no table data for ${t} in the dump"; return 1; }
+  done
 }
 
 run_remote() {
@@ -69,11 +104,20 @@ run_remote() {
 }
 
 rotate() {
-  # Delete dumps (and restore safety dumps) older than RETENTION_DAYS.
-  find "$BACKUP_DIR" -maxdepth 1 -name '*.dump' -mtime +"$RETENTION_DAYS" -print -delete \
-    | sed 's/^/backup: rotated out /' || true
-  find "$BACKUP_DIR" -maxdepth 1 -name '*.prerestore' -mtime +"$RETENTION_DAYS" -print -delete \
-    | sed 's/^/backup: rotated out /' || true
+  # Delete dumps (and restore safety dumps) older than RETENTION_DAYS, oldest first, but never so many that fewer than MIN_KEEP
+  # good dumps remain (only *.dump counts; *.rejected files are not good dumps and are not counted).
+  local total f
+  total="$(find "$BACKUP_DIR" -maxdepth 1 -name '*.dump' | wc -l)"
+  while read -r f; do
+    [ -n "$f" ] || continue
+    if [ $((total - 1)) -lt "$MIN_KEEP" ]; then
+      log "rotation kept ${f} (deleting it would leave fewer than ${MIN_KEEP} good dumps)"
+      continue
+    fi
+    rm -f "$f" && total=$((total - 1)) && log "rotated out ${f}"
+  done < <(find "$BACKUP_DIR" -maxdepth 1 -name '*.dump' -mtime +"$RETENTION_DAYS" -printf '%T@ %p
+' | sort -n | cut -d' ' -f2-)
+  find "$BACKUP_DIR" -maxdepth 1 \( -name '*.prerestore' -o -name '*.rejected' \) -mtime +"$RETENTION_DAYS" -print -delete     | sed 's/^/backup: rotated out /' || true
   find "$BACKUP_DIR" -maxdepth 1 \( -name '*.dump.partial' -o -name '*.prerestore.partial' \) -mmin +120 -delete || true
 }
 
