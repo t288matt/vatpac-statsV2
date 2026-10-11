@@ -61,6 +61,7 @@ def test_grafana_ro_limits(conn) -> None:
         pytest.skip("role grafana_ro not created")
     row = conn.execute("SELECT rolconnlimit, rolconfig FROM pg_roles WHERE rolname = 'grafana_ro'").fetchone()
     assert row["rolconnlimit"] == 10 and "work_mem=16MB" in row["rolconfig"]
+    assert "jit=off" in row["rolconfig"]  # issue #109: JIT adds about 1 s to a query over many partitions
 
 
 def test_grafana_ro_timezone_is_pinned_to_utc(conn) -> None:
