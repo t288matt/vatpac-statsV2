@@ -26,6 +26,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 |---|---|---|---|
 | [RUNBOOKS/daily-checks.md](RUNBOOKS/daily-checks.md) | Daily and weekly health checks; the soak report and its verdicts | Operator | CURRENT |
 | [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) | What each Telegram alert means and what to do | Operator, owner | CURRENT for main; describes the plain-language wording that is not yet deployed (see CHANGELOG.md); the VM sends the older technical form |
+| [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md) | Public read-only dashboards through a Cloudflare Tunnel and Traefik: the links script, proxy and tunnel set-up, checks, roll back | Owner | CURRENT |
 | [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md) | How to install, deploy, roll back and verify; the special cases and traps (sections 4b to 4f) | Operator | CURRENT; long, accumulates one section per release |
 | [RUNBOOKS/restore.md](RUNBOOKS/restore.md) | Backups, restore, the restore drill, off-box copies | Operator | CURRENT (deployed behaviour; the hardening is in PENDING_DOC_CHANGES.md) |
 | [RUNBOOKS/stuck-collector.md](RUNBOOKS/stuck-collector.md) | Collector up but not polling: diagnose and fix | Operator | CURRENT; plain restart allowed for a hung collector with no code change (owner decision 10-10-2026) |

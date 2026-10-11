@@ -44,7 +44,7 @@ You should see an `ok` poll about every 30 seconds in `poll_log`, plus a few `sk
 
 ## Usage
 
-Open Grafana at http://localhost:3300 and log in with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` from `.env`. Anonymous access is off. Grafana listens on the loopback address only; set `GRAFANA_BIND` in `.env` to reach it from the LAN (see [docs/RUNBOOKS/deploy-to-vm.md](docs/RUNBOOKS/deploy-to-vm.md)). Never expose it to the internet without a login in front.
+Open Grafana at http://localhost:3300 and log in with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` from `.env`. Anonymous access is off. Grafana listens on the loopback address only; set `GRAFANA_BIND` in `.env` to reach it from the LAN (see [docs/RUNBOOKS/deploy-to-vm.md](docs/RUNBOOKS/deploy-to-vm.md)). To publish the dashboards read-only through a Cloudflare Tunnel, see [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md).
 
 Dashboards (as code in `grafana/dashboards/`): Pilots now, Pilots traffic, Pilot onboarding, ATC overview, ATC retention, Pilot origins, Military, Monday events, Management, and Collector health. Every chart is explained in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md).
 
