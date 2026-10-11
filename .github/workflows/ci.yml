@@ -3,7 +3,33 @@ name: ci
 on:
   push:
     branches: [main, dev]
+    # Skip runs for changes that only touch prose. Order matters: a later pattern overrides an earlier one, so the
+    # docs that tests read (and everything else outside docs/) still run CI. docs-secret-scan.yml still scans prose.
+    paths:
+      - '**'
+      - '!*.md'
+      - '!docs/**'
+      - 'docs/RUNBOOKS/**'
+      - 'docs/reference/**'
+      - 'docs/CHART_DEFINITIONS.md'
+      - 'docs/DATA_DICTIONARY.md'
+      - 'docs/DATA_INTEGRITY_AUDIT.md'
+      - 'docs/DEFINITIONS.md'
+      - 'docs/TEST_AUDIT.md'
   pull_request:
+    # Skip runs for changes that only touch prose. Order matters: a later pattern overrides an earlier one, so the
+    # docs that tests read (and everything else outside docs/) still run CI. docs-secret-scan.yml still scans prose.
+    paths:
+      - '**'
+      - '!*.md'
+      - '!docs/**'
+      - 'docs/RUNBOOKS/**'
+      - 'docs/reference/**'
+      - 'docs/CHART_DEFINITIONS.md'
+      - 'docs/DATA_DICTIONARY.md'
+      - 'docs/DATA_INTEGRITY_AUDIT.md'
+      - 'docs/DEFINITIONS.md'
+      - 'docs/TEST_AUDIT.md'
   workflow_call:  # release.yml runs this workflow and only publishes images if it passes
 
 permissions:
