@@ -67,7 +67,7 @@ Every production deploy needs the owner's explicit go, whatever the tier; tiers 
 - Owner-only decisions: priorities; retention and personal data; anything irreversible; spending; what "good enough" means (the uptime, gap and wrong-number targets, once the owner has set them).
 
 ## 7. Limits on every agent
-- Never print, store or commit secrets; never enter credentials; never expose Grafana publicly.
+- Never print, store or commit secrets; never enter credentials; never expose Grafana itself publicly. Only the 10 published read-only dashboards are public (ADR-029); anonymous access stays OFF and visitors never get their own queries.
 - Never run `db/roles.sql` by hand on the live database; never run tests or throwaway databases on the production VM without memory, swap, CPU and time caps and cleanup. **One test container at a time on the live VM, and only while the load average is below 2.0** (check `uptime` first; incident 10-10-2026, issue #113: several at once pushed the load to about 24 and two snapshots timed out). Memory caps alone are not enough. (Section 10 repeats this rule.)
 - Never deploy, restart live services, send messages to the owner's real Telegram, close issues or delete branches, volumes or data without the approval the tier requires.
 - Never skip hooks or checks, force-push, or amend commits. Never edit applied migrations; add a new numbered one.
