@@ -14,3 +14,30 @@ Written 11-10-2026 about 10:30 UTC, BEFORE any figure for this window was pulled
 6. A v1 session last row sits 10 to 30 s after v3's last sighting (v1 stamp lag).
 7. v3 at 30 s cadence should detect short controller and pilot visits better than at 15 s only in v1's direction: v1 (92 s) can only miss visits, never add them.
 Anything outside these ranges is unexplained and becomes an issue.
+
+## Results (queries run 11-10-2026 about 10:25 to 10:45 UTC, SELECT only, read-only session, 30 s timeout, bounded by time and id; about 11,000 v1 rows)
+"v3 plan" = pilots whose session has a departure and arrival (what v1 stores); "v3 all" = every in-region pilot. Means are rows per poll (v1, about 40 polls an hour) or per snapshot (v3, 120 an hour).
+
+| Hour (UTC, 10-10) | v1 mean | v3 plan mean | v3 all mean | v1 CIDs | v3 plan CIDs | v3 all CIDs | v1 flights ended | v3 flights ended |
+|---|---|---|---|---|---|---|---|---|
+| 02 | 42.6 | 42.9 | 44.2 | 66 | 66 | 69 | 20 | 20 |
+| 03 | 51.4 | 51.9 | 52.4 | 75 | 75 | 77 | 26 | 26 |
+| 04 | 46.6 | 46.7 | 46.8 | 73 | 74 | 75 | 32 | 32 |
+| 05 | 47.8 | 48.0 | 48.8 | 76 | 76 | 77 | 27 | 27 |
+| 06 | 48.9 | 50.0 | 52.1 | 75 | 76 | 80 | 25 | 24 |
+| 07 | 54.8 | 55.5 | 57.8 | 77 | 77 | 81 | 23 | 23 |
+| **Sum / total** | **292.0** | **295.0 (+1.0 %)** | **302.1 (+3.5 %)** | **442** | **444 (+0.5 %)** | **459 (+3.8 %)** | **153** | **152** |
+
+Whole window distinct pilot CIDs: v1 179, v3 plan 179, v3 all 183 (+2.2 %). Controllers: distinct CIDs per hour 6, 6, 5, 7, 7, 4 and distinct callsigns 5, 6, 5, 6, 6, 4 in BOTH systems, hour by hour. Controller sessions (by start): v1 17, v3 merged 17; hours online v1 24.9, v3 25.2 (+1.2 %); 16 distinct (CID, callsign) in both.
+
+## Scorecard
+1. Pilot means: v3 plan within 2 % in 5 of 6 hours (hour 06 is +2.1 %); v3 all is 0.4 % to 6.6 % higher, over my 3 % guess in hours 02, 06 and 07. The extra is the pilots v1 never stores (no plan yet, or none filed): explained, E2. Partly missed.
+2. Distinct CIDs: confirmed (plan +0.5 %, all +3.8 %, window equal on plan).
+3. Controllers identical per hour: confirmed. Hours online: v3 is 1.2 % HIGHER, not lower as predicted. No overlapping v1 duplicate rows in this window; the difference is E1: v3 sees each session start and end about 40 s sooner and later than v1 (17 sessions x about 80 s is 0.4 h against the 0.3 h seen). Prediction wrong, explained.
+4. Sessions: tied at 17 (prediction "v1 at or above" holds).
+5. Flights: v1 has ONE more than v3 (hour 06), not fewer. It is SIA7449 (CID 1622916): one v3 flight YSSY to WSSS (a single session 05:00 to 10:59 UTC, 721 samples) against v1 raw rows for one logon, and a v1 summary for KLAX to YSSY completing 06:54 UTC, an earlier plan that the pilot amended mid-session. The v1 summary key includes departure and arrival, so an amended plan makes an extra v1 summary: E5, a v1 duplicate, not a missing v3 flight. Prediction missed E5; no v3 defect.
+6. v1 stamp lag of 10 to 30 s: not tested in this run.
+7. Not testable on its own (no v1 only observation found at the totals level).
+
+## Conclusion
+No unexplained difference. Every gap sits in E1, E2 or E5. Nothing for v3 to fix. With the poll interval now 30 s in v3 and about 92 s in v1 the pilot and controller sets still agree hour by hour. Note the later windows cannot be compared: v3 has no new data since 11-10-2026 03:08 UTC (VATSIM feed frozen) and v1 had no polls from 03:00 to 09:00 UTC (both systems stopped by the Proxmox crash).
