@@ -2,7 +2,7 @@
 
 **In plain English (five lines):**
 1. **Problem:** every time a chart opens, the database rebuilds every flight ever recorded from its pieces, so charts get slower each year (about 25 s for the worst chart with 5 years of data, against a 30 s limit).
-2. **Recommendation:** keep a stored list of finished-and-merged flights, and update only the flights of pilots who flew in the last 12 hours, every 5 minutes.
+2. **Recommendation:** keep a stored list of finished-and-merged flights, and every 5 minutes re-check only the flights of pilots who had a session in the last 12 hours.
 3. **Why:** in a test with 5 years of made-up data the worst chart fell from 24.5 s to 0.3 s, and the results matched today's on all but 15 of nearly a million flights.
 4. **Risk:** this changes the base of about 35 charts, so it needs a careful test against a copy of the live data before it goes live; if it goes wrong, the fix is to restore the backup taken just before.
 5. **You decide:** one question: may a finished flight reach the charts up to 3 hours after it ends? If yes, the simpler "write once when final" design (section 1.6) is as good, and arguably closer to v1; if no, build the recommended one. Smaller choices: the tie-break (we recommend the later connection's details) and table names (we recommend no rename now).
@@ -10,6 +10,8 @@
 Written 11-10-2026 by an independent reviewer (Opus 5.5), branch `opus-89`, from `origin/main` at e575996. Design only: no migration, no product code, nothing on the live VM. Part 1 was written and committed BEFORE reading `docs/DESIGN_89.md` (branch design-89). Part 2 reviews that design. Part 3 is the verdict. Part 4 answers the owner's naming question.
 
 All measurements: a private PostgreSQL 17.5 cluster created with `initdb` on this PC (port 55433, `shared_buffers` 512 MB, `work_mem` 16 MB, no parallel workers, JIT off), all migrations from main applied, the 5-year synthetic set from `tests/scale/gen_synth.sql` (925000 flights over 1825 days: 1,029,076 sessions, 1,059,703 `flight_summary` rows, 978,357 merged flights, the same counts as `docs/FLIGHT_VIEW_SCALING.md`). Production runs PostgreSQL 16 on a slower 1 CPU VM, so compare the numbers here with each other, not with the VM. Times are single warm runs as the owner role (not `grafana_ro`). The cluster was deleted afterwards.
+
+**Words used in this document.** A *pilot* is one person, identified by a CID. A *session* is one connection to VATSIM, identified by (CID, callsign, logon time); a disconnect and reconnect makes a new session. A *flight* is what the charts count: one or more sessions of the same pilot, callsign, departure and arrival, joined when the gap is 120 minutes or less. One pilot has many flights; one flight has one or more sessions. A session can also be split into *pieces*: a new piece starts after a 120-minute silence, and every 8 hours. "Grouped by pilot" below only means "which flights to re-check": all flights of the pilots (CIDs) who had a session in the last 12 hours.
 
 ---
 
@@ -34,19 +36,19 @@ So the root cause is not a missing index and not the window functions as such: i
 | Same panels over a thin view on the stored table | busiest airports 0.34 s, domestic routes 0.21 s, international routes 0.21 s, aircraft categories (6 months) 0.33 s, busiest days by pilots (6 months) 0.38 s, an all-time monthly panel 1.8 s | flat: no longer depends on history length, except all-time panels, which are linear but cheap |
 | Row-for-row comparison, all 32 columns, old view vs thin view (`EXCEPT ALL` both ways) | 15 rows of 978,357 differ, in each direction | all 15 are flights where two pieces END AT THE SAME INSTANT and the old view picks the plan fields of one of them arbitrarily (checked: every one has two pieces at the final `end_time`). `is_in_progress` (211 flights online) and every number agreed exactly |
 | `movements` over the last 30 days, old vs new | 0 rows differ either way | |
-| Maintenance: recompute all flights of the 477 pilots seen in 12 h and write only what changed | 160 to 250 ms per run, 0 rows written when nothing changed, 1 row written after a plan change; recomputed result equal to the old logic for those pilots | cheap enough for the 5-minute job |
-| Same, but delete every row of those pilots and re-insert | 306 ms, and 9,318 rows rewritten every 5 minutes (about 2.7 million dead row versions a day at 5 years) | delete-and-reinsert works but churns the table; write-only-what-changed avoids that |
+| Maintenance: recompute all flights of the 477 pilots (CIDs) with a session in the last 12 h and write only what changed | 160 to 250 ms per run, 0 rows written when nothing changed (the synthetic data is static; on live data each run also rewrites the flights whose sessions are still connected or just ended, about one per connected pilot), 1 row written after a plan change; recomputed result equal to the old logic for those pilots | cheap enough for the 5-minute job |
+| Same, but delete every stored flight of those pilots and re-insert | 306 ms, and 9,318 rows rewritten every 5 minutes (about 2.7 million dead row versions a day at 5 years) | delete-and-reinsert works but churns the table; write-only-what-changed avoids that |
 | Heaviest single pilot (2,226 flights) recomputed | 29 ms | skew is not a problem |
 | Narrow alternative: store only a per-piece "flight id" and keep grouping at query time | domestic routes 2.7 s without the home-airport test, 16.9 s with it | still linear in history and still exposed to the function push-down; does not fix #89 |
 
 ### 1.3 My recommended solution
 
-**Store the merged flights in a table, keep the old merge logic as the single source of truth, and refresh only the pilots who were active, writing only rows that changed.**
+**Store the merged flights in a table, keep the old merge logic as the single source of truth, and re-check only the flights of pilots (CIDs) who had a session in the refresh window, writing only rows that changed.**
 
 1. **Keep today's merge logic, unchanged, as a reference view** (for example `flight_merge_reference`, see Part 4). It is the current body of `flight` minus the live plan fields, plus two extra outputs: `last_session_id` (the session of the piece that ended last, ties broken by the higher session id) and `session_ids` (every session in the flight). Nobody reads it for dashboards; it is the definition, the backfill source and the comparison target for tests and the integrity check.
 2. **New table** of merged flights: key = first piece's (session_id, gap_segment, span_part) (exactly the key `flight` already promises to be unique on); columns cid, callsign, departure, arrival (the merge group, normalised), last_session_id, session_ids, logon_time, start_time, end_time, airborne_minutes, max_gs_kt, max_alt_ft, sample_count. Indexes: cid, start_time, end_time, logon_time. No foreign key (see 1.5).
 3. **`flight` becomes a thin view**: the table joined to `pilot_session` on `last_session_id` for the plan and pilot fields (so they stay live, as today), `is_circuit`, `is_zzzz` and `touches_home_region` computed from the stored departure and arrival (they are functions of the group key, so this is identical), and `is_in_progress` = the flight's `session_ids` overlap the online-now session ids (one small lookup per query, identical to today's `bool_or`). Same 32 columns, same order and types, so `CREATE OR REPLACE VIEW` keeps `flight_ext`, `movements`, `cohorts` and every panel untouched.
-4. **Maintenance per pilot, not per merge group.** At the end of `refresh_flight_summary_sessions` (so that every path that changes `flight_summary`, including finalisation before a partition drop, also updates the merged table) recompute every flight of the pilots (cids) whose sessions were just refreshed, from the reference view, and upsert only rows whose values differ, deleting rows that no longer exist. Why per pilot: a pilot's cid never changes, merges never cross pilots, and recomputing all of a pilot's history makes plan changes, callsign case, gaining or losing the flight gate and "the part moved to another group" correct with no tracking of old keys. It costs about 0.2 s at 5 years (measured above) and does not grow with total history, only with the number of active pilots.
+4. **Maintenance grouped by pilot (CID), not by merge group.** At the end of `refresh_flight_summary_sessions` (so that every path that changes `flight_summary`, including finalisation before a partition drop, also updates the merged table) recompute every flight of the pilots (cids) whose sessions were just refreshed, from the reference view, and upsert only rows whose values differ, deleting rows that no longer exist. Why per pilot: a pilot's cid never changes, merges never cross pilots, and recomputing all of a pilot's history makes plan changes, callsign case, gaining or losing the flight gate and "the part moved to another group" correct with no tracking of old keys. It costs about 0.2 s at 5 years (measured above) and does not grow with total history, only with the number of active pilots.
 5. **Concurrency**: the refresh already holds the `vatpac.flight_summary_refresh` advisory lock; the new step runs inside it, in the same transaction, so a dashboard sees either the old or the new state, never half. The migration takes the same lock before its backfill. No triggers.
 6. **Tie-break** (two pieces ending at the same instant): highest session id wins. Today's behaviour on ties is not defined (it can differ between two runs of the same query), so any fixed rule is a strict improvement; it should still be shown to the owner as a one-line decision, with the evidence that it touches about 15 in a million flights.
 
@@ -69,7 +71,7 @@ Expected effect: every panel on `flight`, `flight_ext`, `movements` and `cohorts
 ### 1.5 Edge cases I checked in my own design
 
 - **Reconnect within 120 minutes**: the new session's cid is refreshed, so the pilot's flights are recomputed and the two pieces merge; the old row (keyed by the first piece) is updated, nothing is double counted.
-- **Plan change** (different airports): only possible while the session is online, which puts it in the 12 hour refresh window, so the pilot is recomputed. Moving a piece between groups is handled because the whole pilot is recomputed.
+- **Plan change** (different airports): only possible while the session is online, which puts it in the 12 hour refresh window, so the pilot is recomputed. Moving a piece between groups is handled because all of that pilot's flights are recomputed.
 - **In-progress flights**: `is_in_progress` stays live in the view; the numbers lag by up to 5 minutes exactly as `flight_summary` already does (ADR-016).
 - **Plan fields** stay live through `last_session_id`. Departure and arrival are stored (they are the merge key), so for a session that changes its plan in the last 5 minutes the merged row shows the old airports until the next refresh. Today the airports change instantly but the numbers do not; the flight is in progress in that window, so no counting panel sees it (ADR-025). This is a lag of at most one refresh, and is the only behaviour difference besides ties.
 - **Settings**: `home_icao_prefixes` stays live (computed in the view). A change of `airborne_gap_cap_seconds` already only applies to flights recomputed afterwards (ADR-016); unchanged.
@@ -88,7 +90,7 @@ Expected effect: every panel on `flight`, `flight_ext`, `movements` and `cohorts
 **The idea.** As in v1: once a flight is over and the pilot has been quiet for a set time (the *quiet period*), write the flight down once, as one row, and never change it. The charts read only these written rows.
 
 **Two words used below.**
-- A *piece* is one stretch of a pilot's connection. A disconnect and reconnect makes two pieces.
+- A *piece* is one stretch of one session (one connection). A disconnect and reconnect makes two sessions, so at least two pieces.
 - *Reference merge* is today's merge logic, kept unchanged as the definition of a correct flight. We compare stored rows against it.
 
 **A worked example** (a 3-hour quiet period). A pilot flies Sydney to Melbourne and loses the connection halfway.
@@ -119,7 +121,7 @@ If the quiet period were only 20 minutes, A would be written down at 10:30 as it
 
 **What could go wrong, side by side with the recommended design.** Both keep a stored table that could disagree with the reference merge. Both are checked the same way and repaired the same way. The question is how each can go wrong.
 
-| | Write once when final (charts read only stored rows) | Update active pilots every 5 minutes (DESIGN_89 / my Part 1) |
+| | Write once when final (charts read only stored rows) | Re-check the flights of active pilots every 5 minutes (DESIGN_89 / my Part 1) |
 |---|---|---|
 | How it could be wrong | (1) A flight is never written down: the write-down step missed it, or the updates were stopped for longer than it looks back. The charts then undercount, silently. (2) A flight is written down too early, if the quiet period is set or coded wrong: a reconnect is counted twice. (3) A later data fix (like the 08-10-2026 duplicate-session repair) does not reach rows already written. | (1) A pilot is missed by an update (a code bug): that pilot's flights go stale until their next update. (2) The updates stop for more than 12 hours: flights from that gap stay stale until finalisation or a rebuild. A half-done update cannot happen: each update is all-or-nothing. (3) A bug in the update code rewrites the whole history of every active pilot, every 5 minutes. |
 | How far damage can spread | Only new flights. Old rows are never touched. | Every flight of every pilot active that day, old ones included. |
@@ -152,13 +154,51 @@ If the quiet period were only 20 minutes, A would be written down at 10:30 as it
 - **Tests.** `tests/integration/helpers.py` and the panel tests make flights that end "now"; they need Q set to 0 through an `app_setting` key, or older fixtures. Reconnect tests still work with Q = 0 because both pieces exist before the refresh runs.
 - **Rollback and restore** are the same as the 5-minute design: pre-deploy dump; forward migration restoring the old body; the table is in the dump.
 
+### 1.7 Can only a pilot's latest flight change? (owner's point, checked against the rule)
+
+#### In plain English
+
+The owner's point: a pilot can only be on one flight at a time. So when a new session arrives, only that pilot's latest flight can change, and all earlier flights are final. If that is true, each 5-minute update would only need to look at one flight per active pilot.
+
+**Checked against the real merge rule, it is nearly true but not exactly.** The rule does not join "the pilot's previous session". It joins sessions with the **same pilot, callsign, departure and arrival** when the new one starts within 120 minutes of the end of that group's earlier sessions. Another flight in between does not stop the join. Example:
+
+| Time (UTC) | Session | Plan | Flight it belongs to |
+|---|---|---|---|
+| 09:00 to 10:00 | A | QFA1, Sydney to Melbourne | flight 1 |
+| 10:10 to 10:20 | B | QFA1, Sydney to Brisbane (a wrong plan) | flight 2 (a different route, so a different flight) |
+| 10:30 to 11:30 | C | QFA1, Sydney to Melbourne again | joins **flight 1** (30 minutes after A), not flight 2 |
+
+So session C changes flight 1, which was no longer the pilot's latest flight. A plan change can do the same. When a session's plan changes, the whole session moves to the new route, and it can then join an earlier flight on that route.
+
+**What is exactly true:** a new or changed session can only change two things: its own flight, and flights of the same pilot that ended **within 120 minutes before that session started**. In practice that is the latest one or two flights. Everything older is final.
+
+**Two connections at once.** VATSIM allows one connection per CID. v3 has seen overlapping sessions only once: the duplicate sessions of 08-10-2026 (ADR-021), which are now prevented at source. If two sessions with the same pilot, callsign and route did overlap, the rule would join them into one flight, because an overlap counts as a gap under 120 minutes. If they had different callsigns or routes, they would stay two flights at the same time. I could not check the live data for overlaps in this task; `ops/check_identity_flap.sql` is the existing check.
+
+**Does this change the design?** A narrower update is possible. For each active pilot, re-check only the flights that ended after a cut-off: the earliest start of that pilot's new or changed sessions, minus 120 minutes.
+- That reads one or two flights per active pilot instead of all of that pilot's flights. At 5 years, that is about 500 to 1,000 flights per update instead of about 9,300.
+- It saves at most about 0.2 s every 5 minutes.
+- It is exact only if a pilot's sessions never overlap in time.
+
+So I keep the simpler "all flights of active pilots" for the first version: it is exact in every case and measured at 0.2 s. The narrower version is a ten-line change for later, if update time ever matters.
+
+It also does not change how many rows are written. With "write only rows that changed", an update writes only flights whose numbers or sessions changed. That is the same set either way: about one flight per connected pilot.
+
+**Effect on "write once when final".** The owner's point is the reason write-once works. A flight is final once no new session with the same pilot, callsign and route can start within 120 minutes of its end, and the 3-hour quiet period guarantees exactly that. It does not make write-once simpler than described in 1.6, which already looks only at the recent flights of recently active pilots.
+
+#### Technical detail
+
+- The rule (migration 130, `flight` view): the window is `PARTITION BY cid, callsign, departure, arrival ORDER BY start_time, session_id, gap_segment, span_part`. `is_new = 0` when all three hold: `prev_end` (the running max of `end_time` over earlier pieces in the partition) exists, the lag piece belongs to a different session, and `start_time - prev_end <= 120 min`. A different callsign or route is a different partition, so pieces from other groups never block a join.
+- Bounded recompute: delete and recompute the pilot's stored flights with `end_time >= T0`, where T0 = min(start of touched pieces) - 120 min, using the pieces of those flights plus the touched pieces.
+  - It equals the full computation when pieces within each group do not overlap in time, because the running max then equals the previous piece's end.
+  - With overlapping sessions, an earlier and longer piece could carry a later `prev_end` than the subset sees, so the result could differ. The whole-pilot recompute has no such condition.
+
 ---
 
 ## Part 2. Review of docs/DESIGN_89.md (branch design-89, read after Part 1 was committed)
 
 ### 2.1 Overall
 
-DESIGN_89 (option A) and my own answer reached the same architecture independently: a stored table of merged flights, the old merge body kept as a reference view, per-pilot recompute inside `refresh_flight_summary_sessions` under its advisory lock, `flight` as a thin view with live plan fields via `last_session_id` and live `is_in_progress` via `session_ids`, highest session id as the tie-break, no Python and no panel change. I **agree** with its core and with its reasons for rejecting B (merged columns on `flight_summary`) and C. Below: where I add evidence, and seven points where I disagree or find a gap.
+DESIGN_89 (option A) and my own answer reached the same architecture independently: a stored table of merged flights, the old merge body kept as a reference view, recompute grouped by pilot (CID) inside `refresh_flight_summary_sessions` under its advisory lock, `flight` as a thin view with live plan fields via `last_session_id` and live `is_in_progress` via `session_ids`, highest session id as the tie-break, no Python and no panel change. I **agree** with its core and with its reasons for rejecting B (merged columns on `flight_summary`) and C. Below: where I add evidence, and seven points where I disagree or find a gap.
 
 ### 2.2 Where I agree, with evidence the design did not have
 
@@ -173,18 +213,18 @@ DESIGN_89 (option A) and my own answer reached the same architecture independent
 
 ### 2.3 Where I disagree, or the design has a gap
 
-1. **Delete-and-reinsert churns the table; write only what changed (DISAGREE, small).** At 5 years the pilots seen in 12 hours own about 9,300 flights; delete-and-reinsert rewrites all of them every 5 minutes, about 2.7 million dead row versions a day across a ~1M-row table and its indexes, for nothing (measured: 0 rows actually change in a normal run, 1 after a plan change). Use the pattern `refresh_flight_summary_sessions` already uses: upsert with `WHERE row IS DISTINCT FROM EXCLUDED`, then delete keys that no longer exist. Same correctness and lock, about 15 more SQL lines, measured 160 to 250 ms.
+1. **Delete-and-reinsert churns the table; write only what changed (DISAGREE, small).** At 5 years the pilots seen in 12 hours own about 9,300 flights; delete-and-reinsert rewrites all of them every 5 minutes, about 2.7 million dead row versions a day across a ~1M-row table and its indexes, when only a few change (measured on static synthetic data: 0 after an idle run, 1 after a plan change; on live data, about one flight per connected pilot, the ones whose sessions are still growing). Use the pattern `refresh_flight_summary_sessions` already uses: upsert with `WHERE row IS DISTINCT FROM EXCLUDED`, then delete keys that no longer exist. Same correctness and lock, about 15 more SQL lines, measured 160 to 250 ms.
 2. **Indexes on (cid) and (end_time) are not enough (GAP).** Panels also filter on `start_time` (the departure half of `movements`, busiest days by flights) and `logon_time` (RAAFv flights, busiest days by pilots, onboarding and management panels). Measured at 5 years without those two indexes: busiest airports 1.3 s instead of 0.34 s, RAAFv flights (7 days) 905 ms instead of 11 ms, both linear again. Add `(start_time)` and `(logon_time)`.
 3. **Existing tests will break, and the design does not say so (GAP).** `tests/integration/helpers.py` (used by seven panel test files: events, military, online hours, panel rules, pilots people, time zones, watchdog flap) INSERTs `flight_summary` rows directly and never calls the refresh. With a stored table those flights do not appear in `flight` until it is rebuilt. The helper must call the rebuild (one line). It belongs in the plan and the size estimate.
 4. **The migration's locking is not specified (GAP).** (a) The backfill must take the refresh advisory lock (`pg_advisory_xact_lock(hashtext('vatpac.flight_summary_refresh'))`), or a 5-minute refresh during the deploy can interleave with it. (b) `CREATE OR REPLACE VIEW flight` needs an exclusive lock on the view: it waits for running panel queries (up to 30 s each; the dashboards are now public, ADR-029) and every new panel query queues behind it. Set a `lock_timeout` (for example 5 s) in the migration so a busy moment fails the deploy cleanly instead of stalling the dashboards; `migrate.sh` sets none.
 5. **The `is_in_progress` expression has a trap (GAP, caught by existing tests).** `session_ids && (SELECT array_agg(...) FROM online_now ...)` is NULL when `online_now` is empty (collector stale); `NOT is_in_progress` is then NULL and `flight_ext` would hide EVERY flight. It must be wrapped in `COALESCE(..., false)`. `test_stale_collector_does_not_hide_flights` and `test_nothing_is_in_progress_when_the_collector_is_stale` would catch a mistake; a builder warning, not a design change.
-6. **"Live, as today" is slightly overstated.** Pilot and plan fields are live, but departure and arrival are **stored** (they are the merge key), so they lag a plan change by up to one refresh. The flight is in progress then, so no counting panel sees it; the design and the data dictionary should say so.
+6. **"Live, as today" is slightly overstated.** Name and plan fields are live, but departure and arrival are **stored** (they are the merge key), so they lag a plan change by up to one refresh. The flight is in progress then, so no counting panel sees it; the design and the data dictionary should say so.
 7. **Stop-gap materialised view "refreshed hourly" (DISAGREE, minor)** — `refresh_materialized_views()` runs only in the daily maintenance; hourly needs a collector (Python) change. The only no-code emergency lever is raising `grafana_ro`'s `statement_timeout`. And on **rollback**: dbmate down steps are not run in deploys; the real rollback is the pre-deploy dump or a forward migration restoring the old body (possible because the columns are unchanged). The deploy plan should name the dump.
 
 ### 2.4 The other review topics
 
 - **Reconnect chains (within, exactly at, after 120 minutes)**: inherited unchanged from the reference body; the design's test list covers them. Agree.
-- **Plan changes**: correct with per-pilot recompute (with the wording in 2.3 item 6).
+- **Plan changes**: correct with the recompute grouped by pilot (with the wording in 2.3 item 6).
 - **In-progress flights**: agree (live via `session_ids`, with the COALESCE).
 - **Flights spanning the position drop and finalisation**: the hook sits in the worker that finalisation calls, so merged rows are recomputed in the same transaction; drops never touch the new table; no drop safety check changes. About 0.2 s more per finalised partition, inside the lock window already noted in #112 item 5. Agree.
 - **Session deletes and ADR-026 / #21**: agree with "delete by CID and rebuild"; write it into ADR-026 item 2 as a rule; no foreign key (a cascade would delete a whole merged flight when one piece goes).
@@ -201,13 +241,13 @@ DESIGN_89 (option A) and my own answer reached the same architecture independent
 
 ## Part 3. Verdict
 
-**Build a stored table of merged flights read by a thin `flight` view. Two designs qualify, equally fast and about the same size, and the choice is one owner question (3.3 item 1): (a) DESIGN_89 option A with the amendments above (write only changed rows, two more indexes, test helper, migration locking, COALESCE), which keeps today's behaviour exactly; or (b) write once when final with a 3-hour quiet period (section 1.6, revised), which cannot damage old flights and matches v1, at the price of a 3-hour delay before a flight is counted. My default if the owner has no preference: (a), because it changes nothing users see and its nightly check expects exactly zero differences. Do not extend `flight_summary` and do not use a materialised view.** (Revised 11-10-2026: the first version rejected write-once on a wrong premise, see 1.6.)
+**Build a stored table of merged flights read by a thin `flight` view. Two designs qualify, equally fast and about the same size, and the choice is one owner question (3.3 item 1): (a) DESIGN_89 option A with the amendments above (write only changed rows, two more indexes, test helper, migration locking, COALESCE), which keeps today's behaviour exactly; or (b) write once when final with a 3-hour quiet period (section 1.6, revised), which cannot damage old flights and matches v1, at the price of a 3-hour delay before a flight is counted. Only flights that ended within 120 minutes before a new session can change (1.7), so either design touches only recent flights; for (a) the first version still re-checks all flights of active pilots, because that stays exact even if sessions overlap (0.2 s per update). My default if the owner has no preference: (a), because it changes nothing users see and its nightly check expects exactly zero differences. Do not extend `flight_summary` and do not use a materialised view.** (Revised 11-10-2026: the first version rejected write-once on a wrong premise, see 1.6.)
 
 ### 3.1 Smallest first version (one migration, no Python, no roles.sql, no panel change)
 
 1. Reference view = today's `flight` body plus `last_session_id` (latest piece, ties by highest session id) and `session_ids`.
 2. Table of merged flights, key = first piece; indexes on `cid`, `start_time`, `end_time`, `logon_time`.
-3. A function that recomputes the given pilots from the reference view and writes only rows that changed, deleting vanished keys; a full-rebuild wrapper for repairs, tests and restores.
+3. A function that recomputes all flights of the given pilots (CIDs) from the reference view and writes only rows that changed, deleting vanished keys; a full-rebuild wrapper for repairs, tests and restores.
 4. One added call at the end of `refresh_flight_summary_sessions` for the cids it processed.
 5. `flight` replaced by the thin view (same 32 columns), `is_in_progress` wrapped in COALESCE.
 6. Backfill under the refresh advisory lock, with `lock_timeout` set.
@@ -217,14 +257,14 @@ About 220 SQL lines and 170 test lines. Medium tier by the table (existing colum
 
 ### 3.2 Checks before building
 
-1. Repeat the pushdown EXPLAIN on **PostgreSQL 16** (I ran 17.5; production and CI are 16). The per-pilot recompute depends on it; without it the maintenance would read all history every 5 minutes.
+1. Repeat the pushdown EXPLAIN on **PostgreSQL 16** (I ran 17.5; production and CI are 16). The recompute grouped by pilot depends on it; without it the maintenance would read all history every 5 minutes.
 2. Run the equivalence comparison on a restore of a recent live dump (real reconnects, real ties), on a private local database.
 3. Time the slowest panels at 5 years as `grafana_ro` with its limits, ideally under a 1 CPU cap.
 
 ### 3.3 Owner decisions
 
 1. **The main question: may a finished flight appear in the charts up to 3 hours after it ends (today about 1 to 6 minutes; v1 8 hours)?** Yes: build write-once when final (1.6). No: build the 5-minute design (3.1). If (b) is chosen, 3.1 changes to: append-only write-down step instead of the upsert, quiet period as a setting, a nightly "no unrecorded piece older than 4 hours" check, test fixtures older than the quiet period; the indexes, locking and helper changes stay.
-1a. **Tie-break**: when two pieces of one flight end in the same second, take the plan and pilot fields from the session with the higher id (the later one created). Today the answer is arbitrary; about 15 flights per million. Recommend yes.
+1a. **Tie-break**: when two pieces of one flight end in the same second, take the plan and name fields from the session with the higher id (the later one created). Today the answer is arbitrary; about 15 flights per million. Recommend yes.
 2. **Names** (Part 4): name the new objects clearly now; do not rename `flight_summary` in this change.
 3. **When to build**: no timeouts for about three years, but the dashboards are public (ADR-029), so each visitor's page load runs about ten of these queries on one CPU, and at one year of history (mid-2027) the airport and route panels take 7 to 12 s each. Recommend building in the next few months, while the backfill is trivial.
 4. Folded into item 1 above (revised 11-10-2026).
