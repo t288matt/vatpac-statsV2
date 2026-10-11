@@ -290,7 +290,7 @@ def test_feed_client_keeps_the_raw_body_of_the_last_200_only(tmp_path: Path) -> 
     responses = iter([httpx.Response(200, content=b'{"a": 1}'), httpx.Response(304),
                       httpx.Response(200, content=b"[1]")])
     client = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: next(responses)))
-    feed = FeedClient(Settings(_env_file=None), client)  # type: ignore[call-arg]
+    feed = FeedClient(Settings(_env_file=None), client, min_gap_s=0)  # type: ignore[call-arg]
 
     async def go() -> list[bytes | None]:
         seen = []

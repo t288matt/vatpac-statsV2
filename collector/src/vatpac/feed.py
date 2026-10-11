@@ -6,6 +6,7 @@ import asyncio
 import logging
 import random
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,6 +21,7 @@ log = logging.getLogger(__name__)
 RETRIES = 3
 BACKOFF_BASE_S = 1.0
 RETRY_AFTER_CAP_S = 120.0
+MIN_REQUEST_GAP_S = 30.0  # hard floor between any two requests to VATSIM, retries and discovery included
 _MAX_AGE_RE = re.compile(r"max-age=(\d+)")
 
 
@@ -44,8 +46,11 @@ def parse_retry_after(value: str | None, default: float = 30.0) -> float:
 
 
 class FeedClient:
-    def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None,
+                 min_gap_s: float = MIN_REQUEST_GAP_S) -> None:
         self._settings = settings
+        self._min_gap_s = min_gap_s
+        self._last_request_at: float | None = None
         self.url = settings.vatsim_feed_url
         self._last_modified: str | None = None
         self._etag: str | None = None
@@ -56,12 +61,21 @@ class FeedClient:
             follow_redirects=True,
         )
 
+    async def _throttle(self) -> None:
+        """Wait until min_gap_s has passed since the previous request started, then stamp this one."""
+        if self._last_request_at is not None:
+            wait = self._last_request_at + self._min_gap_s - time.monotonic()
+            if wait > 0:
+                await asyncio.sleep(wait)
+        self._last_request_at = time.monotonic()
+
     async def aclose(self) -> None:
         await self._client.aclose()
 
     async def discover(self) -> str:
         """Feed URL from the status endpoint (data.v3[0]); falls back to the configured URL."""
         try:
+            await self._throttle()
             resp = await self._client.get(self._settings.vatsim_status_url)
             resp.raise_for_status()
             url = resp.json()["data"]["v3"][0]
@@ -79,6 +93,7 @@ class FeedClient:
         conditional = (("If-Modified-Since", self._last_modified), ("If-None-Match", self._etag))
         headers = {k: v for k, v in conditional if v}
         self.last_raw = None
+        await self._throttle()
         resp = await self._client.get(self.url, headers=headers)
         if resp.status_code == 304:
             return FetchResult(None, 304)
