@@ -19,6 +19,7 @@ import base64
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -50,10 +51,27 @@ def plan(dashboards: list[dict], public: list[dict]) -> list[tuple[str, dict, di
     return steps
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """The login is sent as a header: never follow a redirect to another address with it."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def check_url(url: str) -> None:
+    """Basic auth in clear text only to this machine; any other address must be https."""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme == "https" or (parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "localhost", "::1")):
+        return
+    raise ValueError(f"refusing to send the Grafana login to {url}: use https, or http to this machine (127.0.0.1)")
+
+
 class Grafana:
     def __init__(self, base: str, user: str, password: str) -> None:
+        check_url(base)
         self.base = base.rstrip("/")
         self.auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        self.opener = urllib.request.build_opener(NoRedirect)
 
     def call(self, method: str, path: str, body: dict | None = None):
         req = urllib.request.Request(self.base + path, method=method)
@@ -63,7 +81,7 @@ class Grafana:
             data = json.dumps(body).encode()
             req.add_header("Content-Type", "application/json")
         try:
-            with urllib.request.urlopen(req, data=data, timeout=60) as resp:
+            with self.opener.open(req, data=data, timeout=60) as resp:
                 raw = resp.read()
                 return resp.status, (json.loads(raw) if raw else None)
         except urllib.error.HTTPError as exc:
@@ -88,12 +106,27 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--env", default=".env", help="file with GRAFANA_ADMIN_USER and GRAFANA_ADMIN_PASSWORD")
     args = ap.parse_args(argv)
 
-    env = read_env(Path(args.env))
+    try:
+        env = read_env(Path(args.env))
+    except OSError as exc:
+        print(f"cannot read {args.env}: {exc.strerror}", file=sys.stderr)
+        return 2
     password = env.get("GRAFANA_ADMIN_PASSWORD")
     if not password:
         print("GRAFANA_ADMIN_PASSWORD is not set in", args.env, file=sys.stderr)
         return 2
-    g = Grafana(args.url, env.get("GRAFANA_ADMIN_USER", "admin"), password)
+    try:
+        g = Grafana(args.url, env.get("GRAFANA_ADMIN_USER", "admin"), password)
+        return run(g, args)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+    except OSError as exc:  # Grafana down, refused, timed out (urllib's URLError is an OSError)
+        print(f"cannot reach Grafana at {args.url}: {exc}", file=sys.stderr)
+        return 1
+
+
+def run(g: Grafana, args: argparse.Namespace) -> int:
 
     status, dashboards = g.call("GET", "/api/search?type=dash-db&limit=200")
     if status != 200:
@@ -118,6 +151,12 @@ def main(argv: list[str] | None = None) -> int:
             print(("removed " if ok else f"FAILED ({status}) ") + p.get("title", p["dashboardUid"]))
         return 1 if failures else 0
 
+    if args.list:
+        known = {d["uid"] for d in dashboards}
+        for p in public:
+            if p["dashboardUid"] not in known:
+                name, url = p.get("title", p["dashboardUid"]), link(p["accessToken"], args.public_url)
+                print(f"{name}: {url}  (not a provisioned dashboard any more; --remove deletes it)")
     for action, d, existing in plan(dashboards, public):
         token = existing["accessToken"] if existing else None
         if args.list:
