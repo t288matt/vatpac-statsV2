@@ -33,7 +33,7 @@ from .settings import Settings
 from .store import ApplyResult, apply_snapshot, record_reference_change, write_poll_log
 
 log = logging.getLogger("vatpac")
-UNCHANGED_RETRY_S = 2.0
+UNCHANGED_RETRY_S = 30.0  # no faster than the feed floor (feed.MIN_REQUEST_GAP_S)
 MAINTENANCE_INTERVAL_S = 86_400.0
 MAINTENANCE_RETRY_S = 60.0
 APPLY_TIMEOUT_S = 25.0  # the poll stops waiting after this
@@ -256,6 +256,7 @@ async def run(settings: Settings, ref: ReferenceData) -> None:
     pool.open(wait=False)  # keeps retrying in the background if the database is not up yet
     feed = FeedClient(settings)
     collector = Collector(settings, ref, pool, feed)
+    feed.stop = collector.stop
     runner = await start_server(collector.stats, settings.health_port)
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
