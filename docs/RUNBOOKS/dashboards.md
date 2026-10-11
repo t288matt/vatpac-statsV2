@@ -1,6 +1,6 @@
 # Runbook: add or change a dashboard
 
-Last reviewed: 08-10-2026. Dashboards are code: JSON files in git, loaded by Grafana from a read-only mount. Edits made in the Grafana web interface are not saved (`allowUiUpdates: false`, viewers cannot edit) and are lost on restart; every change goes through the files.
+Last reviewed: 11-10-2026. Dashboards are code: JSON files in git, loaded by Grafana from a read-only mount. Edits made in the Grafana web interface are not saved (`allowUiUpdates: false`, viewers cannot edit) and are lost on restart; every change goes through the files.
 
 ## Where things are
 
@@ -43,4 +43,4 @@ Against real data, read-only, on the VM: take the panel's `rawSql`, replace `$__
 
 Through Grafana, after a deploy: `python3 ops/check_panels.py` (from the stack folder, on the VM) runs every panel query via Grafana's API and reports OK, EMPTY (no rows yet, fine while data is young) or ERROR. Then look at the dashboard in a browser: a query that runs is not the same as a query that answers the question correctly.
 
-Do not expose Grafana publicly: real names and CIDs are shown (ADR-009, ADR-019).
+Names and CIDs are shown and are public VATSIM data. Public, read-only sharing is done with Grafana public dashboards and is described in [public-access.md](public-access.md) (ADR-029); anonymous access stays off. Public dashboards do not fill text-box variables, so a dashboard that is shared needs a fixed value in place of a text box (the Departure board is fixed to YSSY).

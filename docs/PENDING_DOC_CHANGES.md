@@ -32,3 +32,11 @@ Callsign, departure and arrival byte caps and infinite or huge controller freque
 
 ## Scripted checks, `ops/deploy.sh` (merged, read-only; no deploy needed to use it, but the owner decides when it enters the procedure)
 RUNBOOKS/deploy-to-vm.md: the section "Scripted checks (`ops/deploy.sh`)" (`--preflight`, `--verify`, `--status`, `--mark`) from `git show c89e544:docs/RUNBOOKS/deploy-to-vm.md`. README.md and RESUME.md may then mention it.
+
+## Grafana stable links (PR 131, branch `stable-links`; NOT deployed)
+Switch in after it is deployed and verified live:
+- RUNBOOKS/public-access.md: public tokens become stable (the sha256 of the dashboard uid, 32 hex characters, the only form Grafana accepts), so the links survive a wiped volume. Add 10 short addresses that redirect to the public links: `/live`, `/traffic`, `/new-pilots`, `/origins`, `/atc`, `/atc-retention`, `/monday`, `/military`, `/monthly`, `/health`. After the redirect the address bar shows the long address.
+- The redirects are Traefik labels, printed by `python3 ops/grafana_public.py --traefik-labels --host vpac.mpengor.com` and pasted into `~/vatpac-proxy/docker-compose.yml` on the Traefik machine, then `docker compose up -d` there. They are outside this repository.
+- How the 10 label blocks go in: on the Traefik machine, open `~/vatpac-proxy/docker-compose.yml`, paste the printed labels into the `labels:` list of `vatpac-proxy`, run `docker compose up -d` there, then check one short address. The README in that folder must be updated to mention the short addresses (and the runbook appendix and section "The Traefik machine" here, and the owner's copies in `vatpac-claude-setup/traefik/`).
+- Also: README.md (public access paragraph), ARCHITECTURE.md (public-access section), DECISIONS.md ADR-029 (consequences: links are stable), CHANGELOG.md and TRACKER.md (a new row).
+- Before deploying, put the fixed `ops/grafana_public.py` on the VM tree (the tree has the 848526c version, which assumes 127.0.0.1).
