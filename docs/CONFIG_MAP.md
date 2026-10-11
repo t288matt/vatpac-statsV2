@@ -22,7 +22,7 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `GRAFANA_PORT` | `3300` | grafana | Host port mapped to Grafana's 3000. |
 | `GRAFANA_BIND` | `127.0.0.1` | grafana | Interface Grafana is published on. Loopback by default; set the VM's LAN address (preferred) or `0.0.0.0` for LAN access, then firewall it. |
 | `GRAFANA_COOKIE_SECURE` | `false` | grafana | Set `true` only when users reach Grafana over https; with plain http a secure cookie stops logins working. |
-| `GRAFANA_ROOT_URL` | `http://localhost:3300/` | grafana | External URL; set it when served through a proxy or tunnel. |
+| `GRAFANA_ROOT_URL` | `http://localhost:3300/` | grafana | External URL; set it when served through a proxy or tunnel. Production on 11-10-2026: `http://192.168.1.222:3300/` (the public dashboards work with it; see RUNBOOKS/public-access.md). |
 | `VATSIM_FEED_URL` | `https://data.vatsim.net/v3/vatsim-data.json` | collector | Fallback feed URL, used if discovery fails. |
 | `VATSIM_STATUS_URL` | `https://status.vatsim.net/status.json` | collector | Discovery document (`data.v3[0]`). |
 | `POLL_INTERVAL_SECONDS` | `30` | collector | Poll cadence (ADR-024). The one place the interval is held: the airborne gap cap, the archive gap threshold, the online-now windows (2 x this), the soak report and the Snapshots-missed panel derive from it. Valid 5 to 300. |
@@ -75,7 +75,7 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | Variable | Value | Meaning |
 |---|---|---|
 | `DATABASE_URL` (collector) | built from `COLLECTOR_DB_PASSWORD` and `POSTGRES_DB`, role `collector`, host `db` | Overrides the five `POSTGRES_*` connection settings inside the collector. |
-| `GF_*` (grafana) | anonymous access off, sign-up off, analytics and update checks off, default timezone UTC | Grafana hardening. |
+| `GF_*` (grafana) | anonymous access off, sign-up off, analytics and update checks off, default timezone UTC | Grafana hardening. Public dashboards are on (Grafana default) and are the only way pages are seen without a login; anonymous access must stay off (ADR-029). Image `grafana/grafana:12.4.12`. |
 | `GRAFANA_RO_DB_PASSWORD` (grafana) | `${GRAFANA_RO_PASSWORD}` | Referenced by the provisioned datasource. |
 | `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` (backup) | `db`, `5432`, `backup_ro`, `BACKUP_DB_PASSWORD`, `POSTGRES_DB` | Connection for `pg_dump`. |
 | `RESTORE_PGUSER`, `RESTORE_PGPASSWORD` (backup) | `POSTGRES_USER`, `POSTGRES_PASSWORD` | Owner login used only by `restore.sh` and `restore-test.sh`, which need to create, drop and rename databases (ADR-017). |
