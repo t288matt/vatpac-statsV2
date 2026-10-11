@@ -2,10 +2,10 @@
 
 **In plain English (five lines):**
 1. **Problem:** every time a chart opens, the database rebuilds every flight ever recorded from its pieces, so charts get slower each year (about 25 s for the worst chart with 5 years of data, against a 30 s limit).
-2. **Recommendation (updated 11-10-2026):** one table of finished flights, each written once, 3 hours after the pilot's last connection on it ends, straight from the raw data (option (c), section 1.9).
+2. **Recommendation (final, 11-10-2026):** keep all of today's tested code. Add one stored table of merged flights, which every 5 minutes re-checks only the flights of pilots who had a session in the last 12 hours. This is option (a), sections 1.3 and 1.10.
 3. **Why:** in a test with 5 years of made-up data the worst chart fell from 24.5 s to 0.3 s, and the results matched today's on all but 15 of nearly a million flights.
 4. **Risk:** this changes the base of about 35 charts, so it needs a careful test against a copy of the live data before it goes live; if it goes wrong, the fix is to restore the backup taken just before.
-5. **You decide (updated 11-10-2026):** with a 3-hour delay acceptable and simplicity first, we recommend option (c): one table of finished flights, written once from the raw data (section 1.9). The one question left: build it before the first raw-position drop (about 06-01-2027), so no history is lost?
+5. **You decide:** two small choices. Which pilot details to show when two pieces of one flight end in the same second (we recommend the later connection's). Whether to rename tables (we recommend not now). The v1-style rewrite, option (c), is a possible later tidy-up only (section 1.10).
 
 Written 11-10-2026 by an independent reviewer (Opus 5.5), branch `opus-89`, from `origin/main` at e575996. Design only: no migration, no product code, nothing on the live VM. Part 1 was written and committed BEFORE reading `docs/DESIGN_89.md` (branch design-89). Part 2 reviews that design. Part 3 is the verdict. Part 4 answers the owner's naming question.
 
@@ -304,6 +304,27 @@ Under these facts the order changes. **(c), the v1 shape, comes first.**
 - Removed: table `flight_summary`, functions `refresh_flight_summary_sessions` and the refresh body, the `final` re-checks in `drop_old_pilot_position_partitions`, views `flight_part` and the merge body of `flight`. The watchdog checks "flight_summary rows missing" and "sample_count differs" become "no session quiet for more than 4 h without `used_upto`" and "sample_count per flight equals positions in the raw window".
 - Equivalence during development: on the 5-year synthetic set and a local copy of a live dump, `flight_record` should equal the old `flight` view restricted to flights quiet more than 3 h. The only expected differences are exact end-time ties (now decided by highest session id) and sessions that came back with a changed plan.
 
+### 1.10 Weighing proven code (owner's point, 11-10-2026; supersedes the ranking in 1.9)
+
+#### In plain English
+
+The owner counts the code that is deployed, tested and working as a big bonus. That code is `flight_summary`, the refresh, the finalisation before raw data is deleted, the flight views, and the integration tests (7+ files). Counting it changes the order again.
+
+| | Proven code kept unchanged | Proven code rewritten or deleted | New, untested code |
+|---|---|---|---|
+| (a) update a stored copy for active pilots | all of it: pieces table, refresh (one call line added), finalisation, partition drop, `flight_part`, the merge logic (kept word for word as the reference view), the 7+ test files (the helper gains one line) | the `flight` view body moves into the reference view unchanged; `flight` becomes a short thin view | about 90 lines of SQL (table, update function, thin view) and about 170 lines of tests |
+| (b) write once after 3 hours, pieces kept | the same as (a) | the same as (a) | about 110 lines of SQL, with subtler logic (the 3-hour test, "not yet written"), and about 10 test files changed so their flights are old enough |
+| (c) v1 shape from raw | the raw-data tables only | about 250 proven lines deleted or rewritten: the refresh pair, finalisation, the partition-drop rule (High tier), Monday attendance, two watchdog checks, a grant, about 20 test files | about 300 lines of SQL plus rewritten tests |
+
+**What a rewrite or deletion would buy.** (c) ends with fewer parts: one table instead of two, no `final` flag, no pieces layer. That is a real gain in tidiness. It does not make any chart faster or any number more correct than (a). Paying for it means replacing working, tested code that guards the permanent deletion of raw data. That is the riskiest place in the system to change.
+
+**New ranking:**
+1. **(a)** — the least new code, the least change to tests, no rule changes, no delay at all, and every proven part kept as it is.
+2. **(b)** — also keeps the proven code, but adds more and subtler new logic for no extra speed. The 3-hour delay is acceptable to the owner, but it buys nothing over (a).
+3. **(c)** — the tidiest end state, but only by replacing proven code. Only worth it later, and only if the pieces layer ever causes real trouble.
+
+**Plain verdict.** Build (a) now. Keep (c) as a possible later tidy-up, not a plan.
+
 ---
 
 ## Part 2. Review of docs/DESIGN_89.md (branch design-89, read after Part 1 was committed)
@@ -353,7 +374,7 @@ DESIGN_89 (option A) and my own answer reached the same architecture independent
 
 ## Part 3. Verdict
 
-**Superseded 11-10-2026 by section 1.9.** Under the owner's facts (a 3-hour delay is fine, losing data is acceptable, simplest code first), the recommendation is option (c), the v1 shape: one finished-flight table written once from raw positions, built before the first raw-position drop (about 06-01-2027) so nothing is lost. The text below is kept as the plan for (a), in case those facts change.
+**Current recommendation (11-10-2026, section 1.10):** option (a), the plan below. Section 1.9 had briefly recommended (c). Once the deployed, tested code is counted as the asset the owner says it is, (a) keeps all of it and adds the least new code. (c) remains a possible later tidy-up.
 
 
 **Build a stored table of merged flights read by a thin `flight` view. Two designs qualify, equally fast and about the same size, and the choice is one owner question (3.3 item 1): (a) DESIGN_89 option A with the amendments above (write only changed rows, two more indexes, test helper, migration locking, COALESCE), which keeps today's behaviour exactly; or (b) write once when final with a 3-hour quiet period (section 1.6, revised), which cannot damage old flights and matches v1, at the price of a 3-hour delay before a flight is counted. Only flights that ended within 120 minutes before a new session can change (1.7), so either design touches only recent flights; for (a) the first version still re-checks all flights of active pilots, because that stays exact even if sessions overlap (0.2 s per update). My default if the owner has no preference: (a), because it changes nothing users see and its nightly check expects exactly zero differences. Do not extend `flight_summary`, do not use a materialised view, and do not start with (c), the v1-faithful version that writes finished flights straight from raw positions and retires the pieces table (section 1.8): same speed and a cleaner shape, but the biggest change (High tier, raw-data drop, Monday attendance). If the owner wants that shape, reach it later as a cleanup on top of (b).** (Revised 11-10-2026: the first version rejected write-once on a wrong premise, see 1.6.)
