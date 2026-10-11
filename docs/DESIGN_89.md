@@ -89,3 +89,53 @@ Size against pain: about 350 lines in total, to take every flight panel from 8 t
 | Backfill, indexes, restore check, documents, ADR | Routine | Sonnet |
 
 Only if B were chosen: the edits to the refresh function's upsert and delete, and the finalisation re-checks, become Opus-grade as well.
+
+---
+
+# Addendum 11-10-2026: ranking with the owner's new facts
+
+New facts from the owner: (1) finished flights may reach the panels 3 hours or more after they end; (2) existing data may be lost, so no backfill, conversion, legacy copy or data rollback is needed; (3) simplest code with the logic right comes first; (4) the current code (`flight_summary`, the refresh, the flight views, finalisation and their tests) is deployed, tested and working, and counts as a large bonus. Written before reading any other review. Still design only; nothing was run.
+
+## Plain English verdict
+
+**Recommend (b): write once when final, built as a new table from today's pieces, with the proven code left alone.** (c) is the tidiest end state on paper but buys about 150 fewer lines at the price of rewriting the code that guards the irreversible drop of raw positions, before that code has ever run live (first real drop is due about 06-01-2027). (a) is the worst on every count: it keeps everything and adds the most delicate new code.
+
+Why the new facts make (b) small: a flight is final once no session of its chain has been seen for 3 hours (the merge gap is 120 minutes, so nothing can join it after that). A final flight never changes, so there is no delete-and-reinsert, no live join to `pilot_session`, no `online_now` test (a final flight is never in progress) and no staleness question. The plan fields are copied once, from the latest part, at write time.
+
+## The three options
+
+| | (a) DESIGN_89: stored table, delete and reinsert every 5 minutes | (b) write once when final, from today's pieces | (c) one finished-flight table straight from sessions and positions |
+|---|---|---|---|
+| Idea | `flight_merged` kept current per touched pilot; `flight` joins live fields back | Same table, but a flight is written once, 3 hours after its chain went quiet, by one INSERT from today's chain SQL | Replace `flight_summary` and the parts layer; one writer reads `pilot_session` and `pilot_position` and writes the flight; no pieces |
+| Proven code kept unchanged | All of it (about 700 lines of SQL and ~25 test files) | All of it, except the body of `flight` | The parts and chain rules are copied into the writer (the logic is proven, the wrapper is not); the finalisation, refresh, flag and `flight_part` go |
+| Proven code rewritten | `refresh_flight_summary_sessions` gets a hook; `flight` rewritten | `flight` becomes a thin view (about 15 lines) | `drop_old_pilot_position_partitions` (finalisation block and three re-checks, about 45 lines), `monday_attendance`, helpers and about 20 test files that call `refresh_flight_summary` or read `flight_summary`/`flight_part` (about 110 references) |
+| New untested code | About 200 lines (hook, live joins, tie-break, array overlap for in-progress) | About 60 lines: one table, one writer function, one call | About 180 lines (writer plus the new drop gate) |
+| Tables / views / functions removed | none | none | `flight_summary`, `flight_part`, `refresh_flight_summary`, `refresh_flight_summary_sessions`, the `final` column, placeholder rows |
+| Tables / views / functions added | table, `flight_chain` view, 1 to 2 functions | table, `flight_chain` view (today's `flight` body renamed), 1 function | table, 1 writer function |
+| SQL lines (net) | about +200 | about +120 | about +300 written, about 290 of old logic deleted, net about -150 |
+| Tests to change | about 4 | about 2, plus one new file (about 80 lines) | about 20 files |
+| `is_in_progress` | Kept, live | Kept as a constant `false` column (one line), so the 11 panels that filter on it and `flight_ext` stay untouched | Removed everywhere (ADR-025 is then true by construction) but 11 panels and the view need editing |
+| Cost at 5 years | 0.2 to 1.6 s (reasoned from the stored-table floor) | Same | Same |
+
+Logic correctness: (b) and (c) carry the same rules (120 minute gap, 8 hour span, reconnect merge, flight gate) with one fewer moving part than (a), because nothing is recomputed after the flight is final. (a) alone has the live-join tie-break and the stale-edit problems.
+
+By simplicity of the final shape: (c) first, (b) second, (a) third. By reuse of proven code: (b) first, (a) second, (c) third. Combined with "proven code is a large bonus", (b) wins; (c) can still follow later as a pure clean-up if the owner wants the smaller end state.
+
+## What the simplest correct final shape is, and what to delete
+
+For (c), the tidy end state, delete: `flight_summary`, the `final` column and its checks, `flight_part`, `refresh_flight_summary` and `refresh_flight_summary_sessions` (replace with one function, for example `write_final_flights()`, called by the same 5-minute maintenance call, so no Python line is added; only the SQL function name in `maintenance.py` changes), the placeholder rows, `is_in_progress`, and the finalisation block in the partition drop. Keep a one-line gate there instead: do not drop a partition that holds a session which has a flight-gate plan and no written flight. Raw positions then simply roll off at the retention limit, because a flight is written hours after it ends and retention is 90 to 180 days.
+
+For (b), nothing is deleted. That is the point of recommending it: the part layer still does its job (finalising before a partition drop), the new table sits on top, and the old view body survives as `flight_chain` for the equivalence test and for the writer.
+
+## Does a clean start allow a much smaller migration?
+
+Not much. The migration is small because of the design, not because of the data. With (b) or (c), the first run of the writer finds every quiet session not yet written and writes it, so there is no special backfill code either way; a wiped database simply makes that first run empty. What a clean start does allow: no conversion of old rows, no `flight_old` copy, no data rollback (the down step only restores the view), and no need to prove that old and new rows are identical. It does not remove the work of rewriting dependants for (c): `monday_attendance` reads `flight_summary` today and has to move to the finished-flight table.
+
+## What remains risky
+
+- The quiet test must be done per chain, not per session: an early part can have been silent for 3 hours while a later reconnect in the same chain is still connected (a long second session). Writing the early part alone would split a flight. The writer must only write chains whose latest end is older than the quiet period.
+- Tie-break for the "latest part" pick: still an owner decision (b and c write once, so it is a small rule but still a visible one).
+- Monday attendance during the event (07:00 to 12:00 Z): with (c) it reads finished flights, so it would lag 3 hours exactly when it is watched. (b) leaves it on `flight_summary`, unchanged.
+- First catch-up run: one INSERT over all unwritten sessions; bound it by a time window or batch it if history is large (not at today's size).
+- A collector outage longer than the quiet period: flights are written late, never lost, because the rule is "quiet and not yet written", not a time window.
+- For (c) only: the rewritten partition-drop gate guards irreversible deletion and its 11 lock tests would change; this is the one database-risky piece that warrants an Opus second pass. For (b) the Opus pass is only worthwhile on the writer function and the `flight` view swap.
