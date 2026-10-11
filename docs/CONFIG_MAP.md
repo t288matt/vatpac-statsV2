@@ -47,6 +47,9 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `HEALTH_PORT` | `8080` | collector, watchdog | Port of the collector's `/health` and `/metrics` inside the container. |
 | `VATPAC_VERSION` | `dev` | collector build arg | Version label baked into the image (the release workflow sets it from the git tag). |
 | `BACKUP_RETENTION_DAYS` | `14` | backup | Days of dumps kept. |
+| `BACKUP_MIN_SIZE_PERCENT` | `50` | backup | A new dump smaller than this percent of the previous good dump is rejected (moved aside as `*.rejected`). |
+| `BACKUP_MIN_FIRST_BYTES` | `1048576` | backup | Minimum size of the first-ever dump (no previous dump to compare with). |
+| `BACKUP_MIN_KEEP` | `3` | backup | Rotation never deletes below this many good dumps. |
 | `BACKUP_TIME_UTC` | `02:00` | backup | Nightly backup time (HH:MM, UTC). |
 | `BACKUP_RESTORE_TEST_DAY` | `7` | backup | ISO weekday (1 Monday to 7 Sunday) on which the backup is restore-tested; `0` disables (then set `WATCHDOG_RESTORE_TEST_MAX_DAYS=0` too). |
 | `BACKUP_REMOTE` | empty | backup | Optional off-box copy: a shell command run after every successful nightly dump with `$BACKUP_FILE` set. See [restore runbook](RUNBOOKS/restore.md), "Off-box copies". |
