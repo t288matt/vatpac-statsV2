@@ -115,3 +115,28 @@ def test_main_list_changes_nothing_and_never_prints_the_password(tmp_path: Path,
     code, state, _ = run_main(tmp_path, {}, "--list")
     out = capsys.readouterr().out
     assert code == 0 and state["public"] == {} and "not public" in out and "pw" not in out.replace("public", "")
+
+
+def test_refuses_to_send_the_login_in_clear_to_another_host(tmp_path: Path, capsys) -> None:
+    env = tmp_path / ".env"
+    env.write_text("GRAFANA_ADMIN_PASSWORD=pw\n", encoding="utf-8")
+    assert gp.main(["--url", "http://192.168.1.50:3000", "--env", str(env)]) == 2
+    assert "refusing" in capsys.readouterr().err
+    gp.check_url("https://vatpac.example")
+    gp.check_url("http://127.0.0.1:3300")
+
+
+def test_grafana_down_and_missing_env_give_a_message_not_a_traceback(tmp_path: Path, capsys) -> None:
+    env = tmp_path / ".env"
+    env.write_text("GRAFANA_ADMIN_PASSWORD=pw\n", encoding="utf-8")
+    assert gp.main(["--url", "http://127.0.0.1:1", "--env", str(env)]) == 1  # nothing listens on port 1
+    assert "cannot reach Grafana" in capsys.readouterr().err
+    assert gp.main(["--env", str(tmp_path / "missing.env")]) == 2
+    assert "cannot read" in capsys.readouterr().err
+
+
+def test_list_shows_links_of_dashboards_that_are_no_longer_provisioned(tmp_path: Path, capsys) -> None:
+    orphan = pub("zz", "p9")
+    orphan["title"] = "Old dashboard"
+    run_main(tmp_path, {"zz": orphan}, "--list")
+    assert "Old dashboard" in capsys.readouterr().out
