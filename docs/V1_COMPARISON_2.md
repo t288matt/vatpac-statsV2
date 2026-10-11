@@ -40,4 +40,4 @@ Whole window distinct pilot CIDs: v1 179, v3 plan 179, v3 all 183 (+2.2 %). Cont
 7. Not testable on its own (no v1 only observation found at the totals level).
 
 ## Conclusion
-No unexplained difference. Every gap sits in E1, E2 or E5. Nothing for v3 to fix. With the poll interval now 30 s in v3 and about 92 s in v1 the pilot and controller sets still agree hour by hour. Note the later windows cannot be compared: v3 has no new data since 11-10-2026 03:08 UTC (VATSIM feed frozen) and v1 had no polls from 03:00 to 09:00 UTC (both systems stopped by the Proxmox crash).
+No unexplained difference. Every gap sits in E1, E2 or E5. Nothing for v3 to fix. With the poll interval now 30 s in v3 and about 92 s in v1 the pilot and controller sets still agree hour by hour. Note that no later window can be compared yet: VATSIM's feed has been frozen since 11-10-2026 03:08 UTC, so neither system has stored new data since (v1 shows no polls for 03:00 to 08:59 UTC; the Proxmox crash restarted both VMs at about 08:49 UTC).
