@@ -1,36 +1,43 @@
 # Public read-only dashboards (Cloudflare Tunnel)
 
-Audience: the owner. Purpose: show the dashboards to anyone on the internet at `https://vatpac.mpengor.com`, read-only, without opening a port on the router. The proxy and the tunnel run on the owner's `docker` machine; this stack only provides Grafana's public dashboards and a script that manages the links.
+Last reviewed 11-10-2026 against commit 71b28f2 and the VM. Audience: the owner. Purpose: show the dashboards to anyone on the internet at `https://vpac.mpengor.com`, read-only, without opening a port on the router. The hostname `vpac.mpengor.com` is the owner's choice (changed from `vatpac.mpengor.com` so it does not appear in searches for "vatpac"); **UNVERIFIED** from this repository and the VM, because DNS, Cloudflare and the Traefik machine are outside both. The proxy and the tunnel run on the owner's `docker` machine; this stack only provides Grafana's public dashboards and a script that manages the links.
 
 ```
-visitor -> Cloudflare (rate limit) -> tunnel (cloudflared, docker machine) -> Traefik (docker machine)
+visitor -> Cloudflare (rate limit, Bot Fight Mode) -> Cloudflare Tunnel (named Home; connector on the Traefik machine) -> Traefik (docker machine)
         -> vatpac-proxy (helper container on the docker machine) -> http://192.168.1.222:3300 (Grafana on the v3 VM, LAN address)
 ```
 
 ## What visitors can and cannot do
-- Each of the 10 dashboards has its own public link (`/public-dashboards/<token>`). Grafana has no index of them; `python3 ops/grafana_public.py --list --public-url https://vatpac.mpengor.com` prints them.
-- A public dashboard runs **only the queries saved on the dashboard**. Visitors cannot send their own SQL, cannot change the time range (each dashboard keeps its own default: 24 hours, 7, 30, 90 or 180 days), cannot edit, and cannot use Explore. Without a login every other API call (`/api/ds/query`, the dashboard and datasource lists) answers 401 (checked 11-10-2026 on a copy of the live Grafana data; SQL sent in the body of a public panel request is ignored).
-- A public page exposes the dashboard definition, including the SQL text of each panel, the view names and the datasource name. The views hold no secrets, but treat the SQL as public.
+- Each of the 10 dashboards has its own public link (`/public-dashboards/<token>`). Grafana has no index of them; `python3 ops/grafana_public.py --list --public-url https://vpac.mpengor.com` prints them.
+- A public dashboard runs **only the queries saved on the dashboard**. Visitors cannot send their own SQL, cannot change the time range (each dashboard keeps its own fixed default: 24 hours, 7, 30, 90 or 180 days), cannot edit, and cannot use Explore. Without a login every other API call (`/api/ds/query`, the dashboard and datasource lists) answers 401 (checked 11-10-2026 on a copy of the live Grafana data; SQL sent in the body of a public panel request is ignored).
+- The Departure board panel on "Pilots: online now" is fixed to YSSY: public dashboards do not fill text-box variables, so the airport box was removed. The hidden `go_live` variable works. A public page exposes the dashboard definition, including the SQL text of each panel, the view names and the datasource name. The views hold no secrets, but treat the SQL as public.
 - Panels read views only, through the `grafana_ro` role: SELECT only, 30 s statement limit, at most 10 connections (`db/roles.sql`). The collector uses its own role and connections.
 - Pilot and controller names and CIDs are visible. They are public data. The Collector health dashboard is public too (owner decision 11-10-2026).
-- The Grafana login page (`/login`) and the admin pages stay reachable from the internet: **owner decision 11-10-2026, no Cloudflare rule blocks them.** The admin account is protected by a long, unique password and Grafana's lock-out after failed attempts. A WAF rule that blocks the admin paths except from the owner's IP is the recommended extra step (section 3, optional).
+- The Grafana login page (`/login`) and the admin pages stay reachable from the internet: **owner decision 11-10-2026, no Cloudflare rule blocks them.** The admin account is protected by a long, unique password and Grafana's lock-out after failed attempts. The optional WAF rule that would block the admin paths (section 3, step 3) was offered and **declined by the owner**.
 - Anonymous access stays off. Three settings are never to be changed for this: `GF_AUTH_ANONYMOUS_ENABLED` (false), `GF_USERS_VIEWERS_CAN_EDIT` (false) and `GF_PUBLIC_DASHBOARDS_ENABLED` (true, the default: the links need it). Turning anonymous access on would let any visitor send their own SQL.
 
 ## 1. Create the public links (on the VM, after Grafana is running)
 ```
 cd ~/vatpac-statsV2
-python3 ops/grafana_public.py --public-url https://vatpac.mpengor.com
+python3 ops/grafana_public.py --public-url https://vpac.mpengor.com
 ```
 The script finds Grafana at `GRAFANA_BIND` and `GRAFANA_PORT` from `.env` (on this VM the LAN address, not 127.0.0.1); wait about a minute after a Grafana restart.
-It reads the admin login from `.env` (never printed), creates a link for every provisioned dashboard with a fixed time range and no annotations, fixes a link whose settings differ, and prints the 10 URLs. It is safe to run again, and should be run after a new dashboard is added. `--list` changes nothing. `--remove` removes every link, which stops public access at once.
+On the VM tree today the script is the version from commit 848526c, which looks for Grafana at `http://127.0.0.1:3300` and fails on this VM (Grafana listens on `192.168.1.222:3300` only); the fixed version (PR 129, on main as 7a527fb) is not on the VM tree yet, so on 11-10-2026 it was run by piping it over ssh. It reads the admin login from `.env` (never printed), creates a link for every provisioned dashboard with a fixed time range and no annotations, fixes a link whose settings differ, and prints the 10 URLs. It is safe to run again, and should be run after a new dashboard is added. `--list` changes nothing. `--remove` removes every link, which stops public access at once.
 
 The links live in Grafana's own database (the `grafana_data` volume): they survive restarts and deploys but not a wiped volume; run the script again then (the URLs change). Keep the list of links somewhere you can find it.
 
-Settings in `.env` for the public name: `GRAFANA_ROOT_URL=https://vatpac.mpengor.com/`, `GRAFANA_COOKIE_SECURE=true`, and `GRAFANA_BIND` the VM's LAN address (never `0.0.0.0`; never forward the port on the router). Apply with `docker compose up -d grafana`. After `GRAFANA_COOKIE_SECURE=true` the admin login only works over https, so use the public name.
+Settings in `.env`: production on 11-10-2026 has `GRAFANA_BIND=192.168.1.222`, `GRAFANA_PORT=3300`, `GRAFANA_ROOT_URL=http://192.168.1.222:3300/` and `GRAFANA_COOKIE_SECURE=false` (public pages work with these; the admin login works over the LAN). For admin login through the public name instead, set `GRAFANA_ROOT_URL=https://vpac.mpengor.com/` and `GRAFANA_COOKIE_SECURE=true`. `GRAFANA_BIND` must be the VM's LAN address (never `0.0.0.0`; never forward the port on the router). Apply with `docker compose up -d grafana`. After `GRAFANA_COOKIE_SECURE=true` the admin login only works over https, so use the public name.
 
 The admin password is only applied on the first start. Rotate it with `docker compose exec grafana grafana cli admin reset-admin-password '<new>'`. Use a long random unique password; never paste it into a chat, a document or the repository.
 
-## 2. Traefik on the docker machine (a helper container with labels)
+## 2. The Traefik machine (192.168.1.145)
+**Outside this repository.** Everything on this machine, and Cloudflare (the tunnel named Home, the hostname route, the rate limit rule, Bot Fight Mode), cannot be verified from the VM or from this repository; this section is the written record. The owner keeps copies of the compose file and README on his PC in `the folder vatpac-claude-setup/traefik/ (C: drive, Users/mdora/Claude)` (`docker-compose.yml`, `README.md`); they may still say `vatpac.mpengor.com` (the hostname changed to `vpac.mpengor.com`), so update them and the machine to match this page.
+
+What runs there for us: only the folder `~/vatpac-proxy`, one container `vatpac-proxy` (image `alpine/socat`, command `tcp-listen:3000,fork,reuseaddr tcp:192.168.1.222:3300`, `read_only`, `cap_drop: ALL`, `no-new-privileges`, no published ports, joins the external Docker network `proxy`, `restart: unless-stopped`). Traefik's own configuration is unchanged and Traefik was not restarted; that Traefik does NOT use `config.yaml` (the file provider is commented out in `traefik.yaml`). Only the public address depends on this container.
+
+How to check, stop, start and troubleshoot: see the README in the appendix. If the machine is replaced, rebuild three things: the folder with the compose file below and its README, the Docker network `proxy`, and the Cloudflare hostname route to `https://<that machine>:443`.
+
+### The compose file
 Traefik reads Docker labels of containers on its own machine only, and Grafana runs on the v3 VM. So the docker machine (192.168.1.145) runs a tiny forwarder container, `vatpac-proxy`, that carries the usual labels (the same pattern as the other apps) and passes everything on to Grafana at `192.168.1.222:3300`. Traefik's own configuration is not changed and Traefik is not restarted. The folder is `~/vatpac-proxy` with this `docker-compose.yml` (and a README for whoever looks at that machine):
 ```yaml
 services:
@@ -43,11 +50,11 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.vatpac.entrypoints=http"
-      - "traefik.http.routers.vatpac.rule=Host(`vatpac.mpengor.com`)"
+      - "traefik.http.routers.vatpac.rule=Host(`vpac.mpengor.com`)"
       - "traefik.http.middlewares.vatpac-https-redirect.redirectscheme.scheme=https"
       - "traefik.http.routers.vatpac.middlewares=vatpac-https-redirect"
       - "traefik.http.routers.vatpac-secure.entrypoints=https"
-      - "traefik.http.routers.vatpac-secure.rule=Host(`vatpac.mpengor.com`)"
+      - "traefik.http.routers.vatpac-secure.rule=Host(`vpac.mpengor.com`)"
       - "traefik.http.routers.vatpac-secure.tls=true"
       - "traefik.http.routers.vatpac-secure.service=vatpac"
       - "traefik.http.services.vatpac.loadbalancer.server.port=3000"
@@ -64,25 +71,56 @@ networks:
   proxy:
     external: true
 ```
-Start it with `docker compose up -d` in that folder. Check it on the docker machine: `curl -sk --resolve vatpac.mpengor.com:443:127.0.0.1 https://vatpac.mpengor.com/api/health` answers with Grafana's health (`"database": "ok"`). It has to keep running: if it stops, the public address shows an error and nothing else is affected (`docker compose stop` there is the gentlest way to switch public access off). The VM's address must stay 192.168.1.222 (reserve it on the router). Traefik on that machine does not use its `config.yaml` (the file provider is switched off in `traefik.yaml`), so nothing is added there.
+Start it with `docker compose up -d` in that folder. Check it on the docker machine: `curl -sk --resolve vpac.mpengor.com:443:127.0.0.1 https://vpac.mpengor.com/api/health` answers with Grafana's health (`"database": "ok"`). It has to keep running: if it stops, the public address shows an error and nothing else is affected (`docker compose stop` there is the gentlest way to switch public access off). The VM's address must stay 192.168.1.222 (reserve it on the router). Traefik on that machine does not use its `config.yaml` (the file provider is switched off in `traefik.yaml`), so nothing is added there.
 
 ## 3. Cloudflare Tunnel
-1. Zero Trust, Networks, Tunnels: open the existing tunnel (or create one) and add a public hostname: `vatpac.mpengor.com`, service type `HTTPS`, URL `<Traefik address on the docker machine>:443`. Under additional settings set the origin server name to `vatpac.mpengor.com` (and "No TLS Verify" only if your Traefik certificate does not cover that name). Cloudflare creates the DNS record.
-2. Rate limiting rule (Security, WAF, Rate limiting rules) on `http.host eq "vatpac.mpengor.com"`, for example 100 requests per minute per IP, action Block for 10 minutes. Turn on Bot Fight Mode.
-3. Optional, recommended: a custom rule that blocks the admin paths for everyone except the owner's IP. Action Block, expression:
-   `http.host eq "vatpac.mpengor.com" and (starts_with(http.request.uri.path, "/login") or starts_with(http.request.uri.path, "/admin") or starts_with(http.request.uri.path, "/profile") or starts_with(http.request.uri.path, "/org") or starts_with(http.request.uri.path, "/datasources") or starts_with(http.request.uri.path, "/api/admin") or starts_with(http.request.uri.path, "/api/user") or starts_with(http.request.uri.path, "/api/org") or starts_with(http.request.uri.path, "/api/datasources") or starts_with(http.request.uri.path, "/api/login")) and not ip.src eq <owner IP>`
+1. Zero Trust, Networks, Tunnels: open the existing tunnel (here named Home; its connector runs on the Traefik machine) and add a public hostname: `vpac.mpengor.com`, service type `HTTPS`, URL `<Traefik address on the docker machine>:443`. Under additional settings set the origin server name to `vpac.mpengor.com` (and "No TLS Verify" only if your Traefik certificate does not cover that name). Cloudflare creates the DNS record.
+2. Rate limiting rule (Security, WAF, Rate limiting rules) on `http.host eq "vpac.mpengor.com"`, for example 100 requests per minute per IP, action Block for 10 minutes. Turn on Bot Fight Mode.
+3. Optional, NOT adopted (owner decision 11-10-2026, so the admin login page stays reachable from the internet): a custom rule that blocks the admin paths for everyone except the owner's IP. Action Block, expression:
+   `http.host eq "vpac.mpengor.com" and (starts_with(http.request.uri.path, "/login") or starts_with(http.request.uri.path, "/admin") or starts_with(http.request.uri.path, "/profile") or starts_with(http.request.uri.path, "/org") or starts_with(http.request.uri.path, "/datasources") or starts_with(http.request.uri.path, "/api/admin") or starts_with(http.request.uri.path, "/api/user") or starts_with(http.request.uri.path, "/api/org") or starts_with(http.request.uri.path, "/api/datasources") or starts_with(http.request.uri.path, "/api/login")) and not ip.src eq <owner IP>`
    Do not block `/public-dashboards/*`, `/api/public/*` or the static files: the public pages need them. If the owner's home IP changes, update the rule.
 
 ## 4. Check it works (from a phone on mobile data, not the home network)
 - A public link opens without a login and every panel loads; there is no time picker and no edit button.
-- `https://vatpac.mpengor.com/api/search` and `/api/ds/query` answer 401.
-- `https://vatpac.mpengor.com/login` shows the login page (or the Cloudflare block page if the optional rule is on).
+- `https://vpac.mpengor.com/api/search` and `/api/ds/query` answer 401.
+- `https://vpac.mpengor.com/login` shows the login page (or the Cloudflare block page if the optional rule is on).
 - On the VM: `docker compose logs grafana` shows no errors; `sh ops/smoke.sh` and `python3 ops/check_panels.py` pass.
 
 ## Roll back
 - Stop public access at once: `python3 ops/grafana_public.py --remove` (or remove the public hostname from the tunnel). Either is enough on its own.
-- The Grafana 12.4 upgrade (11.6.5 before): the data volume is migrated forward on the first start of the newer version and an older version may not read it. Take a copy before upgrading (confirm the volume name with `docker volume ls`): `docker run --rm -v vatpac_grafana_data:/from:ro -v $PWD:/to alpine tar czf /to/grafana_data_pre_12.tgz -C /from .`. To go back, stop Grafana, restore that copy into the volume and pin `grafana/grafana-oss:11.6.5` again.
+- The Grafana 12.4.12 upgrade (11.6.5 before; deployed 11-10-2026 at about 19:40 UTC, commit 848526c): the image is now `grafana/grafana`, because the `grafana-oss` image stops at 11.6.5. The data volume is migrated forward on the first start and an older version may not read it. It was tested first on a copy of the live volume. Rollback copies on the VM: `~/grafana_data_pre_12.tgz` (the volume) and `~/vatpac-statsV2.rollback-11-10-grafana` (the tree). To take such a copy (confirm the volume name with `docker volume ls`; here `vatpac_grafana_data`): `docker run --rm -v vatpac_grafana_data:/from:ro -v $PWD:/to alpine tar czf /to/grafana_data_pre_12.tgz -C /from .`. To go back, stop Grafana, restore that copy into the volume and pin `grafana/grafana-oss:11.6.5` again.
 
 ## Things to watch
 - Dashboard queries run on the production database for anyone who loads a page. The `grafana_ro` limits and the Cloudflare rate limit bound the load, but a crowd can slow the dashboards (never the collector). Check `docker stats` and `docker compose logs db` if the dashboards feel slow.
-- Keep Grafana up to date: it is exposed to the internet. The image is pinned in `docker-compose.yml`; Dependabot ignores major versions. The 11.6 line ended with 11.6.15 (03-06-2026), so the line in use is 12.4; check Grafana's release notes for security fixes at least monthly.
+- Keep Grafana up to date: it is exposed to the internet. The image is pinned in `docker-compose.yml`; Dependabot ignores major versions of `grafana/grafana`, so a major upgrade is a manual, tested step. The 11.6 line ended with 11.6.15 (03-06-2026), so the line in use is 12.4; check Grafana's release notes for security fixes at least monthly.
+
+## Appendix: README for `~/vatpac-proxy` on the Traefik machine
+Copy this text to `~/vatpac-proxy/README.md` there (this repository holds the source of truth).
+```
+# vatpac-proxy (on the Traefik machine, 192.168.1.145)
+
+What it is: a tiny forwarder container so that Traefik can serve the VATPAC Stats Grafana at https://vpac.mpengor.com.
+Grafana runs on another machine (the v3 VM, 192.168.1.222, port 3300), and Traefik only reads Docker labels of containers
+on its own machine. This container carries the usual labels and forwards everything it receives on port 3000 to
+http://192.168.1.222:3300 (alpine/socat). Traefik's own config (traefik.yaml, config.yaml) is not touched.
+
+Chain: visitor -> Cloudflare -> Cloudflare Tunnel (hostname vpac.mpengor.com -> https://192.168.1.145:443)
+       -> Traefik -> vatpac-proxy (this container) -> Grafana on 192.168.1.222:3300 -> public dashboards only.
+
+What visitors can reach: only the 10 public dashboards (links: python3 ops/grafana_public.py --list on the VM) and
+Grafana's login page. They cannot send their own queries. Full description and roll back: docs/RUNBOOKS/public-access.md
+in the vatpac-statsV2 repository (private, GitHub t288matt/vatpac-statsV2).
+
+Check it:   curl -sk --resolve vpac.mpengor.com:443:127.0.0.1 https://vpac.mpengor.com/api/health
+            (expect JSON with "database": "ok")
+Logs:       docker logs vatpac-proxy      (a forwarder: normally silent)
+Stop public access at once (nothing is deleted):   cd ~/vatpac-proxy && docker compose stop
+Start again:                                         cd ~/vatpac-proxy && docker compose up -d
+
+If the public address shows an error: (1) is this container Up (docker ps)? (2) can this machine reach the VM:
+curl http://192.168.1.222:3300/api/health  (3) is the VM's address still 192.168.1.222 (it should be reserved on the
+router)? (4) is the tunnel up in Cloudflare Zero Trust, Networks, Tunnels?
+
+Needs: Docker network proxy (external, as for the other apps), the Cloudflare hostname above, the VM at 192.168.1.222.
+Written 11-10-2026.
+```

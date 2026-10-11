@@ -1,10 +1,10 @@
 # Architecture
 
-Last reviewed 08-10-2026 against the repository. Authoritative sources: [SPEC.md](../SPEC.md) and [DECISIONS.md](DECISIONS.md). This page describes what the code in the repository does.
+Last reviewed 08-10-2026 against the repository; the Grafana version and the public-access part were updated 11-10-2026. Authoritative sources: [SPEC.md](../SPEC.md) and [DECISIONS.md](DECISIONS.md). This page describes what the code in the repository does.
 
 ## 1. What it is
 
-VATPAC Stats v3 polls the public VATSIM data feed every 30 seconds (`POLL_INTERVAL_SECONDS`, ADR-024; the feed itself refreshes every 15 s), keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist, stores them in PostgreSQL 16, and shows them in Grafana dashboards. Everything runs from one `docker compose up -d`.
+VATPAC Stats v3 polls the public VATSIM data feed every 30 seconds (`POLL_INTERVAL_SECONDS`, ADR-024; the feed itself refreshes every 15 s), keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist, stores them in PostgreSQL 16, and shows them in Grafana 12.4 dashboards, which can be published read-only on the internet (section 3). Everything runs from one `docker compose up -d`.
 
 ## 2. Data flow
 
@@ -54,13 +54,32 @@ Defined in `docker-compose.yml` (project name `vatpac`, one internal network, `j
 | `db` | `postgres:16.15-bookworm` | The database. | Named volume `pgdata`; `--data-checksums`; tuning in `ops/postgres/postgresql.conf`; healthcheck `pg_isready`; port not published (the dev overlay publishes `127.0.0.1:55432` only). |
 | `migrate` | `ops/migrate` (dbmate 2.36.0 and psql) | One-shot: applies new `db/migrations/*.sql`, then `db/roles.sql` (roles `grafana_ro`, `collector`, `backup_ro`) and creates `watchdog_ro`. | `restart: "no"`. Safe to re-run on every `up`. `./db` is mounted read-only, so new migration files need no image rebuild. Other services wait for `service_completed_successfully`. |
 | `collector` | `collector/Dockerfile` | The only writer. Poll loop, daily maintenance, `/health` and `/metrics`. | Connects as the least-privilege role `collector`. Non-root, read-only filesystem, all capabilities dropped, `config/` mounted read-only at `/app/config`, 512 MB. The only writable place is the named volume `archive` at `/archive` (the raw-feed archive, owned by uid 10001). |
-| `grafana` | `grafana/grafana:12.4.12` | Dashboards, provisioned from `grafana/provisioning` and `grafana/dashboards` (read-only mounts). | Login required, anonymous access off, published on `GRAFANA_BIND`:`GRAFANA_PORT` (default `127.0.0.1:3300`, loopback only; set `GRAFANA_BIND` for LAN access). Reads the database as `grafana_ro`. |
+| `grafana` | `grafana/grafana:12.4.12` | Dashboards, provisioned from `grafana/provisioning` and `grafana/dashboards` (read-only mounts). | Login required, anonymous access off, published on `GRAFANA_BIND`:`GRAFANA_PORT` (default `127.0.0.1:3300`, loopback only; production uses the VM's LAN address). Reads the database as `grafana_ro`. Image `grafana/grafana` (OSS edition), because `grafana-oss` stops at 11.6.5. |
 | `backup` | `ops/backup` | Nightly `pg_dump` (custom format) as the read-only role `backup_ro`, rotation, weekly restore test, optional off-box hook (`BACKUP_REMOTE`). | Volume `backups`; see [runbook: restore](RUNBOOKS/restore.md). |
 | `watchdog` | `ops/watchdog` | Checks health and the database every 60 s and alerts. | Alert-only; see section 6. Writes a status file on volume `watchdog_status`. |
 
 All services except `migrate` use `restart: unless-stopped` and have healthchecks (the collector's calls its own `/health`).
 
 Start-up order: `db` healthy, then `migrate` completes, then `collector`, `grafana`, `backup` and `watchdog` start.
+
+### Public read-only access (ADR-029)
+
+Since 11-10-2026 all ten dashboards are also published read-only on the internet at `https://vpac.mpengor.com` (hostname UNVERIFIED from here). The mechanism is Grafana public dashboards: one public link per dashboard (a token in the address), a fixed time range, no annotations. The path:
+
+```
+visitor -> Cloudflare (rate limit rule, Bot Fight Mode) -> Cloudflare Tunnel (named Home; connector on the Traefik machine)
+        -> Traefik (owner's other machine, 192.168.1.145) -> helper container vatpac-proxy (alpine/socat, ~/vatpac-proxy there)
+        -> http://192.168.1.222:3300 (Grafana on this VM)
+```
+
+| Part | Where | In this repository? |
+|---|---|---|
+| Grafana with public dashboards enabled (the default); anonymous access off | `docker-compose.yml`, the VM | Yes |
+| `ops/grafana_public.py` (create, repair, `--list`, `--remove`; reads the admin login from `.env`, never prints it) | run on the VM | Yes |
+| Cloudflare (rate limit, Bot Fight Mode), the tunnel, DNS | Cloudflare account | No (described in the runbook) |
+| Traefik and the `vatpac-proxy` helper (Traefik reads Docker labels only on its own machine and its file provider is off, so a forwarder with labels carries the route) | owner's Traefik machine | No (compose file shown in the runbook) |
+
+Neither Cloudflare nor the Traefik machine can be checked from this repository or the VM. A visitor can open the public pages and see every panel; they cannot run their own SQL, change the time range, edit, or use Explore. Panels run only the queries saved on the dashboard, through the read-only role `grafana_ro`; the page does expose the SQL text of each panel. Verified 11-10-2026: without a login `/api/search`, `/api/datasources`, `/api/user` and `/api/ds/query` answer 401, SQL sent inside a public panel request is ignored, and 84 of 84 data panels work as public dashboards (none over 5 s). Anonymous access stays off because an anonymous Viewer could send any SQL to `grafana_ro` through `/api/ds/query`. The Grafana login page is still reachable from the internet (the owner chose not to add a Cloudflare rule against it). The Departure board panel is fixed to YSSY, because public dashboards do not fill text-box variables. Runbook: [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md); the work on the Traefik machine is documented in its section "The Traefik machine (192.168.1.145)". The owner keeps copies of that machine's compose file and README in `vatpac-claude-setup/traefik/` on his PC.
 
 ## 4. Collector internals
 
@@ -114,7 +133,7 @@ The watchdog (`ops/watchdog/watchdog.py`) checks the collector `/health`, the ag
 
 - Frequency matching, sector tracking and occupancy, ATC-interaction detection (ADR-002). Controller frequency is stored so a stand-in can be added later without a schema change.
 - Enrichment workers, the transceivers feed, a REST data API (ADR-010), backfill from v1 (ADR-011).
-- The Docker socket proxy and any Cloudflare tunnel configuration: set up externally by the owner (ADR-012). See [runbook: deploy to the VM](RUNBOOKS/deploy-to-vm.md).
+- The Docker socket proxy and the Cloudflare and Traefik configuration for public access: set up externally by the owner (ADR-012, ADR-029). See [runbook: deploy to the VM](RUNBOOKS/deploy-to-vm.md).
 - TimescaleDB, compression, and any raw-position retention beyond 90 days (ADR-003, ADR-008).
 
 ## 8. Size and quality gates
