@@ -5,7 +5,7 @@
 2. **Recommendation:** keep a stored list of finished-and-merged flights, and every 5 minutes re-check only the flights of pilots who had a session in the last 12 hours.
 3. **Why:** in a test with 5 years of made-up data the worst chart fell from 24.5 s to 0.3 s, and the results matched today's on all but 15 of nearly a million flights.
 4. **Risk:** this changes the base of about 35 charts, so it needs a careful test against a copy of the live data before it goes live; if it goes wrong, the fix is to restore the backup taken just before.
-5. **You decide:** one question: may a finished flight reach the charts up to 3 hours after it ends? If yes, the simpler "write once when final" design (section 1.6) is as good, and arguably closer to v1; if no, build the recommended one. Smaller choices: the tie-break (we recommend the later connection's details) and table names (we recommend no rename now).
+5. **You decide:** (we do not recommend option (c), the v1-faithful rewrite, section 1.8) one question: may a finished flight reach the charts up to 3 hours after it ends? If yes, the simpler "write once when final" design (section 1.6) is as good, and arguably closer to v1; if no, build the recommended one. Smaller choices: the tie-break (we recommend the later connection's details) and table names (we recommend no rename now).
 
 Written 11-10-2026 by an independent reviewer (Opus 5.5), branch `opus-89`, from `origin/main` at e575996. Design only: no migration, no product code, nothing on the live VM. Part 1 was written and committed BEFORE reading `docs/DESIGN_89.md` (branch design-89). Part 2 reviews that design. Part 3 is the verdict. Part 4 answers the owner's naming question.
 
@@ -192,6 +192,54 @@ It also does not change how many rows are written. With "write only rows that ch
   - It equals the full computation when pieces within each group do not overlap in time, because the running max then equals the previous piece's end.
   - With overlapping sessions, an earlier and longer piece could carry a later `prev_end` than the subset sees, so the result could differ. The whole-pilot recompute has no such condition.
 
+### 1.8 Option (c), "v1-faithful": finished flights written straight from the raw data
+
+**Note on 1.6.** Option (b) in section 1.6 keeps today's pieces table (`flight_summary`), so its stored flights can be rebuilt from the pieces and compared with the old merge logic. That is not true of the option below. Everything said about rebuilding from `flight_summary` applies to (a) and (b) only.
+
+#### In plain English
+
+**The idea.** This is what v1 did. There is no pieces layer. When a flight is complete (after the quiet period), one process reads the sessions and the raw positions and writes ONE finished row for that real flight. That row is the permanent record: the "flight summary" in v1's sense.
+
+**1. It becomes the only record.** Raw positions are deleted after 90 days (180 once ADR-026 is applied). After that, a finished row cannot be recreated from anything. It stops being a copy and becomes the original.
+- **Backup.** It is as precious as `flight_summary` is today. It is in the nightly dump already, but the restore test must now check it properly: row count, no overlapping flights for one pilot, totals per month.
+- **Retention (ADR-026, #21).** Keep forever, like sessions.
+- **A bug in the writing process.** Flights still inside the raw window can be rewritten. Older ones are wrong for good.
+- **What we lose for good.** Today, if the reconnect rule ever changed (say 120 minutes became 60), every flight in history could be re-merged from the pieces. With (c), flights older than the raw window keep the old rule for ever.
+
+**2. What can be checked each night.** Only flights inside the raw window can be recomputed from raw positions and compared. Older flights get sanity checks only: no gaps or overlaps for one pilot, and monthly totals that do not move. During the changeover, the old view can run beside the new process for a few weeks, and every difference can be listed. After the pieces are gone, that comparison is gone too.
+
+**3. What happens to today's parts.**
+- **The pieces table and the old view.** The migration converts once: every flight whose sessions are all quiet past the quiet period is written from the old merge logic. This is exact, because the pieces still exist for all history. Then the pieces table is either kept read-only as a legacy table for the changeover, or dropped. Dropping is irreversible and loses re-merging.
+- **The `final` flag and the partition drop.** Writing the finished row would replace finalisation. But the drop needs a new rule, because sessions with no flight plan never become flights, and today's rule ("every session in the partition has a final summary") covers them too. That needs a new marker on the session, for example "finished at". This touches `drop_old_pilot_position_partitions`, the function that deletes raw data for ever. That is High tier.
+- **The 5-minute update.** `refresh_flight_summary` becomes a "finish flights" job. It can keep its name and its 5-minute timing, so the collector's Python does not change (it is at 1,790 of 1,800 lines). Its proven code for airborne time and the 120-minute and 8-hour splits would be rewritten in a new form. Those rules would now live inside the one process that also merges sessions.
+- **The views.**
+  - `flight_part` goes, or is redefined.
+  - `flight` becomes a thin view over the finished rows, with nothing ever in progress.
+  - `flight_ext`, `movements` and `cohorts` are unchanged.
+  - **Monday attendance** reads pieces today, so it must be rewritten. It would then count a pilot as present across a reconnect gap, and it would appear only after the quiet period. That is a visible change.
+- **Checks and grants.** The two watchdog integrity checks on `flight_summary` must be rewritten. So must the `watchdog_ro` grant in `migrate.sh`, and the audit scripts.
+- **Tests.** The helper and its 7 test files must insert finished rows instead of pieces. About 13 further test files that name `flight_summary` (summary, partition drop, integrity, migration, roles and others) must be rewritten as well.
+
+**4. Names.** In this option the finished table really is "the flight summary" in v1's sense, and nearly all 187 references in 56 files have to be revisited anyway. So the cost argument against renaming mostly disappears. The safety argument does not. During the changeover, and in the 14 days of kept dumps, an unchanged script reading `flight_summary` could silently read the wrong kind of row: the two share column names such as `session_id`, `start_time`, `end_time` and `sample_count`. My advice for (c):
+- name the new table `flight_record`;
+- rename the old one to `flight_summary_legacy` for the changeover;
+- only once the legacy table is gone and every reference has been changed, rename `flight_record` to `flight_summary` in a separate migration, if the owner still wants that name.
+
+**5. Compared with (a) and (b).**
+
+| | (a) 5-minute update of a stored copy | (b) write once, pieces kept | (c) v1-faithful, from raw |
+|---|---|---|---|
+| Chart speed at 5 years | 0.2 to 0.4 s | same | same |
+| Delay before a flight is counted | about 1 to 6 minutes (as today) | up to 3 hours | up to 3 hours |
+| Size of the change | about 220 SQL + 170 test lines | about the same, more test edits | largest: about 400 or more SQL lines, about 20 test files, watchdog, grants, Monday attendance, partition drop |
+| Touches the raw-data drop | no | no | yes (High tier) |
+| Can old flights be rebuilt or re-merged? | yes, from the pieces | yes, from the pieces | only inside the raw window |
+| Nightly check | exact, all history | exact for finished flights | raw window only |
+| Rollback | old view back, nothing lost | same | easy only while the legacy table is kept; impossible after it and the raw data are gone |
+| Storage at 5 years | pieces + copy (about 270 MB more) | same | one table (saves about that) |
+
+**Plain verdict.** (c) is the most faithful to v1 and stores the least. But it is the biggest and riskiest change: it rewrites proven code, touches the function that deletes raw data for ever, changes Monday attendance, and gives up the ability to re-check or re-merge old flights. Its only gain over (b) is one table instead of two and about 270 MB at 5 years. Not recommended.
+
 ---
 
 ## Part 2. Review of docs/DESIGN_89.md (branch design-89, read after Part 1 was committed)
@@ -241,7 +289,7 @@ DESIGN_89 (option A) and my own answer reached the same architecture independent
 
 ## Part 3. Verdict
 
-**Build a stored table of merged flights read by a thin `flight` view. Two designs qualify, equally fast and about the same size, and the choice is one owner question (3.3 item 1): (a) DESIGN_89 option A with the amendments above (write only changed rows, two more indexes, test helper, migration locking, COALESCE), which keeps today's behaviour exactly; or (b) write once when final with a 3-hour quiet period (section 1.6, revised), which cannot damage old flights and matches v1, at the price of a 3-hour delay before a flight is counted. Only flights that ended within 120 minutes before a new session can change (1.7), so either design touches only recent flights; for (a) the first version still re-checks all flights of active pilots, because that stays exact even if sessions overlap (0.2 s per update). My default if the owner has no preference: (a), because it changes nothing users see and its nightly check expects exactly zero differences. Do not extend `flight_summary` and do not use a materialised view.** (Revised 11-10-2026: the first version rejected write-once on a wrong premise, see 1.6.)
+**Build a stored table of merged flights read by a thin `flight` view. Two designs qualify, equally fast and about the same size, and the choice is one owner question (3.3 item 1): (a) DESIGN_89 option A with the amendments above (write only changed rows, two more indexes, test helper, migration locking, COALESCE), which keeps today's behaviour exactly; or (b) write once when final with a 3-hour quiet period (section 1.6, revised), which cannot damage old flights and matches v1, at the price of a 3-hour delay before a flight is counted. Only flights that ended within 120 minutes before a new session can change (1.7), so either design touches only recent flights; for (a) the first version still re-checks all flights of active pilots, because that stays exact even if sessions overlap (0.2 s per update). My default if the owner has no preference: (a), because it changes nothing users see and its nightly check expects exactly zero differences. Do not extend `flight_summary`, do not use a materialised view, and do not build (c), the v1-faithful version that writes finished flights straight from raw positions and retires the pieces table (section 1.8): same speed, but the biggest change, it touches the raw-data drop and loses the ability to rebuild or re-merge old flights.** (Revised 11-10-2026: the first version rejected write-once on a wrong premise, see 1.6.)
 
 ### 3.1 Smallest first version (one migration, no Python, no roles.sql, no panel change)
 
@@ -279,6 +327,8 @@ About 220 SQL lines and 170 test lines. Medium tier by the table (existing colum
 ---
 
 ## Part 4. Naming (owner's question)
+
+(For option (c), where the finished table replaces the pieces table, the naming advice is in section 1.8 item 4.)
 
 ### 4.1 Proposed names for every object in the recommended solution
 
