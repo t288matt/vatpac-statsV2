@@ -1,6 +1,6 @@
 # Public read-only dashboards (Cloudflare Tunnel)
 
-Last reviewed 11-10-2026 against commit 71b28f2 and the VM. Audience: the owner. Purpose: show the dashboards to anyone on the internet at `https://vpac.mpengor.com`, read-only, without opening a port on the router. The hostname `vpac.mpengor.com` is the owner's choice (changed from `vatpac.mpengor.com` so it does not appear in searches for "vatpac"); **UNVERIFIED** from this repository and the VM, because DNS, Cloudflare and the Traefik machine are outside both. The proxy and the tunnel run on the owner's `docker` machine; this stack only provides Grafana's public dashboards and a script that manages the links.
+Last reviewed 11-10-2026 against commit b3189ad and the VM. Audience: the owner. Purpose: show the dashboards to anyone on the internet at `https://vpac.mpengor.com`, read-only, without opening a port on the router. The hostname `vpac.mpengor.com` is the owner's choice (changed from `vatpac.mpengor.com` so it does not appear in searches for "vatpac"; confirmed by the owner). DNS, Cloudflare and the Traefik machine are outside this repository and cannot be checked from it or from the VM. The proxy and the tunnel run on the owner's `docker` machine; this stack only provides Grafana's public dashboards and a script that manages the links.
 
 ```
 visitor -> Cloudflare (rate limit, Bot Fight Mode) -> Cloudflare Tunnel (named Home; connector on the Traefik machine) -> Traefik (docker machine)
@@ -8,7 +8,7 @@ visitor -> Cloudflare (rate limit, Bot Fight Mode) -> Cloudflare Tunnel (named H
 ```
 
 ## What visitors can and cannot do
-- Each of the 10 dashboards has its own public link (`/public-dashboards/<token>`). Grafana has no index of them; `python3 ops/grafana_public.py --list --public-url https://vpac.mpengor.com` prints them.
+- Each of the 10 dashboards has its own public link (`/public-dashboards/<token>`). Grafana has no index of them; `python3 ops/grafana_public.py --list --public-url https://vpac.mpengor.com` prints them. Each also has a short address (section 1, table).
 - A public dashboard runs **only the queries saved on the dashboard**. Visitors cannot send their own SQL, cannot change the time range (each dashboard keeps its own fixed default: 24 hours, 7, 30, 90 or 180 days), cannot edit, and cannot use Explore. Without a login every other API call (`/api/ds/query`, the dashboard and datasource lists) answers 401 (checked 11-10-2026 on a copy of the live Grafana data; SQL sent in the body of a public panel request is ignored).
 - The Departure board panel on "Pilots: online now" is fixed to YSSY: public dashboards do not fill text-box variables, so the airport box was removed. The hidden `go_live` variable works. A public page exposes the dashboard definition, including the SQL text of each panel, the view names and the datasource name. The views hold no secrets, but treat the SQL as public.
 - Panels read views only, through the `grafana_ro` role: SELECT only, 30 s statement limit, at most 10 connections (`db/roles.sql`). The collector uses its own role and connections.
@@ -22,9 +22,28 @@ cd ~/vatpac-statsV2
 python3 ops/grafana_public.py --public-url https://vpac.mpengor.com
 ```
 The script finds Grafana at `GRAFANA_BIND` and `GRAFANA_PORT` from `.env` (on this VM the LAN address, not 127.0.0.1); wait about a minute after a Grafana restart.
-On the VM tree today the script is the version from commit 848526c, which looks for Grafana at `http://127.0.0.1:3300` and fails on this VM (Grafana listens on `192.168.1.222:3300` only); the fixed version (PR 129, on main as 7a527fb) is not on the VM tree yet, so on 11-10-2026 it was run by piping it over ssh. It reads the admin login from `.env` (never printed), creates a link for every provisioned dashboard with a fixed time range and no annotations, fixes a link whose settings differ, and prints the 10 URLs. It is safe to run again, and should be run after a new dashboard is added. `--list` changes nothing. `--remove` removes every link, which stops public access at once.
+It finds Grafana at `GRAFANA_BIND` and `GRAFANA_PORT` from `.env` (on this VM the LAN address). It is on the VM tree since commit b3189ad (11-10-2026, 20:35 UTC), where it replaced the 10 links once with the stable ones. It reads the admin login from `.env` (never printed), creates a link for every provisioned dashboard with a fixed time range and no annotations, fixes a link whose settings differ, and prints the 10 URLs. It is safe to run again, and should be run after a new dashboard is added. `--list` changes nothing. `--remove` removes every link, which stops public access at once.
 
-The links live in Grafana's own database (the `grafana_data` volume): they survive restarts and deploys but not a wiped volume; run the script again then (the URLs change). Keep the list of links somewhere you can find it.
+The links live in Grafana's own database (the `grafana_data` volume): they survive restarts and deploys. After a wiped volume, run the script again: the tokens are stable, so the same links come back. 
+
+### Short addresses
+| Short address | Dashboard |
+|---|---|
+| `/live` | Pilots: online now |
+| `/traffic` | Pilots: traffic and aircraft |
+| `/new-pilots` | Pilots: onboarding and lapsed pilots |
+| `/origins` | Demographics: pilot origins and cohorts |
+| `/atc` | ATC: controllers |
+| `/atc-retention` | ATC: retention and reactivation |
+| `/monday` | Events: Monday event |
+| `/military` | Military: aircraft and routes |
+| `/monthly` | Management: people online |
+| `/health` | Monitoring: collector and data freshness |
+
+Each short address answers a redirect (302) to `https://vpac.mpengor.com/public-dashboards/<token>`, and the dashboard then loads; the address bar shows the long address afterwards (Grafana accepts only a 32-hex-character token in its own address; words, short hex and dashes are rejected). The token of a dashboard is fixed: the first 32 hex characters of sha256 of `vatpac-public:` plus the dashboard uid, so the long links do not change when the links are recreated. `--list` prints each link with its short name.
+
+**Add or rename a short address.** (1) Edit `SHORT_NAMES` in `ops/grafana_public.py` (a test requires every provisioned dashboard to have one). (2) Run `python3 ops/grafana_public.py --traefik-labels --host vpac.mpengor.com` on the VM. (3) On the Traefik machine paste the printed block into the `labels:` list of `vatpac-proxy` in `~/vatpac-proxy/docker-compose.yml` (replacing the old short-name block), run `docker compose up -d` there, and update the README in that folder (appendix). (4) Keep the owner's copies in `vatpac-claude-setup/traefik/` in step. Without the labels the short address answers 404 and the long link still works.
+
 
 Settings in `.env`: production on 11-10-2026 has `GRAFANA_BIND=192.168.1.222`, `GRAFANA_PORT=3300`, `GRAFANA_ROOT_URL=http://192.168.1.222:3300/` and `GRAFANA_COOKIE_SECURE=false` (public pages work with these; the admin login works over the LAN). For admin login through the public name instead, set `GRAFANA_ROOT_URL=https://vpac.mpengor.com/` and `GRAFANA_COOKIE_SECURE=true`. `GRAFANA_BIND` must be the VM's LAN address (never `0.0.0.0`; never forward the port on the router). Apply with `docker compose up -d grafana`. After `GRAFANA_COOKIE_SECURE=true` the admin login only works over https, so use the public name.
 
@@ -81,8 +100,9 @@ Start it with `docker compose up -d` in that folder. Check it on the docker mach
    Do not block `/public-dashboards/*`, `/api/public/*` or the static files: the public pages need them. If the owner's home IP changes, update the rule.
 
 ## 4. Check it works (from a phone on mobile data, not the home network)
+- Each short address, for example `https://vpac.mpengor.com/live`, answers 302 to the long link and the dashboard loads (`curl -sI https://vpac.mpengor.com/live`).
 - A public link opens without a login and every panel loads; there is no time picker and no edit button.
-- `https://vpac.mpengor.com/api/search` and `/api/ds/query` answer 401.
+- `https://vpac.mpengor.com/api/search`, `/api/datasources`, `/api/user` and a POST to `/api/ds/query` answer 401, and plain http redirects to https.
 - `https://vpac.mpengor.com/login` shows the login page (or the Cloudflare block page if the optional rule is on).
 - On the VM: `docker compose logs grafana` shows no errors; `sh ops/smoke.sh` and `python3 ops/check_panels.py` pass.
 
@@ -95,7 +115,7 @@ Start it with `docker compose up -d` in that folder. Check it on the docker mach
 - Keep Grafana up to date: it is exposed to the internet. The image is pinned in `docker-compose.yml`; Dependabot ignores major versions of `grafana/grafana`, so a major upgrade is a manual, tested step. The 11.6 line ended with 11.6.15 (03-06-2026), so the line in use is 12.4; check Grafana's release notes for security fixes at least monthly.
 
 ## Appendix: README for `~/vatpac-proxy` on the Traefik machine
-Copy this text to `~/vatpac-proxy/README.md` there (this repository holds the source of truth).
+Copy this text to `~/vatpac-proxy/README.md` there (the compose file there holds 81 labels: 11 base lines plus 7 labels and a comment per dashboard) (this repository holds the source of truth).
 ```
 # vatpac-proxy (on the Traefik machine, 192.168.1.145)
 
@@ -108,7 +128,11 @@ Chain: visitor -> Cloudflare -> Cloudflare Tunnel (hostname vpac.mpengor.com -> 
        -> Traefik -> vatpac-proxy (this container) -> Grafana on 192.168.1.222:3300 -> public dashboards only.
 
 What visitors can reach: only the 10 public dashboards (links: python3 ops/grafana_public.py --list on the VM) and
-Grafana's login page. They cannot send their own queries. Full description and roll back: docs/RUNBOOKS/public-access.md
+Grafana's login page. They cannot send their own queries.
+
+Short addresses: /live /traffic /new-pilots /origins /atc /atc-retention /monday /military /monthly /health redirect to the
+public dashboard links (Traefik labels in docker-compose.yml, generated by ops/grafana_public.py --traefik-labels on the VM;
+the links have fixed tokens, so they only change if the dashboards change). Full description and roll back: docs/RUNBOOKS/public-access.md
 in the vatpac-statsV2 repository (private, GitHub t288matt/vatpac-statsV2).
 
 Check it:   curl -sk --resolve vpac.mpengor.com:443:127.0.0.1 https://vpac.mpengor.com/api/health

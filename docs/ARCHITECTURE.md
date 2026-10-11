@@ -64,7 +64,7 @@ Start-up order: `db` healthy, then `migrate` completes, then `collector`, `grafa
 
 ### Public read-only access (ADR-029)
 
-Since 11-10-2026 all ten dashboards are also published read-only on the internet at `https://vpac.mpengor.com` (hostname UNVERIFIED from here). The mechanism is Grafana public dashboards: one public link per dashboard (a token in the address), a fixed time range, no annotations. The path:
+Since 11-10-2026 all ten dashboards are also published read-only on the internet at `https://vpac.mpengor.com` (the owner confirmed the hostname). The mechanism is Grafana public dashboards: one public link per dashboard (a token in the address), a fixed time range, no annotations. The token of each link is fixed (first 32 hex characters of sha256 of `vatpac-public:` plus the dashboard uid), and ten short addresses (`/live`, `/traffic`, `/new-pilots`, `/origins`, `/atc`, `/atc-retention`, `/monday`, `/military`, `/monthly`, `/health`) redirect to the links through Traefik labels on the helper container; the address bar then shows the long address. The path:
 
 ```
 visitor -> Cloudflare (rate limit rule, Bot Fight Mode) -> Cloudflare Tunnel (named Home; connector on the Traefik machine)
@@ -75,7 +75,7 @@ visitor -> Cloudflare (rate limit rule, Bot Fight Mode) -> Cloudflare Tunnel (na
 | Part | Where | In this repository? |
 |---|---|---|
 | Grafana with public dashboards enabled (the default); anonymous access off | `docker-compose.yml`, the VM | Yes |
-| `ops/grafana_public.py` (create, repair, `--list`, `--remove`; reads the admin login from `.env`, never prints it) | run on the VM | Yes |
+| `ops/grafana_public.py` (create, repair, `--list`, `--remove`, `--traefik-labels --host <host>`; reads the admin login from `.env`, never prints it) | run on the VM | Yes |
 | Cloudflare (rate limit, Bot Fight Mode), the tunnel, DNS | Cloudflare account | No (described in the runbook) |
 | Traefik and the `vatpac-proxy` helper (Traefik reads Docker labels only on its own machine and its file provider is off, so a forwarder with labels carries the route) | owner's Traefik machine | No (compose file shown in the runbook) |
 
