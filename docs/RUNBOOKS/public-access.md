@@ -4,7 +4,7 @@ Audience: the owner. Purpose: show the dashboards to anyone on the internet at `
 
 ```
 visitor -> Cloudflare (rate limit) -> tunnel (cloudflared, docker machine) -> Traefik (docker machine)
-        -> http://192.168.1.222:3300 (Grafana on the v3 VM, LAN address)
+        -> vatpac-proxy (helper container on the docker machine) -> http://192.168.1.222:3300 (Grafana on the v3 VM, LAN address)
 ```
 
 ## What visitors can and cannot do
@@ -29,23 +29,41 @@ Settings in `.env` for the public name: `GRAFANA_ROOT_URL=https://vatpac.mpengor
 
 The admin password is only applied on the first start. Rotate it with `docker compose exec grafana grafana cli admin reset-admin-password '<new>'`. Use a long random unique password; never paste it into a chat, a document or the repository.
 
-## 2. Traefik on the docker machine (file provider)
-Traefik reads Docker labels of containers on its own host only, so a route to a container on another machine is a file. Enable the file provider once (`--providers.file.directory=/dynamic --providers.file.watch=true` and mount the folder), then add `/dynamic/vatpac.yml`:
+## 2. Traefik on the docker machine (a helper container with labels)
+Traefik reads Docker labels of containers on its own machine only, and Grafana runs on the v3 VM. So the docker machine (192.168.1.145) runs a tiny forwarder container, `vatpac-proxy`, that carries the usual labels (the same pattern as the other apps) and passes everything on to Grafana at `192.168.1.222:3300`. Traefik's own configuration is not changed and Traefik is not restarted. The folder is `~/vatpac-proxy` with this `docker-compose.yml` (and a README for whoever looks at that machine):
 ```yaml
-http:
-  routers:
-    vatpac-secure:
-      entryPoints: [https]
-      rule: Host(`vatpac.mpengor.com`)
-      tls: {}
-      service: vatpac
-  services:
-    vatpac:
-      loadBalancer:
-        servers:
-          - url: http://192.168.1.222:3300
+services:
+  vatpac-proxy:
+    image: alpine/socat
+    container_name: vatpac-proxy
+    # forwards everything it receives on port 3000 to Grafana on the v3 VM (LAN address and port)
+    command: tcp-listen:3000,fork,reuseaddr tcp:192.168.1.222:3300
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vatpac.entrypoints=http"
+      - "traefik.http.routers.vatpac.rule=Host(`vatpac.mpengor.com`)"
+      - "traefik.http.middlewares.vatpac-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.vatpac.middlewares=vatpac-https-redirect"
+      - "traefik.http.routers.vatpac-secure.entrypoints=https"
+      - "traefik.http.routers.vatpac-secure.rule=Host(`vatpac.mpengor.com`)"
+      - "traefik.http.routers.vatpac-secure.tls=true"
+      - "traefik.http.routers.vatpac-secure.service=vatpac"
+      - "traefik.http.services.vatpac.loadbalancer.server.port=3000"
+      - "traefik.docker.network=proxy"
+    networks:
+      proxy:
+    cap_drop:
+      - ALL
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  proxy:
+    external: true
 ```
-The `https` entry point name matches the Jellyfin example; use your own entry point name if it differs.
+Start it with `docker compose up -d` in that folder. Check it on the docker machine: `curl -sk --resolve vatpac.mpengor.com:443:127.0.0.1 https://vatpac.mpengor.com/api/health` answers with Grafana's health (`"database": "ok"`). It has to keep running: if it stops, the public address shows an error and nothing else is affected (`docker compose stop` there is the gentlest way to switch public access off). The VM's address must stay 192.168.1.222 (reserve it on the router). Traefik on that machine does not use its `config.yaml` (the file provider is switched off in `traefik.yaml`), so nothing is added there.
 
 ## 3. Cloudflare Tunnel
 1. Zero Trust, Networks, Tunnels: open the existing tunnel (or create one) and add a public hostname: `vatpac.mpengor.com`, service type `HTTPS`, URL `<Traefik address on the docker machine>:443`. Under additional settings set the origin server name to `vatpac.mpengor.com` (and "No TLS Verify" only if your Traefik certificate does not cover that name). Cloudflare creates the DNS record.
