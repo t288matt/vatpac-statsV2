@@ -87,8 +87,10 @@ check_content() {
   fi
   toc="$(timeout -k 30 "$VALIDATE_TIMEOUT_S" pg_restore -l "$dump")" || { echo "could not list the dump"; return 1; }
   for t in $KEY_TABLES; do
-    # TOC data lines look like "123; 0 16400 TABLE DATA public poll_log owner"; a partitioned table has <name>_<suffix> entries.
-    echo "$toc" | grep -Eq "TABLE DATA public ${t}(_[A-Za-z0-9_]+)? " || { echo "no table data for ${t} in the dump"; return 1; }
+    # TOC data lines look like "123; 0 16400 TABLE DATA public poll_log owner"; a partitioned table has <name>_<yyyymmdd> entries.
+    # A here-string, not a pipe: grep -q exits at the first match and an echo into it would get SIGPIPE (status 141 under pipefail)
+    # once the list outgrows the 64 KB pipe buffer, which would reject a good dump.
+    grep -Eq "TABLE DATA public ${t}(_[0-9]{8})? " <<<"$toc" || { echo "no table data for ${t} in the dump"; return 1; }
   done
 }
 

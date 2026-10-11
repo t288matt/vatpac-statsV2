@@ -34,7 +34,7 @@ FAKE_PG_RESTORE = """#!/bin/sh
 grep -q GOODDUMP "$2" || { echo "pg_restore: error: unsupported version in file header" >&2; exit 1; }
 echo "1; 0 1 SCHEMA - public owner"
 grep -q NODATA "$2" && exit 0
-for t in poll_log pilot_session network_snapshot app_setting pilot_position_2026_10; do echo "2; 0 2 TABLE DATA public $t owner"; done
+for t in poll_log pilot_session network_snapshot app_setting pilot_position_20261006; do echo "2; 0 2 TABLE DATA public $t owner"; done
 """
 
 
