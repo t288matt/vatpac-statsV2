@@ -2,10 +2,10 @@
 
 **In plain English (five lines):**
 1. **Problem:** every time a chart opens, the database rebuilds every flight ever recorded from its pieces, so charts get slower each year (about 25 s for the worst chart with 5 years of data, against a 30 s limit).
-2. **Recommendation:** keep a stored list of finished-and-merged flights, and every 5 minutes re-check only the flights of pilots who had a session in the last 12 hours.
+2. **Recommendation (updated 11-10-2026):** one table of finished flights, each written once, 3 hours after the pilot's last connection on it ends, straight from the raw data (option (c), section 1.9).
 3. **Why:** in a test with 5 years of made-up data the worst chart fell from 24.5 s to 0.3 s, and the results matched today's on all but 15 of nearly a million flights.
 4. **Risk:** this changes the base of about 35 charts, so it needs a careful test against a copy of the live data before it goes live; if it goes wrong, the fix is to restore the backup taken just before.
-5. **You decide:** (option (c), the v1-faithful shape, is best reached later as a cleanup on top of (b), section 1.8) one question: may a finished flight reach the charts up to 3 hours after it ends? If yes, the simpler "write once when final" design (section 1.6) is as good, and arguably closer to v1; if no, build the recommended one. Smaller choices: the tie-break (we recommend the later connection's details) and table names (we recommend no rename now).
+5. **You decide (updated 11-10-2026):** with a 3-hour delay acceptable and simplicity first, we recommend option (c): one table of finished flights, written once from the raw data (section 1.9). The one question left: build it before the first raw-position drop (about 06-01-2027), so no history is lost?
 
 Written 11-10-2026 by an independent reviewer (Opus 5.5), branch `opus-89`, from `origin/main` at e575996. Design only: no migration, no product code, nothing on the live VM. Part 1 was written and committed BEFORE reading `docs/DESIGN_89.md` (branch design-89). Part 2 reviews that design. Part 3 is the verdict. Part 4 answers the owner's naming question.
 
@@ -242,6 +242,68 @@ It also does not change how many rows are written. With "write only rows that ch
 
 The cheaper route to the same shape: build (b) now, which reuses the proven pieces code. Later, as a separate cleanup, stop keeping pieces once their flight is written and their raw positions are gone. That ends at one permanent finished-flight table, without rewriting the airborne and split rules from raw data in one risky step. So: (a) or (b) first; (c) only as a later cleanup that grows out of (b), if the owner wants the v1 shape.
 
+### 1.9 Re-ranking under the owner's facts of 11-10-2026 (supersedes the rankings in 1.6 to 1.8 and Part 3)
+
+#### In plain English
+
+**The new facts.**
+1. A finished flight may reach the charts 3 hours or more after it ends.
+2. Losing existing data and starting collection again is acceptable.
+3. Getting the logic right with the simplest code matters most.
+
+Under these facts the order changes. **(c), the v1 shape, comes first.**
+
+**A useful fact.** No raw positions have ever been deleted on the live system (the first drop is due about 06-01-2027, later if the 180-day setting goes in first). So if (c) is built before then, every flight since go-live can be written straight from the raw data. **Nothing is lost and nothing needs converting.** A clean start is allowed but not needed.
+
+**The simplest correct shape, (c):**
+- **One table of finished flights**, `flight_record`: one row per real flight, written once and never changed.
+- **One function**, run every 5 minutes. For pilots who had a session recently, it reads the raw positions not yet used. It splits them by the existing rules (a new piece after 120 minutes of silence, every 8 hours, airborne time as today) and joins sessions with the same pilot, callsign, departure and arrival when the gap is 120 minutes or less. It then writes every flight whose sessions have **all been quiet for 3 hours**. The pieces exist only in memory while the function runs.
+- **One marker per session**, "used up to" (a time on `pilot_session`). It records how far that session's raw positions have been turned into flights. A session that comes back later on the same connection simply continues from that point, as a new flight.
+- **The partition-drop rule becomes simpler**: a day of raw positions may be deleted once every session in it is "used up to" its last position in that day. This replaces today's finalisation step and the `final` flag.
+- **`flight` becomes a thin view** over the table, with the same columns so no chart changes. `is_in_progress` stays as a column that is always false, so the 11 panels that filter on it need no edit.
+- **Monday attendance** reads the finished flights. A pilot is present if a flight overlaps 07:00 to 12:00Z, so a short reconnect gap now counts as present, as v1 did.
+
+**Quiet period and the "final" rule.** A flight is final when every session in it has been quiet for **3 hours**. That is longer than the 120-minute joining rule, with margin. It must stay far below the raw retention (90 or 180 days), which it does. The 8-hour split does not change it: a flight waits for all its sessions to be quiet, however long they lasted.
+
+**What each option adds and removes:**
+
+| | (a) 5-minute update of a stored copy | (b) write once, pieces kept | (c) v1 shape, from raw |
+|---|---|---|---|
+| Tables | +1 (pieces table kept) | +1 (pieces kept) | pieces table removed, +1: **one table** |
+| Views | +1 reference view; `flight_part` kept | same as (a) | `flight_part` and the merge logic view removed |
+| Functions | +2, and today's 2 refresh functions kept and changed | +1, today's 2 kept and changed | today's 2 replaced by **one**; drop function simplified |
+| `final` flag | kept | kept | removed (replaced by "used up to") |
+| Partition drop | unchanged | unchanged | changed (High tier), but simpler |
+| Migration SQL (est.) | about 220 lines | about 200 | about 300 in one migration, but it deletes about 250 existing lines (refresh functions, merge view, finalisation), so the code left behind is smaller than today |
+| Test files to change | about 8 | about 10 | about 20 (pieces tests deleted or rewritten, helper, partition drop, integrity checks) |
+| Watchdog and grants | none | none | 2 integrity checks and 1 grant rewritten |
+| Lag before counted | 1 to 6 minutes | up to 3 hours | up to 3 hours |
+| Final mental model | pieces, a merge view, a stored copy, a refresh | pieces, a merge view, a stored record | **one row per flight, written once** |
+
+**Ranking for simplicity and correct logic:**
+1. **(c)** has the fewest parts when finished and the clearest rule ("a flight is written once all its sessions have been quiet 3 hours"). It is the biggest single change, but most of that change is deleting code.
+2. **(b)** is a halfway house: written once, but it keeps the pieces layer and its machinery.
+3. **(a)** adds a copy and keeps everything else; it is the most code to live with.
+
+**Does it differ if the data is kept?** Not if (c) is built before the first raw-position drop: everything is rebuilt from raw, so nothing is lost. If it is built after the first drop, flights from before the drop must be converted once from today's pieces (about 30 more lines) or dropped. Then (c) is still simplest when finished, but (b) becomes the safer route.
+
+**Risks to watch in (c):**
+- The new function re-implements splitting and joining in one place, so it needs the old view as a side-by-side check during development: same flights on the same data, apart from the reconnect-gap case in Monday attendance.
+- The partition-drop change is High tier: rehearse it, and take a fresh dump first.
+
+#### Technical detail
+
+- Finish step (SECURITY DEFINER, under the existing advisory lock; entry point keeps the name `refresh_flight_summary(interval)` so `collector/` does not change, or is renamed with a one-line edit to `maintenance.py`):
+  1. Candidate pilots: sessions with positions after `used_upto`.
+  2. Samples: positions after `used_upto`, with the existing gap, span and airborne window SQL (from `refresh_flight_summary_sessions`).
+  3. Pieces: the existing aggregation, as a CTE.
+  4. Chain: the existing `flight` window logic over those pieces.
+  5. Insert the chains whose sessions all have `last_seen < now() - 3 h`.
+  6. Set `used_upto = last_seen` for those sessions. Sessions without a flight plan are also marked, so the drop rule covers them.
+- Correctness of Q = 3 h: any session first seen after the finish step starts after it, which is at least F.end + 3 h, more than 120 minutes after the flight it might have joined. Pieces of one session are never joined (the lag-row rule), so a session that comes back continues from `used_upto` as a new flight. This matches the reference merge except that its plan change does not relabel the already-written flight (the ADR-023 "a changed plan is a different flight" reading).
+- Removed: table `flight_summary`, functions `refresh_flight_summary_sessions` and the refresh body, the `final` re-checks in `drop_old_pilot_position_partitions`, views `flight_part` and the merge body of `flight`. The watchdog checks "flight_summary rows missing" and "sample_count differs" become "no session quiet for more than 4 h without `used_upto`" and "sample_count per flight equals positions in the raw window".
+- Equivalence during development: on the 5-year synthetic set and a local copy of a live dump, `flight_record` should equal the old `flight` view restricted to flights quiet more than 3 h. The only expected differences are exact end-time ties (now decided by highest session id) and sessions that came back with a changed plan.
+
 ---
 
 ## Part 2. Review of docs/DESIGN_89.md (branch design-89, read after Part 1 was committed)
@@ -290,6 +352,9 @@ DESIGN_89 (option A) and my own answer reached the same architecture independent
 ---
 
 ## Part 3. Verdict
+
+**Superseded 11-10-2026 by section 1.9.** Under the owner's facts (a 3-hour delay is fine, losing data is acceptable, simplest code first), the recommendation is option (c), the v1 shape: one finished-flight table written once from raw positions, built before the first raw-position drop (about 06-01-2027) so nothing is lost. The text below is kept as the plan for (a), in case those facts change.
+
 
 **Build a stored table of merged flights read by a thin `flight` view. Two designs qualify, equally fast and about the same size, and the choice is one owner question (3.3 item 1): (a) DESIGN_89 option A with the amendments above (write only changed rows, two more indexes, test helper, migration locking, COALESCE), which keeps today's behaviour exactly; or (b) write once when final with a 3-hour quiet period (section 1.6, revised), which cannot damage old flights and matches v1, at the price of a 3-hour delay before a flight is counted. Only flights that ended within 120 minutes before a new session can change (1.7), so either design touches only recent flights; for (a) the first version still re-checks all flights of active pilots, because that stays exact even if sessions overlap (0.2 s per update). My default if the owner has no preference: (a), because it changes nothing users see and its nightly check expects exactly zero differences. Do not extend `flight_summary`, do not use a materialised view, and do not start with (c), the v1-faithful version that writes finished flights straight from raw positions and retires the pieces table (section 1.8): same speed and a cleaner shape, but the biggest change (High tier, raw-data drop, Monday attendance). If the owner wants that shape, reach it later as a cleanup on top of (b).** (Revised 11-10-2026: the first version rejected write-once on a wrong premise, see 1.6.)
 
