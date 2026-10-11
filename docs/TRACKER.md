@@ -9,7 +9,7 @@ Resume note for a cold start (usage-limit reset): docs/RESUME.md
 
 Deploy policy (owner, 08-10-2026): when the soak prints PASS, stop and report; deploy only after the owner says go.
 
-Last updated: 10-10-2026 (evening)
+Last updated: 11-10-2026
 
 GitHub issue log (every issue is on GitHub as well as here). Checked against `gh issue list --state open` on 10-10-2026 about 21:00 UTC: 42 open. Issues carry a priority label: P1 deploy path (fixed on main, needs a verified deploy), P2 next build in order, P3 soon and small, P4 dated, owner-only, later or low value (T70). OPEN P1: #79 (T56), #80 (T57), findings #81 to #102 (T57), #111 (T66) and #114 (T69). OPEN P2: #21 (T12), #109 (T64), #111 (T66, fixed on main), #112 (T67), #114 (T69, fixed on main), #118 (T71). OPEN P3: #18 (T20), #104 (T59), #107 (T62). CLOSED 10-10-2026 with the owner: #103, #110, #113. OPEN P4: #14 (T35), #22 (T28), #23 (T32), #25, #26, #27 (T33), #76 (T51), #105 (T60), #108 (T63). CLOSED: #15, #16, #17, #19, #20, #24, #28 (won't do), #29 (won't do), #30 (not planned), #31, #32, #33, #34 to #43, #44 (won't do), #45 to #77 (audit, release-review and v1-comparison findings). View with `gh issue list`.
 
@@ -86,6 +86,7 @@ GitHub issue log (every issue is on GitHub as well as here). Checked against `gh
 | T69 | Infinite controller frequency makes the whole snapshot fail (issue #114) | DONE on main (c89e544, PR 117), NOT deployed (deploys after fix-sql); issue #114 stays open until verified live | `parse_frequency_hz` now treats infinite or huge values (ArithmeticError) as malformed. Found by the independent review of replay-fuzz. |
 | T70 | Priority labels P1 to P4 on GitHub issues | DONE 10-10-2026 | P1 deploy path (fixed on main, needs a verified deploy), P2 next build in order, P3 soon and small, P4 dated, owner-only, later or low value. Use `gh issue list --label P1`. The issue map at the top of this file groups open issues by label. |
 | T71 | Backup validation accepts a dump of an empty or wrong database (issue #118) | TODO, P2 | Found 10-10-2026 (second, Opus review of deploy 1). The backup checks a dump is readable and not tiny, but a valid dump of an empty or wrong database would pass. Detail and fix in the issue. Related: T57 (#81, #90). |
+| T72 | Grafana 12.4.12 and public read-only dashboards (ADR-029) | DONE 11-10-2026 | Deployed about 19:40 UTC, commit 848526c; all 10 dashboards public with fixed time range, anonymous access off, 84 of 84 data panels checked. Owner chose no WAF rule on the login page. Hostname `vpac.mpengor.com` UNVERIFIED from the repo. Runbook: RUNBOOKS/public-access.md. PR 131 (stable links) not deployed. |
 
 ## T30 test-audit issues: what the merged tests cover (merged 09-10-2026; issues stay open for the owner to close)
 The 59 new tests (tests/integration/test_audit_t30.py, collector/tests/unit/test_audit_t30_unit.py) took the mutation score from 56 to 120 killed of 129; the 9 survivors are in docs/TEST_AUDIT.md section 5 and 6. Findings H1 to L6 against issues #45 to #57:

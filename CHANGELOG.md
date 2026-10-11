@@ -4,7 +4,7 @@ What changed in VATPAC Stats v3, newest first, in plain words. Dates are DD-MM-Y
 
 How to read it. "Deployed" means running on the production VM, with the date and time and commit taken from the deploy records in the tracker and the runbooks. Where a record gives only part of that, the entry says "not recorded". The code history is much finer than this page; the full list is `git log`. Decision numbers (ADR-nnn) are in docs/DECISIONS.md and issue numbers (#nn) are on GitHub.
 
-The production VM runs the tree shipped from commit 3eb81a3 on 09-10-2026 at 19:13 (the last deploy listed below).
+The production VM runs the tree shipped from commit 3eb81a3 on 09-10-2026 at 19:13, plus the Grafana upgrade and public dashboards of 11-10-2026 (commit 848526c, listed first below).
 
 ## Merged to main but NOT yet deployed (as of 10-10-2026)
 
@@ -68,6 +68,9 @@ An Opus review of privileges and backup and restore says go with two extra check
 - Incident 10-10-2026 (issue #113): two snapshots were stored late (apply timeouts at 15:47 and 15:52 UTC) because several test containers ran on the live VM at once. No data was lost; new rule in the working agreement.
 
 ## Deployed
+
+### 11-10-2026 about 19:40: Grafana 12.4.12 and public read-only dashboards (commit 848526c)
+Grafana was upgraded from 11.6.5 to 12.4.12 (image `grafana/grafana`, the OSS edition, because the 11.6 line ended with 11.6.15 on 03-06-2026 and `grafana-oss` stops at 11.6.5); it was tested first on a copy of the live volume. All ten dashboards are now published read-only on the internet through Grafana public dashboards (one link each, fixed time range, anonymous access off; owner decision, ADR-029) via Cloudflare, a Cloudflare Tunnel, Traefik and a small helper container on the owner's other machine. The Departure board is fixed to YSSY. Links are managed by `ops/grafana_public.py`. Rollback copies are on the VM (`~/grafana_data_pre_12.tgz`, `~/vatpac-statsV2.rollback-11-10-grafana`). Setup: [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md). The fixed script (PR 129) is on main but not yet on the VM tree. Short addresses for the links (PR 131) are not deployed.
 
 ### 09-10-2026 19:13: scheduled data-integrity checks (commit 3eb81a3)
 The watchdog now runs a set of 18 data checks every 3 days and compares the live data with the saved raw feed every 14 days, and sends a Telegram message if either finds something (issue #20, closed). Only the watchdog was rebuilt; the collector was not restarted. The first run found one thing, the 6-minute gap from the power cut below. It clears from the 3-day window on 12-10-2026 at about 15:42. The owner confirmed the Telegram message arrived.

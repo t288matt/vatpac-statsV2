@@ -6,7 +6,7 @@ Live pilot and controller statistics for the VATPAC region, built from the publi
 
 ## About
 
-One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist. PostgreSQL 16 stores the data and Grafana shows it as dashboards. Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
+One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist. PostgreSQL 16 stores the data and Grafana 12.4 shows it as ten dashboards, which can also be shared read-only on the internet (see "Public read-only access" below). Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
 
 **Current state (10-10-2026).** The goal is met and the system runs on an always-on VM. The rule: every deploy to the VM needs the owner's explicit go. What changed and when: [CHANGELOG.md](CHANGELOG.md).
 
@@ -44,9 +44,13 @@ You should see an `ok` poll about every 30 seconds in `poll_log`, plus a few `sk
 
 ## Usage
 
-Open Grafana at http://localhost:3300 and log in with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` from `.env`. Anonymous access is off. Grafana listens on the loopback address only; set `GRAFANA_BIND` in `.env` to reach it from the LAN (see [docs/RUNBOOKS/deploy-to-vm.md](docs/RUNBOOKS/deploy-to-vm.md)). To publish the dashboards read-only through a Cloudflare Tunnel, see [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md).
+Open Grafana at http://localhost:3300 and log in with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` from `.env`. Anonymous access is off. Grafana listens on the loopback address only; set `GRAFANA_BIND` in `.env` to reach it from the LAN (see [docs/RUNBOOKS/deploy-to-vm.md](docs/RUNBOOKS/deploy-to-vm.md)). To publish the dashboards read-only, see [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md).
 
 Dashboards (as code in `grafana/dashboards/`): Pilots now, Pilots traffic, Pilot onboarding, ATC overview, ATC retention, Pilot origins, Military, Monday events, Management, and Collector health. Every chart is explained in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md).
+
+## Public read-only access
+
+All ten dashboards can be shown to anyone on the internet, read-only, without a login. Each dashboard has its own public link, with a fixed time range; visitors cannot send their own queries, change the time range or edit anything. Anonymous access in Grafana stays off. The links are created by `ops/grafana_public.py`, and traffic reaches Grafana through Cloudflare, a Cloudflare Tunnel and a small forwarder on the owner's Traefik machine. Setup, checks and how to switch it off: [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md); what runs on the Traefik machine (192.168.1.145, outside this repository) is in its section "The Traefik machine". The public address is `https://vpac.mpengor.com` (UNVERIFIED from this repository: DNS and Cloudflare are outside it).
 
 The collector serves `/health` and `/metrics` on port 8080 inside the Docker network only (not published). The database is not published either; the dev overlay (`make dev`) publishes it on `127.0.0.1:55432` only.
 
