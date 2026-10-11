@@ -161,6 +161,18 @@ def test_skipped_unchanged_does_not_count_as_successful_poll(tmp_path: Path, ref
     assert status == "skipped_unchanged" and col.stats.polls_skipped == 1 and col.stats.last_ok_wall is None
 
 
+def test_stalled_feed_retries_at_the_normal_interval(tmp_path: Path, ref_files: tuple[Path, Path],
+                                                     fixture_payload: dict, monkeypatch: pytest.MonkeyPatch) -> None:
+    col = _collector(tmp_path, *ref_files, feed=_Feed(fixture_payload))
+    col.last_ts = datetime.now(UTC) + timedelta(days=1)  # feed timestamp is not newer
+    monkeypatch.setattr(col, "_log_poll", lambda *a, **k: None)
+    fresh = asyncio.run(col.poll_once())
+    assert fresh.retry_in == vmain.UNCHANGED_RETRY_S  # just started: keep the fast retry
+    col._last_new_at -= col.settings.poll_interval_seconds  # nothing new for a full interval
+    stalled = asyncio.run(col.poll_once())
+    assert stalled.retry_in == col.settings.poll_interval_seconds
+
+
 def test_pool_options_set_timeouts() -> None:
     assert "statement_timeout=20000" in vmain.DB_OPTIONS and "lock_timeout=5000" in vmain.DB_OPTIONS
     assert "idle_in_transaction_session_timeout=30000" in vmain.DB_OPTIONS
