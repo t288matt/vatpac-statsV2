@@ -28,7 +28,7 @@ A Task Scheduler job on your PC checks Grafana every 5 minutes and messages you 
 **Emma does:** record the result and close #26 when you tell her the outcome.
 
 ## 4. Dependabot pull requests (issue #31, T9, T48). DONE: tested, applied and DEPLOYED 09-10-2026 at 13:46 to 13:47 UTC (commit 8905d85); issue #31 closed.
-Postgres 16.15 (db and backup), Grafana 11.6.5 and dbmate 2.36.0 were tested on throwaway containers (all pass) and committed to main directly (commit aecec21, because the repo token cannot merge pull requests); the four PRs were closed with a note. Deploying them recreated the db and grafana containers (see docs/RUNBOOKS/deploy-to-vm.md section 4d).
+Postgres 16.15 (db and backup), Grafana 11.6.5 (history: Grafana has run 12.4.12 since 11-10-2026) and dbmate 2.36.0 were tested on throwaway containers (all pass) and committed to main directly (commit aecec21, because the repo token cannot merge pull requests); the four PRs were closed with a note. Deploying them recreated the db and grafana containers (see docs/RUNBOOKS/deploy-to-vm.md section 4d).
 **You do:** nothing. Postgres 17 or 18, Grafana 13, numpy 2.x and other major bumps stay ignored.
 **Emma did:** the deploy (fresh dump first) and the checks (tracker T48).
 
@@ -51,5 +51,25 @@ Postgres 16.15 (db and backup), Grafana 11.6.5 and dbmate 2.36.0 were tested on 
 ## 8. Off-VM backup copy on the Proxmox host (ADR-026 item 7)
 One-time set-up on the Proxmox host and the VM, step by step: [OWNER_BACKUP_COPY.md](OWNER_BACKUP_COPY.md). It does not replace item 3 (the untested PBS restore). Best done after deploy 1.
 
+## 9. Keep a copy of the public links list (new 11-10-2026). About 5 minutes.
+**Why:** the 10 public dashboard links live only in the `grafana_data` volume, which is not in the nightly backup. They can be rebuilt (the tokens are stable), but a copy lets you check that the rebuilt addresses match.
+**You do:** on the VM, in `~/vatpac-statsV2`, run `python3 ops/grafana_public.py --list --public-url https://vpac.mpengor.com` and save the output in your password manager or a private note. **Emma does:** nothing.
+
+## 10. Keep copies of the Cloudflare and Traefik settings (new 11-10-2026). About 15 minutes.
+**Why:** the public address depends on settings outside this repository. If the Traefik machine or the Cloudflare account is lost, the address is down until they are rebuilt.
+**You do:** keep a second copy of the Traefik and `vatpac-proxy` files (you hold them in `vatpac-claude-setup\traefik`), and note the Cloudflare Tunnel, hostname and rate-limit rule settings (screenshots are enough; never save the tunnel token in a document). The layout is in RUNBOOKS/public-access.md. **Emma does:** nothing.
+
+## 11. Rotate the Grafana admin password (new 11-10-2026). About 10 minutes.
+**Why:** the admin login page is reachable from the internet (owner decision 11-10-2026), so the admin password is the one lock that matters. Rotate it now and then, and after anyone else has seen it.
+**You do:** on the VM run `docker compose exec grafana grafana cli admin reset-admin-password '<new password>'`, then edit `GRAFANA_ADMIN_PASSWORD` in the VM's `.env` to match (letters and digits only, long). Tell Emma first so the checks that use it are not left failing (deploy-to-vm.md section 3). **Emma does:** re-run `python3 ops/check_panels.py` afterwards.
+
+## 12. DHCP reservation for the Grafana address (new 11-10-2026). About 5 minutes, in the router.
+**Why:** Grafana binds to the VM's LAN address (192.168.1.222) and the Traefik proxy points at it. If the router gives that address to another device, or the VM a new one, the public dashboards and the LAN login stop.
+**You do:** in the router's DHCP settings reserve 192.168.1.222 for the VM's network card (its MAC address is under the VM's Hardware in Proxmox). **Emma does:** nothing.
+
+## 13. Harden SSH on the VM and install fail2ban (new 11-10-2026). About 20 minutes, needs sudo on the VM.
+**Why:** password login over SSH is NOT disabled on the VM, and fail2ban is NOT installed. The VM holds the data and the `.env` secrets. The Grafana port is not reachable from the internet, but password guessing from inside the LAN would not be stopped.
+**You do:** with your own sudo, confirm your key login works, then set `PasswordAuthentication no` (and `PermitRootLogin no`) in a file under `/etc/ssh/sshd_config.d/`, reload SSH and test a NEW session before closing the old one; then `sudo apt install fail2ban`. **Emma does:** check from the `vatpac-v3` login that key login still works.
+
 ## Order I suggest
-Items 1, 4, 5 and 7 are decided or done. Still open: 3 (the Proxmox restore test, when convenient), then 6 (the folder rename) last.
+Items 1, 4, 5 and 7 are decided or done. Still open: 3 (the Proxmox restore test, when convenient), then the new cards 9 to 13 (public links copy, Cloudflare and Traefik copies, admin password rotation, DHCP reservation, SSH hardening and fail2ban), then 6 (the folder rename) last.

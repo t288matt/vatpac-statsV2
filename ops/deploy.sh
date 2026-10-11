@@ -3,7 +3,9 @@
 #   bash ops/deploy.sh --preflight <commit>   before the deploy: is it safe to start? (reads only)
 #   bash ops/deploy.sh --verify               after the deploy: is the stack healthy? (reads only)
 #   bash ops/deploy.sh --status               what is live: release marker, containers, newest dump (reads only)
-#   bash ops/deploy.sh --mark <commit>        after a VERIFIED deploy: write ~/vatpac-statsV2/.deploy/release (the ONLY write)
+#   bash ops/deploy.sh --mark <commit> [--allow-silent-issues]  after a VERIFIED deploy: write ~/vatpac-statsV2/.deploy/release (the ONLY write)
+#       Refuses first if an issue named in the commits since the previous marker has no comment newer than its newest commit
+#       (ops/stale_issues.sh), or if that cannot be checked; --allow-silent-issues marks anyway and prints a warning.
 # It never starts, stops, builds or restarts anything and never prints .env values. The owner's explicit go for each
 # deploy is unchanged; this script only replaces remembering the checks. Exit 0 means no FAIL (WARN is allowed).
 # Settings (environment): DEPLOY_SSH (default vatpac-v3), DEPLOY_DIR (default ~/vatpac-statsV2), DEPLOY_GH (path to gh),
@@ -376,13 +378,26 @@ status() {
 # ---------------------------------------------------------------- --mark (the only write)
 
 mark() {
-  local want="$1" full now stamp who
+  local want="$1" allow="${2:-}" full now stamp who prev rc
+  [ -z "$allow" ] || [ "$allow" = --allow-silent-issues ] || { echo "usage: deploy.sh --mark <commit> [--allow-silent-issues]" >&2; return 2; }
   [[ "$want" =~ ^[0-9a-fA-F]{7,40}$ ]] || { echo "usage: deploy.sh --mark <commit (7 to 40 hex characters)>" >&2; return 2; }
   full="$(g rev-parse --verify -q "${want}^{commit}" 2>/dev/null)"
   [ -n "$full" ] || { echo "FAIL  cannot resolve '$want' to a commit" >&2; return 1; }
   g fetch -q origin main 2>/dev/null
   g merge-base --is-ancestor "$full" origin/main 2>/dev/null || { echo "FAIL  ${full:0:10} is not on origin/main; nothing written" >&2; return 1; }
   now="$(vm_now)"; [ -n "$now" ] || { echo "FAIL  could not read the VM time; nothing written" >&2; return 1; }
+  # silent-issue guard (fails closed): each issue named since the previous marker needs a comment newer than its newest commit
+  prev="$(vm 'cat .deploy/release 2>/dev/null' 2>/dev/null | tr -d '\r' | sed -n 's/^commit=\([0-9a-fA-F]\{40\}\)$/\1/p' | head -n 1)"
+  if [ -z "$prev" ]; then rc=2; echo "no previous marker could be read, so the commits to check are unknown" >&2
+  else DEPLOY_SSH="$DEPLOY_SSH" DEPLOY_DIR="$DEPLOY_DIR" GH_BIN="$(gh_bin)" REPO="$DEPLOY_REPO" bash "$HERE/stale_issues.sh" --range "$prev..$full"; rc=$?; fi
+  if [ "$rc" -ne 0 ]; then
+    if [ "$allow" = --allow-silent-issues ]; then echo "WARN  marking with silent or unchecked issues (--allow-silent-issues); comment on them after this deploy" >&2
+    else
+      if [ "$rc" -eq 1 ]; then echo "FAIL  the issues above have commits but no newer comment: comment on each (what shipped, the commit, how verified), then mark again; nothing written" >&2
+      else echo "FAIL  the silent-issue check could not run (fails closed); fix gh or use --allow-silent-issues; nothing written" >&2; fi
+      return 1
+    fi
+  fi
   stamp="$(iso "$now")"; who="$(printf '%s' "${USER:-${USERNAME:-unknown}}" | tr -cd 'A-Za-z0-9._-')"
   # the log line goes first and the marker is replaced last, so a failed log append leaves the old marker in place
   printf 'commit=%s\nmarked_utc=%s\nmarked_by=%s\n' "$full" "$stamp" "$who" \
@@ -398,8 +413,8 @@ main() {
     --preflight) preflight "${2:-}" ;;
     --verify) verify ;;
     --status) status ;;
-    --mark) mark "${2:-}" ;;
-    *) echo "usage: bash ops/deploy.sh --preflight <commit> | --verify | --status | --mark <commit>" >&2; return 2 ;;
+    --mark) mark "${2:-}" "${3:-}" ;;
+    *) echo "usage: bash ops/deploy.sh --preflight <commit> | --verify | --status | --mark <commit> [--allow-silent-issues]" >&2; return 2 ;;
   esac
 }
 
