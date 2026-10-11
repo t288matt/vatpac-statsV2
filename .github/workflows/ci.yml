@@ -70,7 +70,7 @@ jobs:
         run: >
           mypy --strict --ignore-missing-imports
           ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py
-          ops/check_panels.py
+          ops/check_panels.py ops/grafana_public.py
       - name: shell syntax (ops scripts)
         run: |
           for f in ops/*.sh ops/migrate/*.sh; do [ "$f" = ops/deploy.sh ] || sh -n "$f"; done

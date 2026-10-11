@@ -22,6 +22,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 WANTED = {"isEnabled": True, "timeSelectionEnabled": False, "annotationsEnabled": False, "share": "public"}
 
@@ -36,10 +37,10 @@ def read_env(path: Path) -> dict[str, str]:
     return out
 
 
-def plan(dashboards: list[dict], public: list[dict]) -> list[tuple[str, dict, dict | None]]:
+def plan(dashboards: list[dict[str, Any]], public: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any], dict[str, Any] | None]]:
     """What to do for each dashboard: ('create', d, None), ('update', d, existing), ('keep', d, existing)."""
     by_dash = {p["dashboardUid"]: p for p in public}
-    steps: list[tuple[str, dict, dict | None]] = []
+    steps: list[tuple[str, dict[str, Any], dict[str, Any] | None]] = []
     for d in sorted(dashboards, key=lambda x: x["title"]):
         existing = by_dash.get(d["uid"])
         if existing is None:
@@ -54,7 +55,7 @@ def plan(dashboards: list[dict], public: list[dict]) -> list[tuple[str, dict, di
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     """The login is sent as a header: never follow a redirect to another address with it."""
 
-    def redirect_request(self, *args, **kwargs):
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
         return None
 
 
@@ -73,7 +74,7 @@ class Grafana:
         self.auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
         self.opener = urllib.request.build_opener(NoRedirect)
 
-    def call(self, method: str, path: str, body: dict | None = None):
+    def call(self, method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, Any]:
         req = urllib.request.Request(self.base + path, method=method)
         req.add_header("Authorization", self.auth)
         data = None
@@ -158,7 +159,8 @@ def run(g: Grafana, args: argparse.Namespace) -> int:
                 name, url = p.get("title", p["dashboardUid"]), link(p["accessToken"], args.public_url)
                 print(f"{name}: {url}  (not a provisioned dashboard any more; --remove deletes it)")
     for action, d, existing in plan(dashboards, public):
-        token = existing["accessToken"] if existing else None
+        token: str | None = existing["accessToken"] if existing else None
+        res = None
         if args.list:
             print(f"{d['title']}: {link(token, args.public_url) if token else 'not public'}"
                   + ("" if action == "keep" or not existing else "  (settings differ)"))
@@ -167,14 +169,15 @@ def run(g: Grafana, args: argparse.Namespace) -> int:
             status, res = g.call("POST", f"/api/dashboards/uid/{d['uid']}/public-dashboards", dict(WANTED))
             if status == 200:
                 token = res["accessToken"]
-        elif action == "update":
+        elif action == "update" and existing is not None:
             status, res = g.call("PATCH", f"/api/dashboards/uid/{d['uid']}/public-dashboards/{existing['uid']}", dict(WANTED))
         else:
             status = 200
-        ok = status == 200 and token
+        ok = status == 200 and bool(token)
         failures += not ok
         verb = {"create": "created", "update": "fixed", "keep": "ok"}[action]
-        print(f"{d['title']}: " + (f"{verb}  {link(token, args.public_url)}" if ok else f"FAILED ({status}) {json.dumps(res)[:120]}"))
+        shown = link(token, args.public_url) if token else ""
+        print(f"{d['title']}: " + (f"{verb}  {shown}" if ok else f"FAILED ({status}) {json.dumps(res)[:120]}"))
     return 1 if failures else 0
 
 
