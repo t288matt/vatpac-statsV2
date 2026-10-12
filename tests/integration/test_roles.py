@@ -136,7 +136,9 @@ def test_maintenance_functions_are_not_public(conn) -> None:
     for fn in ("ensure_pilot_position_partitions", "drop_old_pilot_position_partitions",
                "refresh_flight_summary", "refresh_materialized_views", "write_finished_flights"):
         row = conn.execute("SELECT prosecdef, proconfig FROM pg_proc WHERE proname = %s", (fn,)).fetchone()
-        assert row["prosecdef"] is True and "search_path=public" in row["proconfig"]
+        assert row["prosecdef"] is True and any(c.startswith("search_path=public") for c in row["proconfig"])
+    wf = conn.execute("SELECT proconfig FROM pg_proc WHERE oid = 'write_finished_flights(int)'::regprocedure").fetchone()
+    assert "search_path=public, pg_temp" in wf["proconfig"]  # pg_temp last: no temp object can shadow a table
 
 
 def test_backup_role_reads_everything_writes_nothing(as_backup) -> None:

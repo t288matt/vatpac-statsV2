@@ -1,4 +1,5 @@
 -- migrate:up
+-- Apply at a quiet moment: ALTER TABLE and CREATE INDEX on pilot_session take locks and migrate.sh sets no lock_timeout.
 -- Issue #89 phase 1 (issue #137, design docs/DESIGN_89_FINAL.md, sections 1.3 to 1.6, 2 and 5): flights are written ONCE, as
 -- one row, when the pilot has been quiet for 8 hours. This migration only ADDS: the table flight_record, the column
 -- pilot_session.flown_upto, the writer write_finished_flights(), the setting flight_quiet_hours, and one guarded call at the end
@@ -57,7 +58,7 @@ CREATE OR REPLACE FUNCTION write_finished_flights(p_max_pilots int DEFAULT 500)
 RETURNS int
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $fn$
 DECLARE
     quiet_h  numeric;
@@ -72,8 +73,8 @@ BEGIN
     IF p_max_pilots IS NULL OR p_max_pilots < 1 THEN
         RETURN 0;
     END IF;
-    -- One writer at a time. A second caller does not wait: it returns 0 at once (owner decision 12-10-2026, same as a refresh that is
-    -- already running); the running call does the work.
+    -- One writer at a time. A second caller does not wait: it returns 0 at once (deliberate deviation from design section 2 step 1,
+    -- which blocks; the manager's decision of 12-10-2026, see docs/CONFORMANCE_89_PHASE1.md); the running call does the work.
     IF NOT pg_try_advisory_xact_lock(hashtext('vatpac.flight_writer')) THEN
         RETURN 0;
     END IF;
@@ -245,7 +246,7 @@ CREATE OR REPLACE FUNCTION refresh_flight_summary(p_since interval DEFAULT '12 h
 RETURNS int
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $fn$
 DECLARE
     cutoff timestamptz;
@@ -266,10 +267,17 @@ BEGIN
     END IF;
     n := refresh_flight_summary_sessions(
         ARRAY(SELECT ps.id FROM pilot_session ps WHERE ps.last_seen >= cutoff), false);
+    -- The collector runs this with statement_timeout = 20 s. EXCEPTION WHEN OTHERS does not catch query_canceled (57014), so a
+    -- slow writer batch would roll back the pieces refresh too; it is named explicitly. The batch is small (50 pilots) so the
+    -- 5 minute job stays well inside the timeout; ops/backfill_flight_record.sh runs first and does the bulk with 500.
     BEGIN
-        PERFORM write_finished_flights();
-    EXCEPTION WHEN OTHERS THEN
-        RAISE WARNING 'write_finished_flights failed: % (%)', SQLERRM, SQLSTATE;
+        PERFORM set_config('statement_timeout', '0', true);   -- cannot re-arm the running statement's timer; harmless
+        PERFORM write_finished_flights(50);
+    EXCEPTION
+        WHEN query_canceled THEN
+            RAISE WARNING 'write_finished_flights cancelled (statement timeout?): %', SQLERRM;
+        WHEN OTHERS THEN
+            RAISE WARNING 'write_finished_flights failed: % (%)', SQLERRM, SQLSTATE;
     END;
     RETURN n;
 END
