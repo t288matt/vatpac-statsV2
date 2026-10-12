@@ -40,7 +40,7 @@ Proves: 1.3 "The setting".
 
 **Q9. Cold start.** `network_snapshot` empty, sessions and positions present. Expected: returns 0, nothing marked, no error. Proves: `ref` NULL writes nothing (1.3, 2 step 2).
 
-**Q10. Collector outage.** P1 S1 positions 00:00 to 01:00; no snapshot after 01:00 (outage); the test clock jumps to 10:00. Writer: 0. Poll at 10:00 stores a snapshot and P1 S1 position (same logon), `last_seen` 10:00. Writer: 0. P1 leaves 10:30 (positions 10:00 to 10:30 every 30 s), marker 18:30: returns 1. Expected row `(S1, 00:00, 10:30, {S1}, 121 + 61, 60.00 + gap)`: ONE flight (no cut by silence or span), airborne pair 01:00 to 10:00 counts 0 (gap over 120 min). Proves: 2 "Collector or feed down", 1.4 item 1, 1.5.
+**Q10. Collector outage.** P1 S1 positions 00:00 to 01:00; no snapshot after 01:00 (outage); the test clock jumps to 10:00. Writer: 0. Poll at 10:00 stores a snapshot and P1 S1 position (same logon), `last_seen` 10:00. Writer: 0. P1 leaves 10:30 (positions 10:00 to 10:30 every 30 s), marker 18:30: returns 1. Expected row `(S1, 00:00, 10:30, {S1}, 121 + 61, 90.00)`: ONE flight (no cut by silence or span), airborne 60 min before the outage + 30 min after, the pair 01:00 to 10:00 counts 0 (gap over 120 min): 90.00. Proves: 2 "Collector or feed down", 1.4 item 1, 1.5.
 
 **Q11. Feed outage (collector running, nothing stored).** Same data as Q10 but the gap is `poll_log` `skipped_unchanged` rows only. Same expected result. Proves: same clause; feed variant (7.3).
 
@@ -48,7 +48,7 @@ Proves: 1.3 "The setting".
 
 **Q13. Re-check under lock.** Two connections. Connection A starts the writer after choosing P1's group (hold with a test-only delay). Connection B logs a new session of the same key for P1 within 120 min of the group's last position (or advances the group's `last_seen`). Expected: A, after taking the row lock, drops the group (no longer quiet); nothing written or marked for it. Proves: 2 step 4. Run both orders; no deadlock; each call under the collector's 5 s lock timeout.
 
-**Q14. Batch cap and order.** Three quiet single-flight pilots with newest `last_seen` 01:00 (P1), 02:00 (P2), 03:00 (P3). `write_finished_flights(2)` writes the two oldest-quiet (P1, P2); a second call writes P3; a third returns 0. Whether a pilot with two quiet flights counts once against the cap is open (section 8). `p_max_pilots` of 0 or negative: silent. Proves: 2 step 3, 5.1, 7.3.
+**Q14. Batch cap and order.** Three quiet single-flight pilots with newest `last_seen` 01:00 (P1), 02:00 (P2), 03:00 (P3). `write_finished_flights(2)` writes the two oldest-quiet (P1, P2); a second call writes P3; a third returns 0. Markers: one at 12:00 or later (all three 8 h or more behind: P3's 03:00 plus 8 h = 11:00). For order, repeat with marker 09:30: only P1 (8.5 h) is quiet, P2 (7.5 h) is not, so cap 2 writes just P1. Whether a pilot with two quiet flights counts once against the cap is open (section 8). `p_max_pilots` of 0 or negative: silent. Proves: 2 step 3, 5.1, 7.3.
 
 **Q15. One writer at a time.** Two connections call the writer together on the same quiet pilots. Expected: no duplicate rows, no error, total rows equal one call's rows; the second returns 0 once the first commits. Proves: 2 step 1 (advisory lock), idempotence.
 
@@ -88,7 +88,7 @@ Common fixture for J1 to J7: P1, callsign QFA1, YSSY to YMML throughout, S1 posi
 
 **J5. Late first position, early logon.** d = 119 min, first position 10 min after logon. Expected: one flight. Proves: as J4.
 
-**J6. Chain.** S2 as J1 (d = 119 from S1's last), S3 logon 119 min after S2's last position (238 min after S1's). Expected: ONE flight `{S1,S2,S3}`. Proves: comparison against the latest earlier end, not the first unit (1.4 "previous last point").
+**J6. Chain.** S2 as J1 (d = 119 from S1's last), S2 runs 60 min, so its last position is 03:59 and S3 logs on 119 min later, 05:58 (298 min after S1's last position at 01:00). Expected: ONE flight `{S1,S2,S3}`. Proves: comparison against the latest earlier end, not the first unit (1.4 "previous last point").
 
 **J7. Running maximum, not the previous unit.** S1 positions 00:00 to 05:00. S2 (same key, logon 01:00, overlaps S1) positions 01:00 to 02:00, so the latest earlier end is 05:00 although the unit before S3 in order (S2, by first position) ends 02:00. Case (a) S3 logon 06:00: 60 min after 05:00 but 240 min after 02:00; expected: joins, one flight `{S1,S2,S3}`. Case (b) S3 logon 07:01: 121 min after 05:00; expected: S1+S2 one flight, S3 a second flight. Proves: "latest end of all earlier units" (1.4 last paragraph).
 
