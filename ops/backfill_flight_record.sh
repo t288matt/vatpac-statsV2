@@ -20,6 +20,7 @@ while :; do
   start="$(date +%s)"
   n="$(q "SELECT write_finished_flights($BATCH)")"
   left="$(q "$REMAINING_SQL")"
+  case "$n$left" in *[!0-9]*|'') echo "the database call failed (n='$n', left='$left'); stopping" >&2; exit 1 ;; esac
   printf '%s  wrote %s flights in %s s, %s finished pilots still to process\n' "$(date -u '+%d-%m-%Y %H:%M:%S UTC')" "$n" "$(( $(date +%s) - start ))" "$left"
   [ "$left" -eq 0 ] && break
   if [ "$n" -eq 0 ] && [ "$left" -eq "$prev" ]; then stuck=$((stuck + 1)); else stuck=0; fi
