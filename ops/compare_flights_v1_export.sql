@@ -6,8 +6,8 @@
 --     ssh V1HOST 'docker exec -i V1DBCONTAINER sh -c "psql -X -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" --csv"' > v1_flight_summaries.csv
 -- The SET line prints "SET" lines into the CSV when --csv is used without -q: add -q to psql, or delete those lines from the file.
 -- Step 2 loads that file into the v3 database (or a restore of a live dump): see ops/compare_flights_v1_89.sql.
--- NOT VERIFIED against the v1 schema: column names come from docs/reference/v1_metabase_cards.json (cid, callsign, departure,
--- arrival, logon_time, completion_time). If v1 names one differently, change only this SELECT; keep the output column names.
+-- Column names VERIFIED 12-10-2026 against the live v1 schema (information_schema.columns of flight_summaries, read-only):
+-- cid, callsign, departure, arrival, logon_time, completion_time all exist. Not taken from Metabase.
 SELECT cid, callsign, departure, arrival, logon_time, completion_time
 FROM flight_summaries
 WHERE logon_time >= '2026-10-08 07:52:00+00' AND logon_time < '2026-10-10 18:00:00+00'
