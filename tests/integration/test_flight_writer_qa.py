@@ -87,13 +87,13 @@ def test_p3_an_amended_plan_across_a_reconnect_is_two_flights_as_in_v1(conn: Any
     assert write(conn) == 2
 
 
-def test_q7_a_no_plan_session_still_counts_as_pilot_activity(conn: Any) -> None:
+def test_q7_a_no_plan_session_is_marked_when_it_is_itself_quiet(conn: Any) -> None:
     mk(conn, 416, times(BASE, 30))
     other = mk(conn, 416, times(BASE + 6 * HOUR, 30), logon=BASE + 6 * HOUR, dep=None, arr=None)
     snap(conn, BASE + 9 * HOUR)
-    assert write(conn) == 0
+    assert write(conn) == 1 and flown(conn, other) is None                  # quiet per flight: the first flight is written now
     snap(conn, BASE + 15 * HOUR)
-    assert write(conn) == 1 and flown(conn, other) is not None
+    assert write(conn) == 0 and flown(conn, other) is not None
 
 
 def test_q8_a_missing_setting_defaults_to_8_hours_and_a_non_numeric_one_raises(conn: Any) -> None:

@@ -115,6 +115,34 @@ Decisions taken from the coordinator: cadence 30 s and cap 75 s (tests that depe
 
 v1 joins a new connection when its `logon_time` is within 120 minutes of the previous last point. The writer decides at write time, and a flight is written once the pilot has been quiet for 8 hours of stored data. Failing input: session A (YSSY to YMML) is last seen 10:00; session B of the same pilot, callsign and route logs on at 11:00 (within 120 minutes, v1 joins) but is first stored at 19:00 (for example the pilot flew outside the kept area first). At 18:00 the pilot has been quiet for 8 hours, so A is written; B then arrives as a new flight. v1 would have joined them. Rare, accepted, logic unchanged.
 
+## Deliberate deviation from design 1.3: quiet per FLIGHT, not per pilot (owner decision 12-10-2026; migration 20261012000200, NOT YET LIVE)
+
+**What the design said.** `DESIGN_89_FINAL.md` section 1.3: a pilot's unwritten flights are written once that pilot has had no session seen for 8 hours, one test for all of a pilot's flights ("why per pilot": joins never cross pilots and a pilot has one connection at a time).
+
+**Why it changed.** The first live run (phase 1 deployed, 12-10-2026) showed the price of that rule was far larger than "a delay for multi-leg pilots": 141 pilots who were online again within the last 8 hours kept ALL their older finished flights unwritten, some two days old (comparison B: 142 of 172 v1 flights without a v3 match belonged to such pilots; the 2-day watchdog check counted 257 false-alarm sessions; the old `flight` view had 879 flights in the window against 735 in `flight_record`). The owner decided: a flight is written once the flight itself has had no position for 8 hours, even if the same pilot is flying again.
+
+**What the rule is now.** Per pilot, the unprocessed sessions are grouped into flights by the v1 rule exactly as before (same cid, callsign, departure, arrival; a new connection joins when its `logon_time` is within 120 minutes of the latest earlier last position; no 8-hour parts; no cut inside a connection). A group is written only if its own newest `last_seen` is at least `flight_quiet_hours` behind the newest snapshot (capped at now plus 5 minutes). A group that is not yet quiet is left untouched (`flown_upto` not advanced). A session that forms no flight is marked when it is itself quiet. Locking is unchanged: all the pilot's unprocessed sessions are locked and only those ids are used, so a session inserted afterwards is neither written nor marked. A pilot who makes no progress in a round is left out of the next round of the same call, so held-open flights cannot starve the rest.
+
+| Requirement of the owner decision | Test (`tests/integration/test_flight_quiet_per_flight.py` unless stated) |
+|---|---|
+| An earlier finished flight is written while the pilot's later flight is still active; the later flight's sessions stay unmarked; the later one is written when it is quiet; the first row is not rewritten (fails on the old rule) | `test_an_earlier_finished_flight_is_written_while_a_later_flight_of_the_same_pilot_is_still_active` |
+| A session quiet for over 8 h whose key-mate logged on within 120 minutes and is still active: one open flight, nothing written, then one flight with both sessions | `test_a_later_session_of_the_same_key_within_120_minutes_keeps_the_flight_open` |
+| A chain S, U, T where only T is active keeps the whole flight open | `test_the_chain_through_an_old_middle_session_keeps_the_whole_flight_open` |
+| 119 and 120 minutes join (flight stays open), 121 is a separate flight (the earlier one is written) | `test_the_120_minute_boundary_decides_whether_a_later_active_session_holds_the_flight_open` |
+| An amended plan (different key) is a different flight, so the earlier one is written | `test_an_amended_plan_is_a_different_flight_so_the_earlier_one_is_written` |
+| An active session in the middle of unprocessed ones does not hold back the ones around it; only written flights' sessions are marked | `test_a_session_in_the_middle_that_is_still_active_does_not_hold_back_the_ones_around_it` |
+| A no-plan session is marked when it is itself quiet, not when its pilot is | `test_a_no_plan_session_is_marked_when_it_is_itself_quiet_not_when_its_pilot_is`; `test_flight_writer_qa.py::test_q7_a_no_plan_session_is_marked_when_it_is_itself_quiet` |
+| The quiet boundary (7 h 59 / 8 h) is measured on the flight's newest `last_seen` | `test_the_boundary_is_measured_on_the_flights_newest_last_seen` |
+| A returning session's new flight waits for its own quiet period | `test_a_returning_session_flight_waits_for_its_own_quiet_period` |
+| Resume after a failed call: nothing half-done, the next call writes each flight once | `test_a_failed_call_leaves_nothing_half_done_and_the_next_call_resumes` |
+| Locked-ids-only rule still holds | `test_flight_writer_qa.py::test_opus1_a_session_inserted_after_the_lock_is_neither_written_nor_marked` |
+| Head of line: flights held open by active reconnects, and key conflicts, do not starve other pilots | `test_flights_held_open_by_an_active_reconnect_do_not_starve_other_pilots`; `test_flight_writer_qa.py::test_opus2_pilots_with_a_key_conflict_do_not_starve_the_rest` |
+| A multi-leg pilot's legs are each written when that leg is quiet | `test_flight_writer.py::test_a_multi_leg_pilots_legs_are_each_written_when_that_leg_is_quiet` |
+| Backfill remaining-work query counts finished flights, not pilots | `test_flight_writer.py::test_the_backfill_scripts_remaining_query_counts_exactly_the_finished_unprocessed_flights` |
+| Watchdog checks are per flight (a pilot online again in a different flight is not counted; a reconnect-continued flight is not counted) | `test_integrity_checks.py::test_the_unprocessed_flight_checks_work_per_flight_not_per_pilot` |
+
+Known limits of the per-flight rule: the pick uses a cheap necessary test (the pilot's oldest unprocessed session is quiet), so a pilot whose old session is held open by an active reconnect is examined again on every call until the flight ends; such pilots are skipped within the call and are normally few. The earlier limitation (a connection that logs on within 120 minutes of a flight's end but is first stored more than 8 hours later) is unchanged.
+
 ## Not proven by a test, and why
 
 - **Atomicity of a crash mid-call** (design section 2, "a crash rolls back inserts and markers together"). The inserts and the markers are one SQL statement inside one function, so PostgreSQL gives this by construction; no fault can be injected between them. The failed-lock tests show a failed call leaves rows and markers untouched.

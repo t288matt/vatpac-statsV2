@@ -6,6 +6,10 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 12-10-2026 (docs batch 3, issue #107). The production VM runs commit b3189ad, marked live on 11-10-2026 at 20:35:53 UTC in the VM's release record (`.deploy/release.log`, read on 12-10-2026). Everything merged to main up to c89e544 on 10-10-2026, plus the work of 11-10-2026 described below, is now deployed. Main has since moved on by documentation and tooling commits only (the last, 86a5172, adds no code to the running system; the VM marker stays b3189ad).
 
+## Issue 89 phase 1b: quiet per flight, not per pilot (branch p1b-flight-quiet, 12-10-2026; not merged, NOT live)
+
+Owner decision 12-10-2026. Migration 20261012000200 replaces `write_finished_flights()`: a flight is written once the flight itself has had no position for 8 hours of stored data, even when the same pilot is flying again in a later flight. The first live run showed 141 pilots, online again within 8 hours, holding back all their older finished flights under the per-pilot rule. Same v1 join rule, same airborne rule, same locking. The backfill script's remaining-work query and the two watchdog checks about unprocessed flights now work per flight (the "pilots quiet..." check is renamed "flights quiet..."). Explained in [docs/DEFINITIONS.md](docs/DEFINITIONS.md) section 1b with a worked example; decision recorded as ADR-030 in [docs/DECISIONS.md](docs/DECISIONS.md); conformance in [docs/CONFORMANCE_89_PHASE1.md](docs/CONFORMANCE_89_PHASE1.md). Refs #89 #137.
+
 ## Issue 89 phase 1: flights written once (branch p1-flight-record, 12-10-2026; not merged, not deployed)
 
 Adds the table `flight_record` and the writer `write_finished_flights()` (migration 20261012000190), run side by side with today's pieces table. Nothing reads the new table yet, so no chart changes. Refs #89 and #137; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md) (branch opus-89), requirement-to-test table in [docs/CONFORMANCE_89_PHASE1.md](docs/CONFORMANCE_89_PHASE1.md).
