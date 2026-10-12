@@ -103,6 +103,18 @@ Decisions taken from the coordinator: cadence 30 s and cap 75 s (tests that depe
 - **Section 2 "Where it runs".** The guarded call inside `refresh_flight_summary` writes 50 pilots, not the default 500, and names `query_canceled` in its handler, because `WHEN OTHERS` does not catch a statement timeout (the collector uses 20 s) and a cancel would roll back the pieces refresh. Test: `test_a_statement_timeout_in_the_writer_cannot_roll_back_the_pieces_refresh` (fails if the handler is removed). `set_config('statement_timeout', ...)` inside the function cannot re-arm the running statement's timer, so it is not relied on.
 - **Function search_path** is `public, pg_temp` on the two functions this migration defines.
 
+## Changes after the Opus second pass (PR 144)
+
+- **Lock and snapshot (defect 1).** The writer keeps the ids of the sessions it locked and uses only those in the main statement and the marker; the quiet re-check runs over all of the pilot's unprocessed sessions. Test `test_opus1_a_session_inserted_after_the_lock_is_neither_written_nor_marked` (holds ACCESS EXCLUSIVE on `pilot_position` so the writer stops after its lock, inserts a session in that window).
+- **Starvation (defect 2).** The call loops (at most 10 rounds) and leaves pilots skipped for a key conflict out of the next pick; the WARNING stays. Test `test_opus2_...` (50 conflict pilots and 1 normal pilot, cap 50). A pilot too large for the collector's 20 s statement timeout is NOT handled by this: the cancel is caught by the refresh, but that pilot is picked first again every run until the owner backfills it by hand (`ops/backfill_flight_record.sh`, no timeout).
+- **Backfill script (defect 3).** Stops only when no finished pilot is left, retries a busy lock, exits 1 after 5 rounds without progress. Tests: script text and `test_the_backfill_scripts_remaining_query_...`.
+- **Migration locking (defect 5).** `SET LOCAL lock_timeout = '5s'`; the carry-over runs only if `flight_summary` has a `sample_count = 0` row; the plain `CREATE INDEX` is kept (the CONCURRENTLY pattern of migrations 22 and 23 needs its own `transaction:false` file, not worth it for a table of a few thousand rows). `SET LOCAL` warns outside a transaction and does nothing, harmless.
+- **Future snapshot (defect 6).** `ref` is `LEAST(newest snapshot, now() + 5 minutes)`, test `test_opus6_...`; the position scan also stops at the newest `last_seen` of the locked sessions.
+
+## Known limitation (Opus defect 4): the 8-hour quiet period assumes `logon_time` is close to the first sighting
+
+v1 joins a new connection when its `logon_time` is within 120 minutes of the previous last point. The writer decides at write time, and a flight is written once the pilot has been quiet for 8 hours of stored data. Failing input: session A (YSSY to YMML) is last seen 10:00; session B of the same pilot, callsign and route logs on at 11:00 (within 120 minutes, v1 joins) but is first stored at 19:00 (for example the pilot flew outside the kept area first). At 18:00 the pilot has been quiet for 8 hours, so A is written; B then arrives as a new flight. v1 would have joined them. Rare, accepted, logic unchanged.
+
 ## Not proven by a test, and why
 
 - **Atomicity of a crash mid-call** (design section 2, "a crash rolls back inserts and markers together"). The inserts and the markers are one SQL statement inside one function, so PostgreSQL gives this by construction; no fault can be injected between them. The failed-lock tests show a failed call leaves rows and markers untouched.

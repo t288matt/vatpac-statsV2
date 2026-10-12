@@ -205,3 +205,68 @@ def test_r7_a_skipped_conflict_pilot_is_not_counted_in_the_return_value(conn: An
                  (a, ts[0], ts[-1], a, ts[0]))
     snap(conn, BASE + 20 * HOUR)
     assert write(conn) == 2
+
+
+# ------------------------------------------------------------------ Opus second pass (PR 144)
+def test_opus1_a_session_inserted_after_the_lock_is_neither_written_nor_marked(conn: Any, dsn: str) -> None:
+    """FOR UPDATE does not block an INSERT. Hold ACCESS EXCLUSIVE on pilot_position so the writer stops at its main statement (after
+    the lock and the quiet re-check), insert a new session of the same pilot in that window, then let it go."""
+    import threading
+    import time
+
+    ts = times(BASE, 20)
+    a = mk(conn, 440, ts)
+    snap(conn, ts[-1] + 9 * HOUR)
+    out: dict[str, int] = {}
+
+    def run() -> None:
+        with psycopg.connect(dsn, autocommit=True) as c:
+            out["n"] = c.execute("SELECT write_finished_flights()").fetchone()[0]
+
+    holder = psycopg.connect(dsn)
+    holder.execute("LOCK TABLE pilot_position IN ACCESS EXCLUSIVE MODE")
+    t = threading.Thread(target=run)
+    t.start()
+    try:
+        for _ in range(100):
+            if conn.execute("SELECT 1 AS x FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE '%write_finished_flights%' "
+                            "AND pid <> pg_backend_pid()").fetchone():
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the writer never reached the blocked statement")
+        late = conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
+                            "VALUES (440, 'QFA9', %s, %s, %s, 'YSSY', 'YMML') RETURNING id",
+                            (ts[-1] + 9 * HOUR, ts[-1] + 9 * HOUR, ts[-1] + 9 * HOUR)).fetchone()["id"]
+    finally:
+        holder.rollback()
+        holder.close()
+        t.join(10)
+    assert out["n"] == 1
+    assert [r["session_ids"] for r in records(conn, 440)] == [[a]]
+    assert flown(conn, a) == ts[-1] and flown(conn, late) is None            # the late session waits for its own quiet period
+
+
+def test_opus2_pilots_with_a_key_conflict_do_not_starve_the_rest(conn: Any) -> None:
+    ts = times(BASE, 20)
+    for i in range(50):
+        sid = mk(conn, 500 + i, ts)
+        conn.execute("INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
+                     "logon_time, sample_count) VALUES (%s, %s, %s, %s, 'QFA1', 'YSSY', 'YMML', ARRAY[%s::bigint], %s, 20)",
+                     (sid, ts[0], ts[-1], 500 + i, sid, ts[0]))
+    later = times(BASE + 2 * HOUR, 20)
+    mk(conn, 600, later, logon=later[0])
+    snap(conn, BASE + 30 * HOUR)
+    notices: list[str] = []
+    conn.add_notice_handler(lambda d: notices.append(d.message_primary or ""))
+    assert write(conn, 50) == 1                                              # the normal pilot is written in the same call
+    assert len(records(conn, 600)) == 1
+    assert any("50 pilot(s) skipped" in n for n in notices), notices         # and the conflicts are still reported
+
+
+def test_opus6_a_future_dated_snapshot_cannot_make_everyone_quiet(conn: Any) -> None:
+    from datetime import UTC, datetime
+    now = datetime.now(UTC).replace(microsecond=0)
+    mk(conn, 601, times(now - 30 * MIN, 20))                                 # connected until a few minutes ago
+    snap(conn, now + timedelta(days=30))                                     # a bogus future feed timestamp
+    assert write(conn) == 0
