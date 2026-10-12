@@ -271,7 +271,6 @@ BEGIN
     -- slow writer batch would roll back the pieces refresh too; it is named explicitly. The batch is small (50 pilots) so the
     -- 5 minute job stays well inside the timeout; ops/backfill_flight_record.sh runs first and does the bulk with 500.
     BEGIN
-        PERFORM set_config('statement_timeout', '0', true);   -- cannot re-arm the running statement's timer; harmless
         PERFORM write_finished_flights(50);
     EXCEPTION
         WHEN query_canceled THEN
