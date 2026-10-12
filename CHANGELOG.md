@@ -6,6 +6,12 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 The production VM runs the tree shipped from commit 3eb81a3 on 09-10-2026 at 19:13, plus the Grafana upgrade and public dashboards of 11-10-2026 (commits 848526c and b3189ad, listed first below).
 
+## Issue 89 phase 1: flights written once (branch p1-flight-record, 12-10-2026; not merged, not deployed)
+
+Adds the table `flight_record` and the writer `write_finished_flights()` (migration 20261012000190), run side by side with today's pieces table. Nothing reads the new table yet, so no chart changes. Refs #89 and #137; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md) (branch opus-89), requirement-to-test table in [docs/CONFORMANCE_89_PHASE1.md](docs/CONFORMANCE_89_PHASE1.md).
+- A pilot's flights are written, once, 8 hours of stored data after the pilot was last seen; the rule for joining reconnects is v1's (same pilot, callsign, departure and arrival; joined when the new connection logged on within 120 minutes of the last point).
+- `pilot_session.flown_upto`, the setting `flight_quiet_hours`, `ops/backfill_flight_record.sh`, `ops/compare_flights_89.sql` (comparison A) and `ops/compare_flights_v1_89.sql` (comparison B, for the owner to run), three new watchdog checks, and `flight_record` in the restore check and the `watchdog_ro` grant.
+
 ## Merged to main but NOT yet deployed (as of 10-10-2026)
 
 Nothing in this section is running on the VM. Each deploy needs the owner's explicit go ([docs/DEPLOY_PLAN_REVIEW_FIXES.md](docs/DEPLOY_PLAN_REVIEW_FIXES.md)): deploy 1 (fix-ops and the Telegram wording) is planned for Sunday 11-10-2026 after the 02:00 backup and restore test have been read; deploy 2 (fix-collector) about 24 hours later; fix-sql after those.
