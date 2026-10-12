@@ -542,10 +542,24 @@ def test_the_backfill_rebuilds_every_flight_in_batches_and_the_script_loop_ends_
     assert conn.execute("SELECT count(*) AS n FROM pilot_session WHERE flown_upto IS NULL OR last_seen > flown_upto").fetchone()["n"] == 0
 
 
-def test_the_backfill_script_calls_the_writer_in_its_own_transaction_and_stops_at_zero() -> None:
+def test_the_backfill_script_loops_until_no_finished_pilot_is_left_not_until_a_batch_writes_zero() -> None:
     text = (REPO / "ops" / "backfill_flight_record.sh").read_text(encoding="utf-8")
-    assert "write_finished_flights(" in text and 'BATCH="${BATCH:-500}"' in text and "sleep 2" in text
-    assert '[ "$n" -eq 0 ] && break' in text and "set -eu" in text
+    assert "write_finished_flights(" in text and 'BATCH="${BATCH:-500}"' in text and "sleep 2" in text and "set -eu" in text
+    assert '[ "$left" -eq 0 ] && break' in text                           # stops on the remaining count, not on n = 0
+    assert '[ "$n" -eq 0 ] && break' not in text and "stuck" in text      # and gives up after rounds without progress
+
+
+def test_the_backfill_scripts_remaining_query_counts_exactly_the_finished_unprocessed_pilots(conn: Any) -> None:
+    import re
+    text = (REPO / "ops" / "backfill_flight_record.sh").read_text(encoding="utf-8")
+    sql = re.search(r'^REMAINING_SQL="(.*)"$', text, re.M).group(1)
+    mk(conn, 80, times(BASE, 20))                                           # finished
+    mk(conn, 81, times(BASE + 9 * HOUR, 20), logon=BASE + 9 * HOUR)         # still connected
+    mk(conn, 82, times(BASE, 20), dep=None, arr=None)                       # finished, no plan: the writer returns 0 for it
+    snap(conn, BASE + 9 * HOUR + 19 * MIN)
+    assert conn.execute(sql).fetchone()["count"] == 2
+    assert write(conn) == 1                                                  # one flight written, two pilots processed
+    assert conn.execute(sql).fetchone()["count"] == 0
 
 
 # ------------------------------------------------------------------ carry-over of placeholder flights (section 5.3)

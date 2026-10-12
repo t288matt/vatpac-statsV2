@@ -1,5 +1,7 @@
 -- migrate:up
--- Apply at a quiet moment: ALTER TABLE and CREATE INDEX on pilot_session take locks and migrate.sh sets no lock_timeout.
+SET LOCAL lock_timeout = '5s';   -- fail fast instead of queueing behind a long query with ACCESS EXCLUSIVE wanted on pilot_session
+-- Apply at a quiet moment (pilot_session is small, a few thousand rows, so the plain CREATE INDEX below takes milliseconds; the repo's
+-- CONCURRENTLY pattern of migrations 22 and 23 needs its own file with transaction:false and is not worth it for this table): ALTER TABLE and CREATE INDEX on pilot_session take locks and migrate.sh sets no lock_timeout.
 -- Issue #89 phase 1 (issue #137, design docs/DESIGN_89_FINAL.md, sections 1.3 to 1.6, 2 and 5): flights are written ONCE, as
 -- one row, when the pilot has been quiet for 8 hours. This migration only ADDS: the table flight_record, the column
 -- pilot_session.flown_upto, the writer write_finished_flights(), the setting flight_quiet_hours, and one guarded call at the end
@@ -69,6 +71,11 @@ DECLARE
     lb       timestamptz;
     n        int := 0;
     bad      bigint[];
+    locked   bigint[];
+    ub       timestamptz;
+    skip     bigint[] := '{}';
+    total    int := 0;
+    tries    int := 0;
 BEGIN
     IF p_max_pilots IS NULL OR p_max_pilots < 1 THEN
         RETURN 0;
@@ -90,36 +97,39 @@ BEGIN
     IF ref IS NULL THEN
         RETURN 0;                                  -- cold start: nothing stored, nothing is quiet
     END IF;
+    ref := LEAST(ref, now() + interval '5 minutes');   -- a bogus future feed timestamp must not make everyone quiet
 
+    -- A pilot skipped because of a key conflict (a bug case, logged) keeps the oldest last_seen and would be picked first on every
+    -- call, so the call loops: pilots skipped in this call are left out of the next pick (at most 10 rounds), and the rest progress.
+    LOOP
+    tries := tries + 1;
     -- Pick the quiet pilots, longest quiet first.
     SELECT array_agg(x.cid) INTO pilots FROM (
         SELECT ps.cid
           FROM pilot_session ps
-         WHERE ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto
+         WHERE (ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto) AND ps.cid <> ALL (skip)
          GROUP BY ps.cid
         HAVING ref - max(ps.last_seen) >= quiet
          ORDER BY max(ps.last_seen), ps.cid
          LIMIT p_max_pilots) x;
-    IF pilots IS NULL THEN
-        RETURN 0;
-    END IF;
+    EXIT WHEN pilots IS NULL;
 
-    -- Lock their unprocessed sessions (in id order), then re-check the quiet test under the lock: a pilot who reconnected
-    -- meanwhile has a newer last_seen now and drops out.
-    PERFORM ps.id FROM pilot_session ps
-     WHERE ps.cid = ANY (pilots) AND (ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto)
-     ORDER BY ps.id FOR UPDATE;
+    -- Lock their unprocessed sessions (in id order) and remember exactly which ones; the rest of the call uses only these ids, so a
+    -- session inserted after this point (FOR UPDATE does not block an INSERT) can be neither written nor marked. Then re-check
+    -- the quiet test over ALL the pilot's unprocessed sessions, new ones included: a pilot who reconnected meanwhile drops out.
+    SELECT array_agg(l.id) INTO locked FROM (
+        SELECT ps.id FROM pilot_session ps
+         WHERE ps.cid = ANY (pilots) AND (ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto)
+         ORDER BY ps.id FOR UPDATE) l;
     SELECT array_agg(x.cid) INTO pilots FROM (
         SELECT ps.cid FROM pilot_session ps
          WHERE ps.cid = ANY (pilots) AND (ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto)
          GROUP BY ps.cid
         HAVING ref - max(ps.last_seen) >= quiet) x;
-    IF pilots IS NULL THEN
-        RETURN 0;
-    END IF;
-    SELECT min(COALESCE(ps.flown_upto, ps.first_seen)) - interval '1 day' INTO lb
+    EXIT WHEN pilots IS NULL;
+    SELECT min(COALESCE(ps.flown_upto, ps.first_seen)) - interval '1 day', max(ps.last_seen) INTO lb, ub
       FROM pilot_session ps
-     WHERE ps.cid = ANY (pilots) AND (ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto);
+     WHERE ps.id = ANY (locked) AND ps.cid = ANY (pilots);
 
     WITH s AS (                                    -- the locked, unprocessed sessions of the quiet pilots
         SELECT ps.id, ps.cid, ps.callsign, ps.logon_time, ps.last_seen, ps.flown_upto,
@@ -128,7 +138,7 @@ BEGIN
                NULLIF(upper(btrim(ps.departure, E' \t\r\n')), '') AS dep_n,
                NULLIF(upper(btrim(ps.arrival,   E' \t\r\n')), '') AS arr_n
           FROM pilot_session ps
-         WHERE ps.cid = ANY (pilots) AND (ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto)
+         WHERE ps.id = ANY (locked) AND ps.cid = ANY (pilots)
     ),
     samples AS (                                   -- today's airborne rule, copied word for word from the pieces refresh
         SELECT p.session_id, p.observed_at, p.gs_kt, p.alt_ft,
@@ -141,7 +151,7 @@ BEGIN
                END AS air_s
           FROM pilot_position p
           JOIN s ON s.id = p.session_id
-         WHERE p.observed_at >= lb
+         WHERE p.observed_at >= lb AND p.observed_at <= ub
            AND p.observed_at > COALESCE(s.flown_upto, '-infinity'::timestamptz)
            AND p.observed_at <= s.last_seen
         WINDOW w AS (PARTITION BY p.session_id ORDER BY p.observed_at)
@@ -228,11 +238,18 @@ BEGIN
     )
     SELECT (SELECT count(*) FROM ins), (SELECT array_agg(cid) FROM conflict) INTO n, bad;
 
+    total := total + n;
+    EXIT WHEN bad IS NULL OR tries >= 10;
+    RAISE WARNING 'write_finished_flights: % pilot(s) skipped, a flight with the same key already exists but its sessions were not marked (cids %)',
+        cardinality(bad), bad;
+    skip := skip || bad;
+    bad := NULL;
+    END LOOP;
     IF bad IS NOT NULL THEN
         RAISE WARNING 'write_finished_flights: % pilot(s) skipped, a flight with the same key already exists but its sessions were not marked (cids %)',
             cardinality(bad), bad;
     END IF;
-    RETURN n;
+    RETURN total;
 END
 $fn$;
 REVOKE ALL ON FUNCTION write_finished_flights(int) FROM PUBLIC;
@@ -287,19 +304,26 @@ REVOKE ALL ON FUNCTION refresh_flight_summary(interval) FROM PUBLIC;
 --    migration 20 ran; on the live database the expected count is ZERO. If any exist, copy their flights once from the old view
 --    (airborne_minutes NULL) and mark their sessions, so the writer never tries to rebuild them from positions that are gone.
 -- carry-over:begin
-INSERT INTO flight_record
-       (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time,
-        name, home_icao, server, aircraft_icao, aircraft_faa, flight_rules, route, remarks, planned_alt,
-        deptime, pilot_rating, military_rating, airborne_minutes, max_gs_kt, max_alt_ft, sample_count)
-SELECT f.session_id, f.start_time, f.end_time, f.cid, f.callsign, f.departure, f.arrival, ARRAY[f.session_id], f.logon_time,
-       f.name, f.home_icao, f.server, f.aircraft_icao, f.aircraft_faa, f.flight_rules, f.route, f.remarks, f.planned_alt,
-       f.deptime, f.pilot_rating, f.military_rating, NULL, f.max_gs_kt, f.max_alt_ft, 0
-  FROM flight f
- WHERE f.sample_count = 0
-ON CONFLICT DO NOTHING;
-UPDATE pilot_session ps SET flown_upto = ps.last_seen
- WHERE ps.id IN (SELECT fs.session_id FROM flight_summary fs WHERE fs.sample_count = 0)
-   AND ps.flown_upto IS NULL;
+DO $do$
+BEGIN
+    -- Skipped when nothing needs carrying (the expected live case): the full evaluation of the flight view is not paid for.
+    IF EXISTS (SELECT 1 FROM flight_summary WHERE sample_count = 0) THEN
+    INSERT INTO flight_record
+           (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time,
+            name, home_icao, server, aircraft_icao, aircraft_faa, flight_rules, route, remarks, planned_alt,
+            deptime, pilot_rating, military_rating, airborne_minutes, max_gs_kt, max_alt_ft, sample_count)
+    SELECT f.session_id, f.start_time, f.end_time, f.cid, f.callsign, f.departure, f.arrival, ARRAY[f.session_id], f.logon_time,
+           f.name, f.home_icao, f.server, f.aircraft_icao, f.aircraft_faa, f.flight_rules, f.route, f.remarks, f.planned_alt,
+           f.deptime, f.pilot_rating, f.military_rating, NULL, f.max_gs_kt, f.max_alt_ft, 0
+      FROM flight f
+     WHERE f.sample_count = 0
+    ON CONFLICT DO NOTHING;
+    UPDATE pilot_session ps SET flown_upto = ps.last_seen
+     WHERE ps.id IN (SELECT fs.session_id FROM flight_summary fs WHERE fs.sample_count = 0)
+       AND ps.flown_upto IS NULL;
+    END IF;
+END
+$do$;
 -- carry-over:end
 
 -- migrate:down
