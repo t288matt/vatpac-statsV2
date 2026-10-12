@@ -1,6 +1,6 @@
 # Runbook: alerts (what each Telegram message means)
 
-*Describes main; behaviour added by changes not yet deployed is listed in CHANGELOG.md.*
+*Describes main; the code on main and the code in production (b3189ad, 11-10-2026) are the same for the watchdog; later changes are listed in CHANGELOG.md.*
 
 Last reviewed: 09-10-2026 (data_integrity and feed_crosscheck added; plain-language Telegram wording, issue 79), against `ops/watchdog/watchdog.py` and `ops/watchdog/integrity.py`. Times are UTC.
 

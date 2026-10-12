@@ -1,5 +1,7 @@
 # Pending document changes (prepared for deploys)
 
+**12-10-2026: the deploys listed below all went live on 11-10-2026 (CHANGELOG.md). The restore.md, CONFIG_MAP.md, stuck-collector.md and db-full.md switch-ins were not re-checked one by one; treat this page as history and check each named document against the code before relying on it.**
+
 Created 10-10-2026. The documents describe what is deployed and running now (commit 3eb81a3 plus migration 160). Work that is merged to `main` but not yet deployed is described in [../CHANGELOG.md](../CHANGELOG.md) and [RESUME.md](RESUME.md) only. This page lists, per deploy, which document changes are ready to switch in once that deploy is VERIFIED LIVE (smoke, panel check, restart counts, watch period), so the update afterwards is quick. Rule: documents are updated after each deploy is verified live, not after each merge.
 
 The prepared text exists in git. For each file below, `git show c89e544:<path>` is the version written for the merged code (deploy 1 text is also correct for later deploys). Take that version, then re-apply any unrelated edit made to the file since. After switching it in, delete the row here.

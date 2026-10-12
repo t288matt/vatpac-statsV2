@@ -1,6 +1,6 @@
 # Runbook: daily and weekly checks, and the soak report
 
-Last reviewed 10-10-2026 against commit c89e544. All times are UTC. Run the commands from the stack folder: `~/vatpac-statsV2` on the production VM (reach it with `ssh vatpac-v3`). Read the clock on the VM with `date -u`; do not estimate times.
+Last reviewed 12-10-2026 against commit b3189ad (soak thresholds checked against `ops/soak_report.sh`: p95 cadence at most the poll interval + 2 s). All times are UTC. Run the commands from the stack folder: `~/vatpac-statsV2` on the production VM (reach it with `ssh vatpac-v3`). Read the clock on the VM with `date -u`; do not estimate times.
 
 The watchdog already alerts by Telegram on the worst failures ([alerts.md](alerts.md)). These checks catch what it does not, and prove the system is healthy rather than merely quiet.
 
@@ -66,13 +66,13 @@ The output is one record followed by one line per container with its restart cou
 | `snapshots_stored`, `snapshots_expected` | Distinct snapshots stored, and one per poll interval (`POLL_INTERVAL_SECONDS`, read from the setting) over the span. |
 | `coverage_pct` | Stored divided by expected. |
 | `gaps_over_limit`, `longest_gap` | Count of gaps over 2.5 poll intervals between consecutive snapshots, and the longest gap. |
-| `p95_cadence_s` | 95th percentile of the gap between consecutive snapshots (normally 15). |
+| `p95_cadence_s` | 95th percentile of the gap between consecutive snapshots (normally the poll interval, 30 s by default). |
 | `error_polls`, `skipped_polls` | Polls that failed, and polls where the feed had not changed (normal). |
 | `verdict` | See below. |
 
 Verdicts:
 
-- `PASS`: the window is covered (at least 98% of the hours requested), at least 99% of the expected snapshots are stored, and the p95 cadence is 17 seconds or less.
+- `PASS`: the window is covered (at least 98% of the hours requested), at least 99% of the expected snapshots are stored, and the p95 cadence is the poll interval + 2 seconds or less (32 s at 30 s polling).
 - `INCOMPLETE: only N h covered of M h requested`: not enough history yet. This is never a pass. Wait, then run it again.
 - `FAIL: coverage below 99%` or `FAIL: p95 cadence above the poll interval + 2 s`: too many snapshots missing or the cadence is slow. Look at `gaps_over_limit` and `longest_gap`, then at what happened at that time (a deploy, a restart, a feed outage: `docker compose logs --since <time> collector`).
 - `FAIL: no snapshots in the window`: nothing was stored; the collector is down or the database is empty.
