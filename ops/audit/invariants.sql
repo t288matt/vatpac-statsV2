@@ -107,6 +107,10 @@ SELECT 'sessions ended more than 2 days ago with unprocessed positions', count(*
 FROM pilot_session s
 WHERE (s.flown_upto IS NULL OR s.last_seen > s.flown_upto)
   AND s.last_seen < (SELECT max(observed_at) FROM network_snapshot) - interval '2 days'
+  -- only pilots who are themselves quiet (same 9 h test as the check above): a pilot who flew earlier and is online again is
+  -- correctly waited for by the writer, per pilot, and is not a fault
+  AND (SELECT max(u.last_seen) FROM pilot_session u WHERE u.cid = s.cid AND (u.flown_upto IS NULL OR u.last_seen > u.flown_upto))
+      <= (SELECT max(observed_at) FROM network_snapshot) - interval '9 hours'
 UNION ALL
 SELECT 'daily partitions missing for today..today+3', count(*), NULL FROM generate_series(0, 3) g(d)
 WHERE to_regclass(format('public.pilot_position_%s', to_char((now() AT TIME ZONE 'UTC')::date + g.d, 'YYYYMMDD'))) IS NULL

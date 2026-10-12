@@ -324,6 +324,19 @@ def _(conn: Any, w: World) -> None:
                  "VALUES (1701, 'OLD2', %s, %s, %s, 'YSSY', 'YMML')", (old.replace(microsecond=0), old, old))
 
 
+def test_the_two_day_check_ignores_a_pilot_who_is_online_again_and_counts_a_quiet_one(conn: Any, dsn: str) -> None:
+    name = "sessions ended more than 2 days ago with unprocessed positions"
+    w = World(conn)
+    old = w.ts[0] - timedelta(days=3)
+    for cid, cs in ((1800, "ACT1"), (1801, "QUI1")):  # both have an old unprocessed session
+        conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
+                     "VALUES (%s, %s, %s, %s, %s, 'YSSY', 'YMML')", (cid, cs, old.replace(microsecond=0), old, old))
+    recent = w.ts[0] - timedelta(hours=1)  # pilot 1800 flew again an hour ago: the writer correctly waits for them
+    conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
+                 "VALUES (1800, 'ACT2', %s, %s, %s, 'YSSY', 'YMML')", (recent.replace(microsecond=0), recent, recent))
+    assert sweep(dsn)[name] == 1  # only the quiet pilot's session
+
+
 @case("daily partitions missing for today..today+3")
 def _(conn: Any, w: World) -> None:
     conn.execute(f"DROP TABLE pilot_position_{(w.now + timedelta(days=3)):%Y%m%d}")
