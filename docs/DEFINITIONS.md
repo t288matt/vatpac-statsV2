@@ -36,7 +36,7 @@ A session that forms no flight (no flight plan, or no positions) is marked as pr
 
 **1b.4 What the VM runs today (before migration 20261012000200).** The quiet test looks at the whole pilot: nothing of a pilot is written until the pilot's newest session is 8 hours old. Same flights, same numbers, only later. After the new migration is deployed the backfill (`ops/backfill_flight_record.sh`) catches up the held-back flights.
 
-**1b.5 How it can be checked.** `docs/CONFORMANCE_89_PHASE1.md` lists each requirement against the test that proves it; the tests for this rule are in `tests/integration/test_flight_quiet_per_flight.py`. Three watchdog checks report flights that are overdue (`docs/RUNBOOKS/integrity-checks.md`).
+**1b.5 How it can be checked.** `docs/CONFORMANCE_89_PHASE1.md` lists each requirement against the test that proves it; the tests for this rule are in `tests/integration/test_flight_quiet_per_flight.py`. Two watchdog checks report flights that are overdue (`docs/RUNBOOKS/integrity-checks.md`).
 
 ## 2. The flight gate
 
