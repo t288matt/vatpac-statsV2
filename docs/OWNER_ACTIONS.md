@@ -1,6 +1,6 @@
 # Owner actions: what only you can do, and exactly how
 
-Written 09-10-2026. Each item says what it is for, the least you have to do, and what Emma (Claude) does so you do not have to. Order is by value. Tracker rows are in docs/TRACKER.md.
+Written 09-10-2026, updated 12-10-2026 (cards 9 to 14 are the owner actions left after the public-dashboard deploy of 11-10-2026; the live commit is b3189ad). Each item says what it is for, the least you have to do, and what Emma (Claude) does so you do not have to. Order is by value. Tracker rows are in docs/TRACKER.md.
 
 ## 1. Protect the main branch (issue #44, T37). WON'T DO: branch protection is not available on the GitHub plan in use; issue #44 closed 09-10-2026 (19:28 UTC). Kept below as a record only.
 **Why:** `main` is what gets deployed. Nothing stops a mistaken force push or deleting it.
@@ -49,7 +49,7 @@ Postgres 16.15 (db and backup), Grafana 11.6.5 (history: Grafana has run 12.4.12
 **Emma does:** close #29 when you confirm.
 
 ## 8. Off-VM backup copy on the Proxmox host (ADR-026 item 7)
-One-time set-up on the Proxmox host and the VM, step by step: [OWNER_BACKUP_COPY.md](OWNER_BACKUP_COPY.md). It does not replace item 3 (the untested PBS restore). Best done after deploy 1.
+One-time set-up on the Proxmox host and the VM, step by step: [OWNER_BACKUP_COPY.md](OWNER_BACKUP_COPY.md). It does not replace item 3 (the untested PBS restore). The deploys are done (11-10-2026), so it can be done now.
 
 ## 9. Keep a copy of the public links list (new 11-10-2026). About 5 minutes.
 **Why:** the 10 public dashboard links live only in the `grafana_data` volume, which is not in the nightly backup. They can be rebuilt (the tokens are stable), but a copy lets you check that the rebuilt addresses match.
@@ -71,5 +71,10 @@ One-time set-up on the Proxmox host and the VM, step by step: [OWNER_BACKUP_COPY
 **Why:** password login over SSH is NOT disabled on the VM, and fail2ban is NOT installed. The VM holds the data and the `.env` secrets. The Grafana port is not reachable from the internet, but password guessing from inside the LAN would not be stopped.
 **You do:** with your own sudo, confirm your key login works, then set `PasswordAuthentication no` (and `PermitRootLogin no`) in a file under `/etc/ssh/sshd_config.d/`, reload SSH and test a NEW session before closing the old one; then `sudo apt install fail2ban`. **Emma does:** check from the `vatpac-v3` login that key login still works.
 
+## 14. Delete the old rollback copies on the VM (new 12-10-2026). About 10 minutes, about 18-10-2026.
+**Why:** each deploy leaves a full copy of the previous tree on the VM so that a rollback is possible. After a week of clean running they only take disk space. The Grafana volume copy holds the old admin settings. Nothing in the repository depends on them.
+**You do:** on the VM, FIRST list them and read the list: `ls -ld --time-style=long-iso ~/vatpac-statsV2.rollback-* ~/grafana_data_pre_12.tgz` and `docker volume ls | grep pre_bumps`. On 12-10-2026 the list was these seven folders and one archive: `vatpac-statsV2.rollback-09-10-bumps`, `-09-10-card65`, `-09-10-integrity`, `-09-10-mig150`, `-11-10-all`, `-11-10-all2`, `-11-10-grafana`, and the file `grafana_data_pre_12.tgz` (owned by root, so it needs sudo to delete). Check the names against that list, then remove each with `rm -rf <path>` (never a wildcard). Do not delete the live folder `~/vatpac-statsV2` or any volume whose name does not end in `_pre_bumps`. The volume `vatpac_grafana_data_pre_bumps` named in the 10-10-2026 notes was not checked on 12-10-2026; list it before deciding.
+**Keep them longer if:** you have a Grafana or database problem that started after 11-10-2026; the copies are the quickest way back. **Emma does:** re-run `ops/deploy.sh --status` afterwards and note the freed space.
+
 ## Order I suggest
-Items 1, 4, 5 and 7 are decided or done. Still open: 3 (the Proxmox restore test, when convenient), then the new cards 9 to 13 (public links copy, Cloudflare and Traefik copies, admin password rotation, DHCP reservation, SSH hardening and fail2ban), then 6 (the folder rename) last.
+Items 1, 4, 5 and 7 are decided or done. Still open: 3 (the Proxmox restore test, when convenient), then the new cards 9 to 13 (public links copy, Cloudflare and Traefik copies, admin password rotation, DHCP reservation, SSH hardening and fail2ban), card 14 (delete the old rollback copies, about 18-10-2026), then 6 (the folder rename) last.
