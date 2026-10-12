@@ -128,7 +128,7 @@ def test_migrate_grants_the_watchdog_role_the_session_tables() -> None:
     assert tables
     names = set(re.findall(r"'(\w+)'", tables.group(1)))
     assert {"pilot_session", "controller_session"} <= names
-    assert {"pilot_position", "flight_summary", "reference_data_change"} <= names  # added for the invariant sweep (issue 20)
+    assert {"pilot_position", "flight_summary", "flight_record", "reference_data_change"} <= names  # added for the invariant sweep (issue 20; flight_record: issue 89)
     assert not names & {"app_setting", "controller_rating_event"}  # nothing wider than the checks need
 
 
