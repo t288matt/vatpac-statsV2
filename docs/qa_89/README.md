@@ -49,11 +49,11 @@ ssh vatpac-v3 "cd ~/vatpac-statsV2 && docker compose exec -T db sh -c 'PGOPTIONS
 
 ### 2b. v1 export (read only, see `docs/V1_COMPARISON.md` section 1)
 
-You start v1 and use its own container environment. The host alias and the database container name are not in this repository; fill in your own (`<V1_HOST>`, `<V1_DB_CONTAINER>`, and v1's database user and name variables as that container defines them):
+The v1 box is the ssh alias `vatpac` and its database container is `vatsim_postgres` (v1 stays up for reference; read-only rules in docs/V1_COMPARISON.md section 1). Use v1's own container environment so no credential is printed:
 
 ```bash
 python run_comparisons.py extract --file comparison_b.sql --name b_v1 > b_v1.sql
-ssh <V1_HOST> "docker exec -i <V1_DB_CONTAINER> sh -c 'PGOPTIONS=\"-c default_transaction_read_only=on -c statement_timeout=30s\" psql -X -q --csv -v ON_ERROR_STOP=1 -v from_ts=\"2026-10-08 07:52+00\" -v to_ts=\"<TO_TS>\" -v gap_from=\"2026-10-09 15:30+00\" -v gap_to=\"2026-10-09 15:50+00\" -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -f -'" < b_v1.sql > b_v1.csv
+ssh vatpac "docker exec -i vatsim_postgres sh -c 'PGOPTIONS=\"-c default_transaction_read_only=on -c statement_timeout=30s\" psql -X -q --csv -v ON_ERROR_STOP=1 -v from_ts=\"2026-10-08 07:52+00\" -v to_ts=\"<TO_TS>\" -v gap_from=\"2026-10-09 15:30+00\" -v gap_to=\"2026-10-09 15:50+00\" -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -f -'" < b_v1.sql > b_v1.csv
 ```
 
 The query reads only `flight_summaries`, bounded by `logon_time` and `completion_time`. If v1's variable names differ, use its own; never copy a password out. The query assumes the columns `cid, callsign, departure, arrival, logon_time, completion_time, id`; if v1 names differ, edit your local copy of `b_v1.sql` (a plain SELECT) and keep the output column names `cid, callsign, departure, arrival, logon_time, completion_time`. Any CSV with those headers works (extra columns, header case and fractional seconds are tolerated; a v3 export without `start_time` falls back to `logon_time`).
