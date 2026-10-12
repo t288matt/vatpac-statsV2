@@ -1,10 +1,10 @@
 # Data dictionary
 
-Checked against the live database and migrations up to 20261011000180 on 11-10-2026 (the live database is at 20261009000170; 20261011000180 is on branch fix-109 and not deployed yet). Source: `db/migrations/*.sql` (24 migrations, `20261007000001` to `20261011000180`; applied by the `migrate` service with dbmate; the first 23 are recorded in `schema_migrations` on the VM, in file-name order) and `db/roles.sql` (plus the `watchdog_ro` block of `ops/migrate/migrate.sh`). The database image is PostgreSQL 16.15 (CI tests on 16.4 until updated). All timestamps are `timestamptz` (UTC). Ids are `bigint` unless stated. The meaning of the derived measures is in [DEFINITIONS.md](DEFINITIONS.md); the decisions behind them are in [DECISIONS.md](DECISIONS.md) (ADR-018, 021, 023, 024, 025).
+Checked against the migrations up to 20261012000190 on 12-10-2026 (the live database was last checked at 20261009000170; 20261011000180 and 20261012000190 are not deployed yet, and 20261012000190 is phase 1 of issue 89, branch p1-flight-record). Source: `db/migrations/*.sql` (25 migrations, `20261007000001` to `20261012000190`; applied by the `migrate` service with dbmate; the first 23 are recorded in `schema_migrations` on the VM, in file-name order) and `db/roles.sql` (plus the `watchdog_ro` block of `ops/migrate/migrate.sh`). The database image is PostgreSQL 16.15 (CI tests on 16.4 until updated). All timestamps are `timestamptz` (UTC). Ids are `bigint` unless stated. The meaning of the derived measures is in [DEFINITIONS.md](DEFINITIONS.md); the decisions behind them are in [DECISIONS.md](DECISIONS.md) (ADR-018, 021, 023, 024, 025).
 
 *Describes main; behaviour added by changes not yet deployed is listed in CHANGELOG.md.*
 
-Live objects at the time of checking: 18 base tables (17 ordinary plus the partitioned `pilot_position`, which has 11 daily partitions), 23 views, 8 functions, 4 declared foreign keys, no materialised views, no triggers.
+Objects at the time of checking (live counts as of 11-10-2026, plus the additions of migration 20261012000190): 19 base tables (18 ordinary plus the partitioned `pilot_position`, which has 11 daily partitions on the live database), 23 views, 9 functions, 4 declared foreign keys, no materialised views, no triggers.
 
 ## 0. Orientation
 
@@ -20,7 +20,7 @@ Live objects at the time of checking: 18 base tables (17 ordinary plus the parti
 
 | Layer | What | Who uses it |
 |---|---|---|
-| Base tables (section 2) | Written only by the collector (sessions, positions, snapshots, logs) and by `refresh_flight_summary` (`flight_summary`). | `collector` (writes), `backup_ro` (dump), `watchdog_ro` (a few tables). |
+| Base tables (section 2) | Written only by the collector (sessions, positions, snapshots, logs), by `refresh_flight_summary` (`flight_summary`) and by `write_finished_flights` (`flight_record`, and `pilot_session.flown_upto`). | `collector` (writes), `backup_ro` (dump), `watchdog_ro` (a few tables). |
 | Lookups (section 3) | Small reference tables: ratings, facilities, airlines, aircraft types, regions. Seeded by migrations. | Views, and `grafana_ro` directly. |
 | Functions (section 5) | Partition maintenance, the flight-summary refresh, and three SQL helpers used by the views. | Collector (EXECUTE on four of them), views. |
 | Views (section 4) | The only thing the dashboards read. All derived rules (flight merging, online windows, normalisation) live here. | Grafana, as `grafana_ro`, which sees views and the six lookups only. |
@@ -48,7 +48,8 @@ Dashboards read these 18 views and no others (checked by `python grafana/validat
    (session_id, observed_at)    (session_id, observed_at)
 
    Stand-alone (no foreign key):  network_snapshot, poll_log, controller_unlisted_sighting,
-                                  reference_data_change, app_setting, schema_migrations
+                                  reference_data_change, app_setting, schema_migrations,
+                                  flight_record (names its sessions in session_ids; no foreign key, nothing reads it yet)
 
    Joined by VALUE (no foreign key), see 1.3:
      pilot_session.aircraft_icao      -> aircraft_type.icao        (via flight_ext)
@@ -97,6 +98,7 @@ The daily partitions of `pilot_position` **inherit** the foreign key: each `pilo
 | `pilot_session` | `id` | `(cid, callsign, logon_time)` (`pilot_session_identity`) |
 | `pilot_position` and each partition | `(session_id, observed_at)` | |
 | `flight_summary` | `(session_id, gap_segment, span_part)` | |
+| `flight_record` | `(session_id, start_time)` | `session_id` alone is not unique: a session that comes back after being processed starts a second flight |
 | `controller_session` | `id` | `(cid, callsign, logon_time)` (`controller_session_identity`) |
 | `controller_rating_event`, `controller_frequency_event` | `(session_id, observed_at)` | |
 | `network_snapshot` | `observed_at` | |
@@ -126,10 +128,10 @@ Settings the SQL views read. The collector writes them at start-up and daily (`m
 
 | Column | Type | Null | Meaning |
 |---|---|---|---|
-| `key` | text | no | `home_icao_prefixes` (default `Y`, comma separated), `airborne_gap_cap_seconds`, `poll_interval_seconds`. |
-| `value` | text | no | Live values on 09-10-2026: `Y`, `75`, `30`. |
+| `key` | text | no | `home_icao_prefixes` (default `Y`, comma separated), `airborne_gap_cap_seconds`, `poll_interval_seconds`, `flight_quiet_hours`. |
+| `value` | text | no | Live values on 09-10-2026: `Y`, `75`, `30` (`flight_quiet_hours` is seeded `8` by migration 20261012000190). |
 
-`airborne_gap_cap_seconds` is derived by the collector as 2.5 x the poll interval (minimum 15), so 75 at 30 s polling. The migration seeds 40 (the value for the old 15 s cadence) and the SQL falls back to 40 only if the row is missing; the collector overwrites it on start. `poll_interval_seconds` is what makes the "online" windows follow the cadence (ADR-024); until the collector has published it, those windows are empty.
+`airborne_gap_cap_seconds` is derived by the collector as 2.5 x the poll interval (minimum 15), so 75 at 30 s polling. The migration seeds 40 (the value for the old 15 s cadence) and the SQL falls back to 40 only if the row is missing; the collector overwrites it on start. `poll_interval_seconds` is what makes the "online" windows follow the cadence (ADR-024); until the collector has published it, those windows are empty. `flight_quiet_hours` (default 8, seeded `ON CONFLICT DO NOTHING`) is the quiet period of `write_finished_flights`; the collector does not touch it. The owner changes it with `UPDATE app_setting SET value = '6' WHERE key = 'flight_quiet_hours';` (no migration or restart); the writer refuses a value under 2.5. A change never alters flights already written. The watchdog check "pilots quiet longer than the quiet period plus 1 hour" uses a fixed 9 hours (the watchdog cannot read `app_setting`), so it must follow a changed value.
 
 ### pilot_session
 One row per pilot connection inside the polygon. Identity is `(cid, callsign, logon_time)`; flight-plan fields are attributes updated in place to the latest non-null value. Storage options `fillfactor=70`, `autovacuum_vacuum_scale_factor=0.02` (updated on every poll). Indexes: primary key on `id`; unique `pilot_session_identity (cid, callsign, logon_time)`; `pilot_session_last_seen_idx (last_seen)`; expression indexes on the normalised departure and arrival, `NULLIF(upper(btrim(departure, E' \t\r\n')), '')` and the same for `arrival` (migrations 22 and 23, for the flight gate).
@@ -150,6 +152,7 @@ One row per pilot connection inside the polygon. Identity is `(cid, callsign, lo
 | `plan_changed_at` | timestamptz | yes | Snapshot time when a non-null departure or arrival differed from the stored value (including the first time a plan appears on an existing session). |
 | `max_gs_kt`, `max_alt_ft` | integer | yes | Maximum plausible groundspeed and altitude seen (GREATEST on each upsert). |
 | `pilot_rating`, `military_rating` | integer | yes | Feed values. |
+| `flown_upto` | timestamptz | yes | Added by migration 20261012000190 (issue 89 phase 1). Bookkeeping for `write_finished_flights`: this session's positions up to this time have been processed (written into `flight_record`, or the session has no flight). NULL = never processed; `last_seen > flown_upto` = unprocessed positions. The collector does not touch it. Partial index `pilot_session_unwritten_idx (cid) WHERE flown_upto IS NULL OR last_seen > flown_upto` is the writer's work list. |
 
 ### pilot_position
 Raw position samples, one per session per processed poll (every 30 s at the current cadence). Partitioned (section 1.5). Primary key `(session_id, observed_at)`; foreign key to `pilot_session.id`.
@@ -178,6 +181,25 @@ Per-flight aggregates computed from `pilot_position` (migration 20, ADR-016). On
 | `max_gs_kt`, `max_alt_ft` | integer | yes | Maxima for this part. |
 | `final` | boolean | no | Default false. True when the session is dead and fully summarised, so its raw partitions may be dropped. |
 | `computed_at` | timestamptz | no | Default `now()`; when the row was last recomputed. |
+
+### flight_record
+Added by migration 20261012000190 (issue 89 phase 1, design `docs/DESIGN_89_FINAL.md`). One row per **finished flight**, written once by `write_finished_flights()` and never changed. Nothing reads it yet: the `flight` view is switched to it in phase 3, and the table is renamed `flight_summary` in phase 5. A flight is one session, or several sessions of the same `cid`, `callsign`, `departure` and `arrival` joined across reconnects by v1's rule (a new connection joins when its `logon_time` is no more than 120 minutes after the latest last position of the earlier sessions; no 8-hour parts and no cut inside a connection). Written when the pilot has been quiet for `flight_quiet_hours` (default 8) of stored data. Plan and name fields are frozen at write time. Primary key `(session_id, start_time)`; indexes on `cid`, `start_time`, `end_time`, `logon_time`; CHECK `end_time >= start_time`; no foreign key. Not readable by `grafana_ro` or `collector`; readable by `backup_ro` and `watchdog_ro`.
+
+| Column | Type | Null | Meaning |
+|---|---|---|---|
+| `session_id` | bigint | no | Id of the flight's FIRST session (the flight id panels will use). |
+| `start_time`, `end_time` | timestamptz | no | First and last stored position of the flight. |
+| `cid` | bigint | no | The pilot. |
+| `callsign`, `departure`, `arrival` | text | no | The join key; departure and arrival are upper-cased and trimmed (the flight gate has passed). |
+| `session_ids` | bigint[] | no | Every session in the flight, in order. |
+| `logon_time` | timestamptz | no | Earliest logon of its sessions. |
+| `name`, `home_icao`, `server`, `aircraft_icao`, `aircraft_faa`, `flight_rules`, `remarks`, `planned_alt`, `pilot_rating`, `military_rating` | as in `pilot_session` | yes | From the session that ended last (ties: higher session id), NULLs included. |
+| `route` | text | yes | Latest non-null route over the sessions. |
+| `deptime` | text | yes | Maximum non-null departure time over the sessions. |
+| `airborne_minutes` | numeric | yes | Sum over the sessions, rounded once to 2 decimals, by the measured-gap rule of [DEFINITIONS.md](DEFINITIONS.md) section 3. NULL only for carried-over flights without raw positions. |
+| `max_gs_kt`, `max_alt_ft` | integer | yes | Maxima over the flight. |
+| `sample_count` | bigint | no | Positions in the flight; 0 only for carried-over flights. |
+| `written_at` | timestamptz | no | Default `now()`; when the row was written. |
 
 ### controller_session
 One row per controller connection on a whitelisted callsign. Identity `(cid, callsign, logon_time)`. Indexes: primary key; unique `controller_session_identity`; `controller_session_last_seen_idx (last_seen)`.
@@ -317,7 +339,8 @@ At the current cadence they agree. `flight.is_in_progress` uses the first defini
 |---|---|---|---|
 | `ensure_pilot_position_partitions(days_ahead int DEFAULT 7, p_today date DEFAULT NULL)` | int | DEFINER | Creates daily partitions for yesterday through today + `days_ahead` (UTC); returns the number created. `days_ahead` must be at least 0. Run by the collector at start-up and daily. |
 | `drop_old_pilot_position_partitions(retention_days int, p_today date DEFAULT NULL)` | int | DEFINER | Drops partitions older than the retention unless pinned by a recently seen session; finalises their flights first, then drops them together at the end (at most 10 per call; the collector repeats the call), keeping any partition it cannot lock or that changed meanwhile (section 1.5). Returns the number dropped. `retention_days` must be at least 1. |
-| `refresh_flight_summary(p_since interval DEFAULT '12 hours')` | int | DEFINER | Recomputes `flight_summary` for every non-final session seen within `p_since` (NULL means every session on or after the oldest partition). Idempotent; called by the collector every 5 minutes. Returns the rows changed. |
+| `write_finished_flights(p_max_pilots int DEFAULT 500)` | int | DEFINER | Added by migration 20261012000190 (issue 89 phase 1). Writes the finished flights of pilots who have been quiet for `app_setting.flight_quiet_hours` (default 8, minimum 2.5, else it raises) of stored data into `flight_record`, then sets `pilot_session.flown_upto`. "Quiet" is measured against the newest `network_snapshot`, not the clock; an empty `network_snapshot` writes nothing. One writer at a time (a second caller does not wait, it returns 0 at once), one transaction, idempotent, at most `p_max_pilots` pilots per call, oldest-quiet first. A pilot whose flight key already exists is skipped, left unmarked and reported in a WARNING. Returns the number of flights written. Not granted to any role: it runs through `refresh_flight_summary`. |
+| `refresh_flight_summary(p_since interval DEFAULT '12 hours')` | int | DEFINER | Recomputes `flight_summary` for every non-final session seen within `p_since` (NULL means every session on or after the oldest partition). Idempotent; called by the collector every 5 minutes. Returns the rows changed. Since migration 20261012000190 it ends with a guarded call of `write_finished_flights()` (a writer fault is a WARNING and cannot stop this refresh). |
 | `refresh_flight_summary_sessions(p_ids bigint[], p_final boolean DEFAULT false)` | int | invoker | Internal worker for the two functions above: the gap, span and airborne rules. Not granted to the collector. |
 | `refresh_materialized_views()` | int | DEFINER | Refreshes every materialised view in `public` (concurrently where possible); none exist today. |
 | `icao_is_home(code text)` | boolean | invoker, STABLE | True when the upper-cased code starts with a `home_prefix`. |
@@ -331,10 +354,10 @@ DEFINER functions run with owner rights and `search_path = public`, so the colle
 | Role | Created by | Rights |
 |---|---|---|
 | `vatpac` (owner, from `POSTGRES_USER`) | Postgres image | Owns everything; used by `migrate` and, for restores only, by the `backup` service's restore scripts (ADR-017). Not used by the collector. |
-| `collector` | `db/roles.sql` | Login. SELECT, INSERT, UPDATE on `pilot_session`, `pilot_position`, `controller_session`, `controller_rating_event`, `controller_frequency_event`, `network_snapshot`, `poll_log`, `controller_unlisted_sighting`, `reference_data_change`, `app_setting`, plus DELETE on `poll_log` only (the retention trim); USAGE on sequences; EXECUTE on `ensure_pilot_position_partitions`, `drop_old_pilot_position_partitions`, `refresh_flight_summary`, `refresh_materialized_views`. No DDL; no access to `flight_summary`, the lookups or the views. |
+| `collector` | `db/roles.sql` | Login. SELECT, INSERT, UPDATE on `pilot_session`, `pilot_position`, `controller_session`, `controller_rating_event`, `controller_frequency_event`, `network_snapshot`, `poll_log`, `controller_unlisted_sighting`, `reference_data_change`, `app_setting`, plus DELETE on `poll_log` only (the retention trim); USAGE on sequences; EXECUTE on `ensure_pilot_position_partitions`, `drop_old_pilot_position_partitions`, `refresh_flight_summary`, `refresh_materialized_views`. No DDL; no access to `flight_summary`, `flight_record`, the lookups or the views; `write_finished_flights` is not granted (it runs through `refresh_flight_summary`). |
 | `grafana_ro` | `db/roles.sql` | Login; connection limit 10; `default_transaction_read_only = on`, `statement_timeout = 30s`, `work_mem = 16MB`, `TimeZone = UTC` (T27). SELECT on every view and the six lookup tables; nothing else; cannot create. Re-granted on every deploy so new views are picked up. |
 | `backup_ro` | `db/roles.sql` | Login; member of `pg_read_all_data`; read-only by default. Used by the nightly `pg_dump`. |
-| `watchdog_ro` | `ops/migrate/migrate.sh` | Login; read-only by default; `statement_timeout = 10s`; member of `pg_monitor`; SELECT on `poll_log`, `network_snapshot`, `controller_unlisted_sighting`, `pilot_session` and `controller_session` (the last two for the identity-flap alert), and, from the integrity-checks deploy (T16, not yet applied on the VM), `pilot_position`, `flight_summary` and `reference_data_change` (for the scheduled invariant sweep and archive cross-check). |
+| `watchdog_ro` | `ops/migrate/migrate.sh` | Login; read-only by default; `statement_timeout = 10s`; member of `pg_monitor`; SELECT on `poll_log`, `network_snapshot`, `controller_unlisted_sighting`, `pilot_session` and `controller_session` (the last two for the identity-flap alert), and, from the integrity-checks deploy (T16, not yet applied on the VM), `pilot_position`, `flight_summary`, `flight_record` (from migration 20261012000190) and `reference_data_change` (for the scheduled invariant sweep and archive cross-check). |
 
 ## 7. Known gaps
 

@@ -18,6 +18,7 @@ MAINT_FUNCS = [
     "refresh_flight_summary(interval)",
     "refresh_materialized_views()",
     "refresh_flight_summary_sessions(bigint[], boolean)",
+    "write_finished_flights(int)",
 ]
 
 
@@ -109,9 +110,11 @@ def test_collector_can_write_data_and_run_maintenance(as_collector) -> None:
         "CREATE TABLE pilot_position_20991231 PARTITION OF pilot_position "
         "FOR VALUES FROM ('2099-12-31') TO ('2100-01-01')",
         "SELECT refresh_flight_summary_sessions(ARRAY[1]::bigint[])",
+        "SELECT * FROM flight_record",
+        "SELECT write_finished_flights()",
     ],
     ids=["create", "drop", "alter", "truncate", "read-summary", "read-view", "write-lookup", "drop-partition",
-         "create-partition", "internal-helper"],
+         "create-partition", "internal-helper", "read-flight-record", "writer-direct"],
 )
 def test_collector_has_no_ddl_or_extra_access(conn, sql: str) -> None:
     if not role_exists(conn, "collector"):
@@ -131,14 +134,16 @@ def test_maintenance_functions_are_not_public(conn) -> None:
         # NULL = default privileges (EXECUTE for PUBLIC); a PUBLIC grant shows as "=X/owner"
         assert acl is not None and "{=X" not in acl and ",=X" not in acl, fn
     for fn in ("ensure_pilot_position_partitions", "drop_old_pilot_position_partitions",
-               "refresh_flight_summary", "refresh_materialized_views"):
+               "refresh_flight_summary", "refresh_materialized_views", "write_finished_flights"):
         row = conn.execute("SELECT prosecdef, proconfig FROM pg_proc WHERE proname = %s", (fn,)).fetchone()
-        assert row["prosecdef"] is True and "search_path=public" in row["proconfig"]
+        assert row["prosecdef"] is True and any(c.startswith("search_path=public") for c in row["proconfig"])
+    wf = conn.execute("SELECT proconfig FROM pg_proc WHERE oid = 'write_finished_flights(int)'::regprocedure").fetchone()
+    assert "search_path=public, pg_temp" in wf["proconfig"]  # pg_temp last: no temp object can shadow a table
 
 
 def test_backup_role_reads_everything_writes_nothing(as_backup) -> None:
     c = as_backup
-    for table in ("pilot_session", "pilot_position", "flight_summary", "poll_log"):
+    for table in ("pilot_session", "pilot_position", "flight_summary", "flight_record", "poll_log"):
         c.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchall()
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         c.execute("INSERT INTO app_setting (key, value) VALUES ('bk','1')")

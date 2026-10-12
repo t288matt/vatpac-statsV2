@@ -142,3 +142,21 @@ def test_allow_empty_waives_only_the_row_counts_not_the_age_limit(dsn: str, scra
     r = _sanity(scratch, "vatpac_20261007T020000Z.dump", RESTORE_SANITY_ALLOW_EMPTY="1")
     assert r.returncode == 2 and r.stdout.startswith("STALE")
     assert _sanity(scratch, "vatpac_20261007T020000Z.dump", RESTORE_SANITY_ALLOW_EMPTY="1", RESTORE_MAX_POLL_AGE_HOURS="0").returncode == 0
+
+
+def test_flight_record_is_counted_when_the_dump_has_it_and_ignored_when_it_predates_it(dsn: str, scratch: dict[str, str]) -> None:
+    """Issue 89 phase 1: the new table is read and counted; a dump from before the migration (kept 14 days) still passes."""
+    _fill(dsn, 3, ["2026-10-07 01:59:00+00"])
+    with psycopg.connect(_dsn_for(dsn, SCRATCH), autocommit=True) as c:
+        c.execute("CREATE TABLE flight_record (session_id bigint)")
+        c.execute("INSERT INTO flight_record VALUES (1), (2)")
+    r = _sanity(scratch, "vatpac_20261007T020000Z.dump")
+    assert r.returncode == 0 and r.stdout.strip() == "poll_log=1 pilot_session=3 flight_record=2", (r.stdout, r.stderr)
+
+
+def test_an_unreadable_flight_record_fails_the_restore_check(dsn: str, scratch: dict[str, str]) -> None:
+    _fill(dsn, 1, ["2026-10-07 01:59:00+00"])
+    with psycopg.connect(_dsn_for(dsn, SCRATCH), autocommit=True) as c:
+        c.execute("CREATE VIEW flight_record AS SELECT 1 AS session_id WHERE 1 / (SELECT count(*) FROM poll_log WHERE false) = 1")
+    r = _sanity(scratch, "vatpac_20261007T020000Z.dump")
+    assert r.returncode == 1 and "flight_record unreadable" in r.stderr
