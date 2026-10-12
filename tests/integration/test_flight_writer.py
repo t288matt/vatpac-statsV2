@@ -484,15 +484,14 @@ def test_a_second_writer_does_not_wait_it_returns_zero(conn: Any, dsn: str) -> N
     assert write(conn) == 1
 
 
-def test_the_writer_locks_the_sessions_it_marks_so_a_reconnecting_pilot_waits(conn: Any, dsn: str) -> None:
+def test_a_session_the_collector_is_updating_right_now_is_skipped_not_waited_for(conn: Any, dsn: str) -> None:
     sid = mk(conn, 63, times(BASE, 20))
     snap(conn, BASE + 20 * HOUR)
     with psycopg.connect(dsn) as other:                                     # the collector's upsert would hold this row lock
         other.execute("SELECT id FROM pilot_session WHERE id = %s FOR UPDATE", (sid,))
         conn.execute("SET lock_timeout = '300ms'")
-        with pytest.raises(psycopg.errors.LockNotAvailable):
-            write(conn)
-        assert records(conn, 63) == [] and flown(conn, sid) is None           # the failed call changed nothing
+        assert write(conn) == 0                                              # SKIP LOCKED: no wait, no error, nothing written or marked
+        assert records(conn, 63) == [] and flown(conn, sid) is None
         other.rollback()
     conn.execute("RESET lock_timeout")
     assert write(conn) == 1
