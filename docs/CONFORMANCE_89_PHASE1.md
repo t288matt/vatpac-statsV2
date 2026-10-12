@@ -97,6 +97,12 @@ Written 12-10-2026 (branch `p1-flight-record`, issues #89 and #137). Each requir
 
 Decisions taken from the coordinator: cadence 30 s and cap 75 s (tests that depend on the cap set it); a skipped conflict pilot is not counted in the return value; a second concurrent writer returns 0 without waiting (`pg_try_advisory_xact_lock`). Simplest safe options where the design is silent: NULL groundspeed is not airborne; plan fields come from the last session with NULLs included (route excepted); a non-numeric `flight_quiet_hours` raises; `p_max_pilots` below 1 or NULL returns 0; a session with no positions after `flown_upto` is marked and makes no flight. Not added: QA Q13 (re-check under lock between the pick and the lock), Q15 true parallelism, R3/R4 trigger-injected failure, B1 to B4 (300-pilot batch independence and live load).
 
+## Deliberate deviations from the design
+
+- **Section 2 step 1 (advisory lock).** The design says `pg_advisory_xact_lock`, which waits. The built writer uses `pg_try_advisory_xact_lock` and returns 0 at once if another writer holds it (the manager's decision of 12-10-2026). Test: `test_a_second_writer_does_not_wait_it_returns_zero`.
+- **Section 2 "Where it runs".** The guarded call inside `refresh_flight_summary` writes 50 pilots, not the default 500, and names `query_canceled` in its handler, because `WHEN OTHERS` does not catch a statement timeout (the collector uses 20 s) and a cancel would roll back the pieces refresh. Test: `test_a_statement_timeout_in_the_writer_cannot_roll_back_the_pieces_refresh` (fails if the handler is removed). `set_config('statement_timeout', ...)` inside the function cannot re-arm the running statement's timer, so it is not relied on.
+- **Function search_path** is `public, pg_temp` on the two functions this migration defines.
+
 ## Not proven by a test, and why
 
 - **Atomicity of a crash mid-call** (design section 2, "a crash rolls back inserts and markers together"). The inserts and the markers are one SQL statement inside one function, so PostgreSQL gives this by construction; no fault can be injected between them. The failed-lock tests show a failed call leaves rows and markers untouched.

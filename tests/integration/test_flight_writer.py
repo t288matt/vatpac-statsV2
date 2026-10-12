@@ -314,22 +314,45 @@ def test_a_collector_outage_cannot_end_a_live_flight(conn: Any) -> None:
     assert (r["session_ids"], r["start_time"], r["end_time"], r["sample_count"]) == ([sid], before[0], after[-1], 60)
 
 
-def test_a_feed_outage_with_the_collector_running_cannot_end_a_live_flight(conn: Any) -> None:
-    """The collector keeps polling but the feed is down: poll_log fills with errors and nothing is stored."""
+def test_a_frozen_feed_with_the_collector_polling_cannot_end_a_live_flight(conn: Any) -> None:
+    """The real incident of 11-10-2026: the collector keeps polling for 9 hours but the feed timestamp never moves, so every poll is
+    skipped_unchanged against the same snapshot and nothing new is stored. The writer's clock (the newest snapshot) must not move."""
     ts = times(BASE, 30)
     sid = mk(conn, 34, ts)
     snap(conn, ts[-1])
-    for i in range(9 * 120):                                                 # 9 hours of 30 s failed polls
-        if i % 60 == 0:
-            conn.execute("INSERT INTO poll_log (polled_at, status, error) VALUES (%s, 'error', 'feed down')",
-                         (ts[-1] + timedelta(seconds=30 * (i + 1)),))
-    assert write(conn) == 0 and flown(conn, sid) is None
-    resume = times(ts[-1] + 9 * HOUR, 10)
+    with conn.cursor() as cur:
+        cur.executemany("INSERT INTO poll_log (polled_at, status, snapshot_ts) VALUES (%s, 'skipped_unchanged', %s)",
+                        [(ts[-1] + timedelta(seconds=30 * (i + 1)), ts[-1]) for i in range(9 * 120)])
+    assert conn.execute("SELECT max(observed_at) AS m FROM network_snapshot").fetchone()["m"] == ts[-1]
+    assert write(conn) == 0 and flown(conn, sid) is None                     # 9 h of polling later, still not quiet
+    resume = times(ts[-1] + 9 * HOUR, 10)                                    # the feed thaws; the pilot is still connected
     extend(conn, sid, resume)
     snap(conn, resume[-1])
     assert write(conn) == 0
     snap(conn, resume[-1] + 8 * HOUR)
     assert write(conn) == 1 and len(records(conn, 34)) == 1
+
+
+def test_a_statement_timeout_in_the_writer_cannot_roll_back_the_pieces_refresh(conn: Any) -> None:
+    """The collector runs refresh_flight_summary with statement_timeout = 20 s; a cancel (57014) is not caught by WHEN OTHERS."""
+    ts = times(BASE, 20)
+    mk(conn, 72, ts)
+    snap(conn, ts[-1] + 8 * HOUR)
+    conn.execute("CREATE FUNCTION slow_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(2); RETURN NEW; END $$")
+    conn.execute("CREATE TRIGGER slow_flight_record BEFORE INSERT ON flight_record FOR EACH ROW EXECUTE FUNCTION slow_insert()")
+    notices: list[str] = []
+    conn.add_notice_handler(lambda d: notices.append(d.message_primary or ""))
+    try:
+        conn.execute("SET statement_timeout = '700ms'")
+        n = conn.execute("SELECT refresh_flight_summary(NULL) AS n").fetchone()["n"]
+        conn.execute("RESET statement_timeout")
+    finally:
+        conn.execute("RESET statement_timeout")
+        conn.execute("DROP TRIGGER slow_flight_record ON flight_record")
+        conn.execute("DROP FUNCTION slow_insert()")
+    assert n >= 1 and conn.execute("SELECT count(*) AS n FROM flight_summary").fetchone()["n"] == 1   # pieces kept
+    assert records(conn) == [] and any("cancelled" in m for m in notices), notices
+    assert write(conn) == 1                                                  # and the next run simply does the work
 
 
 def test_a_pilot_who_left_during_an_outage_is_written_after_the_first_stored_poll(conn: Any) -> None:
@@ -475,7 +498,7 @@ def test_the_writer_locks_the_sessions_it_marks_so_a_reconnecting_pilot_waits(co
 def test_the_writer_is_not_public_and_runs_with_the_owners_rights(conn: Any) -> None:
     row = conn.execute("SELECT prosecdef, proconfig, proacl::text AS acl FROM pg_proc "
                        "WHERE oid = 'write_finished_flights(int)'::regprocedure").fetchone()
-    assert row["prosecdef"] is True and "search_path=public" in row["proconfig"]
+    assert row["prosecdef"] is True and "search_path=public, pg_temp" in row["proconfig"]
     assert row["acl"] is not None and "{=X" not in row["acl"] and ",=X" not in row["acl"]
 
 
