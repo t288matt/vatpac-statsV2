@@ -1,6 +1,6 @@
 # QA scenarios for the flight writer (issue #138, phase 1 of #89)
 
-Written 12-10-2026 by the QA agent from `docs/DESIGN_89_FINAL.md` (branch `opus-89`) sections 1.3 to 1.6, 2, 5 and 7.3 only. The builder's code was not read. Nothing here has been run: these are specifications for tests and for the owner's checks.
+**Revised 12-10-2026 for the owner decision of 12-10-2026: the quiet rule is per FLIGHT, not per pilot (sections 1 and 1b; the design text of 1.3 is superseded where it says per pilot).** Written 12-10-2026 by the QA agent from `docs/DESIGN_89_FINAL.md` (branch `opus-89`) sections 1.3 to 1.6, 2, 5 and 7.3 only. The builder's code was not read. Nothing here has been run: these are specifications for tests and for the owner's checks.
 
 ## 0. Conventions
 
@@ -15,6 +15,8 @@ Written 12-10-2026 by the QA agent from `docs/DESIGN_89_FINAL.md` (branch `opus-
 
 ## 1. Quiet period (1.3, 2 steps 2 to 4, 7.3)
 
+Rule under test (owner decision 12-10-2026): a flight GROUP (units of one key joined by the v1 rule) is written once its own newest position is 8 h or more behind `ref`, even if the pilot is online in a later, different flight. A group still active is untouched and never blocks an earlier quiet group. A later session of the same key logging on within 120 min of the group's last position joins the group, so the group is not quiet.
+
 **Q1. 7 h 59 min is not quiet.** P1 S1 positions 00:00 to 01:00. Marker 08:59:59 (`ref` minus `last_seen` = 7:59:59). Call writer. Expected: returns 0; no row; `flown_upto` NULL. Proves: quiet test is `>= quiet`, not before (1.3).
 
 **Q2. Exactly 8 h is quiet.** As Q1, marker 09:00:00. Expected: returns 1; row `(S1, 00:00, 01:00, {S1}, 121, 60.00)`; S1 marked 01:00. Proves: boundary inclusive (1.3 formula `>= quiet`).
@@ -23,11 +25,11 @@ Written 12-10-2026 by the QA agent from `docs/DESIGN_89_FINAL.md` (branch `opus-
 
 **Q4. Not the clock.** As Q1 (marker 08:59:30) but the test database clock is set (or the fixture is time-shifted) so `now()` is 30 days after `T0`. Expected: returns 0. Reverse: marker 09:00 with `now()` equal to `T0` plus 1 h: returns 1. Proves: `ref` is the newest snapshot, never `now()` (1.3, 2).
 
-**Q5. Per pilot, other pilots do not delay.** P1 S1 positions 00:00 to 01:00. P2 S2 positions 00:00 to 08:59 (still connected), marker 09:00. Expected: P1 written, P2 not. Proves: "a second pilot's activity does not delay the first" (1.3, 7.3).
+**Q5. Other pilots do not delay.** P1 S1 positions 00:00 to 01:00. P2 S2 positions 00:00 to 08:59 (still connected), marker 09:00. Expected: P1 written, P2 not. Proves: no cross-pilot delay (1.3, 7.3).
 
-**Q6. Multi-leg pilot is written only when quiet.** P1 S1 (YSSY to YMML) positions 00:00 to 01:30; S2 (YMML to YSSY, logon 03:00) positions 03:00 to 05:00. Marker 10:00: S1 would be 8.5 h quiet but S2 only 5 h. Expected: returns 0, nothing marked. Marker 13:00: returns 2 (two flights, S1 and S2). Proves: one test per pilot over the newest `last_seen` of any session (1.3 "why per pilot", 7.3 "multi-leg").
+**Q6. Multi-leg pilot: the earlier leg is written first.** P1 S1 (YSSY to YMML) positions 00:00 to 01:30; S2 (YMML to YSSY, different key, logon 03:00) positions 03:00 to 05:00. Marker 10:00 (S1 8.5 h behind, S2 5 h): returns 1, S1 written, S2 untouched (not marked). Marker 13:00: S2 written. Proves: per-flight rule; a recent or online later flight does not hold back the earlier one (owner decision).
 
-**Q7. A no-plan session still counts as activity.** P1 S1 (plan) positions 00:00 to 01:00. P1 S2 (no plan, different logon 06:00) positions 06:00 to 07:00. Marker 09:00. Expected: 0 written (pilot last seen 2 h ago). Marker 15:00: S1 written, S2 marked with no flight. Proves: pilot-level activity, no-plan sessions processed (1.3, 1.4 item 2).
+**Q7. A no-plan session does not hold a flight.** P1 S1 (plan) positions 00:00 to 01:00; P1 S2 (no plan, logon 06:00) positions 06:00 to 07:00. Marker 09:00. Expected: S1 written (S2 has no key and joins nothing). S2 is marked and makes no flight once it is itself 8 h behind `ref` (marker 15:00); whether a no-plan session is marked earlier is open (section 8). Proves: 1.4 item 2 with the new rule.
 
 **Q8. The setting.**
 - `flight_quiet_hours` = 6, S1 last_seen 01:00, marker 07:00: written. Marker 06:59:59: not written.
@@ -42,13 +44,35 @@ Proves: 1.3 "The setting".
 
 **Q11. Feed outage (collector running, nothing stored).** Same data as Q10 but the gap is `poll_log` `skipped_unchanged` rows only. Same expected result. Proves: same clause; feed variant (7.3).
 
-**Q12. A pilot who left during the outage is written after the first stored poll.** P1 (connected, as Q10) and P2 (S2 positions 00:00 to 01:00, left). Snapshots stop 01:00. Poll at 10:00 stores P1 only. Writer: P2 written (9 h quiet against the new `ref`), P1 not. Proves: 2 "Collector or feed down" last bullet.
+**Q12. A flight that ended during the outage is written after the first stored poll.** P1 (connected, as Q10) and P2 (S2 positions 00:00 to 01:00, left). Snapshots stop 01:00. Poll at 10:00 stores P1 only. Writer: P2's flight written (9 h behind the new `ref`), P1's not. Proves: 2 "Collector or feed down" last bullet.
 
-**Q13. Re-check under lock.** Two connections. Connection A starts the writer after choosing P1 (hold with a test-only delay or `pg_sleep` in a wrapper). Connection B updates P1's session `last_seen` to `ref` minus 1 h and inserts a position. Expected: A, after taking the row lock, drops P1 (no longer quiet); P1 not written, not marked. Proves: 2 step 4. Note: B blocks on A's row lock if B touches the row first; run both orders; neither may deadlock within the 5 s collector lock timeout.
+**Q13. Re-check under lock.** Two connections. Connection A starts the writer after choosing P1's group (hold with a test-only delay). Connection B logs a new session of the same key for P1 within 120 min of the group's last position (or advances the group's `last_seen`). Expected: A, after taking the row lock, drops the group (no longer quiet); nothing written or marked for it. Proves: 2 step 4. Run both orders; no deadlock; each call under the collector's 5 s lock timeout.
 
-**Q14. Batch cap and order.** Three quiet pilots with newest `last_seen` 01:00 (P1), 02:00 (P2), 03:00 (P3), all single flights. `write_finished_flights(2)`: returns 2, P1 and P2 written (oldest quiet first), P3 untouched. Second call returns 1. Third returns 0. `p_max_pilots` = 0 or negative: design silent (see section 8). Proves: 2 step 3, 5.1, 7.3 "batch cap".
+**Q14. Batch cap and order.** Three quiet single-flight pilots with newest `last_seen` 01:00 (P1), 02:00 (P2), 03:00 (P3). `write_finished_flights(2)` writes the two oldest-quiet (P1, P2); a second call writes P3; a third returns 0. Whether a pilot with two quiet flights counts once against the cap is open (section 8). `p_max_pilots` of 0 or negative: silent. Proves: 2 step 3, 5.1, 7.3.
 
 **Q15. One writer at a time.** Two connections call the writer together on the same quiet pilots. Expected: no duplicate rows, no error, total rows equal one call's rows; the second returns 0 once the first commits. Proves: 2 step 1 (advisory lock), idempotence.
+
+## 1b. Per-flight quiet rule (owner decision 12-10-2026)
+
+Key `K` = P1, QFA1, YSSY to YMML. `L` = the group's newest position. The marker is set to make the stated flights quiet.
+
+**F1. S quiet, T same key within 120 min is still active.** S positions 00:00 to 01:00 (L = 01:00). T logs on 02:00 (60 min after L), positions 02:00 to 09:30, marker 09:30. Expected: nothing written, nothing marked (S+T is one group whose newest position is 09:30). Marker 17:30: ONE flight `{S,T}`. S is never written alone. Proves: a joinable later session keeps the group active.
+
+**F2. S quiet, T different key.** As F1 but T is YMML to YSSY. Marker 09:30: S written (8.5 h behind), T untouched. Proves: per flight; an online later flight of another key does not block.
+
+**F3. Boundary 119 / 120 / 121.** S ends 01:00. T same key logs on at 02:59 / 03:00 / 03:01 (119 / 120 / 121 min), positions to 03:30, marker 09:00 (S exactly 8 h behind). Expected for 119 and 120: T joins, group is 5.5 h behind, nothing written. For 121: S is its own group, written; T untouched. Proves: the join boundary is applied before the quiet test (">120 starts a new flight").
+
+**F4. T logs on long after S went quiet.** S ends 01:00, marker 09:00: S written. T same key logs on 10:00 (540 min later). Expected: T is a new flight; S's row unchanged. Proves: written flights never change; a join is impossible after 120 min.
+
+**F5. Amended plan.** S1 positions 00:00 to 01:00 whose session row holds the amended arrival YBBN (original YMML). Quiet at 09:00. Expected: one flight YSSY to YBBN. A reconnect S2 (YSSY to YMML, original plan) 30 min later is a separate group and flight on its own clock. Proves: key uses the stored (final) plan; per-group clocks.
+
+**F6. Resume.** Three groups: G1 quiet, G2 quiet, G3 active (two of them for one pilot). Call with cap 1, re-run, and once with a rolled-back call between. Expected: G1 and G2 exactly once each, G3 never; no duplicate keys; `flown_upto` set only on written groups' sessions. Proves: idempotent resume under the new rule.
+
+**F7. Unprocessed session in the middle.** Key K: S1 (00:00 to 01:00) already written (row R1); S2 (logon 01:30, positions 01:30 to 02:00) and S3 (logon 02:50, positions to 03:30) unprocessed. Expected: S2+S3 form one new group, written when quiet; R1 untouched. Variant: S1, S2, S3 all unprocessed and quiet: one group `{S1,S2,S3}`. Proves: groups are built from unprocessed units; written flights never gain members. How an unprocessed unit that fits the 120-minute window of a written flight is handled is open (section 8).
+
+**F8. Earlier flight independent of a later online flight.** S ends 01:00, written at 09:00 while the pilot is online in a different-key flight U (to 12:00). Expected: S's row exists, no change when U is written at 20:00. Proves: earlier flight independent of later.
+
+**F9. Two groups of one key.** S1 ends 01:00; S2 logs on 05:00 (240 min later: a new group), positions to 06:00. Marker 09:00: S1's group written, S2's not. Marker 14:00: S2's written. Proves: groups of one key have separate clocks.
 
 ## 2. v1 join rule and flights (1.4, 7.3)
 
@@ -165,10 +189,10 @@ Single session, YSSY to YMML, written as in Q2.
 | 3 h silence is one flight, zero airborne across | J12, A3 |
 | plan filed late; frozen; field rules | P1, P4, P5 |
 | no-plan marked, no flight | J15, J16, R2 |
-| 7 h 59 / 8 h | Q1, Q2, Q3 |
+| 7 h 59 / 8 h | Q1, Q2, Q3, F1, F3 |
 | collector outage, feed outage, cold start | Q10, Q11, Q9 |
-| second pilot does not delay | Q5 |
-| multi-leg | Q6 |
+| second pilot or later flight does not delay | Q5, Q6, F2 |
+| multi-leg | Q6, F2, F8, F9 |
 | returning session new flight | J17 |
 | setting changed / under 2.5 h | Q8 |
 | idempotence, batch cap | R1, Q14 |
@@ -191,3 +215,4 @@ Single session, YSSY to YMML, written as in Q2.
 12. **Equality "same 3 v3-only flights".** 5.2(B) expects "the same 3 v3-only flights" but the 3 are "not yet explained" and not listed in the design. The runner needs their keys from the owner's earlier run (`--known-v3-only`), otherwise it can only check the count.
 13. **v1 window cut.** The design excludes flights logging on before 07:52 UTC on 08-10-2026 or overlapping 15:30 to 15:50 on 09-10-2026 and ending before 10-10-2026 18:00 UTC, but does not say whether the cut is on v1 `completion_time` or on a position time (v1 `flight_summaries` has no end-of-flight column documented in the repo). The runner assumes `completion_time` is the flight's end (see comparison_b.sql).
 14. **Section 1.2 versus 7.2 on `flight_legacy`.** 1.1 says nothing about `flight_legacy` existing before phase 3; 5.2(A) says comparison A repeats "against `flight_legacy`" just before phase 5, which only exists from phase 3. For the phase 1 gate the old side is the live `flight` view, as comparison_a.sql assumes.
+15. **Per-flight rule, new gaps (12-10-2026).** (a) 1.3 and section 2 step 3 of the design still say per pilot and must be updated. (b) Is the cap `p_max_pilots` counted in pilots or groups? (c) When is a no-plan session marked: when it is itself 8 h behind, or with its pilot's next written flight? (d) F7: an unprocessed unit that fits the 120-minute window of an already-written flight: the design says a returning unit always starts a new flight, but with per-flight writing a live reconnect after the 8 h cannot join anyway; the builder should state the rule. (e) The group's quiet time must be the maximum `last_seen` of its units; confirm.
