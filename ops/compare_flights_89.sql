@@ -1,7 +1,9 @@
--- Issue #89 phase 1 exit gate (#138), comparison (A): the new table flight_record against today's `flight` view.
+-- Issue #89 phase 1 exit gate (#138), comparison (A): the new table flight_record against the old merging view.
+-- Phase 3 (#139, not yet deployed) renames that view to `flight_legacy` and points `flight` at flight_record. This script therefore reads
+-- `flight_legacy`: it needs the phase 3 migration (20261013000200). Run BEFORE phase 3 is deployed, replace `flight_legacy` below by `flight`.
 -- READ ONLY, ONE statement. The owner runs it with psql on the live database or, better, on a restore of a live dump:
 --   ( echo "SET default_transaction_read_only = on;"; cat ops/compare_flights_89.sql ) | psql -X -v ON_ERROR_STOP=1 -d <database>
--- Repeat it just before phase 5 with `flight_legacy` in place of `flight` (the one word to change is marked below).
+-- Repeat it just before phase 5 (it reads `flight_legacy`, which phase 5 drops).
 --
 -- This is the author's code checking the author's code (the writer was built from the same SQL as the view): it proves the MOVE,
 -- not the rule. The rule is checked by comparison (B) against v1, ops/compare_flights_v1_89.sql.
@@ -24,7 +26,7 @@ old AS (
     SELECT session_id, cid, callsign, departure, arrival, logon_time, start_time, end_time, sample_count, airborne_minutes,
            max_gs_kt, max_alt_ft, name, home_icao, server, aircraft_icao, aircraft_faa, flight_rules, route, remarks,
            planned_alt, deptime, pilot_rating, military_rating
-      FROM flight                                 -- <- flight_legacy for the run before phase 5
+      FROM flight_legacy                          -- the old merging view (before phase 3 deploys it was called `flight`)
      WHERE NOT is_in_progress AND cid IN (SELECT cid FROM done)
 ),
 new AS (

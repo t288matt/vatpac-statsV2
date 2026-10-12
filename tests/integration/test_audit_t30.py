@@ -88,10 +88,12 @@ def test_samples_exactly_120_minutes_apart_still_count_as_airborne_time(conn) ->
 
 
 def test_samples_121_minutes_apart_add_no_airborne_time(conn) -> None:
+    """A pair more than 120 minutes apart counts zero. Since issue 89 phase 3 a silence inside one connection no longer cuts
+    the flight in two (v1 never cut a connection), so this is ONE flight with no airborne time."""
     make_session(conn, 9700003, [(T0, 250), (T0 + timedelta(minutes=121), 250)])
     rows = flights(conn, 9700003)
-    assert len(rows) == 2
-    assert [float(r["airborne_minutes"]) for r in rows] == [0.0, 0.0]
+    assert len(rows) == 1
+    assert [float(r["airborne_minutes"]) for r in rows] == [0.0]
 
 
 def test_airborne_minutes_keep_two_decimals(conn) -> None:
@@ -448,8 +450,7 @@ def test_international_and_domestic_routes_are_separated(conn) -> None:
 def test_vfr_routes_need_three_distinct_pilots(conn) -> None:
     """Mutant P22 (minimum 3 pilots -> 2)."""
     for cid, arr in ((9860030, "YBBN"), (9860031, "YBBN"), (9860032, "YBBN"), (9860033, "YMML"), (9860034, "YMML")):
-        sid = p14.add_flight(conn, cid, dep="YSSY", arr=arr)
-        conn.execute("UPDATE pilot_session SET flight_rules = 'V' WHERE id = %s", (sid,))
+        p14.add_flight(conn, cid, dep="YSSY", arr=arr, flight_rules="V")
     rows = _run(conn, p14.TRAFFIC, "Most popular VFR routes (last 30 days)")
     assert [(r["route"], r["pilots"]) for r in rows] == [("YSSY-YBBN", 3)]
 
@@ -474,8 +475,7 @@ def test_airlines_need_three_letters_and_a_digit(conn) -> None:
 def test_selcal_percentage_uses_flights_with_remarks_and_the_sel_slash_marker(conn) -> None:
     """Mutants P27 (denominator includes flights without remarks) and V15 (`SEL` instead of `SEL/`)."""
     for cid, remarks in ((9860060, "RMK/ABC SEL/ABCD"), (9860061, "RMK/SELF TEST"), (9860062, "RMK/OK"), (9860063, None)):
-        sid = p14.add_flight(conn, cid)
-        conn.execute("UPDATE pilot_session SET remarks = %s WHERE id = %s", (remarks, sid))
+        p14.add_flight(conn, cid, remarks=remarks)
     rows = _run(conn, p14.TRAFFIC, "Flights with SELCAL in the remarks")
     assert float(rows[0]["SELCAL (%)"]) == 33.33
 
@@ -500,8 +500,7 @@ def test_busiest_days_shows_five_rows(conn) -> None:
 def test_servers_panel_counts_home_region_pilots_only(conn) -> None:
     """Mutant P31 (filter on pilot_is_local removed)."""
     for cid, home, server in ((9860090, "YSSY", "SYDNEY"), (9860091, "EGLL", "LONDON")):
-        sid = p14.add_flight(conn, cid, days_ago=0.2)
-        conn.execute("UPDATE pilot_session SET home_icao = %s, server = %s WHERE id = %s", (home, server, sid))
+        p14.add_flight(conn, cid, days_ago=0.2, home_icao=home, server=server)
     rows = _run(conn, p14.ORIGINS, "Servers used by home-region pilots (last 24 hours)")
     assert [(r["server"], r["pilots"]) for r in rows] == [("SYDNEY", 1)]
 

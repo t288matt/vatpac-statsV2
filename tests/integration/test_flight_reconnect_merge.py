@@ -1,7 +1,9 @@
-"""Issue #35 / T41: the `flight` view merges the sessions of one flight the way v1 did.
+"""Issue #35 / T41 and issue 89 phase 3: the sessions of one flight are joined the way v1 joined them.
 
-v1 grouped rows by callsign + CID + departure + arrival and split only on a gap of more than 120 minutes, so a
-reconnect with the same callsign and airports was one flight. Expected values are written out by hand.
+v1 grouped rows by callsign + CID + departure + arrival and started a new flight only when a connection logged on more than
+120 minutes after the previous last sighting, so a reconnect with the same callsign and airports was one flight. Since phase 3
+(not yet deployed) the join is done once, by write_finished_flights(), and the `flight` view reads the result. Expected values
+are written out by hand.
 """
 from __future__ import annotations
 
@@ -9,7 +11,7 @@ from datetime import timedelta
 
 import pytest
 
-from helpers import T0, make_session, refresh, run
+from helpers import T0, make_session, refresh, run, write_all
 
 pytestmark = pytest.mark.integration
 
@@ -17,7 +19,7 @@ CID = 9400000
 
 
 def flights(conn, cid: int) -> list[dict]:
-    refresh(conn)
+    write_all(conn)
     return conn.execute("SELECT * FROM flight WHERE cid = %s ORDER BY start_time", (cid,)).fetchall()
 
 
@@ -82,7 +84,7 @@ def test_movements_count_a_reconnected_flight_once(conn) -> None:
     a = run(10, gs=0)
     make_session(conn, CID + 8, a)
     make_session(conn, CID + 8, after(a, 1, 10))
-    refresh(conn)
+    write_all(conn)
     n = conn.execute("SELECT count(*) AS n FROM movements WHERE cid = %s", (CID + 8,)).fetchone()["n"]
     assert n == 2                                            # one departure and one arrival
 

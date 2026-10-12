@@ -1,7 +1,9 @@
-"""SPEC s4.3 / s5 / s6: the `flight` view (gate, normalisation, gap/span split, airborne minutes).
+"""SPEC s4.3 / s5 / s6: the `flight` view (gate, normalisation, no cut inside a connection, airborne minutes).
 
-Run against a real PostgreSQL 16.4 on 07-10-2026 (all pass). Sessions are inserted synthetically, so
-these tests do not depend on the collector code. They DO assume the view exposes the columns
+Since issue 89 phase 3 (not yet deployed) the view reads flight_record, which write_finished_flights() fills once the pilot has
+been quiet for 8 hours of stored data (helpers.flights does that). v1's rule applies: one connection is never cut, so a long
+silence or a long session is ONE flight (design docs/DESIGN_89_FINAL.md 1.4); the earlier 120-minute and 8-hour splits live on
+only in flight_legacy. Sessions are inserted synthetically, so these tests do not depend on the collector code. They DO assume the view exposes the columns
 named in SPEC s6 (airborne_minutes, sample_count, is_circuit, is_zzzz, touches_home_region) plus
 cid, departure and arrival. SPEC does not list the view's full column set (see tests/README.md).
 """
@@ -61,17 +63,18 @@ def test_flags(conn) -> None:
     assert col(d, "touches_home_region") is True  # arrives in the home region
 
 
-# ------------------------------------------------------------------ split
-def test_gap_over_120_minutes_splits(conn) -> None:
+# ------------------------------------------------------------------ no cut inside a connection (v1 rule, issue 89)
+def test_gap_over_120_minutes_inside_one_session_is_one_flight(conn) -> None:
     first = run(10)
     resume = first[-1][0] + timedelta(minutes=121)
     make_session(conn, 9200020, first + run(10, start=resume))
     rows = flights(conn, 9200020)
-    assert len(rows) == 2
-    assert sorted(col(r, "sample_count") for r in rows) == [10, 10]
+    assert len(rows) == 1
+    assert col(rows[0], "sample_count") == 20
+    assert float(col(rows[0], "airborne_minutes")) == pytest.approx(18 * 15 / 60, abs=0.01)   # nothing counted across the silence
 
 
-def test_gap_of_exactly_120_minutes_does_not_split(conn) -> None:
+def test_gap_of_exactly_120_minutes_is_one_flight(conn) -> None:
     first = run(10)
     resume = first[-1][0] + timedelta(minutes=120)
     make_session(conn, 9200021, first + run(10, start=resume))
@@ -79,17 +82,35 @@ def test_gap_of_exactly_120_minutes_does_not_split(conn) -> None:
     assert len(rows) == 1 and col(rows[0], "sample_count") == 20
 
 
-def test_span_over_8_hours_splits(conn) -> None:
+def test_span_over_8_hours_is_one_flight(conn) -> None:
     samples = run(19, step=30 * 60)  # 18 half-hour gaps = 9 hours, every gap well under 120 min
     make_session(conn, 9200022, samples)
     rows = flights(conn, 9200022)
-    assert len(rows) == 2
-    assert sum(col(r, "sample_count") for r in rows) == 19
+    assert len(rows) == 1
+    assert col(rows[0], "sample_count") == 19
+    assert col(rows[0], "duration_minutes") == 540
 
 
-def test_span_of_exactly_8_hours_does_not_split(conn) -> None:
+def test_span_of_exactly_8_hours_is_one_flight(conn) -> None:
     make_session(conn, 9200023, run(17, step=30 * 60))  # 16 gaps = 8 hours exactly
     assert len(flights(conn, 9200023)) == 1
+
+
+def test_the_view_lists_only_written_flights_a_pilot_still_connected_is_not_in_it(conn) -> None:
+    """Nothing is shown in progress: a flight appears once its pilot has been quiet for 8 hours of stored data."""
+    make_session(conn, 9200024, run(10))
+    conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (T0 + timedelta(hours=7, minutes=59),))
+    conn.execute("SELECT write_finished_flights()")
+    assert conn.execute("SELECT count(*) AS n FROM flight WHERE cid = 9200024").fetchone()["n"] == 0
+    assert len(flights(conn, 9200024)) == 1
+
+
+def test_the_old_columns_are_gone(conn) -> None:
+    cols = {r["column_name"] for r in conn.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'flight'").fetchall()}
+    assert {"gap_segment", "span_part", "is_in_progress"}.isdisjoint(cols)
+    assert {"session_id", "cid", "callsign", "logon_time", "start_time", "end_time", "duration", "duration_minutes",
+            "airborne_minutes", "max_gs_kt", "max_alt_ft", "sample_count", "is_circuit", "is_zzzz", "touches_home_region"} <= cols
 
 
 # ------------------------------------------------------------------ airborne minutes

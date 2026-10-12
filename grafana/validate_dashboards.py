@@ -34,6 +34,14 @@ MIGRATION_TEXT = "\n".join(f.read_text(encoding="utf-8") for f in MIGRATION_FILE
 MIGRATION_VIEWS = set(VIEW_RE.findall(MIGRATION_TEXT))
 ALLOWED = MIGRATION_VIEWS | (LOOKUPS & set(TABLE_RE.findall(MIGRATION_TEXT)))
 SKIP_RELATIONS = {"generate_series", "unnest", "lateral"}  # functions / keywords after FROM or JOIN
+# Views that exist but no panel may read (issue 89 phase 3). flight_legacy is the old merging view kept until phase 5 only to compare
+# old and new; flight_part is its per-session layer. Both read the pieces table and pilot_position and are slow and about to go.
+# A panel that read one would silently keep the old cost and would break when phase 5 drops them. Base tables are refused already
+# (they are not in ALLOWED); the message below is the specific one.
+NEVER_FOR_PANELS = {
+    "flight_legacy": "the old merging view, kept until issue 89 phase 5 for comparison only; read flight instead",
+    "flight_part": "the per-session pieces view, removed in issue 89 phase 5; read flight instead",
+}
 
 MACROS = [
     (re.compile(r"\$__timeFrom\(\)"), "'2026-01-01T00:00:00Z'"),
@@ -155,7 +163,9 @@ def main() -> int:
             full = f"{rel}: {label}"
             for rel_name in relations(sql):
                 used.add(rel_name)
-                if rel_name not in ALLOWED:
+                if rel_name in NEVER_FOR_PANELS:
+                    errors.append(f"{full}: reads '{rel_name}', which no panel may read ({NEVER_FOR_PANELS[rel_name]})")
+                elif rel_name not in ALLOWED:
                     errors.append(f"{full}: reads '{rel_name}', which is not an allow-listed view or lookup")
             noise = strip_noise(sql)
             if re.search(r"(?i)\bdistinct\s+on\b", noise):

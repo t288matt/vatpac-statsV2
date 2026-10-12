@@ -1,4 +1,5 @@
-"""Incremental flight_summary (review H1/M1): equivalence with the SPEC section 5 `flight` semantics,
+"""Incremental flight_summary (review H1/M1): equivalence with the SPEC section 5 `flight` semantics (read through `flight_legacy`
+since issue 89 phase 3: the pieces and their old merging view are kept until phase 5, `flight` now reads flight_record),
 idempotent refresh, and flights surviving the raw-position partition drop.
 
 Expected values are computed independently in Python from the synthetic samples (the old live view is
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.integration
 def summary(conn, cid: int) -> list[dict]:
     return conn.execute(
         "SELECT gap_segment, span_part, start_time, end_time, sample_count, airborne_minutes "
-        "FROM flight WHERE cid = %s ORDER BY gap_segment, span_part", (cid,)).fetchall()
+        "FROM flight_legacy WHERE cid = %s ORDER BY gap_segment, span_part", (cid,)).fetchall()
 
 
 def expected(samples: list[tuple[datetime, int | None]], cap: float) -> list[tuple]:
@@ -76,13 +77,13 @@ def test_gate_and_normalisation_with_tab(conn) -> None:
     make_session(conn, 9300011, run(5), dep="YSSY", arr="\t \r\n")
     make_session(conn, 9300012, run(5), dep=None, arr="YMML")
     refresh(conn)
-    rows = conn.execute("SELECT cid, departure, arrival FROM flight WHERE cid BETWEEN 9300010 AND 9300012").fetchall()
+    rows = conn.execute("SELECT cid, departure, arrival FROM flight_legacy WHERE cid BETWEEN 9300010 AND 9300012").fetchall()
     assert [(r["cid"], r["departure"], r["arrival"]) for r in rows] == [(9300010, "YSSY", "YMML")]
     # the summary holds all three sessions: the gate is applied by the view, so a flight plan filed
     # later makes the flight appear without recomputing anything
     assert conn.execute("SELECT count(*) AS n FROM flight_summary WHERE cid BETWEEN 9300010 AND 9300012").fetchone()["n"] == 3
     conn.execute("UPDATE pilot_session SET departure = 'YSCB' WHERE cid = 9300012")
-    assert conn.execute("SELECT departure FROM flight WHERE cid = 9300012").fetchone()["departure"] == "YSCB"
+    assert conn.execute("SELECT departure FROM flight_legacy WHERE cid = 9300012").fetchone()["departure"] == "YSCB"
 
 
 def test_refresh_is_idempotent_and_incremental(conn) -> None:

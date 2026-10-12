@@ -2,7 +2,7 @@
 
 v1's rule: distinct pilots (CIDs) per aircraft type, for types in v1's hand-written code list, over flights completed
 in the last week; the share of each type is its pilots divided by the SUM of the per-type pilot counts (a pilot who
-flew two types counts under both). v3 reads `flight_ext` (completed flights only, ADR-025) and takes the code list from
+flew two types counts under both). v3 reads `flight_ext` (finished flights only: rows of flight_record, issue 89 phase 3) and takes the code list from
 `aircraft_type.in_v1_card65_list` (migration 20261009000160), which is deliberately not `is_military`.
 
 The panel SQL is read from the dashboard JSON and run on synthetic flights. The parity test loads the same flights into
@@ -18,7 +18,7 @@ from decimal import Decimal
 import pytest
 from conftest import REPO
 
-from helpers import CID, add_flight, make_session, panel, refresh, session_ending, set_up_clock
+from helpers import CID, add_flight, make_session, panel, session_ending, set_up_clock
 
 pytestmark = pytest.mark.integration
 
@@ -94,13 +94,15 @@ def test_the_window_is_one_week_by_flight_end(conn) -> None:
     assert by_type(panel_rows(conn)) == {"F16": (1, 1)}
 
 
-def test_a_flight_still_connected_is_not_counted(conn) -> None:
+def test_a_flight_not_yet_written_is_not_counted(conn) -> None:
+    """Nothing is shown in progress (issue 89 phase 3, not yet deployed): a flight reaches the chart when its pilot has been
+    quiet for 8 hours of stored data, measured against the newest snapshot."""
     t = set_up_clock(conn)
-    make_session(conn, CID + 650, session_ending(t, 0))             # still connected
-    make_session(conn, CID + 651, session_ending(t, 120))           # ended two minutes before the newest snapshot
+    make_session(conn, CID + 650, session_ending(t, 0))                 # still connected
+    make_session(conn, CID + 651, session_ending(t, 9 * 3600))          # ended 9 hours before the newest snapshot
     conn.execute("UPDATE pilot_session SET aircraft_icao = 'F16' WHERE cid IN (%s, %s)", (CID + 650, CID + 651))
-    refresh(conn)
-    assert conn.execute("SELECT count(*) AS n FROM flight WHERE cid IN (%s, %s)", (CID + 650, CID + 651)).fetchone()["n"] == 2
+    assert conn.execute("SELECT write_finished_flights() AS n").fetchone()["n"] == 1
+    assert conn.execute("SELECT count(*) AS n FROM flight WHERE cid IN (%s, %s)", (CID + 650, CID + 651)).fetchone()["n"] == 1
     assert by_type(panel_rows(conn)) == {"F16": (1, 1)}
 
 
