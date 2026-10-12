@@ -1,6 +1,8 @@
 # Issue #89: every design option, consolidated (PARKED)
 
-Written 12-10-2026 by the technical writer. This is a summary of four dated working papers (kept unchanged in `docs/design-89/`). Nothing here was built or run; no code, migration or panel was changed. All times are UTC. Dates are DD-MM-YYYY.
+Written 12-10-2026 by the technical writer. This is a summary of four dated working papers (kept unchanged on the branches `design-89`, `opus-89` and `test-89-index`, not on main). Nothing here was built or run; no code, migration or panel was changed. All times are UTC. Dates are DD-MM-YYYY.
+
+> **Do not delete the branches `design-89`, `opus-89` and `test-89-index`.** They hold the four working papers (about 128,000 characters, with dated sections whose earlier recommendations are superseded) and are deliberately not on `main`. Their tips are also tagged `parked-89-design`, `parked-89-opus` and `parked-89-index`. The issue #89 comments of 12-10-2026 repeat this summary.
 
 ## 1. Status, and what to read first
 
@@ -10,8 +12,8 @@ Written 12-10-2026 by the technical writer. This is a summary of four dated work
 
 **What to read first, in this order.**
 1. This document (the whole picture, including how the advice changed).
-2. `docs/design-89/DESIGN_89_FINAL.md` (the build-ready design for option (c), four phases). This is the current recommendation.
-3. Only if needed: `docs/design-89/OPUS_REVIEW_89.md` (many dated sections; later sections supersede earlier ones), `docs/design-89/DESIGN_89.md` (the Sonnet designer's three papers), `docs/design-89/INDEX_TEST_89.md` (why indexes do not work) and `docs/FLIGHT_VIEW_SCALING.md` (the first measurements).
+2. `docs/DESIGN_89_FINAL.md` on branch `opus-89` (the build-ready design for option (c), four phases). This is the current recommendation.
+3. Only if needed: `docs/OPUS_REVIEW_89.md` on branch `opus-89` (many dated sections; later sections supersede earlier ones), `docs/DESIGN_89.md` on branch `design-89` (the Sonnet designer's three papers), `docs/INDEX_TEST_89.md` on branch `test-89-index` (why indexes do not work) and `docs/FLIGHT_VIEW_SCALING.md` (the first measurements).
 
 **Related issues.** #108 (FUTURE: stored merged flights `flight_merged`, the follow-up that was filed first; superseded in detail by this document), #21 (data retention rules for every data set; any option interacts with it, see section 8).
 
@@ -239,7 +241,7 @@ Why they swung: each new fact from the owner changed the test. Reuse of proven c
 
 ## 8. Current recommendation
 
-**Both designers recommend option (c)**, as described in `docs/design-89/DESIGN_89_FINAL.md`: one finished-flight table written once, 3 hours after the pilot was last seen, straight from raw positions, in four phases, ending with the table named `flight_summary`. The strongest argument against it is real (it replaces working code at the most dangerous point, the drop gate, with a deadline), and both designers weighed it and still chose (c).
+**Both designers recommend option (c)**, as described in `docs/DESIGN_89_FINAL.md` on branch `opus-89`: one finished-flight table written once, 3 hours after the pilot was last seen, straight from raw positions, in four phases, ending with the table named `flight_summary`. The strongest argument against it is real (it replaces working code at the most dangerous point, the drop gate, with a deadline), and both designers weighed it and still chose (c).
 
 **Fallback.** If phase 3 (the drop gate) cannot be built, reviewed and rehearsed before about December 2026, ship phases 1 and 2 only. That is effectively option (b): the old finalisation stays in charge of drops, and phases 3 and 4 follow later. The raw-position drop must not run on the live system until the gate matches whichever shape is live.
 
@@ -271,7 +273,7 @@ Why they swung: each new fact from the owner changed the test. Reuse of proven c
 
 ## 11. How to resume
 
-1. Re-read this document, then `docs/design-89/DESIGN_89_FINAL.md`, then re-check the open owner decisions (section 9) and the date: how long is left before about 06-01-2027?
+1. Re-read this document, then `docs/DESIGN_89_FINAL.md` on branch `opus-89`, then re-check the open owner decisions (section 9) and the date: how long is left before about 06-01-2027?
 2. Re-measure anything that matters on PostgreSQL 16: the per-pilot pushdown, and the writer against a restore of a recent live dump (run on a private local database, never on the live VM). Check for overlapping sessions with `ops/check_identity_flap.sql`.
 3. Build phase 1 first (a writer beside today's code; nothing deleted). Use a new worktree under `.worktrees/`, one branch and PR per phase, independent review for each, and `Refs #89`, never `Fixes`.
 4. Models: Sonnet builds each phase. Use an Opus second pass **only** for the writer function (phase 1) and the drop gate (phase 3), and **only after telling the owner first**. Never use Opus for alerting or docs.
@@ -293,7 +295,7 @@ Why they swung: each new fact from the owner changed the test. Reuse of proven c
 
 ## Source papers
 
-- `docs/design-89/DESIGN_89.md` (branch `design-89`): Sonnet designer, options A to C, addendum, final (c).
-- `docs/design-89/OPUS_REVIEW_89.md` and `docs/design-89/DESIGN_89_FINAL.md` (branch `opus-89`): Opus architect.
-- `docs/design-89/INDEX_TEST_89.md` (branch `test-89-index`): index measurements.
+- `docs/DESIGN_89.md` on branch `design-89` (branch `design-89`): Sonnet designer, options A to C, addendum, final (c).
+- `docs/OPUS_REVIEW_89.md` on branch `opus-89` and `docs/DESIGN_89_FINAL.md` on branch `opus-89` (branch `opus-89`): Opus architect.
+- `docs/INDEX_TEST_89.md` on branch `test-89-index` (branch `test-89-index`): index measurements.
 - `docs/FLIGHT_VIEW_SCALING.md`: first measurements.
