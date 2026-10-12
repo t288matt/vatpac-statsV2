@@ -372,15 +372,18 @@ def test_another_pilots_activity_does_not_delay_the_first(conn: Any) -> None:
     assert [r["cid"] for r in records(conn)] == [36] and flown(conn, a) is not None and flown(conn, b) is None
 
 
-def test_a_multi_leg_pilot_is_written_only_when_quiet_after_the_last_leg(conn: Any) -> None:
+def test_a_multi_leg_pilots_legs_are_each_written_when_that_leg_is_quiet(conn: Any) -> None:
+    """Quiet per FLIGHT (owner decision 12-10-2026): leg 1 does not wait for leg 2."""
     leg1 = times(BASE, 30)
     leg2 = times(BASE + 2 * HOUR, 30)
     mk(conn, 38, leg1, dep="YSSY", arr="YMML")
     mk(conn, 38, leg2, logon=leg2[0], dep="YMML", arr="YSSY")
-    snap(conn, leg2[-1] + 8 * HOUR - MIN)
-    assert write(conn) == 0                                                  # leg 1 is quiet for 9 h but the pilot is not
+    snap(conn, leg1[-1] + 8 * HOUR - MIN)
+    assert write(conn) == 0
+    snap(conn, leg1[-1] + 8 * HOUR)
+    assert write(conn) == 1                                                  # leg 1 only
     snap(conn, leg2[-1] + 8 * HOUR)
-    assert write(conn) == 2
+    assert write(conn) == 1                                                  # then leg 2
 
 
 def test_a_returning_session_forms_a_new_flight_and_leaves_the_written_one_alone(conn: Any) -> None:
@@ -549,16 +552,19 @@ def test_the_backfill_script_loops_until_no_finished_pilot_is_left_not_until_a_b
     assert '[ "$n" -eq 0 ] && break' not in text and "stuck" in text      # and gives up after rounds without progress
 
 
-def test_the_backfill_scripts_remaining_query_counts_exactly_the_finished_unprocessed_pilots(conn: Any) -> None:
+def test_the_backfill_scripts_remaining_query_counts_exactly_the_finished_unprocessed_flights(conn: Any) -> None:
     import re
     text = (REPO / "ops" / "backfill_flight_record.sh").read_text(encoding="utf-8")
-    sql = re.search(r'^REMAINING_SQL="(.*)"$', text, re.M).group(1)
+    sql = re.search(r"REMAINING_SQL=\"\$\(cat <<'SQL'\n(.*?)\nSQL\n\)\"", text, re.S).group(1)
     mk(conn, 80, times(BASE, 20))                                           # finished
     mk(conn, 81, times(BASE + 9 * HOUR, 20), logon=BASE + 9 * HOUR)         # still connected
     mk(conn, 82, times(BASE, 20), dep=None, arr=None)                       # finished, no plan: the writer returns 0 for it
+    # pilot 83: a finished flight and a later, different flight that is still active (quiet per FLIGHT: the first one counts)
+    mk(conn, 83, times(BASE, 20), dep="YSSY", arr="YMML")
+    mk(conn, 83, times(BASE + 9 * HOUR, 20), logon=BASE + 9 * HOUR, dep="YMML", arr="YSSY")
     snap(conn, BASE + 9 * HOUR + 19 * MIN)
-    assert conn.execute(sql).fetchone()["count"] == 2
-    assert write(conn) == 1                                                  # one flight written, two pilots processed
+    assert conn.execute(sql).fetchone()["count"] == 3
+    assert write(conn) == 2                                                  # pilots 80 and 83 each write one flight
     assert conn.execute(sql).fetchone()["count"] == 0
 
 
