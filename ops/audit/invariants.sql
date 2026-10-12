@@ -87,6 +87,27 @@ SELECT 'flight_summary sample_count differs from stored positions (final or sett
   WHERE s.last_seen < now() - interval '15 minutes' AND s.first_seen >= now() - interval '3 days' GROUP BY f.session_id) x
 WHERE sc <> pc
 UNION ALL
+-- Issue 89 phase 1: the flight writer (write_finished_flights, table flight_record). "Quiet" is measured against the newest stored
+-- snapshot, as the writer does, never the clock. The 9 hours below are the default quiet period of 8 hours plus 1; watchdog_ro
+-- cannot read app_setting, so if the owner changes flight_quiet_hours this literal must follow (docs/CONFIG_MAP.md).
+SELECT 'pilots quiet longer than the quiet period plus 1 hour with unprocessed positions', count(*), NULL FROM (
+  SELECT ps.cid FROM pilot_session ps
+  WHERE ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto
+  GROUP BY ps.cid
+  HAVING (SELECT max(observed_at) FROM network_snapshot) - max(ps.last_seen) >= interval '9 hours') q
+UNION ALL
+SELECT 'flights written in the last 3 days whose sample_count differs from the stored positions of their sessions', count(*), NULL FROM (
+  SELECT f.session_id, f.start_time, f.sample_count,
+         (SELECT count(*) FROM pilot_position p
+           WHERE p.session_id = ANY (f.session_ids) AND p.observed_at BETWEEN f.start_time AND f.end_time) AS pc
+  FROM flight_record f WHERE f.written_at >= now() - interval '3 days' AND f.sample_count > 0) x
+WHERE sample_count <> pc
+UNION ALL
+SELECT 'sessions ended more than 2 days ago with unprocessed positions', count(*), NULL
+FROM pilot_session s
+WHERE (s.flown_upto IS NULL OR s.last_seen > s.flown_upto)
+  AND s.last_seen < (SELECT max(observed_at) FROM network_snapshot) - interval '2 days'
+UNION ALL
 SELECT 'daily partitions missing for today..today+3', count(*), NULL FROM generate_series(0, 3) g(d)
 WHERE to_regclass(format('public.pilot_position_%s', to_char((now() AT TIME ZONE 'UTC')::date + g.d, 'YYYYMMDD'))) IS NULL
 UNION ALL

@@ -4,11 +4,19 @@ What changed in VATPAC Stats v3, newest first, in plain words. Dates are DD-MM-Y
 
 How to read it. "Deployed" means running on the production VM, with the date and time and commit taken from the deploy records in the tracker and the runbooks. Where a record gives only part of that, the entry says "not recorded". The code history is much finer than this page; the full list is `git log`. Decision numbers (ADR-nnn) are in docs/DECISIONS.md and issue numbers (#nn) are on GitHub.
 
-The production VM runs the tree shipped from commit 3eb81a3 on 09-10-2026 at 19:13, plus the Grafana upgrade and public dashboards of 11-10-2026 (commits 848526c and b3189ad, listed first below).
+Updated 12-10-2026 (docs batch 3, issue #107). The production VM runs commit b3189ad, marked live on 11-10-2026 at 20:35:53 UTC in the VM's release record (`.deploy/release.log`, read on 12-10-2026). Everything merged to main up to c89e544 on 10-10-2026, plus the work of 11-10-2026 described below, is now deployed. Main has since moved on by documentation and tooling commits only (the last, 86a5172, adds no code to the running system; the VM marker stays b3189ad).
 
-## Merged to main but NOT yet deployed (as of 10-10-2026)
+## Issue 89 phase 1: flights written once (branch p1-flight-record, 12-10-2026; not merged, not deployed)
 
-Nothing in this section is running on the VM. Each deploy needs the owner's explicit go ([docs/DEPLOY_PLAN_REVIEW_FIXES.md](docs/DEPLOY_PLAN_REVIEW_FIXES.md)): deploy 1 (fix-ops and the Telegram wording) is planned for Sunday 11-10-2026 after the 02:00 backup and restore test have been read; deploy 2 (fix-collector) about 24 hours later; fix-sql after those.
+Adds the table `flight_record` and the writer `write_finished_flights()` (migration 20261012000190), run side by side with today's pieces table. Nothing reads the new table yet, so no chart changes. Refs #89 and #137; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md) (branch opus-89), requirement-to-test table in [docs/CONFORMANCE_89_PHASE1.md](docs/CONFORMANCE_89_PHASE1.md).
+- A pilot's flights are written, once, 8 hours of stored data after the pilot was last seen; the rule for joining reconnects is v1's (same pilot, callsign, departure and arrival; joined when the new connection logged on within 120 minutes of the last point).
+- `pilot_session.flown_upto`, the setting `flight_quiet_hours`, `ops/backfill_flight_record.sh`, `ops/compare_flights_89.sql` (comparison A) and `ops/compare_flights_v1_89.sql` (comparison B, for the owner to run), three new watchdog checks, and `flight_record` in the restore check and the `watchdog_ro` grant.
+
+No deploy happened on 10-10-2026. The VM stayed on commit 3eb81a3 (deployed 09-10-2026) all that day; the work merged on 10-10-2026 went live in the deploys of 11-10-2026.
+
+## Merged 09-10 to 10-10-2026 (deployed 11-10-2026)
+
+The items below were written while they were still undeployed. They are now live: they shipped in the deploy marked at 12:38:39 UTC on 11-10-2026 (marked commit 34e5194), which contains the branch tips named below. The original plan to ship them in separate steps (deploys 1 and 2 at commit 520dc3e, then fix-sql) was replaced by that single deploy; the repository does not record the owner's reason or the step-by-step checks of that deploy (listed under "Things this page could not confirm").
 
 ### fix-ops (merged about 08:42 UTC on 10-10-2026, branch tip d0ceaaa; independently reviewed in two rounds)
 Safer backups, restores, roles and alerts. Fixes issues #81, #83, #84, #86, #90, #91, #95, #96, #97, #101 and #102.
@@ -30,7 +38,7 @@ A sturdier collector. Fixes issues #82, #85, #87, #88, #92, #99 and #100.
 - Review record: [docs/reviews/10-10-2026-fix-collector.md](docs/reviews/10-10-2026-fix-collector.md).
 
 ### Plain-language Telegram messages (issue #79; commits 3c8df0e, aacd655, bed4dfa, cdfdc1b; on main 09-10-2026 evening)
-Alerts become a short sentence in everyday words with a last line starting `Technical:` for the detail, labelled "heads up", "problem" or "all clear". Today's messages still read `vatpac-stats: WARN ...`. When an alert clears, the message says how long it lasted. Independently reviewed. Details in [docs/RUNBOOKS/alerts.md](docs/RUNBOOKS/alerts.md).
+Alerts become a short sentence in everyday words with a last line starting `Technical:` for the detail, labelled "heads up", "problem" or "all clear". When an alert clears, the message says how long it lasted. Independently reviewed. Details in [docs/RUNBOOKS/alerts.md](docs/RUNBOOKS/alerts.md).
 
 ### fix-sql (on main by the evening of 10-10-2026; branch tip when reviewed b9f0170; the merge time is not recorded)
 Three database and dashboard fixes and one measurement. Fixes issues #93, #94 and #98; #89 is measured and documented only. Independently reviewed in two rounds (round-2 record is on branch `review-fix-sql-r2`; its low follow-ups are issue #112).
@@ -38,7 +46,7 @@ Three database and dashboard fixes and one measurement. Fixes issues #93, #94 an
 - The Monday event panel shows this Monday, not last Monday, before 07:00 UTC (issue #94).
 - Dropping old position partitions is rewritten as migration 20261009000170: it takes locks without waiting, re-checks each partition before dropping and drops at most 10 per call; `maintenance.py` repeats the call. The first real drop is not due until about 06-01-2027 (issue #98).
 - The flight view's growth with history is measured (docs/FLIGHT_VIEW_SCALING.md); the fix is future work (issue #108).
-- Do NOT ship this with deploys 1 and 2: those use the exact commit 520dc3e, which does not contain it ([docs/DEPLOY_PLAN_REVIEW_FIXES.md](docs/DEPLOY_PLAN_REVIEW_FIXES.md)).
+- The first real partition drop is still not due until about 06-01-2027.
 
 ### Replay and fuzz tests (issue #103; on main 10-10-2026, last commit 27cb266 at 20:39 UTC)
 Tests only; nothing to deploy. Two real raw-feed snapshots are kept as fixtures, with a replay tool, seeded fuzz generators, parser fuzz tests and ingest tests against Postgres. They found two real defects, now issues #111 (oversized multi-byte callsign) and #114 (infinite controller frequency), pinned as expected failures until fixed. The full fuzz grids run in CI.
@@ -56,10 +64,10 @@ Tests only; nothing to deploy. Two real raw-feed snapshots are kept as fixtures,
 - CI and release workflow fixes (a line-length error had kept CI red for four commits on 10-10-2026).
 
 ### Collector fixes for oversized and odd feed values (10-10-2026, c89e544, PR 117; issues #111 and #114)
-A callsign, departure or arrival is capped in bytes and an index-size error is bisected out like a bad row; an infinite or huge controller frequency is treated as malformed. Before, either could lose the whole snapshot on every poll. Found by the replay and fuzz tests; the expected-failure pins are removed. Deploys after fix-sql.
+A callsign, departure or arrival is capped in bytes and an index-size error is bisected out like a bad row; an infinite or huge controller frequency is treated as malformed. Before, either could lose the whole snapshot on every poll. Found by the replay and fuzz tests; the expected-failure pins are removed. Deployed in the 11-10-2026 12:38 deploy.
 
 ### Read-only deploy checks (10-10-2026, 991ddc0, PR 116; issue #104 trimmed)
-`ops/deploy.sh` with `--preflight`, `--verify`, `--status` and `--mark` (a release marker on the VM). Nothing is deployed by it; every deploy still needs the owner's go. The runner and automatic rollback are parked.
+`ops/deploy.sh` with `--preflight`, `--verify`, `--status` and `--mark` (a release marker on the VM). Reading checks only; every deploy still needs the owner's go. The runner and automatic rollback are parked.
 
 ### Second review of deploy 1 (10-10-2026)
 An Opus review of privileges and backup and restore says go with two extra checks, now in docs/DEPLOY_PLAN_REVIEW_FIXES.md (record on branch `review-fix-ops-opus`). It also filed issue #118 (backup validation accepts a dump of an empty or wrong database).
@@ -68,6 +76,18 @@ An Opus review of privileges and backup and restore says go with two extra check
 - Incident 10-10-2026 (issue #113): two snapshots were stored late (apply timeouts at 15:47 and 15:52 UTC) because several test containers ran on the live VM at once. No data was lost; new rule in the working agreement.
 
 ## Deployed
+
+### 11-10-2026 16:01 (marked): faster "online now" and a stricter backup check (commit aeaf72f; issues #109 and #118)
+- `online_now`, `pilot_latest` and `pilot_online_now` look up the newest position of each session with a `LATERAL ... LIMIT 1` lookup instead of probing every position partition, and the read-only Grafana role has JIT off (migration 20261011000180, commit 60d848c; issue #109). Results are meant to be identical; the speed-up matters once ADR-026 retention creates about 190 partitions.
+- A backup is only kept if it holds real data: at least 50 percent of the size of the newest good dump (or at least 1 MiB when there is none), data entries for the key tables, and rotation never leaves fewer than 3 good dumps (settings `BACKUP_MIN_SIZE_PERCENT`, `BACKUP_MIN_FIRST_BYTES`, `BACKUP_MIN_KEEP`; issue #118, commits 9c3d866 and 3caf4bd). The backup container was recreated at 15:56 UTC (container start time).
+- Rollback copy on the VM: `~/vatpac-statsV2.rollback-11-10-grafana` (15:55).
+
+### 11-10-2026 12:38 (marked) and 12:47 (marked, documents only): the combined deploy of everything merged on 09-10 and 10-10-2026 (commits 34e5194, then b2a4cd6)
+- Contains fix-ops, fix-collector, the plain-language Telegram wording, fix-sql (migration 20261009000170), fix-111-114 and the read-only deploy checks, all described in the section above, plus the collector changes of the morning of 11-10-2026:
+- **A hard floor of 30 seconds between any two requests to VATSIM**, retries and discovery included (`MIN_REQUEST_GAP_S` in `feed.py`, commit 4d5b16e). Owner rule: never overpoll the feed. Once the feed has stalled for a full interval the collector polls again at the normal interval instead of faster (commit 0c720de), and waits for the feed end at once on shutdown (commit f780b20).
+- The collector and watchdog containers were recreated about 12:35 UTC (container start times, restart counts 0). The 12:47 mark covers a documents-only update (reviews kept in docs/reviews).
+- Rollback copies on the VM: `~/vatpac-statsV2.rollback-11-10-all2` (dated 11-10 12:46, fits this deploy). `-all` is dated 09-10 19:13, so its contents were not verified and it may be an older copy.
+- Context, not caused by the deploy: the Proxmox host restarted or crashed at about 08:49 UTC on 11-10-2026 (database container start time, verified), and the owner reported the VATSIM feed frozen from about 03:08 to about 12:00 UTC (not verified here); both left a data gap. The invariant checks that count snapshot gaps are expected to clear about 14-10-2026.
 
 ### 11-10-2026 20:35: stable public links and short addresses (commit b3189ad)
 The ten public dashboard links now have fixed tokens (the first 32 hex characters of sha256 of `vatpac-public:` plus the dashboard uid), so they no longer change when recreated, and ten short addresses (`/live`, `/traffic`, `/new-pilots`, `/origins`, `/atc`, `/atc-retention`, `/monday`, `/military`, `/monthly`, `/health`) redirect to them. The fixed `ops/grafana_public.py` (finds Grafana through `GRAFANA_BIND` and `GRAFANA_PORT`; `--traefik-labels --host` prints the Traefik labels) is on the VM tree; the 10 links were replaced once by the stable ones. The owner pasted the label block into `~/vatpac-proxy/docker-compose.yml` on the Traefik machine and recreated the container. Checked from outside through Cloudflare: each short address answers 302, the dashboard loads (200), anonymous API calls answer 401. The hostname `vpac.mpengor.com` is confirmed. See [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md).
@@ -118,6 +138,10 @@ The first working stack (collector, Postgres, Grafana, backup, watchdog) was bui
 Specification and scaffold (commits e5616a5 and 450b0fb, about 16:10 UTC), the full first build of collector, schema, dashboards, compose stack, ops scripts and tests (d6d4398, about 19:32 UTC), an architecture and docs pass (5aff4f3), and a round of review fixes: flights as an incrementally maintained table, least-privilege database roles, collector hardening, the soak report (1587ba9, 7c361d4). Decisions ADR-001 to ADR-019 date from this day.
 
 ## Things this page could not confirm
+- The checks run at each of the four deploys marked on 11-10-2026 (smoke, panel check, restart counts, watch period): the VM's release record holds only the commit and time, and no deploy report for 11-10-2026 is in the repository. Which of the changes in the 12:38 deploy were applied at that mark, and which at later ones, is inferred from the branch contents of the marked commits and the VM's file and container times.
+- Whether the plan of separate deploys 1 and 2 was dropped by an owner decision (not recorded in the repository).
+- The result of the 12-10-2026 pending checks (collector maintenance at about 12:35, the 02:00 backup under the new content check, first message in the new wording): not read for this page.
+- A Grafana 12.x first-start note: it downloads default plugins from grafana.com (reported in the session handover of 11-10-2026, not checked here); the owner has not yet decided whether to switch that off.
 - The commit and time of the first deploy on 07-10-2026 (see above).
 - The deployed commits of the two small database-only changes on 09-10-2026 (about 15:57 and about 16:30); the tracker gives only the times.
 - Whether any deploy happened between 07-10-2026 and 08-10-2026 12:37 other than the first: the tracker and ARCHITECTURE.md record none.
