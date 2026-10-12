@@ -6,6 +6,15 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 12-10-2026 (docs batch 3, issue #107). The production VM runs commit b3189ad, marked live on 11-10-2026 at 20:35:53 UTC in the VM's release record (`.deploy/release.log`, read on 12-10-2026). Everything merged to main up to c89e544 on 10-10-2026, plus the work of 11-10-2026 described below, is now deployed. Main has since moved on by documentation and tooling commits only (the last, 86a5172, adds no code to the running system; the VM marker stays b3189ad).
 
+## Issue 89 phase 3: the charts read the written flights (branch p3-switch-views, 12-10-2026; not merged, not deployed)
+
+Migration 20261013000200 switches the flight readers to `flight_record` (refs #89 and #139; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md)). It needs phase 1 deployed, the backfill finished and the phase 1 exit gate (#138) passed first.
+- `flight` becomes a thin view over `flight_record`; `flight_ext`, `movements`, `cohorts` and `monday_attendance` follow it. The old merging view is kept as `flight_legacy` for comparison only (no panel may read it).
+- Nothing is shown in progress: a finished flight appears in the charts about 8 hours after its pilot's last connection ends. The `NOT is_in_progress` filter is removed from the 11 panels that carried it and from `flight_ext`; `flight` loses `gap_segment`, `span_part` and `is_in_progress`.
+- Monday attendance follows the standard rule (distinct pilots of finished flights overlapping 07:00 to 12:00Z); a Monday is complete about 8 hours after the last pilot in the window disconnects.
+- A connection longer than 8 hours, or with a long silence, is one flight (v1's rule; about 0.5% fewer flights).
+- Old against new on the same data: `tests/integration/test_flight_views_switch.py` (each affected view) and `ops/compare_views_89_phase3.sql` (for the owner, read only). Requirement-to-test table: [docs/CONFORMANCE_89_PHASE3.md](docs/CONFORMANCE_89_PHASE3.md).
+
 ## Issue 89 phase 1: flights written once (branch p1-flight-record, 12-10-2026; not merged, not deployed)
 
 Adds the table `flight_record` and the writer `write_finished_flights()` (migration 20261012000190), run side by side with today's pieces table. Nothing reads the new table yet, so no chart changes. Refs #89 and #137; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md) (branch opus-89), requirement-to-test table in [docs/CONFORMANCE_89_PHASE1.md](docs/CONFORMANCE_89_PHASE1.md).

@@ -88,7 +88,7 @@ Handling: the callsign is not stored as a session. It is upserted into `controll
 | `is_circuit` | Normalised departure equals normalised arrival. |
 | `is_zzzz` | Departure or arrival is `ZZZZ`. |
 | `touches_home_region` | Departure or arrival starts with a prefix in `HOME_ICAO_PREFIXES` (default `Y`). |
-| `is_in_progress` | A session of the (merged) flight is in `online_now` (issue #38). Counting panels leave such flights out (ADR-025): `flight_ext`, `movements` and `cohorts` do it in the view, panels reading `flight` directly add `NOT is_in_progress`. Live panels keep them. When the collector is stale nothing is in progress, so nothing is hidden. |
+| `is_in_progress` | (Production. Removed from `flight` by migration 20261013000200, issue 89 phase 3, not yet deployed; it stays only in `flight_legacy`. After that nothing is shown in progress because a flight is written only 8 hours after its pilot's last connection ends.) A session of the (merged) flight is in `online_now` (issue #38). Counting panels leave such flights out (ADR-025): `flight_ext`, `movements` and `cohorts` do it in the view, panels reading `flight` directly add `NOT is_in_progress`. Live panels keep them. When the collector is stale nothing is in progress, so nothing is hidden. |
 
 ## 10. Verification status of these definitions
 
