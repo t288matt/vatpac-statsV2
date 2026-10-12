@@ -10,8 +10,9 @@
   python run_comparisons.py extract --file comparison_b.sql --name b_v3 > b_v3.sql   # one query, linted, for ssh
   python run_comparisons.py selftest                  # synthetic checks of the matcher, no database
 
-Connections come from the environment (never printed, never passed on the command line):
-  V3_DSN, V1_DSN   libpq connection strings or URIs; passwords belong in ~/.pgpass or PGPASSWORD.
+Connections come from the environment (never printed):
+  V3_SERVICE, V1_SERVICE   names of PGSERVICE entries (~/.pg_service.conf); passwords in ~/.pgpass.
+  psql gets no connection string or password on its command line.
 Each query is linted (SELECT / WITH only, no write keywords) and run in a read-only session with a
 statement timeout. Standard library only; needs the psql client for the database modes.
 """
@@ -53,36 +54,94 @@ def split_queries(path: Path) -> dict[str, str]:
     return out
 
 
+DENY_FUNCS = re.compile(
+    r"\b(pg_terminate_backend|pg_cancel_backend|pg_sleep\w*|lo_\w+|pg_read_\w+|pg_ls_\w+|pg_stat_file|"
+    r"pg_reload_conf|pg_rotate_logfile|pg_switch_\w+|pg_create_\w+|pg_drop_\w+|pg_advisory_\w+|"
+    r"set_config|nextval|setval|dblink\w*|query_to_xml\w*|xmlparse|copy|into|"
+    r"write_finished_flights|refresh_flight_summary\w*|drop_old_pilot_position_partitions|"
+    r"ensure_pilot_position_partitions|refresh_materialized_views)\b", re.I)
+
+
+def strip_sql(sql: str) -> str:
+    """One pass over the text: replace string literals (plain, E'', $tag$) by '' and drop comments.
+    Done as a scanner, so an apostrophe in a comment or a dashes in a literal cannot confuse it."""
+    out: list[str] = []
+    i, n = 0, len(sql)
+    while i < n:
+        c = sql[i]
+        if c == "-" and sql.startswith("--", i):
+            j = sql.find("\n", i)
+            i = n if j < 0 else j
+        elif c == "/" and sql.startswith("/*", i):
+            depth, i = 1, i + 2
+            while i < n and depth:
+                if sql.startswith("/*", i): depth += 1; i += 2
+                elif sql.startswith("*/", i): depth -= 1; i += 2
+                else: i += 1
+            if depth: raise SystemExit("lint: unterminated comment")
+            out.append(" ")
+        elif c == "$":
+            m = re.match(r"\$[A-Za-z_]*\$", sql[i:])
+            if m:
+                tag = m.group(0)
+                j = sql.find(tag, i + len(tag))
+                if j < 0: raise SystemExit("lint: unterminated dollar quote")
+                out.append("''"); i = j + len(tag)
+            else:
+                out.append(c); i += 1
+        elif c == "'":
+            escaped = i > 0 and sql[i - 1] in "eE" and (i < 2 or not (sql[i - 2].isalnum() or sql[i - 2] == "_"))
+            j = i + 1
+            while True:
+                if j >= n: raise SystemExit("lint: unterminated string")
+                if escaped and sql[j] == "\\": j += 2; continue
+                if sql[j] == "'":
+                    if j + 1 < n and sql[j + 1] == "'": j += 2; continue
+                    break
+                j += 1
+            out.append("''"); i = j + 1
+        elif c == '"':
+            j = sql.find('"', i + 1)
+            if j < 0: raise SystemExit("lint: unterminated identifier")
+            out.append('"x"'); i = j + 1
+        else:
+            out.append(c); i += 1
+    return "".join(out)
+
+
 def lint(sql: str) -> None:
-    """Refuse anything that is not a single SELECT / WITH statement."""
-    bare = re.sub(r"--[^\n]*", "", sql)
-    bare = re.sub(r"'(?:[^']|'')*'", "''", bare)  # drop string literals, including :'name' values
-    bare = bare.replace(":''", "")
-    body = bare.strip().rstrip(";")
+    """Refuse anything that is not one plain SELECT / WITH statement without side effects."""
+    bare = strip_sql(sql).replace(":''", " ")        # psql variables :'name' were literals
+    if "\\" in bare:
+        raise SystemExit("lint: backslash (psql meta-command) is not allowed")
+    body = bare.strip().rstrip(";").strip()
     if ";" in body:
         raise SystemExit("lint: more than one statement")
     if not re.match(r"(select|with)\b", body, re.I):
         raise SystemExit("lint: statement must start with SELECT or WITH")
-    hit = FORBIDDEN.search(body.replace("FOR UPDATE", ""))
-    if hit and hit.group(1).lower() not in {"do"}:  # 'do' never appears as a word in these files
-        raise SystemExit(f"lint: forbidden keyword {hit.group(1)!r}")
+    for rx in (FORBIDDEN, DENY_FUNCS):
+        hit = rx.search(body)
+        if hit:
+            raise SystemExit(f"lint: forbidden word {hit.group(0)!r}")
 
 
-def run_psql(dsn_env: str, sql: str, variables: dict[str, str], timeout_s: int) -> list[dict[str, str]]:
-    dsn = os.environ.get(dsn_env)
-    if not dsn:
-        raise SystemExit(f"{dsn_env} is not set")
+def run_psql(service_env: str, sql: str, variables: dict[str, str], timeout_s: int) -> list[dict[str, str]]:
+    """Runs psql with the connection taken from a PGSERVICE name (see ~/.pg_service.conf and ~/.pgpass),
+    so no connection string or password is ever in the command line."""
+    service = os.environ.get(service_env)
+    if not service:
+        raise SystemExit(f"{service_env} is not set (name of a PGSERVICE entry)")
     lint(sql)
-    cmd = ["psql", "-X", "-q", "--csv", "-v", "ON_ERROR_STOP=1", dsn, "-f", "-"]
+    cmd = ["psql", "-X", "-q", "--csv", "-v", "ON_ERROR_STOP=1", "-f", "-"]
     for k, v in variables.items():
         cmd[1:1] = ["-v", f"{k}={v}"]
     env = dict(os.environ)
+    env["PGSERVICE"] = service
     env["PGOPTIONS"] = (f"-c default_transaction_read_only=on -c statement_timeout={timeout_s}s "
                         "-c idle_in_transaction_session_timeout=60s")
     proc = subprocess.run(cmd, input=sql, text=True, capture_output=True, env=env, check=False)
     if proc.returncode != 0:
-        # stderr from psql can echo the query but never the DSN; still trim it.
-        raise SystemExit(f"psql failed ({dsn_env}): {proc.stderr.strip()[:2000]}")
+        raise SystemExit(f"psql failed ({service_env}): {proc.stderr.strip()[:2000]}")
     return list(csv.DictReader(io.StringIO(proc.stdout)))
 
 
@@ -304,12 +363,18 @@ def selftest() -> int:
     if len(match(plain3, plain1).exact) != 1: errs.append("plain export did not match")
     # cutoff drops late rows on both sides
     if match(plain3, plain1, cutoff=ts("2026-10-09 01:30:00+00")).v3_total != 0: errs.append("cutoff ignored")
-    for bad in ("INSERT INTO x VALUES (1)", "SELECT 1; DROP TABLE x"):
+    bads = ("INSERT INTO x VALUES (1)", "SELECT 1; DROP TABLE x", "SELECT '--' ; DROP TABLE x",
+            "SELECT 1\n\\! rm -rf /", "SELECT 1\n\\copy x to 'f'", "SELECT a INTO newt FROM t",
+            "SELECT pg_terminate_backend(1)", "SELECT lo_import('/etc/passwd')", "SELECT pg_sleep(100)",
+            "SELECT set_config('a','b',false)", "SELECT 1 /* x */ ; /* y */ DELETE FROM t",
+            "SELECT $$a$$; DROP TABLE x", "SELECT E'\\'' ; DROP TABLE x --'", "SELECT nextval('s')")
+    for bad in bads:
         try:
             lint(bad); errs.append(f"lint accepted {bad!r}")
         except SystemExit:
             pass
     lint("WITH a AS (SELECT :'from_ts'::timestamptz AS t) SELECT * FROM a WHERE x IS DISTINCT FROM y")
+    lint("SELECT 'a--b', E' \\t\\r\\n' -- don't panic\n FROM t /* it's */ WHERE x = ")
     for p in (HERE / "comparison_a.sql", HERE / "comparison_b.sql"):
         for name, q in split_queries(p).items():
             try:
@@ -360,7 +425,7 @@ def main() -> int:
         v = {"from_ts": a.from_ts, "to_ts": a.to_ts}
         rc = 0
         for name, sql in qs.items():
-            rows = run_psql("V3_DSN", sql, v, max(a.timeout, 120))
+            rows = run_psql("V3_SERVICE", sql, v, max(a.timeout, 120))
             write_csv(out / f"{name}.csv", rows)
             print(f"{name}: {len(rows)} rows -> {out / (name + '.csv')}")
         diffs = read_csv(out / "a_differences.csv")
@@ -390,8 +455,8 @@ def main() -> int:
         if not (a.from_ts and a.to_ts): raise SystemExit("--from-ts and --to-ts are required")
         qs = split_queries(HERE / "comparison_b.sql")
         v = {"from_ts": a.from_ts, "to_ts": a.to_ts, "gap_from": a.gap_from, "gap_to": a.gap_to}
-        v3 = run_psql("V3_DSN", qs["b_v3"], v, a.timeout)
-        v1 = run_psql("V1_DSN", qs["b_v1"], v, a.timeout)
+        v3 = run_psql("V3_SERVICE", qs["b_v3"], v, a.timeout)
+        v1 = run_psql("V1_SERVICE", qs["b_v1"], v, a.timeout)
         write_csv(out / "b_v3.csv", v3); write_csv(out / "b_v1.csv", v1)
     known = None
     if a.known_v3_only:

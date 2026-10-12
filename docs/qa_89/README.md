@@ -1,6 +1,6 @@
 # Owner steps for the #138 exit gate (comparisons A and B)
 
-Revised 12-10-2026. Everything here is read only. No step writes to v3 or v1, no step touches `flights_archive` or `transceivers`, and no password is typed or printed (the database container reads its own environment). You run the commands; nothing is run for you. Files are in `docs/qa_89/`. Run them from that folder on your PC; `python` needs only the standard library.
+Revised 12-10-2026. Everything here is read only. No step writes to v3 or v1, no step touches `flights_archive` or `transceivers`, and no password is typed or printed (the database container reads its own environment). You run the commands; nothing is run for you. Files are in `docs/qa_89/`. Run every command in Git Bash (not PowerShell: the quoting differs). Run them from that folder on your PC; `python` needs only the standard library.
 
 Check the tooling first: `python run_comparisons.py selftest` must print `selftest: OK`.
 
@@ -21,7 +21,7 @@ python run_comparisons.py extract --file comparison_a.sql --name $Q > $Q.sql
 ssh vatpac-v3 "cd ~/vatpac-statsV2 && docker compose exec -T db sh -c 'PGOPTIONS=\"-c default_transaction_read_only=on -c statement_timeout=120s\" psql -X -q --csv -v ON_ERROR_STOP=1 -v from_ts=\"2026-10-07 21:38+00\" -v to_ts=\"<TO_TS>\" -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -f -'" < $Q.sql > $Q.csv
 ```
 
-Replace `<TO_TS>` as in section 0. Prefer a restore of a live dump (`docs/RUNBOOKS/restore.md`) for `a_independent`, which scans `pilot_position`; on the live VM keep the window short or run it at a quiet hour. Sizes: `a_summary` is 5 rows, `a_duplicates` should be empty, `a_differences` should be a few lines per day.
+Replace `<TO_TS>` as in section 0. Prefer a restore of a live dump (`docs/RUNBOOKS/restore.md`) for `a_independent`, which scans `pilot_position`; on the live VM keep the window short or run it at a quiet hour. `a_differences` runs flight_part look-ups per difference: run A at a quiet hour with a statement timeout of 180 s (change `statement_timeout=120s` to `180s` in the command above; on 12-10-2026 it ran in under a minute at load 0.3). Sizes: `a_summary` is 4 rows, `a_duplicates` should be empty, `a_differences` should be a few lines per day.
 
 Reading the output (`a_differences.csv`): one row per difference, `reason` explains it:
 
