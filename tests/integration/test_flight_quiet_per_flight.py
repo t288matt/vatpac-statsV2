@@ -39,28 +39,35 @@ def test_an_earlier_finished_flight_is_written_while_a_later_flight_of_the_same_
 
 
 def test_a_later_session_of_the_same_key_within_120_minutes_keeps_the_flight_open(conn: Any) -> None:
-    """S has been quiet for more than 8 h but T (same key) logged on within 120 minutes of S's last position and is still active:
-    they are ONE flight, which is not quiet, so nothing is written for either."""
-    s = times(BASE, 60)
-    t = times(s[-1] + 90 * MIN, 30)                                        # logs on 90 min after S ended, flies for 30 min
+    """S has been quiet for 9 hours (the pilot IS picked) but T (same key) logged on 90 minutes after S's last position and is still
+    active: they are ONE flight, which is not quiet, so nothing is written for either. Wrong grouping would write S."""
+    s = times(BASE, 20)
+    logon = s[-1] + 90 * MIN
     a = mk(conn, 701, s)
-    b = mk(conn, 701, t, logon=t[0])
-    snap(conn, t[10])                                                      # T is active; S ended 10 h 40 min ago
+    b = mk(conn, 701, [logon + MIN, s[-1] + 9 * HOUR], logon=logon)         # a long session, last seen 9 h after S ended
+    snap(conn, s[-1] + 9 * HOUR)
+    assert conn.execute("SELECT count(*) AS n FROM pilot_session WHERE last_seen <= %s", (s[-1] + HOUR,)).fetchone()["n"] == 1   # S is old
     assert write(conn) == 0 and flown(conn, a) is None and flown(conn, b) is None and records(conn) == []
-    snap(conn, t[-1] + 8 * HOUR)                                           # now the joined flight is quiet
+    snap(conn, s[-1] + 17 * HOUR + MIN)                                    # the joined flight (T ended 9 h after S) is quiet 8 h later
     assert write(conn) == 1
     (r,) = records(conn, 701)
     assert r["session_ids"] == [a, b]
 
 
 def test_the_chain_through_an_old_middle_session_keeps_the_whole_flight_open(conn: Any) -> None:
+    """S and U are both more than 8 h quiet; T joins U (within 120 minutes of U's end, NOT of S's) and is active. One flight, open."""
     s = times(BASE, 20)
-    u = times(s[-1] + 100 * MIN, 20)
-    t = times(u[-1] + 100 * MIN, 20)
-    for i, x in enumerate((s, u, t)):
-        mk(conn, 702, x, logon=x[0])
-    snap(conn, t[5])
-    assert write(conn) == 0                                                # S and U are old, but T joins U which joins S
+    u_logon = s[-1] + 100 * MIN
+    u = [u_logon + MIN, u_logon + 20 * MIN]
+    t_logon = u[-1] + 100 * MIN
+    ref = u[-1] + 9 * HOUR
+    ids = [mk(conn, 702, s), mk(conn, 702, u, logon=u_logon), mk(conn, 702, [t_logon + MIN, ref], logon=t_logon)]
+    snap(conn, ref)
+    assert ref - u[-1] >= 8 * HOUR and t_logon - s[-1] > 120 * MIN          # U is old; T does not join S directly
+    assert write(conn) == 0
+    assert all(flown(conn, i) is None for i in ids) and records(conn) == []
+    snap(conn, ref + 8 * HOUR)
+    assert write(conn) == 1 and records(conn, 702)[0]["session_ids"] == ids
 
 
 @pytest.mark.parametrize("minutes, written", [(119, 0), (120, 0), (121, 1)], ids=["119-joins-so-open", "120-joins-so-open", "121-separate-so-written"])
@@ -157,3 +164,55 @@ def test_flights_held_open_by_an_active_reconnect_do_not_starve_other_pilots(con
     snap(conn, BASE + 10 * HOUR)
     assert write(conn, 50) == 1
     assert [r["cid"] for r in records(conn)] == [900]
+
+
+def test_the_collector_can_update_an_active_session_of_the_same_pilot_while_the_writer_runs(conn: Any, dsn: str) -> None:
+    """Only sessions last seen 120+ minutes before the reference time are locked. Hold the writer at its main statement (ACCESS EXCLUSIVE on
+    pilot_position) and update the pilot's ACTIVE session from a second connection with a short lock_timeout: it must not be blocked.
+    Fails on a writer that locks every unprocessed session of the pilot."""
+    import threading
+    import time
+
+    done = times(BASE, 20)
+    a = mk(conn, 710, done, dep="YSSY", arr="YMML")                         # finished flight: the pilot is picked
+    live = BASE + 9 * HOUR
+    b = mk(conn, 710, [live, live + MIN], logon=live, dep="YMML", arr="YSSY")   # active, different flight
+    snap(conn, live + MIN)
+    out: dict[str, int] = {}
+
+    def run() -> None:
+        with psycopg.connect(dsn, autocommit=True) as c:
+            out["n"] = c.execute("SELECT write_finished_flights()").fetchone()[0]
+
+    holder = psycopg.connect(dsn)
+    holder.execute("LOCK TABLE pilot_position IN ACCESS EXCLUSIVE MODE")
+    t = threading.Thread(target=run)
+    t.start()
+    try:
+        for _ in range(100):
+            if conn.execute("SELECT 1 AS x FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE '%write_finished_flights%' "
+                            "AND pid <> pg_backend_pid()").fetchone():
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the writer never reached the blocked statement")
+        with psycopg.connect(dsn, autocommit=True) as collector:             # the collector's per-poll update of the active session
+            collector.execute("SET lock_timeout = '500ms'")
+            collector.execute("UPDATE pilot_session SET last_seen = last_seen + interval '30 seconds' WHERE id = %s", (b,))
+    finally:
+        holder.rollback()
+        holder.close()
+        t.join(10)
+    assert out["n"] == 1 and [r["session_ids"] for r in records(conn, 710)] == [[a]]
+    assert flown(conn, a) is not None and flown(conn, b) is None
+
+
+def test_a_recent_session_is_never_marked_even_when_its_flight_looks_quiet_from_old_data(conn: Any) -> None:
+    """A session that is neither locked nor quiet can never be marked: here a very recent session of a different key stays untouched
+    while the old one is written."""
+    a = mk(conn, 711, times(BASE, 20), dep="YSSY", arr="YMML")
+    now_s = BASE + 9 * HOUR
+    b = mk(conn, 711, [now_s], logon=now_s, dep="YMML", arr="YSSY")
+    snap(conn, now_s)
+    assert write(conn) == 1 and flown(conn, a) is not None and flown(conn, b) is None
+    assert write(conn) == 0 and flown(conn, b) is None

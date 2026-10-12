@@ -19,6 +19,8 @@
 --   4. A later connection of the same key whose logon_time is within 120 minutes of the previous last position JOINS the flight (v1),
 --      so a flight that is still being continued by a reconnect is not quiet: nothing is written for it until the whole joined flight is.
 --   5. A session that forms no flight (no plan, or no positions) is marked when it is itself quiet.
+--   6. Locking: only sessions last seen 120+ minutes before the reference time are locked (SKIP LOCKED); more recent sessions may be
+--      live, are read without a lock, can hold a flight open, and are never written or marked in the same call.
 -- Worked example: a pilot flies YSSY-YMML 08:00-10:00, disconnects, and flies YMML-YSSY 17:00-19:00. At 18:30 the first flight has
 -- been quiet 8.5 h, so it is written; the second is still in progress and is left alone. At 03:00 the next day the second is written.
 -- Under the old per-pilot rule nothing would have been written until 03:00.
@@ -83,27 +85,34 @@ BEGIN
          LIMIT p_max_pilots) x;
     EXIT WHEN pilots IS NULL;
 
-    -- Lock ALL their unprocessed sessions (in id order, quiet or not) and remember exactly which ones. The rest of the call uses only
-    -- these ids: the groups and the quiet decision per group are computed over this one locked set, and a session inserted after this
-    -- point (FOR UPDATE does not block an INSERT) can be neither written nor marked. The values read after the lock are stable because
-    -- the collector's update of a locked session waits.
+    -- Lock ONLY the sessions that can be written: unprocessed, last seen at least 120 minutes before the reference time (a flight is
+    -- written only when quiet for flight_quiet_hours >= 2.5 h, so every session of a writable flight is older than that). A session seen
+    -- more recently is possibly live: the collector updates it on every poll, so it is never locked here (the collector's write gives up
+    -- after 5 s, and it locks in feed order while this call locks in id order). SKIP LOCKED: a session the collector is updating right
+    -- now is simply left out. The rest of the call uses these ids for everything that is WRITTEN or MARKED; the recent sessions are only
+    -- READ, without a lock, to see that they hold a flight open (a flight with any session outside `locked` is never written).
     SELECT array_agg(l.id) INTO locked FROM (
         SELECT ps.id FROM pilot_session ps
          WHERE ps.cid = ANY (pilots) AND (ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto)
-         ORDER BY ps.id FOR UPDATE) l;
-    EXIT WHEN locked IS NULL;
+           AND ps.last_seen <= ref - interval '120 minutes'
+         ORDER BY ps.id FOR UPDATE SKIP LOCKED) l;
+    IF locked IS NULL THEN                         -- everything of these pilots is recent or being updated: leave them for later
+        EXIT WHEN tries >= 10;
+        skip := skip || pilots;
+        CONTINUE;
+    END IF;
     SELECT min(COALESCE(ps.flown_upto, ps.first_seen)) - interval '1 day', max(ps.last_seen) INTO lb, ub
       FROM pilot_session ps
-     WHERE ps.id = ANY (locked);
+     WHERE ps.cid = ANY (pilots) AND (ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto);
 
-    WITH s AS (                                    -- the locked, unprocessed sessions of the picked pilots
+    WITH s AS (                                    -- ALL unprocessed sessions of the picked pilots: locked ones (writable) and recent ones (read only)
         SELECT ps.id, ps.cid, ps.callsign, ps.logon_time, ps.last_seen, ps.flown_upto,
                ps.name, ps.home_icao, ps.server, ps.aircraft_icao, ps.aircraft_faa, ps.flight_rules, ps.route,
                ps.remarks, ps.planned_alt, ps.deptime, ps.pilot_rating, ps.military_rating,
                NULLIF(upper(btrim(ps.departure, E' \t\r\n')), '') AS dep_n,
                NULLIF(upper(btrim(ps.arrival,   E' \t\r\n')), '') AS arr_n
           FROM pilot_session ps
-         WHERE ps.id = ANY (locked)
+         WHERE ps.cid = ANY (pilots) AND (ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto)
     ),
     samples AS (                                   -- today's airborne rule, copied word for word from the pieces refresh
         SELECT p.session_id, p.observed_at, p.gs_kt, p.alt_ft,
@@ -180,7 +189,7 @@ BEGIN
          GROUP BY c.cid, c.callsign, c.dep_n, c.arr_n, c.chain
     ),
     quiet_flights AS (                             -- QUIET PER FLIGHT: only a flight with no position for flight_quiet_hours is written
-        SELECT f.* FROM flights f WHERE ref - f.newest_seen >= quiet
+        SELECT f.* FROM flights f WHERE ref - f.newest_seen >= quiet AND f.session_ids <@ locked   -- never a flight with a session we did not lock
     ),
     conflict AS (                                  -- a flight key that already exists means positions were written but not marked: a bug
         SELECT DISTINCT f.cid
@@ -204,8 +213,8 @@ BEGIN
           FROM (SELECT unnest(q.session_ids) AS id, q.cid FROM quiet_flights q
                 UNION
                 SELECT s.id, s.cid FROM s
-                 WHERE s.id NOT IN (SELECT g.id FROM gated g) AND ref - s.last_seen >= quiet) x
-         WHERE x.cid NOT IN (SELECT cid FROM conflict)
+                 WHERE s.id = ANY (locked) AND s.id NOT IN (SELECT g.id FROM gated g) AND ref - s.last_seen >= quiet) x
+         WHERE x.id = ANY (locked) AND x.cid NOT IN (SELECT cid FROM conflict)    -- only locked sessions can ever be marked
     ),
     mark AS (                                      -- a flight that is not quiet yet keeps its sessions unprocessed (flown_upto untouched)
         UPDATE pilot_session ps SET flown_upto = ps.last_seen
@@ -231,6 +240,8 @@ BEGIN
 END
 $fn$;
 REVOKE ALL ON FUNCTION write_finished_flights(int) FROM PUBLIC;
+COMMENT ON TABLE flight_record IS
+    'One row per finished flight, written once by write_finished_flights() when the FLIGHT itself has had no position for flight_quiet_hours (default 8) of stored data (quiet per flight, owner decision 12-10-2026), and never changed. A flight is one session, or several sessions of the same cid, callsign, departure and arrival joined across reconnects (v1 rule). Plan fields are frozen at write time. Nothing reads it before phase 3 of issue 89.';
 COMMENT ON FUNCTION write_finished_flights(int) IS
     'Writes finished flights into flight_record (issue 89, phase 1). A FLIGHT (sessions joined by the v1 rule) is written once its own newest last_seen is flight_quiet_hours (default 8) or more behind the newest stored snapshot; other flights of the same pilot do not matter. Idempotent; examines at most p_max_pilots pilots per round. Returns the number of flights written.';
 
