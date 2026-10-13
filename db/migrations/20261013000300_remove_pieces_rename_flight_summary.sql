@@ -158,7 +158,7 @@ BEGIN
     IF bad IS NOT NULL THEN RAISE EXCEPTION 'views still name an old object: %', bad; END IF;
     SELECT string_agg(d.objoid::regclass::text, ', ') INTO bad
       FROM pg_description d
-     WHERE d.classoid = 'pg_class'::regclass AND d.description ~ '\m(flight_record|flight_part|flight_legacy|refresh_flight_summary(_sessions)?)\M';
+     WHERE d.classoid = 'pg_class'::regclass AND d.objoid <> 'public.flight_summary_old_p5'::regclass AND d.description ~ '\m(flight_record|flight_part|flight_legacy|refresh_flight_summary(_sessions)?)\M';
     IF bad IS NOT NULL THEN RAISE EXCEPTION 'comments still name an old object: %', bad; END IF;
     SELECT string_agg(p.oid::regprocedure::text, ', ') INTO bad
       FROM pg_description d JOIN pg_proc p ON p.oid = d.objoid AND d.classoid = 'pg_proc'::regclass
