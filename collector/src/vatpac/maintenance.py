@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 POLL_LOG_RETENTION_DAYS = 400
 PARTITIONS_AHEAD = 7
 FLIGHT_REFRESH_INTERVAL_S = 300.0  # main.py: how often to call refresh_flights
-FLIGHT_WRITE_BATCH = 50  # pilots per call: small, so the 20 s statement_timeout is never close (backfill does the bulk)
+FLIGHT_WRITE_BATCH = 50  # pilots per call: small, so the 20 s statement_timeout is never close
 MAX_DROP_CALLS = 60  # safety bound for the drop loop (10 partitions per call, so 600 partitions)
 
 
@@ -75,9 +75,7 @@ def drop_old_partitions(conn: psycopg.Connection[Any], today: date, retention_da
 
 
 def refresh_flights(conn: psycopg.Connection[Any], batch: int = FLIGHT_WRITE_BATCH) -> int:
-    """Write the finished flights (write_finished_flights, at most ``batch`` pilots). Idempotent; returns flights written.
-
-    A statement timeout only delays the rest to the next run, so it is logged, not raised."""
+    """Write finished flights for up to ``batch`` pilots; returns how many. A timeout is logged, not raised."""
     try:
         return _scalar(conn, "SELECT write_finished_flights(%s)", (batch,))
     except psycopg.errors.QueryCanceled:

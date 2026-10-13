@@ -67,7 +67,8 @@ def recompute(sess: pd.DataFrame, pos: pd.DataFrame) -> pd.DataFrame:
             "max_alt": max(p["alt"] for p in ps),
             "n_sessions": len(ids),
         })
-    return pd.DataFrame(out, columns=["session_id", "start_s", "end_s", "sample_count", "airborne_minutes", "max_gs", "max_alt", "n_sessions"])
+    cols = ["session_id", "start_s", "end_s", "sample_count", "airborne_minutes", "max_gs", "max_alt", "n_sessions"]
+    return pd.DataFrame(out, columns=cols)
 
 
 def main() -> None:

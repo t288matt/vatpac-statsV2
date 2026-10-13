@@ -109,6 +109,7 @@ ALLOWED_OLD_NAMES = {
     "docs/DATA_DICTIONARY.md": "documents what migration 20261013000300 removes and the production names until it deploys",
     "docs/ARCHITECTURE.md": "says which name production still uses until the phase 5 deploy",
     "docs/CHART_DEFINITIONS.md": "says which name production still uses until the phase 5 deploy",
+    "SPEC.md": "says which name production still uses until the phase 5 deploy",
     "docs/CONFIG_MAP.md": "says which name production still uses until the phase 5 deploy",
     "tests/integration/test_drop_gate.py": "asserts the old names are gone",
     "tests/integration/test_roles.py": "asserts the old functions are gone",
