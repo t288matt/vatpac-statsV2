@@ -17,7 +17,7 @@ NAMED_VIEWS = ["flight", "controller_session_merged", "controller_activity_daily
 LOOKUPS = ["controller_rating", "facility", "pilot_rating", "airline", "aircraft_type", "region_map"]
 RAW = ["pilot_session", "pilot_position", "controller_session", "controller_rating_event",
        "controller_frequency_event", "network_snapshot", "poll_log", "controller_unlisted_sighting",
-       "reference_data_change", "flight_record"]
+       "reference_data_change", "flight_summary"]
 
 
 @pytest.fixture()

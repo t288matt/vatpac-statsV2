@@ -92,16 +92,10 @@ def write_all(conn, hours: float = 9.0) -> int:
 
 
 def flights(conn, cid: int) -> list[dict]:
-    # `flight` reads flight_record (issue 89 phase 3), which write_finished_flights() fills once a pilot has been quiet for
+    # `flight` reads flight_summary (issue 89 phase 3), which write_finished_flights() fills once a pilot has been quiet for
     # 8 hours of stored data: build the sessions, say when the data ends (write_all), then read the view.
     write_all(conn)
     return conn.execute("SELECT * FROM flight WHERE cid = %s ORDER BY start_time", (cid,)).fetchall()
-
-
-def refresh(conn, since: str | None = None) -> int:
-    if since is None:
-        return conn.execute("SELECT refresh_flight_summary(NULL) AS n").fetchone()["n"]
-    return conn.execute("SELECT refresh_flight_summary(%s::interval) AS n", (since,)).fetchone()["n"]
 
 
 # ------------------------------------------------------------------ in-progress flights (the online_now clock)
@@ -167,7 +161,7 @@ _serial = {"n": 0}
 
 def record_flight(conn, sid: int, start: datetime, end: datetime, *, airborne: float | None = None, gs: int | None = 450,
                   alt: int | None = 35000, samples: int = 10, start_offset_s: int = 0) -> None:
-    """Write the flight_record row the writer would write for pilot_session ``sid`` (issue 89 phase 3), without positions.
+    """Write the flight_summary row the writer would write for pilot_session ``sid`` (issue 89 phase 3), without positions.
 
     For the panel tests, which assert the panel arithmetic and not the writer (the writer has its own tests, test_flight_writer.py
     and test_flight_views_switch.py). The flight gate is applied as the writer applies it: a session whose departure or arrival is
@@ -175,7 +169,7 @@ def record_flight(conn, sid: int, start: datetime, end: datetime, *, airborne: f
     ``start_offset_s`` lets a test create a second flight of one session (a returning session): the key is (session_id, start_time)."""
     conn.execute(
         r"""
-        INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time,
+        INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time,
                name, home_icao, server, aircraft_icao, aircraft_faa, flight_rules, route, remarks, planned_alt, deptime,
                pilot_rating, military_rating, airborne_minutes, max_gs_kt, max_alt_ft, sample_count)
         SELECT ps.id, %s::timestamptz + make_interval(secs => %s::double precision), %s::timestamptz, ps.cid, ps.callsign,
@@ -198,7 +192,7 @@ def record_flight(conn, sid: int, start: datetime, end: datetime, *, airborne: f
 def add_flight(conn, cid: int, *, callsign: str | None = None, dep="YSSY", arr="YMML", aircraft="B738",
                days_ago: float = 1.0, minutes: int = 120, airborne: float | None = 100, gs: int | None = 450,
                alt: int | None = 35000, logon_days_ago: float | None = None, **plan) -> int:
-    """One pilot session plus its flight_record row. The flight ends ``days_ago`` days ago.
+    """One pilot session plus its flight_summary row. The flight ends ``days_ago`` days ago.
 
     ``plan`` sets further plan fields of the session (flight_rules, remarks, home_icao, server, route, planned_alt, deptime,
     pilot_rating, military_rating): the row is frozen when it is written, so a test cannot change the session afterwards and

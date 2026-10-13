@@ -210,12 +210,12 @@ class Collector:
             refresh_flights(conn)
 
     async def flight_summary_loop(self) -> None:
-        """Keep flight_summary current (about 0.1 s of work every 5 minutes); a failure only makes charts stale."""
+        """Write finished flights to flight_summary every 5 minutes; a failure only makes charts stale."""
         while not await self._sleep(FLIGHT_REFRESH_INTERVAL_S):
             try:
                 await asyncio.to_thread(self._refresh_flights)
             except Exception:
-                log.exception("flight summary refresh failed")
+                log.exception("flight writer failed")
 
     def request_reload(self) -> None:
         task = asyncio.get_running_loop().create_task(self.reload_reference())

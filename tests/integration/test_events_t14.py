@@ -1,6 +1,6 @@
 """T14: Monday event and RAAFv panels, re-checked against the owner's current Metabase SQL (08-10-2026).
 
-Flights are inserted synthetically (pilot_session plus the flight_record row the writer would write, which the `flight` view reads), then
+Flights are inserted synthetically (pilot_session plus the flight_summary row the writer would write, which the `flight` view reads), then
 the panel SQL is read from the dashboard JSON, the Grafana time macros are replaced by literal UTC
 timestamps, and the query is executed. Rules under test:
   card 66   RAAFv = flight-plan remarks contain RAAFVIRTUAL.ORG (any case), whatever the aircraft type;
@@ -45,7 +45,7 @@ def run_panel(conn, dashboard, title_start: str, start: datetime, end: datetime)
 def add_flight(conn, cid: int, start: datetime, end: datetime, airborne: float = 60.0, dep="YSSY", arr="YMML",
                remarks: str | None = None, aircraft: str = "B738", home: str | None = "YSSY",
                segments: int = 1) -> None:
-    """One pilot_session with `segments` flight_record rows (segments > 1 mimics a returning session: one session, several
+    """One pilot_session with `segments` flight_summary rows (segments > 1 mimics a returning session: one session, several
     flights, which the per-session panels must count once)."""
     sid = conn.execute(
         "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival, "

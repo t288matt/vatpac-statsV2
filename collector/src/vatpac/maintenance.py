@@ -1,4 +1,4 @@
-"""Maintenance: settings sync, partitions, retention, flight summary and view refresh, poll_log trimming.
+"""Maintenance: settings sync, partitions, retention, writing finished flights, view refresh, poll_log trimming.
 
 run_maintenance runs daily (and at startup); refresh_flights alone runs every FLIGHT_REFRESH_INTERVAL_S."""
 
@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from typing import Any
 
 import psycopg
@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 POLL_LOG_RETENTION_DAYS = 400
 PARTITIONS_AHEAD = 7
 FLIGHT_REFRESH_INTERVAL_S = 300.0  # main.py: how often to call refresh_flights
-FLIGHT_REFRESH_WINDOW = timedelta(hours=12)
+FLIGHT_WRITE_BATCH = 50  # pilots per call: small, so the 20 s statement_timeout is never close (backfill does the bulk)
 MAX_DROP_CALLS = 60  # safety bound for the drop loop (10 partitions per call, so 600 partitions)
 
 
@@ -74,9 +74,15 @@ def drop_old_partitions(conn: psycopg.Connection[Any], today: date, retention_da
         conn.remove_notice_handler(on_notice)
 
 
-def refresh_flights(conn: psycopg.Connection[Any], window: timedelta = FLIGHT_REFRESH_WINDOW) -> int:
-    """Recompute flight_summary for sessions seen within ``window``. Idempotent; returns rows changed."""
-    return _scalar(conn, "SELECT refresh_flight_summary(%s)", (window,))
+def refresh_flights(conn: psycopg.Connection[Any], batch: int = FLIGHT_WRITE_BATCH) -> int:
+    """Write the finished flights (write_finished_flights, at most ``batch`` pilots). Idempotent; returns flights written.
+
+    A statement timeout only delays the rest to the next run, so it is logged, not raised."""
+    try:
+        return _scalar(conn, "SELECT write_finished_flights(%s)", (batch,))
+    except psycopg.errors.QueryCanceled:
+        log.warning("write_finished_flights cancelled (statement timeout?); the next run continues")
+        return 0
 
 
 def trim_poll_log(conn: psycopg.Connection[Any], days: int = POLL_LOG_RETENTION_DAYS) -> int:

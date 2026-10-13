@@ -74,7 +74,7 @@ class World:
                       (ts[-1] - timedelta(days=1), f, sha))
         c.execute("INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen) VALUES (2001, 'ML_APP', %s, %s, %s)",
                   (logon, ts[-1], ts[0]))
-        c.execute("SELECT refresh_flight_summary(NULL)")
+        c.execute("SELECT write_finished_flights(500)")
 
 
 def sweep(dsn: str, as_role: str | None = None) -> dict[str, int]:
@@ -99,7 +99,7 @@ def failing(counts: dict[str, int]) -> set[str]:
 def test_a_clean_database_reports_zero_for_every_invariant(conn: Any, dsn: str, role: str | None) -> None:
     World(conn)
     counts = sweep(dsn, role)
-    assert set(counts) == set(NAMES) and len(counts) == 23
+    assert set(counts) == set(NAMES) and len(counts) == 21
     assert failing(counts) == set(), failing(counts)
 
 
@@ -124,7 +124,7 @@ def test_watchdog_ro_can_read_everything_the_sweep_and_the_cross_check_need(conn
     World(conn)
     with psycopg.connect(dsn, autocommit=True) as c:  # autocommit, so the role is not rolled back between statements
         c.execute("SET ROLE watchdog_ro")
-        for t in ("network_snapshot", "poll_log", "pilot_position", "pilot_session", "controller_session", "flight_summary", "flight_record",
+        for t in ("network_snapshot", "poll_log", "pilot_position", "pilot_session", "controller_session", "flight_summary",
                   "reference_data_change"):
             c.execute(f"SELECT count(*) FROM {t}").fetchone()  # noqa: S608
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
@@ -284,18 +284,12 @@ def test_gaps_of_a_tick_or_two_and_ordinary_restarts_are_not_violations(conn: An
     assert sweep(dsn)["snapshot gaps over 5 minutes (last 3 days)"] == 0
 
 
-@case("flight_summary rows missing for sessions older than 12 h",
-      "pilot sessions with no position (active in last 3 days)",
+@case("pilot sessions with no position (active in last 3 days)",
       "flights quiet longer than the quiet period plus 1 hour with unprocessed positions")
 def _(conn: Any, w: World) -> None:
     old = w.now - timedelta(hours=13)
     conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) VALUES (1600, 'OLD1', %s, %s, %s)",
                  (old, old, old))
-
-
-@case("flight_summary sample_count differs from stored positions (final or settled sessions, last 3 days)")
-def _(conn: Any, w: World) -> None:
-    conn.execute("UPDATE flight_summary SET sample_count = sample_count + 1 WHERE session_id = %s", (w.sessions["C"],))
 
 
 @case("flights quiet longer than the quiet period plus 1 hour with unprocessed positions",
@@ -309,23 +303,21 @@ def _(conn: Any, w: World) -> None:
 @case("flights written in the last 3 days whose sample_count differs from the stored positions of their sessions")
 def _(conn: Any, w: World) -> None:
     sid = w.sessions["C"]
-    conn.execute("INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
+    conn.execute("INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
                  "logon_time, sample_count) SELECT id, first_seen, last_seen, cid, callsign, 'YSSY', 'YMML', ARRAY[id], logon_time, "
                  "(SELECT count(*) + 1 FROM pilot_position WHERE session_id = %s) FROM pilot_session WHERE id = %s", (sid, sid))
 
 
 @case("sessions ended more than 2 days ago with unprocessed positions",
       "flights quiet longer than the quiet period plus 1 hour with unprocessed positions",
-      "pilot sessions with no position (active in last 3 days)",
-      "flight_summary rows missing for sessions older than 12 h")
+      "pilot sessions with no position (active in last 3 days)")
 def _(conn: Any, w: World) -> None:
     old = w.ts[0] - timedelta(days=2, hours=1)
     conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
                  "VALUES (1701, 'OLD2', %s, %s, %s, 'YSSY', 'YMML')", (old.replace(microsecond=0), old, old))
 
 
-@case("processed flight-plan sessions in no written flight (ended 2 to 30 days ago)",
-      "flight_summary rows missing for sessions older than 12 h")
+@case("processed flight-plan sessions in no written flight (ended 2 to 30 days ago)")
 def _(conn: Any, w: World) -> None:
     old = w.ts[0] - timedelta(days=5)
     partition_for(conn, old)
@@ -345,11 +337,11 @@ def test_a_processed_session_that_is_in_a_written_flight_does_not_fire_the_gate_
     conn.execute("INSERT INTO pilot_position (observed_at, session_id, lat, lon, alt_ft, gs_kt, hdg) VALUES (%s, %s, -33.9, 151.2, 5000, 250, 90)", (old, sid))
     name = "processed flight-plan sessions in no written flight (ended 2 to 30 days ago)"
     assert sweep(dsn)[name] == 1
-    conn.execute("INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time, sample_count) "
+    conn.execute("INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time, sample_count) "
                  "VALUES (%s, %s, %s, 1703, 'OLD4', 'YSSY', 'YMML', ARRAY[%s], %s, 1)", (sid, old, old, sid, old))
     assert sweep(dsn)[name] == 0
     conn.execute("UPDATE pilot_session SET departure = '' WHERE id = %s", (sid,))     # a session without a plan makes no flight
-    conn.execute("DELETE FROM flight_record")
+    conn.execute("DELETE FROM flight_summary")
     assert sweep(dsn)[name] == 0
 def test_the_unprocessed_flight_checks_work_per_flight_not_per_pilot(conn: Any, dsn: str) -> None:
     """Owner decision 12-10-2026 (quiet per flight): a pilot with an old finished flight AND a recent different flight is flagged for
@@ -402,7 +394,7 @@ def test_the_cases_cover_exactly_the_invariants_in_the_pack() -> None:
     """The guard: delete or rename an invariant, or add one without a case, and this fails."""
     assert set(NAMES) - set(CASES) == set(), "an invariant has no broken-data test"
     assert set(CASES) - set(NAMES) == set()
-    assert len(NAMES) == 23 and len(CASES) == len(NAMES)
+    assert len(NAMES) == 21 and len(CASES) == len(NAMES)
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -440,11 +432,11 @@ def test_run_due_reports_ok_on_clean_data_and_a_named_warning_on_broken_data(con
     w = World(conn)
     state: dict[str, Any] = {}
     res, _ = integrity.run_due(plan(dsn, tmp_path, crosscheck_interval_s=0), state, now=1000.0)
-    assert res["data_integrity"][0] == "ok" and "all 23 invariants hold" in res["data_integrity"][1]
+    assert res["data_integrity"][0] == "ok" and "all 21 invariants hold" in res["data_integrity"][1]
     conn.execute("DELETE FROM poll_log WHERE snapshot_ts = %s", (w.ts[5],))
     res, _ = integrity.run_due(plan(dsn, tmp_path, crosscheck_interval_s=0), state, now=1000.0 + 72 * 3600)
     level, text = res["data_integrity"]
-    assert level == "warn" and "snapshot rows without an ok poll_log row (1)" in text and "1 of 23" in text
+    assert level == "warn" and "snapshot rows without an ok poll_log row (1)" in text and "1 of 21" in text
     assert state["integrity"]["data_integrity"]["retry_at"] is not None  # rechecked in 6 h, not 3 days
 
 

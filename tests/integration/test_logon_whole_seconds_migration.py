@@ -3,6 +3,8 @@ truncates every stored logon_time to whole seconds and adds the CHECK constraint
 
 The test builds its own database from migrations up to ...90 (a template, then one copy per test), loads
 synthetic data that reproduces the incident, and applies the new migration (up half only, as dbmate does).
+Pinned to that migration on purpose (issue 89 phase 5): the database is built only from the migrations BEFORE it, where
+flight_summary is still the old pieces table, so the pieces names in this file are correct and stay.
 It needs the superuser DSN of the throwaway server (VATPAC_TEST_DSN); the databases it creates end in _test.
 """
 from __future__ import annotations

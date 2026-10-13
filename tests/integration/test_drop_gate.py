@@ -142,7 +142,7 @@ def test_a_marked_session_whose_flight_is_missing_keeps_the_partition(conn) -> N
     """A writer bug: the session is marked but its flight row is gone. The marker alone is not trusted."""
     sid = mk(conn, 9840010, mins(day(200), 10))
     process_flights(conn)
-    conn.execute("DELETE FROM flight_record WHERE session_id = %s", (sid,))
+    conn.execute("DELETE FROM flight_summary WHERE session_id = %s", (sid,))
     seen = notices(conn)
     assert call(conn) == 0 and exists(conn, 200)
     assert "not inside a written flight" in refused(seen, 200)[0]
@@ -152,9 +152,9 @@ def test_a_flight_that_stops_short_of_a_position_keeps_the_partition(conn) -> No
     ts = mins(day(200), 10)
     mk(conn, 9840011, ts)
     process_flights(conn)
-    conn.execute("UPDATE flight_record SET end_time = %s", (ts[-1] - timedelta(seconds=1),))   # the last position is outside
+    conn.execute("UPDATE flight_summary SET end_time = %s", (ts[-1] - timedelta(seconds=1),))   # the last position is outside
     assert call(conn) == 0 and exists(conn, 200)
-    conn.execute("UPDATE flight_record SET end_time = %s", (ts[-1],))                         # the boundary is inclusive
+    conn.execute("UPDATE flight_summary SET end_time = %s", (ts[-1],))                         # the boundary is inclusive
     assert call(conn) == 1
 
 
@@ -162,9 +162,9 @@ def test_a_flight_that_starts_after_a_position_keeps_the_partition(conn) -> None
     ts = mins(day(200), 10)
     mk(conn, 9840012, ts)
     process_flights(conn)
-    conn.execute("UPDATE flight_record SET start_time = %s", (ts[0] + timedelta(seconds=1),))
+    conn.execute("UPDATE flight_summary SET start_time = %s", (ts[0] + timedelta(seconds=1),))
     assert call(conn) == 0
-    conn.execute("UPDATE flight_record SET start_time = %s", (ts[0],))
+    conn.execute("UPDATE flight_summary SET start_time = %s", (ts[0],))
     assert call(conn) == 1
 
 
@@ -174,8 +174,8 @@ def test_a_flight_of_another_session_does_not_cover(conn) -> None:
     a = mk(conn, 9840013, ts)
     b = mk(conn, 9840014, ts)
     process_flights(conn)
-    conn.execute("DELETE FROM flight_record WHERE session_id = %s", (a,))
-    conn.execute("UPDATE flight_record SET session_ids = ARRAY[%s] WHERE session_id = %s", (b, b))
+    conn.execute("DELETE FROM flight_summary WHERE session_id = %s", (a,))
+    conn.execute("UPDATE flight_summary SET session_ids = ARRAY[%s] WHERE session_id = %s", (b, b))
     assert call(conn) == 0 and exists(conn, 200)
 
 
@@ -185,7 +185,7 @@ def test_a_session_covered_as_a_later_member_of_a_joined_flight_is_covered(conn)
     second = mk(conn, 9840015, mins(day(200) + timedelta(minutes=30), 10))
     # the second session's logon_time must be inside 120 minutes of the first one's last position: mk() sets it to its first position
     process_flights(conn)
-    rec = conn.execute("SELECT session_id, session_ids FROM flight_record").fetchall()
+    rec = conn.execute("SELECT session_id, session_ids FROM flight_summary").fetchall()
     assert len(rec) == 1 and rec[0]["session_ids"] == [first, second]
     assert call(conn) == 1
 
@@ -197,7 +197,7 @@ def test_a_flight_across_two_days_is_covered_in_both_and_the_second_day_still_dr
     ts = mins(day(200, 22), 240)                              # 22:00 to 02:00 next day
     mk(conn, 9840016, ts)
     process_flights(conn)
-    assert conn.execute("SELECT sample_count FROM flight_record").fetchone()["sample_count"] == 240
+    assert conn.execute("SELECT sample_count FROM flight_summary").fetchone()["sample_count"] == 240
     assert unreconciled(conn, *span(200)) == [] and unreconciled(conn, *span(199)) == []
     conn.execute(f"DROP TABLE {pname(200)}")                  # as if the older day had gone in an earlier run
     assert unreconciled(conn, *span(199)) == []
@@ -239,11 +239,11 @@ def test_a_plan_filed_after_the_first_part_was_processed_keeps_the_partition(con
 def test_a_flight_wholly_inside_the_day_with_a_wrong_sample_count_keeps_the_partition(conn) -> None:
     sid = mk(conn, 9840020, mins(day(200), 10))
     process_flights(conn)
-    conn.execute("UPDATE flight_record SET sample_count = sample_count + 1")
+    conn.execute("UPDATE flight_summary SET sample_count = sample_count + 1")
     seen = notices(conn)
     assert call(conn) == 0 and exists(conn, 200)
     assert "sample_count" in refused(seen, 200)[0] and str(sid) in refused(seen, 200)[0]
-    conn.execute("UPDATE flight_record SET sample_count = sample_count - 1")
+    conn.execute("UPDATE flight_summary SET sample_count = sample_count - 1")
     assert call(conn) == 1
 
 
@@ -251,29 +251,27 @@ def test_a_flight_with_a_sample_count_of_zero_is_not_counted(conn) -> None:
     """Carried-over placeholders (migration 20) have sample_count 0 and no positions; they never block a drop."""
     mk(conn, 9840021, mins(day(200), 10))
     process_flights(conn)
-    conn.execute("INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
+    conn.execute("INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
                  "logon_time, sample_count) VALUES (999999, %s, %s, 1, 'X', 'A', 'B', ARRAY[999999], %s, 0)",
                  (day(200, 3), day(200, 4), day(200, 3)))
     assert call(conn) == 1
 
 
 # ------------------------------------------------------------------ the old rule is gone
-def test_the_pieces_table_is_not_a_precondition_either_way(conn) -> None:
-    """The old finalisation (flight_summary.final) neither allows nor prevents a drop any more."""
-    ts = mins(day(200), 10)
-    sid = mk(conn, 9840030, ts)
-    conn.execute("SELECT refresh_flight_summary(NULL)")
-    conn.execute("UPDATE flight_summary SET final = true")                                 # every piece 'final'
-    assert call(conn) == 0 and exists(conn, 200)                                          # still unprocessed: kept
+def test_the_old_finalisation_is_gone_and_the_gate_decides_alone(conn) -> None:
+    """Phase 5: the pieces table and its refresh functions no longer exist; only the written flights decide."""
+    assert conn.execute("SELECT count(*) AS n FROM pg_proc WHERE proname LIKE 'refresh_flight_summary%'").fetchone()["n"] == 0
+    assert conn.execute("SELECT count(*) AS n FROM information_schema.columns WHERE table_name = 'flight_summary' "
+                        "AND column_name IN ('final', 'gap_segment', 'span_part')").fetchone()["n"] == 0
+    mk(conn, 9840030, mins(day(200), 10))
+    assert call(conn) == 0 and exists(conn, 200)                                          # unprocessed: kept
     process_flights(conn)
-    conn.execute("DELETE FROM flight_summary")                                             # no pieces at all
     assert call(conn) == 1 and not exists(conn, 200)
-    assert conn.execute("SELECT count(*) AS n FROM flight_summary WHERE session_id = %s", (sid,)).fetchone()["n"] == 0
 
 
 def test_the_function_no_longer_mentions_the_old_finalisation(conn) -> None:
     body = conn.execute("SELECT pg_get_functiondef('drop_old_pilot_position_partitions(int,date)'::regprocedure) AS d").fetchone()["d"]
-    for word in ("refresh_flight_summary", "flight_summary", "final"):
+    for word in ("refresh_flight_summary", "flight_part", "flight_legacy", "flight_summary", "final"):
         assert word not in body, word
     assert "unreconciled_partition_sessions" in body
 
@@ -306,7 +304,7 @@ def test_one_bad_partition_does_not_stop_the_good_ones(conn) -> None:
     bad = mk(conn, 9840043, mins(day(200), 10))
     mk(conn, 9840044, mins(day(199), 10))
     process_flights(conn)
-    conn.execute("DELETE FROM flight_record WHERE session_id = %s", (bad,))
+    conn.execute("DELETE FROM flight_summary WHERE session_id = %s", (bad,))
     assert call(conn) == 2
     assert not exists(conn, 201) and exists(conn, 200) and not exists(conn, 199)
 
@@ -328,8 +326,8 @@ def test_the_reconciliation_names_each_problem_with_its_session(conn) -> None:
     d = mk(conn, 9840053, ts)                       # flight with a wrong count
     process_flights(conn)
     conn.execute("UPDATE pilot_session SET flown_upto = NULL WHERE id = %s", (a,))
-    conn.execute("DELETE FROM flight_record WHERE session_id = %s", (b,))
-    conn.execute("UPDATE flight_record SET sample_count = 1 WHERE session_id = %s", (d,))
+    conn.execute("DELETE FROM flight_summary WHERE session_id = %s", (b,))
+    conn.execute("UPDATE flight_summary SET sample_count = 1 WHERE session_id = %s", (d,))
     got = dict(unreconciled(conn, *span(200)))
     assert set(got) == {a, b, d} and c not in got
     assert "not yet processed" in got[a] and "not inside a written flight" in got[b] and "sample_count" in got[d]
@@ -353,7 +351,7 @@ def test_a_position_with_no_session_row_is_unreconciled(conn) -> None:
         conn.execute("DELETE FROM pilot_session WHERE id = %s", (sid,))
         assert dict(unreconciled(conn, *span(200))) == {sid: "session row missing"}
     finally:
-        conn.execute("TRUNCATE pilot_position, pilot_session, flight_record RESTART IDENTITY CASCADE")
+        conn.execute("TRUNCATE pilot_position, pilot_session, flight_summary RESTART IDENTITY CASCADE")
         conn.execute("ALTER TABLE pilot_position ADD FOREIGN KEY (session_id) REFERENCES pilot_session (id)")
 
 
@@ -404,7 +402,7 @@ def test_the_rehearsal_script_predicts_exactly_what_the_function_drops(conn, dsn
     mk(conn, 9860003, mins(day(198), 10))
     pinned = mk(conn, 9860004, mins(day(197), 10))
     process_flights(conn)
-    conn.execute("DELETE FROM flight_record WHERE session_id = %s", (bad,))
+    conn.execute("DELETE FROM flight_summary WHERE session_id = %s", (bad,))
     conn.execute("UPDATE pilot_session SET last_seen = %s WHERE id = %s", (day(5), pinned))
     extra = ["-v", f"as_role={as_role}"] if as_role else []
     if as_role and not conn.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (as_role,)).fetchone():
@@ -435,9 +433,9 @@ def test_a_temp_table_named_like_a_real_table_cannot_make_the_gate_drop_a_day(co
     mk(conn, 9870001, mins(day(200), 10))                          # NOT processed: the real day must be kept
     conn.execute("CREATE TEMP TABLE pilot_position (LIKE public.pilot_position)")
     conn.execute("CREATE TEMP TABLE pilot_session (LIKE public.pilot_session INCLUDING DEFAULTS)")
-    conn.execute("CREATE TEMP TABLE flight_record (LIKE public.flight_record)")
+    conn.execute("CREATE TEMP TABLE flight_summary (LIKE public.flight_summary)")
     assert call(conn) == 0
-    conn.execute("DROP TABLE pg_temp.pilot_position, pg_temp.pilot_session, pg_temp.flight_record")
+    conn.execute("DROP TABLE pg_temp.pilot_position, pg_temp.pilot_session, pg_temp.flight_summary")
     assert exists(conn, 200)
     cfg = conn.execute("SELECT proconfig FROM pg_proc WHERE oid IN ('drop_old_pilot_position_partitions(int,date)'::regprocedure, "
                        "'unreconciled_partition_sessions(timestamptz,timestamptz)'::regprocedure)").fetchall()
@@ -468,7 +466,7 @@ def test_a_late_position_inside_a_midnight_spanning_flight_keeps_both_days(conn)
     seen = notices(conn)
     assert call(conn) == 0 and exists(conn, 200) and exists(conn, 199)
     assert refused(seen, 200) and refused(seen, 199)
-    conn.execute("UPDATE flight_record SET sample_count = sample_count + 1")        # the count now agrees
+    conn.execute("UPDATE flight_summary SET sample_count = sample_count + 1")        # the count now agrees
     assert call(conn) == 2
 
 

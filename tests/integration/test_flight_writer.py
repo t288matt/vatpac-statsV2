@@ -1,4 +1,4 @@
-"""Issue #89 phase 1 (#137): write_finished_flights() fills flight_record, one row per finished flight, written once.
+"""Issue #89 phase 1 (#137): write_finished_flights() fills flight_summary, one row per finished flight, written once.
 
 Design: docs/DESIGN_89_FINAL.md sections 1.3 to 1.6, 2, 5.3 and 7.3; the requirement-to-test table is docs/CONFORMANCE_89_PHASE1.md.
 Every test builds its own sessions and positions, puts a network_snapshot at the time the collector would have stored, and
@@ -66,8 +66,8 @@ def write(conn: Any, n: int = 500) -> int:
 
 def records(conn: Any, cid: int | None = None) -> list[dict]:
     if cid is None:
-        return conn.execute("SELECT * FROM flight_record ORDER BY cid, start_time").fetchall()
-    return conn.execute("SELECT * FROM flight_record WHERE cid = %s ORDER BY start_time", (cid,)).fetchall()
+        return conn.execute("SELECT * FROM flight_summary ORDER BY cid, start_time").fetchall()
+    return conn.execute("SELECT * FROM flight_summary WHERE cid = %s ORDER BY start_time", (cid,)).fetchall()
 
 
 def flown(conn: Any, sid: int) -> datetime | None:
@@ -85,7 +85,7 @@ def gap_cap(conn: Any) -> float:
 # ------------------------------------------------------------------ the table and the setting
 def test_the_table_the_column_the_setting_and_the_indexes_exist(conn: Any) -> None:
     cols = {r["column_name"] for r in conn.execute(
-        "SELECT column_name FROM information_schema.columns WHERE table_name = 'flight_record'").fetchall()}
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'flight_summary'").fetchall()}
     assert {"session_id", "start_time", "end_time", "cid", "callsign", "departure", "arrival", "session_ids", "logon_time",
             "name", "home_icao", "server", "aircraft_icao", "aircraft_faa", "flight_rules", "route", "remarks", "planned_alt",
             "deptime", "pilot_rating", "military_rating", "airborne_minutes", "max_gs_kt", "max_alt_ft", "sample_count",
@@ -93,19 +93,25 @@ def test_the_table_the_column_the_setting_and_the_indexes_exist(conn: Any) -> No
     assert conn.execute("SELECT 1 AS x FROM information_schema.columns WHERE table_name = 'pilot_session' "
                         "AND column_name = 'flown_upto'").fetchone()
     assert conn.execute("SELECT value FROM app_setting WHERE key = 'flight_quiet_hours'").fetchone()["value"] == "8"
-    idx = {r["indexdef"] for r in conn.execute("SELECT indexdef FROM pg_indexes WHERE tablename = 'flight_record'").fetchall()}
+    idx = {r["indexdef"] for r in conn.execute("SELECT indexdef FROM pg_indexes WHERE tablename = 'flight_summary'").fetchall()}
     for col in ("cid", "start_time", "end_time", "logon_time"):
         assert any(f"({col})" in d for d in idx), col
     assert any("PRIMARY KEY" in r["pg_get_constraintdef"] and "(session_id, start_time)" in r["pg_get_constraintdef"]
                for r in conn.execute("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
-                                     "WHERE conrelid = 'flight_record'::regclass AND contype = 'p'").fetchall())
+                                     "WHERE conrelid = 'flight_summary'::regclass AND contype = 'p'").fetchall())
+    # issue 89 phase 5: the table, its key, its CHECK and its four indexes carry the final name
+    assert {r["indexname"] for r in conn.execute("SELECT indexname FROM pg_indexes WHERE tablename = 'flight_summary'").fetchall()} == {
+        "flight_summary_pkey", "flight_summary_cid_idx", "flight_summary_start_time_idx", "flight_summary_end_time_idx",
+        "flight_summary_logon_time_idx"}
+    assert {r["conname"] for r in conn.execute("SELECT conname FROM pg_constraint WHERE conrelid = 'flight_summary'::regclass").fetchall()} == {
+        "flight_summary_pkey", "flight_summary_check"}
     partial = conn.execute("SELECT indexdef FROM pg_indexes WHERE indexname = 'pilot_session_unwritten_idx'").fetchone()
     assert partial and "WHERE" in partial["indexdef"] and "flown_upto" in partial["indexdef"]
 
 
 def test_end_time_may_not_be_before_start_time(conn: Any) -> None:
     with pytest.raises(psycopg.errors.CheckViolation):
-        conn.execute("INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, "
+        conn.execute("INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, "
                      "session_ids, logon_time, sample_count) VALUES (1, %s, %s, 1, 'X', 'A', 'B', ARRAY[1], %s, 1)",
                      (BASE, BASE - MIN, BASE))
 
@@ -333,25 +339,26 @@ def test_a_frozen_feed_with_the_collector_polling_cannot_end_a_live_flight(conn:
     assert write(conn) == 1 and len(records(conn, 34)) == 1
 
 
-def test_a_statement_timeout_in_the_writer_cannot_roll_back_the_pieces_refresh(conn: Any) -> None:
-    """The collector runs refresh_flight_summary with statement_timeout = 20 s; a cancel (57014) is not caught by WHEN OTHERS."""
+def test_a_statement_timeout_in_the_writer_is_logged_and_the_next_run_does_the_work(conn: Any, caplog: pytest.LogCaptureFixture) -> None:
+    """Phase 5: the collector's 5-minute job calls the writer itself (maintenance.refresh_flights). Its statement_timeout is 20 s; a cancel
+    (57014) must be contained there (logged, 0 returned), as the old guarded call inside the pieces refresh contained it."""
+    from vatpac.maintenance import refresh_flights
+
     ts = times(BASE, 20)
     mk(conn, 72, ts)
     snap(conn, ts[-1] + 8 * HOUR)
     conn.execute("CREATE FUNCTION slow_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(2); RETURN NEW; END $$")
-    conn.execute("CREATE TRIGGER slow_flight_record BEFORE INSERT ON flight_record FOR EACH ROW EXECUTE FUNCTION slow_insert()")
-    notices: list[str] = []
-    conn.add_notice_handler(lambda d: notices.append(d.message_primary or ""))
+    conn.execute("CREATE TRIGGER slow_flight_summary BEFORE INSERT ON flight_summary FOR EACH ROW EXECUTE FUNCTION slow_insert()")
     try:
         conn.execute("SET statement_timeout = '700ms'")
-        n = conn.execute("SELECT refresh_flight_summary(NULL) AS n").fetchone()["n"]
+        with caplog.at_level("WARNING"):
+            n = refresh_flights(conn)
         conn.execute("RESET statement_timeout")
     finally:
         conn.execute("RESET statement_timeout")
-        conn.execute("DROP TRIGGER slow_flight_record ON flight_record")
+        conn.execute("DROP TRIGGER slow_flight_summary ON flight_summary")
         conn.execute("DROP FUNCTION slow_insert()")
-    assert n >= 1 and conn.execute("SELECT count(*) AS n FROM flight_summary").fetchone()["n"] == 1   # pieces kept
-    assert records(conn) == [] and any("cancelled" in m for m in notices), notices
+    assert n == 0 and records(conn) == [] and any("cancelled" in r.getMessage() for r in caplog.records), caplog.records
     assert write(conn) == 1                                                  # and the next run simply does the work
 
 
@@ -462,7 +469,7 @@ def test_a_pre_existing_key_skips_that_pilot_unmarked_with_a_warning_and_the_oth
     ts = times(BASE, 20)
     a = mk(conn, 60, ts)
     b = mk(conn, 61, ts, callsign="VOZ1")
-    conn.execute("INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
+    conn.execute("INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
                  "logon_time, sample_count) VALUES (%s, %s, %s, 60, 'QFA1', 'YSSY', 'YMML', ARRAY[%s::bigint], %s, 20)",
                  (a, ts[0], ts[-1], a, ts[0]))
     notices: list[str] = []
@@ -505,24 +512,32 @@ def test_the_writer_is_not_public_and_runs_with_the_owners_rights(conn: Any) -> 
 
 
 # ------------------------------------------------------------------ the existing 5 minute job runs it, safely
-def test_refresh_flight_summary_also_runs_the_writer(conn: Any) -> None:
+def test_the_collector_job_writes_flights_in_a_small_batch(conn: Any) -> None:
+    """maintenance.refresh_flights is what the 5-minute job runs: write_finished_flights with 50 pilots, returning the flights written."""
+    from vatpac.maintenance import FLIGHT_WRITE_BATCH, refresh_flights
+
+    assert FLIGHT_WRITE_BATCH == 50
     ts = times(BASE, 20)
     mk(conn, 70, ts)
     snap(conn, ts[-1] + 8 * HOUR)
-    conn.execute("SELECT refresh_flight_summary(NULL)")
-    assert len(records(conn, 70)) == 1
+    assert refresh_flights(conn) == 1 and len(records(conn, 70)) == 1
+    assert refresh_flights(conn) == 0                                        # idempotent
 
 
-def test_a_writer_fault_cannot_stop_the_pieces_refresh(conn: Any) -> None:
+def test_a_writer_fault_reaches_the_caller_which_logs_it_and_tries_again_later(conn: Any) -> None:
+    """The old guard swallowed a writer fault so the pieces refresh survived; there are no pieces now, so the fault is raised to
+    maintenance/the flight loop (main.flight_summary_loop catches Exception and logs it) and nothing is written."""
+    from vatpac.maintenance import refresh_flights
+
     ts = times(BASE, 20)
     mk(conn, 71, ts)
     snap(conn, ts[-1] + 8 * HOUR)
     conn.execute("UPDATE app_setting SET value = '1' WHERE key = 'flight_quiet_hours'")    # makes the writer raise
-    notices: list[str] = []
-    conn.add_notice_handler(lambda d: notices.append(d.message_primary or ""))
-    assert conn.execute("SELECT refresh_flight_summary(NULL) AS n").fetchone()["n"] >= 1
-    assert conn.execute("SELECT count(*) AS n FROM flight_summary").fetchone()["n"] == 1   # pieces still written
-    assert records(conn) == [] and any("write_finished_flights failed" in n for n in notices), notices
+    with pytest.raises(psycopg.errors.RaiseException):
+        refresh_flights(conn)
+    assert records(conn) == []
+    conn.execute("UPDATE app_setting SET value = '8' WHERE key = 'flight_quiet_hours'")
+    assert refresh_flights(conn) == 1
 
 
 # ------------------------------------------------------------------ backfill of everything since go-live (section 5.1)
@@ -537,7 +552,7 @@ def test_the_backfill_rebuilds_every_flight_in_batches_and_the_script_loop_ends_
     mk(conn, 99, times(BASE - 5 * HOUR, 10), dep=None, arr=None)            # a no-plan session: marked, no flight
     snap(conn, BASE + 2 * 24 * HOUR)
     total = batches = 0
-    while (n := write(conn, 5)) > 0:                                         # what ops/backfill_flight_record.sh does
+    while (n := write(conn, 5)) > 0:                                         # what ops/backfill_flights.sh does
         total += n
         batches += 1
     assert total == expected == len(records(conn)) and batches == 3
@@ -545,7 +560,7 @@ def test_the_backfill_rebuilds_every_flight_in_batches_and_the_script_loop_ends_
 
 
 def test_the_backfill_script_loops_until_no_finished_pilot_is_left_not_until_a_batch_writes_zero() -> None:
-    text = (REPO / "ops" / "backfill_flight_record.sh").read_text(encoding="utf-8")
+    text = (REPO / "ops" / "backfill_flights.sh").read_text(encoding="utf-8")
     assert "write_finished_flights(" in text and 'BATCH="${BATCH:-500}"' in text and "sleep 2" in text and "set -eu" in text
     assert '[ "$left" -eq 0 ] && break' in text                           # stops on the remaining count, not on n = 0
     assert '[ "$n" -eq 0 ] && break' not in text and "stuck" in text      # and gives up after rounds without progress
@@ -553,7 +568,7 @@ def test_the_backfill_script_loops_until_no_finished_pilot_is_left_not_until_a_b
 
 def test_the_backfill_scripts_remaining_query_counts_exactly_the_finished_unprocessed_flights(conn: Any) -> None:
     import re
-    text = (REPO / "ops" / "backfill_flight_record.sh").read_text(encoding="utf-8")
+    text = (REPO / "ops" / "backfill_flights.sh").read_text(encoding="utf-8")
     sql = re.search(r"REMAINING_SQL=\"\$\(cat <<'SQL'\n(.*?)\nSQL\n\)\"", text, re.S).group(1)
     mk(conn, 80, times(BASE, 20))                                           # finished
     mk(conn, 81, times(BASE + 9 * HOUR, 20), logon=BASE + 9 * HOUR)         # still connected
@@ -568,23 +583,6 @@ def test_the_backfill_scripts_remaining_query_counts_exactly_the_finished_unproc
 
 
 # ------------------------------------------------------------------ carry-over of placeholder flights (section 5.3)
-def test_placeholder_flights_without_positions_are_carried_over_once_and_marked(conn: Any) -> None:
-    sql = (REPO / "db" / "migrations" / "20261012000190_flight_record_writer.sql").read_text(encoding="utf-8")
-    block = sql.split("-- carry-over:begin", 1)[1].split("-- carry-over:end", 1)[0]
-    # Since phase 3 the `flight` view reads flight_record (empty here); the carry-over ran at deploy time against the old
-    # definition, which now lives in flight_legacy.
-    assert "FROM flight f" in block
-    block = block.replace("FROM flight f", "FROM flight_legacy f")
-    old = BASE - timedelta(days=30)
-    sid = conn.execute(
-        "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
-        "VALUES (80, 'OLD1', %s, %s, %s, 'YSSY', 'YMML') RETURNING id", (old, old, old + HOUR)).fetchone()["id"]
-    conn.execute("INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count, "
-                 "airborne_minutes, final) VALUES (%s, 0, 0, 80, %s, %s, 0, NULL, true)", (sid, old, old + HOUR))
-    conn.execute(block)
-    conn.execute(block)                                                      # re-running changes nothing
-    (r,) = records(conn, 80)
-    assert (r["session_id"], r["sample_count"], r["airborne_minutes"], r["session_ids"]) == (sid, 0, None, [sid])
-    assert flown(conn, sid) == old + HOUR
-    snap(conn, BASE)
-    assert write(conn) == 0                                                  # the writer does not try to rebuild it
+# The carry-over block of migration 20261012000190 ran once at the phase 1 deploy, against the old pieces table (expected: zero rows).
+# Its test read the pieces and the legacy view, which phase 5 removed; the block itself is history in that migration.
+

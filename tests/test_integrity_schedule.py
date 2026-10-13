@@ -66,13 +66,13 @@ def rows(**over: int) -> list[tuple[str, int, str | None]]:
 def test_all_zero_is_ok() -> None:
     findings, problems = integrity.evaluate(rows(), NAMES)
     assert findings == [] and problems == []
-    assert integrity.summarise_invariants(findings, problems, len(NAMES)) == (integrity.OK, "all 23 invariants hold")
+    assert integrity.summarise_invariants(findings, problems, len(NAMES)) == (integrity.OK, "all 21 invariants hold")
 
 
 def test_one_violation_is_a_warning_naming_it() -> None:
     findings, problems = integrity.evaluate(rows(**{NAMES[9]: 3}), NAMES)
     level, text = integrity.summarise_invariants(findings, problems, len(NAMES))
-    assert level == integrity.WARN and NAMES[9] in text and "(3)" in text and "1 of 23" in text
+    assert level == integrity.WARN and NAMES[9] in text and "(3)" in text and "1 of 21" in text
 
 
 def test_a_missing_invariant_is_a_failure_not_a_pass() -> None:
@@ -383,7 +383,7 @@ def test_migrate_grants_the_watchdog_role_what_the_checks_read() -> None:
     names = set(re.findall(r"'(\w+)'", block.group(1)))
     tables_read = set(re.findall(r"\b(?:FROM|JOIN)\s+([a-z_]+)", re.sub(r"--.*", "", SQL)))
     needed = {t for t in tables_read if t in {"network_snapshot", "poll_log", "pilot_position", "pilot_session", "controller_session",
-                                              "flight_summary", "flight_record", "reference_data_change"}}
+                                              "flight_summary", "reference_data_change"}}
     assert needed <= names
-    assert {"pilot_position", "flight_summary", "flight_record", "reference_data_change"} <= names
+    assert {"pilot_position", "flight_summary", "reference_data_change"} <= names
     assert not names & {"app_setting", "controller_rating_event"}  # nothing wider than the checks need

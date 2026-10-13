@@ -11,7 +11,7 @@
 --               statement timeout, at most 10 connections.
 --   collector   the application role: SELECT, INSERT, UPDATE on the tables the collector writes (DELETE on poll_log only), USAGE on sequences, EXECUTE
 --               on the maintenance functions. No DDL (the partition functions are SECURITY DEFINER), no
---               access to flight_summary or views, not a superuser.
+--               table access to flight_summary (it only EXECUTEs the writer) or views, not a superuser.
 --   backup_ro   pg_read_all_data (pg_dump); read-only.
 
 \if :{?grafana_ro_password}
@@ -98,17 +98,17 @@ GRANT SELECT, INSERT, UPDATE ON
     reference_data_change, app_setting
 TO collector;
 -- The one retention trim the collector runs itself (maintenance.py trim_poll_log). Position partitions are dropped and the
--- flight summary is refreshed by the SECURITY DEFINER functions below, which need no DELETE right.
+-- finished flights are written by the SECURITY DEFINER writer below, which needs no DELETE right.
 GRANT DELETE ON poll_log TO collector;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO collector;
 
--- Maintenance functions. The partition functions, the flight_summary refresh and the materialized view
+-- Maintenance functions. The partition functions, the flight writer (write_finished_flights, which fills flight_summary) and the materialized view
 -- refresh are SECURITY DEFINER (owner rights), so the collector needs no DDL or table rights for them.
--- Not granted: refresh_flight_summary_sessions (internal helper).
+-- Not granted: unreconciled_partition_sessions (internal helper).
 GRANT EXECUTE ON FUNCTION
     ensure_pilot_position_partitions(int, date),
     drop_old_pilot_position_partitions(int, date),
-    refresh_flight_summary(interval),
+    write_finished_flights(int),
     refresh_materialized_views()
 TO collector;
 

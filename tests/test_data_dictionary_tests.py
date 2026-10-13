@@ -19,6 +19,12 @@ CREATE = re.compile(
     re.I | re.M,
 )
 DROP = re.compile(r"^\s*DROP\s+(?P<kind>TABLE|VIEW|FUNCTION)\s+(?:IF\s+EXISTS\s+)?(?:public\.)?(?P<name>[a-z_][a-z0-9_]*)", re.I | re.M)
+# ALTER TABLE|VIEW old RENAME TO new (issue 89: the old merging view became flight_legacy, flight_summary became flight_summary). Only
+# the RENAME TO form: RENAME CONSTRAINT and ALTER INDEX are not objects of the dictionary.
+RENAME = re.compile(
+    r"^\s*ALTER\s+(?P<kind>TABLE|VIEW)\s+(?:IF\s+EXISTS\s+)?(?:public\.)?(?P<name>[a-z_][a-z0-9_]*)\s+RENAME\s+TO\s+(?P<new>[a-z_][a-z0-9_]*)",
+    re.I | re.M,
+)
 
 
 def up_section(text: str) -> str:
@@ -33,8 +39,14 @@ def live_objects() -> dict[str, set[str]]:
         text = up_section(path.read_text(encoding="utf-8"))
         events = [(m.start(), "create", m) for m in CREATE.finditer(text) if not m.group("temp")]
         events += [(m.start(), "drop", m) for m in DROP.finditer(text)]
+        events += [(m.start(), "rename", m) for m in RENAME.finditer(text)]
         for _, action, m in sorted(events, key=lambda e: e[0]):
             kind, name = m.group("kind").lower(), m.group("name").lower()
+            if action == "rename":
+                if name in objs[kind]:                   # a rename of an object the parser never saw created is ignored
+                    objs[kind].discard(name)
+                    objs[kind].add(m.group("new").lower())
+                continue
             (objs[kind].add if action == "create" else objs[kind].discard)(name)
     return objs
 
@@ -42,9 +54,12 @@ def live_objects() -> dict[str, set[str]]:
 def test_the_parser_sees_the_known_core_objects() -> None:
     objs = live_objects()
     assert {"pilot_session", "pilot_position", "flight_summary", "controller_session"} <= objs["table"]
-    assert {"flight", "flight_part", "flight_ext", "poll_cadence", "movements"} <= objs["view"]
+    assert {"flight", "flight_ext", "poll_cadence", "movements"} <= objs["view"]
+    # issue 89 phase 5: the pieces' view and the legacy view are gone; the table that was built as flight_record is flight_summary now
+    assert not {"flight_part", "flight_legacy"} & objs["view"]
     assert "controller_activity_summary" not in objs["view"]  # dropped by migration 90
-    assert {"refresh_flight_summary", "icao_region"} <= objs["function"]
+    assert {"write_finished_flights", "icao_region"} <= objs["function"]
+    assert not {"refresh_flight_summary", "refresh_flight_summary_sessions"} & objs["function"]  # dropped in phase 5
 
 
 def test_every_migration_object_is_in_the_dictionary() -> None:

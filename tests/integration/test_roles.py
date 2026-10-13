@@ -15,9 +15,7 @@ pytestmark = pytest.mark.integration
 MAINT_FUNCS = [
     "ensure_pilot_position_partitions(int, date)",
     "drop_old_pilot_position_partitions(int, date)",
-    "refresh_flight_summary(interval)",
     "refresh_materialized_views()",
-    "refresh_flight_summary_sessions(bigint[], boolean)",
     "write_finished_flights(int)",
 ]
 
@@ -91,7 +89,8 @@ def test_collector_can_write_data_and_run_maintenance(as_collector) -> None:
     c.execute("INSERT INTO network_snapshot VALUES (now(),1,1,1,1)")
     c.execute("INSERT INTO app_setting (key, value) VALUES ('x_test','1') ON CONFLICT (key) DO UPDATE SET value = '2'")
     c.execute("DELETE FROM poll_log WHERE polled_at < now() - interval '400 days'")
-    assert c.execute("SELECT refresh_flight_summary('100 years') AS n").fetchone()["n"] >= 0
+    # issue 89 phase 5: the 5-minute job calls the writer itself, so the collector must be allowed to (it was denied before)
+    assert c.execute("SELECT write_finished_flights(50) AS n").fetchone()["n"] >= 0
     c.execute("SELECT refresh_materialized_views()")
     c.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07')")
 
@@ -109,12 +108,10 @@ def test_collector_can_write_data_and_run_maintenance(as_collector) -> None:
         "DROP TABLE pilot_position_20261007",
         "CREATE TABLE pilot_position_20991231 PARTITION OF pilot_position "
         "FOR VALUES FROM ('2099-12-31') TO ('2100-01-01')",
-        "SELECT refresh_flight_summary_sessions(ARRAY[1]::bigint[])",
-        "SELECT * FROM flight_record",
-        "SELECT write_finished_flights()",
+        "SELECT * FROM unreconciled_partition_sessions(now(), now())",
     ],
     ids=["create", "drop", "alter", "truncate", "read-summary", "read-view", "write-lookup", "drop-partition",
-         "create-partition", "internal-helper", "read-flight-record", "writer-direct"],
+         "create-partition", "internal-helper"],
 )
 def test_collector_has_no_ddl_or_extra_access(conn, sql: str) -> None:
     if not role_exists(conn, "collector"):
@@ -134,7 +131,7 @@ def test_maintenance_functions_are_not_public(conn) -> None:
         # NULL = default privileges (EXECUTE for PUBLIC); a PUBLIC grant shows as "=X/owner"
         assert acl is not None and "{=X" not in acl and ",=X" not in acl, fn
     for fn in ("ensure_pilot_position_partitions", "drop_old_pilot_position_partitions",
-               "refresh_flight_summary", "refresh_materialized_views", "write_finished_flights"):
+               "refresh_materialized_views", "write_finished_flights"):
         row = conn.execute("SELECT prosecdef, proconfig FROM pg_proc WHERE proname = %s", (fn,)).fetchone()
         assert row["prosecdef"] is True and any(c.startswith("search_path=public") for c in row["proconfig"])
     # issue 89 phase 4: the reconciliation helper is internal. No PUBLIC grant, and not granted to the collector or anyone else
@@ -150,7 +147,7 @@ def test_maintenance_functions_are_not_public(conn) -> None:
 
 def test_backup_role_reads_everything_writes_nothing(as_backup) -> None:
     c = as_backup
-    for table in ("pilot_session", "pilot_position", "flight_summary", "flight_record", "poll_log"):
+    for table in ("pilot_session", "pilot_position", "flight_summary", "poll_log"):
         c.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchall()
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         c.execute("INSERT INTO app_setting (key, value) VALUES ('bk','1')")
@@ -173,3 +170,13 @@ def test_online_now_is_empty_when_the_newest_snapshot_is_stale(conn) -> None:
 def test_movements_comment_documents_semantics(conn) -> None:
     c = conn.execute("SELECT obj_description('movements'::regclass, 'pg_class') AS c").fetchone()["c"]
     assert c and "never became airborne" in c
+
+
+def test_collector_may_execute_the_flight_writer_and_nothing_old_remains(conn) -> None:
+    """Issue 89 phase 5 (requirement 1 of docs/CONFORMANCE_89_PHASE5.md): db/roles.sql grants EXECUTE on write_finished_flights(int)
+    to the collector, and the dropped refresh functions are gone (a stale grant would have aborted the migrate job)."""
+    if not role_exists(conn, "collector"):
+        pytest.skip("role collector not created")
+    assert conn.execute("SELECT has_function_privilege('collector', 'write_finished_flights(int)', 'EXECUTE') AS ok").fetchone()["ok"]
+    assert not conn.execute("SELECT has_function_privilege('collector', 'unreconciled_partition_sessions(timestamptz, timestamptz)', 'EXECUTE') AS ok").fetchone()["ok"]
+    assert conn.execute("SELECT count(*) AS n FROM pg_proc WHERE proname IN ('refresh_flight_summary', 'refresh_flight_summary_sessions')").fetchone()["n"] == 0
