@@ -24,7 +24,7 @@
 -- session over the day, one range semi-join against the flights that overlap the day (served by the start_time and end_time
 -- indexes), never a probe per position. It is SECURITY DEFINER, not granted to anyone (REVOKE FROM PUBLIC), like the other helpers.
 --
--- Unchanged: the signature, the return value (partitions dropped in this call), at most 10 partitions per call, the lock-friendly
+-- Unchanged: the signature, the return value (partitions dropped in this call), at most 3 candidates checked and ONE partition dropped per call (the collector loops, with a pause, so the parent table lock of one drop is released before the next day is read), the lock-friendly
 -- order of migration 20261009000170 (no parent lock while checking; LOCK ... NOWAIT per partition; DROP with a 1 s lock timeout; retries
 -- only before the first drop), the restore of lock_timeout, the permissions. No writer advisory lock is taken (design section 3,
 -- reviewer point 4): the gate is monotone, because an old partition receives no inserts, flown_upto only rises and written flights
@@ -112,7 +112,7 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $fn$
 DECLARE
-    max_per_call constant int := 10;
+    max_per_call constant int := 3;   -- candidates checked per call (a busy one must not starve the next); at most ONE is dropped
     old_lock_timeout text := current_setting('lock_timeout');
     cutoff       timestamptz;
     r            record;
@@ -220,7 +220,7 @@ BEGIN
             p_start := to_date(right(part, 8), 'YYYYMMDD')::timestamp AT TIME ZONE 'UTC';
             p_end   := p_start + interval '24 hours';
             done := false;
-            attempts := CASE WHEN n = 0 THEN 3 ELSE 1 END;         -- sleeping is only free while no parent lock is held
+            attempts := 3;                                         -- no parent lock is held yet (one drop per call), so sleeping between tries is free
             FOR attempt IN 1..attempts LOOP
                 BEGIN
                     EXECUTE format('LOCK TABLE public.%I IN ACCESS EXCLUSIVE MODE NOWAIT', part);
@@ -254,6 +254,8 @@ BEGIN
                         EXIT;
                 END;
             END LOOP;
+            EXIT WHEN n > 0;     -- ONE drop per call: the DROP leaves the parent table ACCESS EXCLUSIVE locked until the call ends, so no
+                                 -- further day is re-checked (a full day read) or locked behind it; the caller pauses and calls again
             IF NOT done THEN
                 RAISE NOTICE 'DROP REFUSED: partition % kept: could not lock it (readers or writers busy); retried by the next run', part;
                 INSERT INTO public.drop_gate_refusal (part_name, detail)
@@ -268,7 +270,7 @@ END
 $fn$;
 REVOKE ALL ON FUNCTION drop_old_pilot_position_partitions(int, date) FROM PUBLIC;
 COMMENT ON FUNCTION drop_old_pilot_position_partitions(int, date) IS
-    'Drops daily pilot_position partitions older than the retention, only when every position in them is processed by the flight writer and covered by a written flight (issue 89 phase 4, unreconciled_partition_sessions). Fails safe: any doubt keeps the partition with a NOTICE starting DROP REFUSED. Pinning rule unchanged. At most 10 per call; returns the number dropped.';
+    'Drops daily pilot_position partitions older than the retention, only when every position in them is processed by the flight writer and covered by a written flight (issue 89 phase 4, unreconciled_partition_sessions). Fails safe: any doubt keeps the partition with a NOTICE starting DROP REFUSED. Pinning rule unchanged. At most one drop per call (the collector repeats the call); returns the number dropped (0 or 1).';
 
 -- migrate:down
 -- Forward-only project: no automatic rollback (the previous definition is in migration 20261009000170).

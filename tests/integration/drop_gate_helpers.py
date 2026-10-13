@@ -30,3 +30,16 @@ def unreconciled(conn: Any, p_start: datetime, p_end: datetime) -> list[tuple[in
     rows = conn.execute("SELECT session_id, reason FROM unreconciled_partition_sessions(%s, %s) ORDER BY 1, 2",
                         (p_start, p_end)).fetchall()
     return [(r["session_id"], r["reason"]) for r in rows]
+
+
+def drain(conn: Any, retention: int = 90, today: Any = None) -> int:
+    """Call the drop function until it drops nothing, as the collector's loop does (one day per call). Returns the total dropped."""
+    from datetime import date
+    day = today or date(2026, 10, 7)
+    total = 0
+    for _ in range(700):
+        n = conn.execute("SELECT drop_old_pilot_position_partitions(%s, %s) AS n", (retention, day)).fetchone()["n"]
+        total += n
+        if n == 0:
+            break
+    return total
