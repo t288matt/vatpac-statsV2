@@ -6,6 +6,16 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 12-10-2026 (docs batch 3, issue #107). The production VM runs commit c70e72f (issue 89 phase 1), marked live on 12-10-2026 at 17:58:21 UTC; the previous marker was b3189ad, marked 11-10-2026 at 20:35:53 UTC (both in the VM's release record, `.deploy/release.log`). Everything merged to main up to c89e544 on 10-10-2026, plus the work of 11-10-2026 described below, is now deployed. Main has since moved on by documentation and tooling commits only (these add no code to the running system).
 
+## Issue 89 phase 5: the old flight machinery is removed and the table takes its final name (branch p5-remove-old, 13-10-2026; not merged, NOT deployed)
+
+Migration 20261013000300 (refs #89 and #141; design [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md) sections 4, 7.2 and 7.4 to 7.6; requirement-to-test table [docs/CONFORMANCE_89_PHASE5.md](docs/CONFORMANCE_89_PHASE5.md)). Forward-only and destructive: the way back is the pre-deploy dump.
+- Dropped: the old pieces table (with its `final` flag and foreign key), the views `flight_part` and `flight_legacy`, the functions `refresh_flight_summary` and `refresh_flight_summary_sessions`. No CASCADE.
+- Renamed: the finished-flights table `flight_record` becomes `flight_summary`, with its primary key, CHECK constraint and four indexes; the writer, the reconciliation helper and the drop function are re-created with only the table name changed. Every chart view follows automatically and returns the same rows (`tests/integration/test_phase5_remove_old.py`).
+- The collector's 5-minute job now calls `write_finished_flights(50)` directly (it used to run only at the end of the removed refresh function); the collector role is granted EXECUTE on it in the migration and in `db/roles.sql` in the same deploy. A statement timeout is logged and the next run continues.
+- Watchdog: the two checks about the old pieces are removed (21 checks instead of 23). The restore check also reads dumps made before the deploy, where the finished flights are still `flight_record`.
+- Removed tools of the old model: `ops/compare_flights_89.sql`, `ops/compare_views_89_phase3.sql`, `ops/audit/panel_recompute.py`, `logon_precision_impact.py` and the two throwaway SQL drills. `ops/backfill_flight_record.sh` is `ops/backfill_flights.sh`; `ops/audit/recompute_flights.py` now checks the v1 rule.
+- Not run: no PostgreSQL was available to the builder, so none of the integration tests or the migration has been executed (see the conformance document).
+
 ## Issue 89 phase 3: the charts read the written flights (branch p3-switch-views, 12-10-2026; not merged, not deployed)
 
 Migration 20261013000200 switches the flight readers to `flight_record` (refs #89 and #139; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md)). It needs phase 1 deployed, the backfill finished and the phase 1 exit gate (#138) passed first.

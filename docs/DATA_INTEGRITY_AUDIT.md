@@ -1,5 +1,7 @@
 # Data integrity audit (T30, data-integrity half)
 
+> **Note, issue 89 phase 5 (13-10-2026, branch p5-remove-old, NOT YET DEPLOYED).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 drops the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renames `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
+
 Audit date 08-10-2026, 12:40 to 13:41 UTC for the measurements, finished 17:05 UTC (VM clock at start 12:40:43 UTC, at last check 17:02:31 UTC). Independent auditor: did not write the collector, views or panels.
 Code under test: the deployed collector image (built 12:37:18 UTC on 08-10-2026, collector container started 12:37:21 UTC) and migrations 20261007000001 to 20261008000090 (all 15 applied). Branch `t30-data-integrity`, scripts in `ops/audit/`.
 The live database held data from 07-10-2026 21:38:19 UTC; at the time of the final capture it held 3,821 snapshots, 417 pilot sessions, 111,571 positions and 46 controller sessions.

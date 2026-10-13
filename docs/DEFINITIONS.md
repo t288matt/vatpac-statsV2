@@ -6,23 +6,22 @@ Last reviewed 08-10-2026. Each definition is taken from SPEC.md section 5 and ch
 
 **v3.** A pilot session is identified by `(cid, callsign, logon_time)`, where `logon_time` is in whole seconds (truncated, not rounded; the feed's fraction is dropped on purpose, ADR-021). A new whole-second `logon_time` for the same CID and callsign is a new session. Departure, arrival, aircraft and route are attributes, never part of the key.
 
-A session becomes one or more **flights**, computed into the table `flight_summary` (refreshed every 5 minutes, so flight numbers lag live data by up to 5 minutes) and exposed by the `flight` view:
+A session becomes part of one **flight**, written once into the table `flight_summary` when the flight is finished (8 hours after its last position, see section 1b; the table is called `flight_summary` in production until issue 89 phase 5, migration 20261013000300, NOT YET DEPLOYED, renames it) and exposed by the thin `flight` view:
 
-- **Gap split (exact):** a gap of more than 120 minutes between consecutive stored samples starts a new flight.
-- **Span split (approximate):** within a gap segment, flights are cut into fixed 8-hour buckets measured from the segment's first sample. This approximates "restart after 8 hours" without a recursive query, so a split falls on a bucket boundary rather than on the exact 8-hour mark.
+- **No split inside a connection (v1's rule, since phase 3):** a long silence or a connection of more than 8 hours is ONE flight. The earlier gap split (more than 120 minutes) and 8-hour span split belonged to the old pieces table and are gone.
 - **Start** = first stored sample; **end** = last stored sample; **duration** = end minus start.
-- **Reconnect merge (ADR-023, from migration 20261009000110):** the `flight` view joins parts of different sessions that have the same CID, callsign, departure and arrival when the next part starts 120 minutes or less after the earlier parts ended. A changed departure or arrival is a different flight. Parts of one session are never joined. The per-session parts are in the view `flight_part`.
+- **Reconnect join (v1's rule; ADR-030 supersedes ADR-023's merge):** sessions with the same CID, callsign, departure and arrival are one flight when a later session's logon time is 120 minutes or less after the latest last position of the earlier ones. A changed departure or arrival is a different flight.
 - Plan fields are updated in place to the latest non-null values; `plan_changed_at` records when departure or arrival last changed.
 
 **Difference from v1.** v1 keyed sessions on departure and arrival as well, which produced duplicates when a plan was amended (ADR-006); since ADR-023 v3 merges reconnects with the same airports as v1 does, but still keeps a changed plan as a separate flight without v1's duplicate rows. v1 closed a flight after `FLIGHT_COMPLETION_HOURS` of 8 hours from first logon (v1 compose); v3 splits by gap and span in the view and closes nothing in the collector.
 
 ## 1b. A finished flight, and when it is written (issue 89; NOT YET LIVE except where stated)
 
-**Status (12-10-2026).** Phase 1 of issue #89 is deployed: the table `flight_record` and the writer `write_finished_flights()` run beside the old `flight_summary` pieces, and NO chart reads `flight_record` yet (that is phase 3). The rule below ("quiet per flight", owner decision 12-10-2026) is migration 20261012000200 and is **not yet deployed**; what runs on the VM today is the earlier "quiet per pilot" version of migration 20261012000190, which is described in section 1b.4.
+**Status (13-10-2026).** Phases 1, 1b and 3 of issue #89 are live (release marker 38e3958): the table, the writer `write_finished_flights()` ("quiet per flight") and the charts that read them. Phase 5 (NOT YET DEPLOYED) removes the old pieces and renames the table to `flight_summary`.
 
 **1b.1 What a flight is.** One connection (a session), or several connections of the same pilot joined together by v1's rule: same CID, same callsign, same departure, same arrival, and the new connection **logged on** no more than 120 minutes after the latest earlier position of that flight. A reconnect that happens within two hours is therefore the same flight; a connection that logs on later than that, or with another callsign or another departure or arrival (an amended plan), is a different flight. A connection is never cut: a long session, or a long silence inside one, is still one flight. A session with no departure or no arrival makes no flight.
 
-**1b.2 When a flight is written.** A flight is written into `flight_record`, once, and never changed afterwards, as soon as **the flight itself has had no position for 8 hours** (`app_setting.flight_quiet_hours`). The 8 hours are counted on stored data: the clock is the time of the newest stored snapshot (never the wall clock, never later than now plus 5 minutes), so a stopped collector or a frozen feed cannot make a flight that is still flying look finished. Why 8 hours: any wait longer than 120 minutes guarantees that no later reconnect can still join the flight; 8 hours is the owner's choice and matches v1.
+**1b.2 When a flight is written.** A flight is written into `flight_summary`, once, and never changed afterwards, as soon as **the flight itself has had no position for 8 hours** (`app_setting.flight_quiet_hours`). The 8 hours are counted on stored data: the clock is the time of the newest stored snapshot (never the wall clock, never later than now plus 5 minutes), so a stopped collector or a frozen feed cannot make a flight that is still flying look finished. Why 8 hours: any wait longer than 120 minutes guarantees that no later reconnect can still join the flight; 8 hours is the owner's choice and matches v1.
 
 **1b.3 What "per flight" means, with a worked example.** A pilot flies YSSY to YMML from 08:00 to 10:00, disconnects, and flies YMML to YSSY from 17:00 to 19:00.
 - At 12:00 nothing is written: the first flight has been quiet for only 2 hours.
@@ -34,7 +33,7 @@ Two cases the rule decides on purpose:
 - *Reconnect that does not continue it.* The pilot logs on again at 12:01 (121 minutes later) or with another arrival. That is a different flight, so the first flight is written 8 hours after 10:00 and is not held up.
 A session that forms no flight (no flight plan, or no positions) is marked as processed once that session is itself quiet for 8 hours; it never holds anything up.
 
-**1b.4 What the VM runs today (before migration 20261012000200).** The quiet test looks at the whole pilot: nothing of a pilot is written until the pilot's newest session is 8 hours old. Same flights, same numbers, only later. After the new migration is deployed the backfill (`ops/backfill_flight_record.sh`) catches up the held-back flights.
+**1b.4 History.** Migration 20261012000190 first used a "quiet per pilot" test (nothing of a pilot written until the pilot's newest session was 8 hours old); migration 20261012000200 replaced it with the per-flight rule described above.
 
 **1b.5 How it can be checked.** `docs/CONFORMANCE_89_PHASE1.md` lists each requirement against the test that proves it; the tests for this rule are in `tests/integration/test_flight_quiet_per_flight.py`. Two watchdog checks report flights that are overdue (`docs/RUNBOOKS/integrity-checks.md`).
 
@@ -110,7 +109,6 @@ Handling: the callsign is not stored as a session. It is upserted into `controll
 | `is_circuit` | Normalised departure equals normalised arrival. |
 | `is_zzzz` | Departure or arrival is `ZZZZ`. |
 | `touches_home_region` | Departure or arrival starts with a prefix in `HOME_ICAO_PREFIXES` (default `Y`). |
-| `is_in_progress` | (Production. Removed from `flight` by migration 20261013000200, issue 89 phase 3, not yet deployed; it stays only in `flight_legacy`. After that nothing is shown in progress because a flight is written only 8 hours after its pilot's last connection ends.) A session of the (merged) flight is in `online_now` (issue #38). Counting panels leave such flights out (ADR-025): `flight_ext`, `movements` and `cohorts` do it in the view, panels reading `flight` directly add `NOT is_in_progress`. Live panels keep them. When the collector is stale nothing is in progress, so nothing is hidden. |
 
 ## 10. Verification status of these definitions
 

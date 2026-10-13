@@ -1,5 +1,7 @@
 # Issue #89: every design option, consolidated (PARKED)
 
+> **Note, issue 89 phase 5 (13-10-2026, branch p5-remove-old, NOT YET DEPLOYED).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 drops the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renames `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
+
 Written 12-10-2026 by the technical writer. This is a summary of four dated working papers (kept unchanged on the branches `design-89`, `opus-89` and `test-89-index`, not on main). Nothing here was built or run; no code, migration or panel was changed. All times are UTC. Dates are DD-MM-YYYY.
 
 > **Do not delete the branches `design-89`, `opus-89` and `test-89-index`.** They hold the four working papers (about 128,000 characters, with dated sections whose earlier recommendations are superseded) and are deliberately not on `main`. Their tips are also tagged `parked-89-design`, `parked-89-opus` and `parked-89-index`. The issue #89 comments of 12-10-2026 repeat this summary.

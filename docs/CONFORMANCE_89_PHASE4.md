@@ -1,5 +1,7 @@
 # Issue #89 phase 4: conformance table
 
+> **Note, issue 89 phase 5 (13-10-2026, branch p5-remove-old, NOT YET DEPLOYED).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 drops the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renames `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
+
 Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-10-2026. Branch `p4-drop-gate`, issues #89 and #140. **NOT YET DEPLOYED.** Requirements of `docs/DESIGN_89_FINAL.md` sections 3, 5.3, 6, 7.2 (phase 4), 7.4 and 7.5 that phase 4 builds, and the test that proves each. Files: `G` = `tests/integration/test_drop_gate.py`, `L` = `tests/integration/test_partition_drop_locks.py`, `I` = `tests/integration/test_integrity_checks.py`, `R` = `tests/integration/test_roles.py`, `T` = `tests/integration/test_audit_t30.py`, `F` = `tests/integration/test_flight_summary.py`. The migration is `db/migrations/20261012000210_drop_gate_reconciles_flights.sql`. The semantics of `flown_upto` (per session) are unchanged by the per-flight writer of migration 20261012000200, so the gate needs no change for it; every test builds its flights by running the real writer.
 
 ## Section 3: the gate
