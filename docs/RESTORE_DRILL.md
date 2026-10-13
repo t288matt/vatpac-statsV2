@@ -1,6 +1,6 @@
 # Restore drill (T18)
 
-> **Note, issue 89 phase 5 (13-10-2026, branch p5-remove-old, NOT YET DEPLOYED).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 drops the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renames `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
+> **Note, issue 89 phase 5 (LIVE since 13-10-2026, marker 7a71d30 at 10:05:56 UTC).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 (live) dropped the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renamed `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
 
 Date: 08-10-2026, run 08:27 to 08:30 UTC (times taken from `ssh vatpac-v3 date -u`; the VM clock is UTC). The soak test was running; the drill used one dump read and a few short read-only queries.
 
