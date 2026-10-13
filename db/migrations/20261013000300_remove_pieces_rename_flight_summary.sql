@@ -45,14 +45,25 @@ BEGIN
 END
 $do$;
 
--- 1. Drop the old machinery (no CASCADE).
+-- LOCK ORDER (Opus 5.5 review, 13-10-2026). DROP TABLE of the pieces table removes its foreign key to pilot_session, which takes
+-- ACCESS EXCLUSIVE on pilot_session until the transaction ends, and the collector writes pilot_session on every poll (its own lock timeout
+-- is 5 s). Any statement that can WAIT (the renames of flight_record wait for a Grafana panel that is reading the flight view) must
+-- therefore come BEFORE that lock, and the DROP of the pieces table must be the very last statement. So: views and functions first (they
+-- touch no table the collector writes), the pieces table is only RENAMED aside (a lock on that table alone), then every rename and
+-- re-creation, then the self-check, then the one DROP that locks pilot_session, followed only by the commit.
+
+-- 1. Drop the old views and functions (no CASCADE) and move the pieces table out of the way.
 DROP VIEW IF EXISTS flight_legacy;
 DROP VIEW flight_part;
 DROP FUNCTION IF EXISTS refresh_flight_summary(interval);
 DROP FUNCTION IF EXISTS refresh_flight_summary_sessions(bigint[], boolean);
-DROP TABLE flight_summary;
+ALTER TABLE flight_summary RENAME TO flight_summary_old_p5;                 -- locks only the pieces table; frees the name
+ALTER TABLE flight_summary_old_p5 RENAME CONSTRAINT flight_summary_pkey TO flight_summary_old_p5_pkey;   -- renames the key index too
+ALTER INDEX IF EXISTS flight_summary_start_time_idx RENAME TO flight_summary_old_p5_start_time_idx;
+ALTER INDEX IF EXISTS flight_summary_end_time_idx   RENAME TO flight_summary_old_p5_end_time_idx;
 
--- 2. Rename the table, the primary key, the CHECK constraint and the four indexes.
+-- 2. Rename the finished-flights table, the primary key, the CHECK constraint and the four indexes (may wait for readers of the
+--    flight view, up to the lock timeout; nothing the collector writes is locked yet).
 ALTER TABLE flight_record RENAME TO flight_summary;
 DO $do$
 DECLARE
@@ -118,7 +129,7 @@ BEGIN
 END
 $do$;
 COMMENT ON TABLE flight_summary IS
-    'One row per finished flight, written once by write_finished_flights() (issue 89; built as flight_record in phase 1, renamed flight_summary in phase 5). The only flight store: the charts read it through the flight view. Primary key (session_id, start_time); session_ids lists every session of the flight. No foreign key to pilot_session: delete a session''s flights by session_ids (ADR-026, ADR-030).';
+    'One row per finished flight, written once by write_finished_flights() (issue 89; built in phase 1 under a temporary name, renamed flight_summary in phase 5). The only flight store: the charts read it through the flight view. Primary key (session_id, start_time); session_ids lists every session of the flight. No foreign key to pilot_session: delete a session''s flights by session_ids (ADR-026, ADR-030).';
 
 -- 4. The collector now calls the writer itself. A grant given here as well as in db/roles.sql so the window between this migration
 --    and the roles step (or a manual dbmate up) cannot leave the 5-minute job without EXECUTE.
@@ -130,7 +141,7 @@ BEGIN
 END
 $do$;
 
--- 5. Final self-check: nothing left that names an old object (functions, view definitions, comments), and the new names exist.
+-- 5. Self-check BEFORE the last statement: nothing names an old object (functions, view definitions, comments), the new names exist.
 DO $do$
 DECLARE
     bad text;
@@ -145,6 +156,14 @@ BEGIN
      WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'v'
        AND pg_get_viewdef(c.oid) ~ '\m(flight_record|flight_part|flight_legacy)\M';
     IF bad IS NOT NULL THEN RAISE EXCEPTION 'views still name an old object: %', bad; END IF;
+    SELECT string_agg(d.objoid::regclass::text, ', ') INTO bad
+      FROM pg_description d
+     WHERE d.classoid = 'pg_class'::regclass AND d.description ~ '\m(flight_record|flight_part|flight_legacy|refresh_flight_summary(_sessions)?)\M';
+    IF bad IS NOT NULL THEN RAISE EXCEPTION 'comments still name an old object: %', bad; END IF;
+    SELECT string_agg(p.oid::regprocedure::text, ', ') INTO bad
+      FROM pg_description d JOIN pg_proc p ON p.oid = d.objoid AND d.classoid = 'pg_proc'::regclass
+     WHERE d.description ~ '\m(flight_record|flight_part|flight_legacy|refresh_flight_summary(_sessions)?)\M';
+    IF bad IS NOT NULL THEN RAISE EXCEPTION 'function comments still name an old object: %', bad; END IF;
     IF to_regclass('public.flight_record') IS NOT NULL OR to_regclass('public.flight_part') IS NOT NULL
        OR to_regclass('public.flight_legacy') IS NOT NULL THEN
         RAISE EXCEPTION 'an old relation is still present';
@@ -159,6 +178,9 @@ BEGIN
     END IF;
 END
 $do$;
+
+-- 6. LAST statement: drop the old pieces table (takes ACCESS EXCLUSIVE on pilot_session for the rest of the transaction, i.e. the commit).
+DROP TABLE flight_summary_old_p5;
 
 -- migrate:down
 -- Forward-only project: no automatic rollback. Recovery is only the pre-deploy dump (docs/RUNBOOKS/restore.md); the pieces
