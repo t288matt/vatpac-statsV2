@@ -144,7 +144,7 @@ SELECT ord, metric, value FROM (
     UNION ALL SELECT 17, 'cohorts: rows only in new', (SELECT count(*) FROM coh_only_new)
     UNION ALL SELECT 18, 'monday_attendance: Mondays compared (all pilots)', (SELECT count(*) FROM old_mon)
     UNION ALL SELECT 19, 'monday_attendance: Mondays whose pilot or controller count differs (expect 0, or the latest Monday while pilots are unwritten)', (SELECT count(*) FROM mon_diff)
-    UNION ALL SELECT 20, 'monday_attendance: Mondays where NEW is HIGHER than old (expect 0; only a join decided by logon_time, expected difference 3, can do this)',
+    UNION ALL SELECT 20, 'monday_attendance: Mondays where NEW is HIGHER than old (expect 0, only a join decided by logon_time, expected difference 3, can do this)',
                          (SELECT count(*) FROM mon_diff WHERE new_pilot_cids > old_pilot_cids)
 ) m
 UNION ALL
