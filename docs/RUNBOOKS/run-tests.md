@@ -25,9 +25,29 @@ mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/int
 
 `make test`, `make drift`, `make size` and `make lint` wrap the same commands. On Windows without `make`, run the commands above. Set up the Python environment once: `python -m venv collector/.venv`, then `collector/.venv/bin/pip install pytest -r collector/requirements.txt` (Windows: `collector\.venv\Scripts\pip`).
 
+## 1b. Integration tests on the PC with Docker Desktop (works since 13-10-2026; the same database as CI)
+
+Docker Desktop on the owner's PC works again (13-10-2026; the older note in section 2 about T25 no longer applies when `docker version` shows a server). This builds the SAME database CI builds: the PostgreSQL 16.15 image plus the production migrate image (dbmate, then `db/roles.sql` and `watchdog_ro`), in a throwaway container on the PC. It never touches the VM or the live database. Run in Git Bash from the repository root (or a worktree). Use one database per person or agent: the tests `TRUNCATE` every data table, and the name must end in `_test`.
+
+```sh
+# once: a network and a database container (the alias `db` is what migrate.sh connects to)
+docker network create vatpac-pgtest
+docker run -d --name vatpac-pgtest-db --network vatpac-pgtest --network-alias db -p 54329:5432   -e POSTGRES_PASSWORD=ci-superuser-pw -e POSTGRES_DB=vatpac_test postgres:16.15
+# every time migrations change (and the first time): apply them with the production migrate image
+docker build -q -t vatpac-migrate-ci ops/migrate
+MSYS_NO_PATHCONV=1 docker run --rm --network vatpac-pgtest   -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=ci-superuser-pw -e POSTGRES_DB=vatpac_test   -e GRAFANA_RO_PASSWORD=ci-grafana-ro-pw -e COLLECTOR_DB_PASSWORD=ci-collector-pw -e BACKUP_DB_PASSWORD=ci-backup-pw   -e WATCHDOG_DB_PASSWORD=ci-watchdog-pw -v "$(pwd -W)/db:/db:ro" vatpac-migrate-ci
+# run the tests (libpq must be findable by Python: the PostgreSQL 17 client that is installed on the PC has it)
+export PATH="$PATH:/c/Program Files/PostgreSQL/17/bin" PYTHONPATH=collector/src
+export VATPAC_TEST_DSN='postgresql://postgres:ci-superuser-pw@localhost:54329/vatpac_test'
+export VATPAC_TEST_GRAFANA_RO_DSN='postgresql://grafana_ro:ci-grafana-ro-pw@localhost:54329/vatpac_test'
+python -m pytest tests/integration -m integration -q
+```
+
+To test a branch with a NEW migration against a clean database: `docker rm -f vatpac-pgtest-db`, then run the three steps again (about 30 seconds). Two people or agents at the same time: add a second database to the same container (`docker exec vatpac-pgtest-db psql -U postgres -c "CREATE DATABASE vatpac_other_test"`), run the migrate step with `POSTGRES_DB=vatpac_other_test`, and point `VATPAC_TEST_DSN` at it. The passwords are test-only values (the same ones CI uses for its throwaway container). On 13-10-2026 this ran 80 flight tests (writer, quiet per flight, views switch) green in 32 seconds. The Australia/Sydney pass of CI is not reproduced here; set the test connection's time zone with the `PGOPTIONS` environment variable to try it. Remove the container when finished: `docker rm -f vatpac-pgtest-db && docker network rm vatpac-pgtest`.
+
 ## 2. Integration tests: the safe method on the VM
 
-Use this when there is no working Docker on the PC (Docker Desktop on the owner's PC is broken, docs/TRACKER.md T25). It uses a throwaway database inside the VM's running Postgres container, a copy of the committed code in `/tmp`, and a short-lived container built from the collector image. The live database is not touched. It excludes the two role test files (`test_roles.py`, `test_grafana_ro.py`), which need roles that must not be created on the live cluster. CI runs those.
+Use this when there is no working Docker on the PC (Docker Desktop on the owner's PC was broken, docs/TRACKER.md T25; it works since 13-10-2026, see section 1b). It uses a throwaway database inside the VM's running Postgres container, a copy of the committed code in `/tmp`, and a short-lived container built from the collector image. The live database is not touched. It excludes the two role test files (`test_roles.py`, `test_grafana_ro.py`), which need roles that must not be created on the live cluster. CI runs those.
 
 From the PC, in the repository root (so the VM gets exactly what is committed, without `.env`):
 
