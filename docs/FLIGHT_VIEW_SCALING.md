@@ -1,10 +1,10 @@
 # The `flight` view and history growth (issue #89)
 
-> **Note, issue 89 phase 5 (13-10-2026, branch p5-remove-old, NOT YET DEPLOYED).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 drops the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renames `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
+> **Note, issue 89 phase 5 (LIVE since 13-10-2026, marker 7a71d30 at 10:05:56 UTC).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 (live) dropped the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renamed `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
 
 Written 10-10-2026 from the code review (issue #80). Status: measured, designed, NOT changed. Recommendation at the end.
 
-> **Note, 13-10-2026 (issue 89 phase 3, migration 20261013000200, live since 13-10-2026 08:14:12 UTC):** this page describes the old merging view. Since that migration the merging view is `flight_legacy` (kept until phase 5 for comparison) and `flight` is a thin view over `flight_record`, which `write_finished_flights()` fills once per finished flight; nothing here is merged at read time any more. See `docs/DESIGN_89_FINAL.md`.
+> **Note, 13-10-2026 (issue 89 phase 3, migration 20261013000200, live since 13-10-2026 08:14:12 UTC):** this page describes the old merging view. Since that migration `flight` is a thin view over the table of finished flights, which `write_finished_flights()` fills once per finished flight (called `flight_record` then, `flight_summary` since phase 5, live since 13-10-2026 10:05:56 UTC); the old merging view was kept for comparison as `flight_legacy` and dropped by phase 5. Nothing here is merged at read time any more. See `docs/DESIGN_89_FINAL.md`.
 
 ## The problem
 

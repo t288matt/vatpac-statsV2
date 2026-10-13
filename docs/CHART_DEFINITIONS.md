@@ -1,13 +1,13 @@
 # Chart definitions
 
-*Describes main; behaviour added by changes not yet deployed is listed in CHANGELOG.md.*
+*Describes main, which production runs (7a71d30, live since 13-10-2026 10:05:56 UTC); behaviour added by later changes that are not yet deployed is listed in CHANGELOG.md.*
 
 
 Every in-scope v1 chart and what replaced it, for the Grafana dashboards in `grafana/dashboards/`. Dates are DD-MM-YYYY and all times UTC.
 
 Status key: **KEPT** same question and definition (SQL rewritten against the v3 views); **CHANGED** same question, definition altered (see the difference column); **UNVERIFIED** the definition is the analytics agent's best reading and awaits the owner's Metabase export; **DROPPED** not rebuilt (reason given).
 
-Panels read views and lookups only: `flight`, `controller_session_merged`, `online_now` and `data_freshness` from migration `20261007000004_views.sql`, most of the rest from migration `20261007000010_analytics_views.sql`, `controller_summaries` from migrations `20261008000030` and `20261008000031`, and `pilot_sample` from migration `20261008000080` (the `flight` view is a thin view over the finished-flights table `flight_summary`, filled once per finished flight by `write_finished_flights()`; migration `20261013000200` made it so, live since 13-10-2026; `flight_ext`, `movements`, `cohorts` and `monday_attendance` follow it). **Not yet deployed (issue 89 phase 5, migration `20261013000300`):** that table is called `flight_record` in production until the phase 5 deploy renames it `flight_summary`, and the old pieces table and the old merging view are dropped (no panel reads either). Everything below describes the charts as they are. There is no backfill, so every chart starts empty at go-live.
+Panels read views and lookups only: `flight`, `controller_session_merged`, `online_now` and `data_freshness` from migration `20261007000004_views.sql`, most of the rest from migration `20261007000010_analytics_views.sql`, `controller_summaries` from migrations `20261008000030` and `20261008000031`, and `pilot_sample` from migration `20261008000080` (the `flight` view is a thin view over the finished-flights table `flight_summary`, filled once per finished flight by `write_finished_flights()`; migration `20261013000200` made it so, live since 13-10-2026; `flight_ext`, `movements`, `cohorts` and `monday_attendance` follow it). Since phase 5 (migration `20261013000300`, live since 13-10-2026 10:05:56 UTC) `flight_summary` is the only flight store: the old per-piece table and the old merging view are gone, and no panel reads either. Everything below describes the charts as they are. There is no backfill, so every chart starts empty at go-live.
 
 Verification: on 07-10-2026 every panel query then existing (61) was run against the live local stack through Grafana's own API (`ops/check_panels.py`) with 0 errors (45 returned rows, 16 were empty because the data was only minutes old). The dashboards now hold 84 query panels (the 16 cards added after the snapshot, T15, were merged on 08-10-2026 and are not yet deployed or run on live data); the extra ones were checked statically (`python grafana/validate_dashboards.py` parses every query with sqlglot and resolves the views read, `grafana/check_columns.py` resolves columns) and by integration tests on synthetic rows, and the retention panel queries were run on the VM database through a temporary view (docs/TRACKER.md, T13). Running `ops/check_panels.py` on the VM after the next deploy is the remaining step. "Runs without error" is not the same as "answers the question correctly": the Test column now names the automated tests that assert each panel (09-10-2026, issue #50: every name there is a test function that exists, and every panel also runs as the read-only role in `test_every_panel_query_runs_as_grafana_ro`). Entries marked "Live-data check (manual)" are checks for a person to make once enough real data exists; no test performs them. A test does not prove the definition is what the owner wants, only that the panel does what its row says.
 
@@ -160,52 +160,9 @@ The retention dashboard is built from the v1 Metabase SQL (owner's export, 08-10
 | monitoring/collector-health.json: Recent poll errors | Recent poll errors. | Asserted by tests/integration/test_panel_rules_gaps.py (`test_recent_poll_errors_newest_first_at_most_twenty`). Every panel also runs as the read-only role in `test_every_panel_query_runs_as_grafana_ro`. Live-data check (manual, not automated): poll_history |
 | monitoring/collector-health.json: Data freshness (data engineer view) | The data_freshness view as supplied. | Asserted by tests/integration/test_panel_rules_gaps.py (`test_data_freshness_table_counts_the_last_hour`). Every panel also runs as the read-only role in `test_every_panel_query_runs_as_grafana_ro`. Live-data check (manual, not automated): data_freshness |
 
-## In-progress flights (ADR-025, 09-10-2026)
+## Flights in progress (ADR-025, superseded by ADR-030)
 
-> **Phase 3 of issue 89 (migration `20261013000200`) is LIVE since 13-10-2026 08:14:12 UTC (marker 38e3958). What it changed in this section, in one sentence:** nothing is shown in progress, because a flight is written to `flight_record` only after the flight itself has had no position for 8 hours of stored data (`flight_quiet_hours`, measured against the newest stored snapshot; per flight since migration 20261012000200), so every flight count, rank and airborne-time sum already contains finished flights only, about 8 hours after the flight's last position (an earlier leg does not wait for a later one). The `NOT is_in_progress` filter is removed from the 11 panels that read `flight` directly and from `flight_ext`; `flight` loses `gap_segment`, `span_part` and `is_in_progress`; the live panels (online now, departure board) are unchanged. The rest of this section is HISTORY: it describes the mechanism that ran until 13-10-2026 08:14:12 UTC and survives only in `flight_legacy` (ADR-025's mechanism is replaced; tests: `tests/test_phase3_switch.py`, `tests/integration/test_flight_views_switch.py`).
-
-Owner decision (issue #38): a flight that is still connected (`flight.is_in_progress`, migration 20261009000130) is left out of every flight count, rank and airborne-time sum, as v1 never summarised a flight until 8 hours after it ended. Panels about who is connected now keep showing it. Where the filter lives: migration `20261009000140` adds `WHERE NOT is_in_progress` to `flight_ext`, so `movements` (the flight's departure and its arrival both go) and `cohorts` inherit it; panels that read `flight` directly carry `NOT is_in_progress` (or `NOT f.is_in_progress`) in their own SQL. `flight` and `flight_part` still list every flight. A flight returns to the counts once no session of it is online (two polls, 60 s, after the last sighting); if the collector is stale, nothing is in progress and nothing is hidden. Until phase 3 it was guarded by `tests/test_in_progress_panels.py` and `tests/integration/test_exclude_in_progress.py`; phase 3 deleted both (the mechanism went with the migration) and replaced them with `tests/test_phase3_switch.py` and `tests/integration/test_flight_views_switch.py`.
-
-Class: **COUNT** counts, ranks or sums completed flights or airborne time (in-progress excluded); **LIVE** about who is connected now (kept); **OTHER** neither (reason given).
-
-| Dashboard: panel | Reads | Class | How excluded |
-|---|---|---|---|
-| demographics/pilot-origins: Where pilots currently online come from | pilot_online_now | LIVE | not filtered |
-| demographics/pilot-origins: Who flies most in Australian airspace (flights by home region) | flight_ext | COUNT | view |
-| demographics/pilot-origins: Who spends most time in Australian airspace (airborne hours) | flight_ext | COUNT | view |
-| demographics/pilot-origins: Flights by joining cohort | cohorts | COUNT | view (via flight_ext) |
-| demographics/pilot-origins: Servers used by home-region pilots | flight_ext | COUNT | view |
-| demographics/pilot-origins: Active pilots and controllers (pilot bar only; controller bars are sessions) | flight_ext, controller_session_ranked | COUNT | view |
-| events/monday-events: Monday event attendance | monday_attendance | OTHER | unchanged, see "Needs owner decision" |
-| events/monday-events: Share of YMML-YSSY airborne time flown by local pilots | flight_ext | COUNT | view |
-| events/monday-events: Airborne aircraft during the latest Monday event | pilot_sample | OTHER | position samples, not flights; unchanged |
-| management/management: Australian-based pilots and ATC online each month (pilot side) | flight | COUNT | SQL |
-| management/management: Pilot hours per month (names with Y) | flight | COUNT | SQL |
-| military/military: Most popular military aircraft (unique pilots) | flight_ext, aircraft_type | COUNT | view and lookup (v1 card 65 code list) |
-| military/military: Most popular RAAFv routes | flight_ext | COUNT | view |
-| military/military: Hours flown by RAAFv aircraft per week | flight_ext | COUNT | view |
-| military/military: RAAFv flights (list of flights, 7 days) | flight | COUNT | SQL (a list of completed flights, v1 parity) |
-| military/military: RAAFv flights by aircraft type | flight_ext | COUNT | view |
-| military/military: Most popular RAAFv aircraft last month (flights) | flight | COUNT | SQL |
-| military/military: Flights flown by RAAFv aircraft per week | flight_ext | COUNT | view |
-| pilots/pilot-onboarding: Pilots who logged on but never flew (90 days) | flight | COUNT | SQL |
-| pilots/pilot-onboarding: Pilots who logged on in a month but never flew that month | flight | COUNT | SQL |
-| pilots/pilot-onboarding: Pilots who flew last month but not this month (lapsed) | flight | COUNT | SQL |
-| pilots/pilots-now: Pilots online now (in region, network-wide) and Pilots online over time | network_history | LIVE | not filtered |
-| pilots/pilots-now: When are people online on weekdays / weekends | flight | COUNT | SQL |
-| pilots/pilots-now: Departure board | pilot_latest | LIVE | not filtered |
-| pilots/pilots-traffic: Most popular international routes, domestic routes, VFR routes | flight_ext | COUNT | view |
-| pilots/pilots-traffic: Pilots with the most diverse routes | flight_ext | COUNT | view |
-| pilots/pilots-traffic: Busiest and quietest home-region airports | movements | COUNT | view (via flight_ext) |
-| pilots/pilots-traffic: Most popular airlines, callsigns, aircraft by flights, aircraft by pilots | flight_ext | COUNT | view |
-| pilots/pilots-traffic: Highest groundspeeds | flight_ext | COUNT | view |
-| pilots/pilots-traffic: Busiest days by flights | flight_ext | COUNT | view |
-| pilots/pilots-traffic: Busiest days by pilots online | flight | COUNT | SQL |
-| pilots/pilots-traffic: Flights with SELCAL in the remarks | flight_ext | COUNT | view |
-| pilots/pilots-traffic: Which member spent the most time online | flight | COUNT | SQL |
-| atc/*, monitoring/collector-health | controller and collector views | OTHER | controllers and sessions are not flights; unchanged |
-
-Eleven panels read `flight` directly (the ones marked SQL: management 2, military 2, pilot-onboarding 3, pilots-now 2, pilots-traffic 2). Views as they were before phase 3 (since 13-10-2026 `flight` is a thin view over `flight_record`, `flight_ext` has no filter, and the old merging view is `flight_legacy`): `flight` (base, keeps in-progress), `flight_part` (no panel reads it), `flight_ext` (filtered), `movements` and `cohorts` (inherit), `monday_attendance` (read `flight_summary` until phase 3; now the pilot side counts distinct CIDs of `flight` rows overlapping 07:00 to 12:00Z, the standard rule), `pilot_latest`, `pilot_online_now`, `online_now`, `network_history` (live, unchanged). Phase 5 (migration `20261013000300`, NOT YET DEPLOYED) drops `flight_part` and `flight_legacy` and renames `flight_record` to `flight_summary`; no panel reads any of them directly.
+Nothing is shown in progress. Since issue 89 phase 3 (migration `20261013000200`, live since 13-10-2026 08:14:12 UTC) a flight is written to `flight_summary` only after the flight itself has had no position for 8 hours of stored data (`flight_quiet_hours`, measured against the newest stored snapshot; per flight since migration `20261012000200`), so every flight count, rank and airborne-time sum contains finished flights only, about 8 hours after the flight's last position (an earlier leg does not wait for a later one). No panel carries an in-progress filter and `flight` has no `gap_segment`, `span_part` or `is_in_progress` column. Eleven panels read `flight` directly (management 2, military 2, pilot-onboarding 3, pilots-now 2, pilots-traffic 2); the others read `flight_ext`, `movements`, `cohorts` or `monday_attendance`, which follow `flight`. The panels about who is connected now (online now, the departure board, pilots-now live views) read the live views `pilot_latest`, `pilot_online_now` and `online_now` and are unchanged. The earlier mechanism (a `NOT is_in_progress` filter on 11 panels and in `flight_ext`, owner decision on issue #38 of 09-10-2026) ran until 13-10-2026 08:14:12 UTC; it is recorded in CHANGELOG.md and ADR-025. Tests: `tests/test_phase3_switch.py` and `tests/integration/test_flight_views_switch.py`.
 
 ### Needs owner decision
 

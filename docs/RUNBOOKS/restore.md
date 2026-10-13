@@ -17,7 +17,7 @@ Roles: dumping needs only `backup_ro`. Restores and the restore test must `CREAT
 docker compose exec backup ls -lh /backups
 docker compose exec backup cat /backups/.last_success /backups/.last_restore_test
 ```
-`.last_restore_test` is one line: `<UTC timestamp> OK|FAIL <detail>`.
+`.last_restore_test` is one line: `<UTC timestamp> OK|FAIL <detail>`. On success `restore-test.sh` prints `OK /backups/<dump> poll_log=<n> pilot_session=<n> flight_summary=<n>` (the owner's run of 13-10-2026 10:07 UTC); `flight_summary` is the table of finished flights (the check also reads dumps made before the phase 5 deploy of 13-10-2026, where that table had another name, so the figure may be absent or the dump older). A dump taken at 10:07 UTC on 13-10-2026, after the phase 4 and 5 deploy, restored and passed with `flight_summary=1797`.
 
 ## Take one now
 ```sh
