@@ -27,7 +27,9 @@ EDGE=timedelta(minutes=30)
 rows=collections.defaultdict(set)
 for f in glob.glob('v1raw_*.csv'):
     for r in csv.DictReader(open(f,encoding='utf-8')):
-        rows[(int(r['cid']),r['callsign'],r['departure'].strip().upper(),r['arrival'].strip().upper())].add(ts(r['last_updated']))
+        dep,arr=r['departure'].strip().upper(),r['arrival'].strip().upper()
+        if not dep or not arr: continue          # v1 drops rows without both airports at ingest
+        rows[(int(r['cid']),r['callsign'],dep,arr)].add(ts(r['last_updated']))
 v1=[]
 for k,s in rows.items():
     s=sorted(s); a=s[0]; p=s[0]; n=1
