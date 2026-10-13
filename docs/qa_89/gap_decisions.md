@@ -1,0 +1,86 @@
+# Issue 89: QA sign-off and gap decisions
+
+Written 13-10-2026 by the QA agent (branch `qa-signoff`). Deployed code under review: commit 7a71d3054506d5d6e5e0165860de0feb97e0f651 (phases 1, 1b, 3, 4 and 5 live; the finished-flights table is `flight_summary`). Sources read for this note: `db/migrations/20261012000200_flight_quiet_per_flight.sql` (the live `write_finished_flights()`), as amended by `20261013000300_remove_pieces_rename_flight_summary.sql` (which only re-points it at `flight_summary`), ADR-030 in `docs/DECISIONS.md`, `docs/DEFINITIONS.md` section 1b and `docs/CONFORMANCE_89_PHASE1.md`.
+
+## QA SIGN-OFF
+
+**Verdict: SIGNED OFF WITH CONDITIONS.** No defect that loses or corrupts data was found. Four conditions are listed under "Conditions" below; none blocks the 24 hour watch that is already running.
+
+### What was tested and how
+
+- **Writer behaviour (issue #137, exit test #138).** Integration tests against a real PostgreSQL 16 built exactly as CI builds it (production migrate image, then roles): `tests/integration/test_flight_writer.py` (the design list: join rule, quiet period, caps, idempotence, conflicts, locking), `test_flight_writer_qa.py` (the independent QA scenarios J, A, P, Q, R of `docs/qa_89/scenarios.md`), `test_flight_quiet_per_flight.py` (the 12-10-2026 owner decision: quiet per flight), `test_flight_writer_v1_differences.py`, and the new `test_qa_gap_decisions.py` (this sign-off).
+- **View switch (#139).** `test_flight_views_switch.py`, `test_flight_view.py`, `test_card_65.py`, `test_card_90.py`, `test_online_hours.py`; and the live panel check on the VM (79 panels with rows, 0 errors) recorded on #139, with 36 panel query timings before and after.
+- **Drop gate (#140).** `test_drop_gate.py` (every way a day can be reconciled or refused, including the rehearsal script), `test_partition_drop_locks.py`, `test_partitions.py`; the VM rehearsal on a restored live dump (both runs OK) recorded on #140.
+- **Removal and rename (#141).** `test_phase5_remove_old.py` (old pieces gone, names follow the table, functions re-created over `flight_summary`); the rehearsal on a restored copy and the post-deploy restore test of a fresh dump, both recorded on #141.
+- **Comparisons against the old system (#138).** Comparison A (old flight view against the new table), run twice on the live VM: sample counts equal the independent count of stored positions up to `flown_upto`; row differences are the 8 hour cuts, the airborne cap (40 versus 75 s in stale old pieces) and frozen plan times. Comparison B against v1 raw positions: 974 of 998 flights match one to one, no splits; leftovers classified as plan amendments, a window edge, and three v3-only flights. Against v1 summaries 984 of 1008; the 12 v3-only flights were never summarised by v1. Section 2 below traces the 7 differences that the issue said were not yet individually traced.
+- **How the suite was run for this note.** Docker route of `docs/RUNBOOKS/run-tests.md` section 1b: own container `vatpac-pgtest-qas` (port 54340), own network, PostgreSQL 17 client libraries, Python 3.11, `VATPAC_TEST_STRICT=1`; the container was removed afterwards. Run on 13-10-2026: every integration test file that touches flights, the views, the drop gate, partitions and the schema (all the files named above) passed, together with the unit tests and the docs tests outside `tests/integration`. The ingest fuzz and soak test files were not completed in this session: they ran very slowly on this PC (a first attempt was also spoiled by two runs sharing one database, which was my mistake and was discarded), so CI remains the evidence for those. Counts are deliberately not quoted here (a repo test forbids it).
+
+### What is NOT covered
+
+- **No scale test.** Nothing has run the writer against months of data: scenarios B1 to B4 (300-pilot batch independence, live insert load while the writer loops) and R3/R4 (a trigger that fails the second insert) were never built. The live backfill and the rehearsals worked at about 1800 flights and 14 partitions; the writer call takes well under a second there. A pilot with a very large unprocessed backlog is still picked first on every run if it exceeds the collector's 20 second statement timeout (CONFORMANCE note); the manual backfill script exists for that.
+- **Lock behaviour under live traffic.** Tested with a single extra connection that holds a row lock or a second writer (`test_a_session_the_collector_is_updating_right_now_is_skipped_not_waited_for`, `test_the_collector_can_update_an_active_session_of_the_same_pilot_while_the_writer_runs`, `test_opus1_...`). True parallel load (many collector polls during a long writer call) and the lock hold of one partition drop at live volume (about 78,000 positions a day) are not measured; the owner accepted measuring the drop before the first real drop (about 05-04-2027).
+- **Real days of data past the first 8 hours.** The quiet rule has run live for under a day. Nothing yet shows a real collector outage or a feed freeze crossing the writer (tested synthetically: `test_a_collector_outage_cannot_end_a_live_flight`, `test_a_frozen_feed_with_the_collector_polling_cannot_end_a_live_flight`).
+- **The `p_max_pilots` cap is not a hard limit** (gap 15b below): bounded, but not tested at scale.
+
+### Residual risks
+
+1. A pilot whose plan is refiled mid-flight is one flight under the final plan in v3 but one flight per plan in v1 (accepted; classified in section 2). Charts that count flights per route will differ from v1 at those pilots.
+2. A new session with NULL plan fields hides an earlier session's text in the frozen row (gap 6). v1 would have kept the old text. Low impact in practice, because the feed carries the plan with each connection.
+3. A stray position past a session's `last_seen` is never counted and keeps its day from being dropped (gap 5). Safe, but a day could be retained indefinitely. The collector writes `last_seen` with the position, so this is expected to be rare; the refusal is recorded for the watchdog.
+4. A non-numeric `flight_quiet_hours` makes every writer call fail until fixed (gap 10). Fail safe (no writes, no drops), logged every 5 minutes.
+5. The writer returns 0 immediately when a manual backfill holds the advisory lock (gap 3); a long manual run therefore pauses the 5-minute job. Intended.
+
+### Conditions
+
+1. Owner decision recorded on #138 or #153: plan fields from the last session with NULL included (gap 6), or restore v1's keep-the-old-value rule.
+2. Measure the lock hold of one partition drop at live volume before the first real drop (already accepted by the owner, #140).
+3. Before the data set grows 10 times, build the scale scenarios B1 to B4 (batch independence at 1, 7 and 500; writer loop while inserts continue).
+4. Watch the first week for the gap 5 and gap 10 symptoms: the watchdog "DROP REFUSED" rows and the collector log line `write_finished_flights cancelled`.
+
+## 1. Decisions for the design gaps (scenarios.md section 8)
+
+"Test" names the test that pins the behaviour; tests added by this sign-off are in `tests/integration/test_qa_gap_decisions.py` (marked NEW). Verdict: **OK** means acceptable as built; **OK, owner to confirm** means acceptable but differs from v1 or from the design text and the owner should say so once; **Moot** means the question no longer applies.
+
+| # | Gap | What the code does | Test | Verdict |
+|---|---|---|---|---|
+| 1 | Cadence and cap (30 s poll, 75 s or 40 s cap) | The writer reads `airborne_gap_cap_seconds` from `app_setting` (default 40 if missing). The migrated database holds 40, not the 75 s the scenarios assumed. At a 30 s poll, 40 s is one poll plus 10 s of slack; a missed poll (60 s) counts 40 s. Tests that need 75 set it explicitly. | NEW `test_gap1_the_seeded_airborne_cap_is_40_seconds_...`; `test_a3_missed_polls_are_capped_...` | OK. The design text (75 s) is stale; the setting is the truth. |
+| 2 | Cap boundary: a 100 s gap at 250 kt | A pair of positions at most 120 minutes apart counts the smaller of the real gap and the cap; a pair over 120 minutes counts zero. So any missed poll counts only the cap (airborne time is slightly understated after a missed poll; the old model did the same). | `test_a3_...` (parametrised over gap sizes) | OK |
+| 3 | Advisory lock: wait or return | `pg_try_advisory_xact_lock`: a second caller returns 0 at once; the running call does the work. Deliberate deviation from the design (blocks), recorded in CONFORMANCE. | `test_a_second_writer_does_not_wait_it_returns_zero` | OK |
+| 4 | Return value with a conflicting key | Returns the number of flights written. A skipped conflict pilot is not counted; a WARNING names the CIDs. | `test_r7_a_skipped_conflict_pilot_is_not_counted_in_the_return_value`; `test_a_pre_existing_key_skips_that_pilot_unmarked_with_a_warning_...` | OK |
+| 5 | Stray positions after `last_seen` | Positions after the session's `last_seen` are never counted or marked. If `last_seen` never rises the session is not picked again, so the position stays unprocessed and the drop gate keeps that day (it lists the session as unreconciled). Fail safe, no data lost. | `test_r5_r6_only_positions_after_flown_upto_and_up_to_last_seen_are_used`; NEW `test_gap5_a_stray_position_beyond_last_seen_is_left_and_keeps_its_day_unreconciled` | OK (residual risk 3) |
+| 6 | NULL plan fields in the last session | Fields come from the session that ended last, NULL included (remarks, planned altitude, aircraft, rating, and so on). Route is the exception: latest non-null. Departure time is the maximum. v1 kept old values on update. | `test_plan_fields_are_frozen_route_latest_non_null_deptime_maximum_others_from_the_last_session`; NEW `test_gap6_a_null_remarks_in_the_last_session_...` | OK, owner to confirm (condition 1) |
+| 7 | NULL groundspeed in airborne | A NULL groundspeed is not airborne (counts zero). | `test_a2_the_threshold_is_60_kt_at_the_earlier_sample_and_null_is_not_airborne` | OK |
+| 8 | Session seen again with no new positions | Picked again; no unit exists, so no flight; it is marked once it is itself quiet (`flown_upto` = new `last_seen`). The existing flight is untouched; no second flight. | NEW `test_gap8_a_session_whose_last_seen_rose_without_new_positions_...`; also `test_r2_a_session_with_no_positions_is_marked_...` | OK |
+| 9 | `p_max_pilots` of 0, negative or NULL | Returns 0 at once, writes and marks nothing. | `test_the_batch_cap_limits_pilots_per_call_oldest_quiet_first` (0); NEW `test_gap9_a_cap_below_one_...` (0, -5) and `test_gap9_a_null_cap_...` | OK |
+| 10 | Non-numeric `flight_quiet_hours` | The cast raises; the call fails and rolls back. A value under 2.5 raises with a clear message. A missing row defaults to 8. The collector logs the fault and retries every 5 minutes; nothing is written or dropped meanwhile (fail safe). | `test_q8_a_missing_setting_defaults_to_8_hours_and_a_non_numeric_one_raises`; `test_a_changed_quiet_setting_applies_and_a_value_under_2_5_hours_is_refused`; `test_a_writer_fault_reaches_the_caller_which_logs_it_and_tries_again_later` | OK (residual risk 4) |
+| 11 | Overlapping sessions across callsigns | A join needs the same cid, callsign, departure and arrival; sessions of different keys never join, even when they overlap. | `test_a_different_callsign_departure_or_arrival_is_a_different_flight`; NEW `test_gap11_sessions_with_different_callsigns_overlapping_in_time_never_join` | OK |
+| 12 | "The same 3 v3-only flights" in comparison B | Not writer behaviour. The runner takes the owner's list through `--known-v3-only`; the raw comparison found 3 v3-only flights that v1 never recorded, and the owner accepted the result on #138. | none needed (analysis) | OK |
+| 13 | v1 window cut on `completion_time` or a position time | Not writer behaviour. `comparison_b.sql` treats `completion_time` as the end; the raw comparison cuts on first and last raw row. Both exclude the same 30 minute edges and the power cut. | none needed (analysis) | OK |
+| 14 | `flight_legacy` before phase 3 | Moot. `flight_legacy` existed from phase 3 to phase 5 and is dropped by migration 20261013000300. | `test_phase5_remove_old.py` | Moot |
+| 15a | Design still says "per pilot" | ADR-030 and `docs/DEFINITIONS.md` 1b say per flight. The design file `DESIGN_89_FINAL.md` lives on branch `opus-89` and is not in `main`. | n/a | OK, no action in the repo |
+| 15b | Cap counts pilots or groups | Pilots examined in a round. A round that leaves any pilot idle (conflict or not quiet yet) lets the loop run again with the next pilots, up to 10 rounds, so one call can write more than the cap (never more than ten times it). The bound keeps one call short; the 5-minute job uses 50. | NEW `test_gap15b_the_cap_counts_pilots_examined_in_a_round_...` | OK, observation: the cap is a per-round limit, not a per-call limit |
+| 15c | When a no-plan session is marked | When it is itself quiet, not when its pilot is. | `test_a_no_plan_session_is_marked_when_it_is_itself_quiet_not_when_its_pilot_is`; `test_q7_...` | OK |
+| 15d | An unprocessed session that fits a written flight's 120 minute window | Written rows are never reopened. The late session starts its own flight (its previous end is taken only from unprocessed sessions). This cannot arise live, because a flight is written only after 8 stored hours with no position, so no session can still be joining it. | NEW `test_gap15d_a_session_arriving_late_within_120_minutes_...` | OK |
+| 15e | Group quiet time | The newest `last_seen` of any session of the flight; one session still moving (or held within 120 minutes of the chain) keeps the whole flight open. | `test_the_boundary_is_measured_on_the_flights_newest_last_seen`; `test_the_chain_through_an_old_middle_session_keeps_the_whole_flight_open` | OK |
+
+No row is a defect. No product code was changed.
+
+## 2. The 7 untraced differences of comparison B
+
+The issue text says "7 of the 127 start-time differences not individually traced". The 127 are the one-to-one matches where the v1 raw start or end differs from v3 by more than 5 minutes. The analysis files (`rawcmp.py`, `run3/b_v3_wide.csv`, `raw/v1raw_*.csv` in the session working directory, read-only; no further v1 query was needed) classify them as 90 (v3 starts earlier, no other v1 key), 30 (a plan change inside the v3 flight, another v1 key for the same pilot) and 7 "other". I traced the 7 individually (CID and callsign, then the v1 key runs and the v3 sessions side by side):
+
+| Pilot (CID, callsign) | Leg | v3 flight ends | v1 last row for the same key | Difference |
+|---|---|---|---|---|
+| 1990189, 8IA | YSBK-YSBK | 09-10 04:11:57 | 09-10 05:21:48 | 70 min |
+| 1110096, BZN600 | YPAD-YCBP | 08-10 23:50:27 | 09-10 02:00:04 | 130 min |
+| 2010197, JST777 | YPAD-YMML | 09-10 01:05:27 | 09-10 02:44:14 | 99 min |
+| 2031740, STAL51 | YSRI-YAMB | 09-10 06:37:27 | 09-10 07:45:19 | 68 min |
+| 1967135, 3JA | YSBK-YSHL | 10-10 00:40:27 | 10-10 01:29:21 | 49 min |
+| 1692982, UAE8JH | NZAA-YSSY | 10-10 22:42:27 | 10-10 23:04:49 | 22 min |
+| 1872991, HM4 | YMEN-ZZZZ | 11-10 00:26:42 | 11-10 01:21:17 | 55 min |
+
+**Finding: these are not start-time differences. In all 7 the start agrees within 5 minutes; the END of v1's flight is later than v3's.** In every case v3 has a second session of the same pilot and callsign that starts right at the end of the first (for BZN600, a new session with a new plan YCBP-YBAS from 23:50:57), while v1 goes on stamping the previous leg's key until 1.5 minutes before its next-leg run begins, and the next-leg run in v1 starts later than the v3 one by the same amount. Every v1 row of the pilot belongs to exactly one run, with no gap larger than about 2 minutes between the runs, so no position is missing from either system; the two systems cut the boundary in different places.
+
+**Classification: plan-before-filing (a carried plan).** After the pilot reconnects for the next leg, v1 keeps labelling positions with the previous leg's plan until the new plan reaches its table; v3 assigns each connection to the plan it ends with, so the same positions belong to the next leg. This is the same cause as the 30 plan-change cases and the 90 earlier-start cases (v1's raw query excludes rows with an empty departure or arrival, so the first minutes of a new leg are absent in v1). It is consistent with the immediate predecessor of each case being a different key of the same pilot, back to back. The files do not contain the plan-filing time itself, so the proof is by pattern (7 of 7 identical shape, boundary contiguous, no positions lost), not by the plan history. A direct check would read `pilot_session` for those 7 session ids on the VM (the v3 session ids are in `b_v3_wide.csv`: for example 148175 and 150568 for BZN600) and compare each new session's `first_seen` with the v1 key flip. This was not done: it needs the live v3 database and was outside this task's read-only scope.
+
+Verdict: explained as plan-before-filing; no v3 defect; the issue text should read "end-time" for these 7.
