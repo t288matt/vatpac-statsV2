@@ -402,3 +402,10 @@ def test_the_guard_reads_update_dict_literals_too() -> None:
     src = chr(10).join(["results.update({'a_check': 1, '_hidden': 2})", "out.update({'b_check': 3})",
                         "results['c_check'] = 1", "other.update({'x': 1})"])
     assert result_keys_in(src) == {"a_check", "b_check", "c_check"}
+
+
+def test_a_stopped_flight_writer_is_a_same_day_invariant() -> None:
+    """Issue 89 phase 5: the old same-day check for missing flight summaries went with the old table; this one replaces it."""
+    name = "flights quiet longer than the quiet period plus 1 hour with unprocessed positions"
+    assert name in m.SAME_DAY_INVARIANTS and name in NAMES
+    assert m._by_urgency([NAMES[0], name])[0] == name
