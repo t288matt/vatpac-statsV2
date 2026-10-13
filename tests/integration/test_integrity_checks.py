@@ -286,7 +286,7 @@ def test_gaps_of_a_tick_or_two_and_ordinary_restarts_are_not_violations(conn: An
 
 @case("flight_summary rows missing for sessions older than 12 h",
       "pilot sessions with no position (active in last 3 days)",
-      "pilots quiet longer than the quiet period plus 1 hour with unprocessed positions")
+      "flights quiet longer than the quiet period plus 1 hour with unprocessed positions")
 def _(conn: Any, w: World) -> None:
     old = w.now - timedelta(hours=13)
     conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) VALUES (1600, 'OLD1', %s, %s, %s)",
@@ -298,7 +298,7 @@ def _(conn: Any, w: World) -> None:
     conn.execute("UPDATE flight_summary SET sample_count = sample_count + 1 WHERE session_id = %s", (w.sessions["C"],))
 
 
-@case("pilots quiet longer than the quiet period plus 1 hour with unprocessed positions",
+@case("flights quiet longer than the quiet period plus 1 hour with unprocessed positions",
       "pilot sessions with no position (active in last 3 days)")
 def _(conn: Any, w: World) -> None:
     gone = w.ts[0] - timedelta(hours=10)  # ten hours before the newest snapshot, so quiet for longer than 9 h, but not older than 12 h from now
@@ -315,7 +315,7 @@ def _(conn: Any, w: World) -> None:
 
 
 @case("sessions ended more than 2 days ago with unprocessed positions",
-      "pilots quiet longer than the quiet period plus 1 hour with unprocessed positions",
+      "flights quiet longer than the quiet period plus 1 hour with unprocessed positions",
       "pilot sessions with no position (active in last 3 days)",
       "flight_summary rows missing for sessions older than 12 h")
 def _(conn: Any, w: World) -> None:
@@ -351,6 +351,27 @@ def test_a_processed_session_that_is_in_a_written_flight_does_not_fire_the_gate_
     conn.execute("UPDATE pilot_session SET departure = '' WHERE id = %s", (sid,))     # a session without a plan makes no flight
     conn.execute("DELETE FROM flight_record")
     assert sweep(dsn)[name] == 0
+def test_the_unprocessed_flight_checks_work_per_flight_not_per_pilot(conn: Any, dsn: str) -> None:
+    """Owner decision 12-10-2026 (quiet per flight): a pilot with an old finished flight AND a recent different flight is flagged for
+    the old one only if it is overdue; a quiet pilot is flagged; a flight kept open by an active reconnect (joined by the v1 rule) is not."""
+    n1 = "flights quiet longer than the quiet period plus 1 hour with unprocessed positions"
+    n3 = "sessions ended more than 2 days ago with unprocessed positions"
+    w = World(conn)
+    ref = w.ts[0]
+
+    def add(cid: int, cs: str, dep: str, arr: str, logon: Any, last: Any) -> None:
+        conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
+                     "VALUES (%s, %s, %s, %s, %s, %s, %s)", (cid, cs, logon.replace(microsecond=0), logon, last, dep, arr))
+
+    old = ref - timedelta(days=3)
+    add(1900, "ACT1", "YSSY", "YMML", old, old + timedelta(hours=1))                      # finished 3 days ago ...
+    add(1900, "ACT2", "YMML", "YSSY", ref - timedelta(hours=2), ref - timedelta(hours=1))  # ... a different flight, active recently
+    base = sweep(dsn)
+    assert base[n1] == 1 and base[n3] == 1                                                 # the old flight is overdue: counted, once
+    add(1901, "OPN1", "YSSY", "YMML", old, old + timedelta(hours=1))                      # an old session ...
+    add(1901, "OPN1", "YSSY", "YMML", old + timedelta(hours=2), ref - timedelta(minutes=5))   # ... continued by a reconnect (2 h after): ONE open flight
+    after = sweep(dsn)
+    assert after[n1] == 1 and after[n3] == 1                                               # the open flight adds nothing
 
 
 @case("daily partitions missing for today..today+3")
