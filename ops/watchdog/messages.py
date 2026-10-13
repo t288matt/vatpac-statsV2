@@ -43,6 +43,7 @@ INVARIANT_WORDS: dict[str, str] = {
     "pilots quiet longer than the quiet period plus 1 hour with unprocessed positions": "some pilots left over nine hours ago and their flights are not yet in the finished-flights table",
     "flights written in the last 3 days whose sample_count differs from the stored positions of their sessions": "a finished flight counts a different number of positions from those stored for it",
     "sessions ended more than 2 days ago with unprocessed positions": "some flights that ended over two days ago are not yet in the finished-flights table",
+    "processed flight-plan sessions in no written flight (ended 2 to 30 days ago)": "some flights that ended days ago are marked done but are missing from the finished-flights table",
     "daily partitions missing for today..today+3": "the storage tables for today or the next three days have not been created",
     "reference file hashes in poll_log differ from reference_data_change": "the airspace or callsign list used for polling does not match the recorded change history",
 }
@@ -52,6 +53,7 @@ _ENGINEER = f"Not urgent, but an engineer should look (see {_IG} on the VM)."
 _LOGON = "VATSIM may have changed how it stamps logon times; an engineer should look (docs/RUNBOOKS/alerts.md on the VM, identity_flap)."
 _MAINTENANCE = f"Check the collector and maintenance log today (see {_IG} on the VM)."
 _WRITER = f"Not urgent, no chart reads the new table yet. It clears as the backfill runs after a deploy; if not, see {_IG} on the VM."
+_GATE = f"Nothing is lost: the old position data of those flights is simply not deleted until they are written. An engineer should look (see {_IG} on the VM)."
 
 # What to do about each invariant, same keys as INVARIANT_WORDS (a test checks both). Wording only: the alert stays one level (WARN).
 # Based on the "what a violation means" table in docs/RUNBOOKS/integrity-checks.md.
@@ -75,6 +77,7 @@ INVARIANT_ACTIONS: dict[str, str] = {
     "pilots quiet longer than the quiet period plus 1 hour with unprocessed positions": _WRITER,
     "flights written in the last 3 days whose sample_count differs from the stored positions of their sessions": _WRITER,
     "sessions ended more than 2 days ago with unprocessed positions": _WRITER,
+    "processed flight-plan sessions in no written flight (ended 2 to 30 days ago)": _GATE,
     "daily partitions missing for today..today+3": ("Writes will start to fail if today's table is missing. Check the collector and maintenance log today "
                                                     "(docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM)."),
     "reference file hashes in poll_log differ from reference_data_change": "An engineer should look (docs/RUNBOOKS/update-reference-files.md on the VM).",
