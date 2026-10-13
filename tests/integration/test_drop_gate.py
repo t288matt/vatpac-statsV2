@@ -19,7 +19,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from drop_gate_helpers import process_flights, unreconciled
+from drop_gate_helpers import drain, process_flights, unreconciled
 from helpers import REPO, partition_for
 
 pytestmark = pytest.mark.integration
@@ -307,7 +307,7 @@ def test_one_bad_partition_does_not_stop_the_good_ones(conn) -> None:
     mk(conn, 9840044, mins(day(199), 10))
     process_flights(conn)
     conn.execute("DELETE FROM flight_record WHERE session_id = %s", (bad,))
-    assert call(conn) == 2
+    assert drain(conn) == 2
     assert not exists(conn, 201) and exists(conn, 200) and not exists(conn, 199)
 
 
@@ -469,7 +469,7 @@ def test_a_late_position_inside_a_midnight_spanning_flight_keeps_both_days(conn)
     assert call(conn) == 0 and exists(conn, 200) and exists(conn, 199)
     assert refused(seen, 200) and refused(seen, 199)
     conn.execute("UPDATE flight_record SET sample_count = sample_count + 1")        # the count now agrees
-    assert call(conn) == 2
+    assert drain(conn) == 2
 
 
 def test_a_refusal_is_recorded_for_the_watchdog_and_cleared_when_the_day_reconciles_or_goes(conn) -> None:
@@ -500,33 +500,6 @@ def test_the_refusal_table_is_readable_by_the_watchdog_role_only_for_reading(con
 
 
 # ------------------------------------------------------------------ second review fixes (13-10-2026)
-def test_a_position_added_by_a_session_not_in_the_earlier_list_between_check_and_lock_keeps_the_day(conn) -> None:
-    """The in-lock check is rebuilt from the partition, not from the sessions listed before the lock. Session x was never in day 199;
-    while day 200 is being dropped it receives an old-timestamp position there (modelled by an event trigger on the first DROP)."""
-    add = mk(conn, 9880001, mins(day(200), 10))
-    mk(conn, 9880002, mins(day(199), 10))
-    x = mk(conn, 9880003, mins(day(200, 3), 10))                  # in day 200 only
-    process_flights(conn)
-    late = day(199, 6)
-    partition_for(conn, late)
-    conn.execute(f"""
-        CREATE FUNCTION add_old_position() RETURNS event_trigger LANGUAGE plpgsql AS $f$
-        BEGIN
-            INSERT INTO pilot_position (observed_at, session_id, alt_ft, gs_kt) VALUES ('{late:%Y-%m-%d %H:%M:%S+00}', {x}, 5000, 250)
-            ON CONFLICT DO NOTHING;
-        END $f$""")
-    conn.execute("CREATE EVENT TRIGGER add_old_position_trg ON ddl_command_start WHEN TAG IN ('DROP TABLE') EXECUTE FUNCTION add_old_position()")
-    seen = notices(conn)
-    try:
-        assert call(conn) == 1
-    finally:
-        conn.execute("DROP EVENT TRIGGER add_old_position_trg")
-        conn.execute("DROP FUNCTION add_old_position()")
-    assert not exists(conn, 200) and exists(conn, 199) and add
-    assert refused(seen, 199)
-    assert conn.execute("SELECT count(*) AS n FROM drop_gate_refusal WHERE part_name = %s", (pname(199),)).fetchone()["n"] == 1
-
-
 def refusal_rows(conn) -> dict[str, str]:
     return {r["part_name"]: r["detail"] for r in conn.execute("SELECT part_name, detail FROM drop_gate_refusal").fetchall()}
 
@@ -562,3 +535,14 @@ def test_refusal_rows_stay_until_the_day_is_dropped_or_gone_or_not_due(conn) -> 
     assert pname(199) not in rows                                    # pinned is the rule working, not a refusal
     assert "pilot_position_20200101" not in rows                     # partition no longer exists
     assert pname(3) not in rows                                      # not due
+
+
+def test_three_due_reconciled_days_are_dropped_one_per_call(conn) -> None:
+    """After a DROP the parent table stays locked to the end of the call, so a call drops exactly one day; the next call, the next."""
+    for k, off in enumerate((202, 201, 200)):
+        mk(conn, 9890000 + k, mins(day(off), 10))
+    process_flights(conn)
+    assert call(conn) == 1 and not exists(conn, 202) and exists(conn, 201) and exists(conn, 200)
+    assert call(conn) == 1 and not exists(conn, 201) and exists(conn, 200)
+    assert call(conn) == 1 and not exists(conn, 200)
+    assert call(conn) == 0

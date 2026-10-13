@@ -16,7 +16,7 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from drop_gate_helpers import process_flights
+from drop_gate_helpers import drain, process_flights
 from helpers import partition_for
 
 pytestmark = pytest.mark.integration
@@ -126,7 +126,7 @@ def build(conn, retention: int) -> None:
 def test_due_unpinned_processed_partitions_are_dropped_and_the_rest_kept(conn, retention) -> None:
     build(conn, retention)
     before = state(conn)
-    n = call(conn, retention)
+    n = drain(conn, retention)
     after = state(conn)
     assert n >= 2                                                    # something really was dropped
     assert any(p.endswith(f"{day(retention + 1):%Y%m%d}") for p in after[0])   # the straddling session's day is pinned
@@ -134,16 +134,20 @@ def test_due_unpinned_processed_partitions_are_dropped_and_the_rest_kept(conn, r
     assert after[1] == before[1]                                     # written flights are never touched by a drop
 
 
-def test_at_most_ten_per_call_and_the_collector_loop_reaches_the_end_state(conn) -> None:
-    from vatpac.maintenance import drop_old_partitions
+def test_one_day_per_call_and_the_collector_loop_reaches_the_end_state(conn, monkeypatch) -> None:
+    """After a DROP the parent table stays locked until the call ends, so a call drops exactly one day; the collector's loop (with
+    a pause between calls, so the lock is released and the polls can write) drains the backlog."""
+    import vatpac.maintenance as m
+    monkeypatch.setattr(m, "DROP_PAUSE_S", 0)
     old_partitions(conn, list(range(300, 275, -1)))                  # 25 partitions due
     before = state(conn)
-    assert call(conn) == 10                                          # one call: a short transaction, ten partitions
-    assert len(state(conn)[0]) == len(before[0]) - 10
-    assert drop_old_partitions(conn, TODAY, 90) == 15               # the collector's loop does the rest
+    assert call(conn) == 1                                           # one call: one day
+    assert len(state(conn)[0]) == len(before[0]) - 1
+    assert call(conn) == 1                                           # and the next call, the next day
+    assert m.drop_old_partitions(conn, TODAY, 90) == 23              # the collector's loop does the rest
     assert not [p for p in state(conn)[0] if p in {pname(o) for o in range(300, 275, -1)}]
     assert state(conn)[1] == before[1]
-    assert drop_old_partitions(conn, TODAY, 90) == 0
+    assert m.drop_old_partitions(conn, TODAY, 90) == 0
 
 
 def test_lock_timeout_is_restored(conn) -> None:
@@ -151,7 +155,7 @@ def test_lock_timeout_is_restored(conn) -> None:
     old_partitions(conn, [200, 199])
     conn.execute("BEGIN")
     conn.execute("SET LOCAL lock_timeout = '7s'")
-    assert call(conn) == 2
+    assert drain(conn) == 2
     assert conn.execute("SHOW lock_timeout").fetchone()["lock_timeout"] == "7s"
     conn.execute("ROLLBACK")
 
@@ -175,9 +179,10 @@ def test_busy_partitions_are_kept_without_an_error_or_a_stall(conn, dsn, busy) -
             t0 = time.time()
             n = call(conn)
             elapsed = time.time() - t0
-        assert n == 4 - busy
+        assert n == (1 if busy < 3 else 0)                         # three candidates are tried; at most one is dropped
         assert w.errors == [] and w.worst < 0.5, (w.errors, w.worst)
-        assert [p for p in state(conn)[0] if p in {pname(o) for o in offsets}] == sorted(pname(o) for o in offsets[:busy])
+        dropped = [offsets[busy]] if busy < 3 else []
+        assert [p for p in state(conn)[0] if p in {pname(o) for o in offsets}] == sorted(pname(o) for o in offsets if o not in dropped)
         assert sum("could not lock it" in s for s in seen) == busy
         if busy:
             assert elapsed >= 0.9 * busy                              # three attempts half a second apart for each
@@ -214,19 +219,17 @@ def test_an_open_writer_transaction_on_the_parent_does_not_hold_the_drop_for_the
     assert call(conn) == 1
 
 
-def test_a_busy_partition_after_the_first_drop_is_skipped_without_waiting(conn, dsn) -> None:
-    """The parent is locked after the first drop, so a busy partition must be skipped at once (no sleeping, no waiting)."""
+def test_a_busy_first_day_does_not_starve_the_next_and_only_one_is_dropped(conn, dsn) -> None:
     old_partitions(conn, [203, 202, 201])
     reader = psycopg.connect(dsn, autocommit=False)
-    reader.execute(f"SELECT count(*) FROM {pname(202)}")
+    reader.execute(f"SELECT count(*) FROM {pname(203)}")
     try:
-        t0 = time.time()
-        assert call(conn) == 2
-        assert time.time() - t0 < 1.0
-        assert [p for p in state(conn)[0] if p in {pname(203), pname(202), pname(201)}] == [pname(202)]
+        assert call(conn) == 1                                       # 203 busy (three tries), 202 dropped, 201 left for the next call
+        assert [p for p in state(conn)[0] if p in {pname(203), pname(202), pname(201)}] == sorted([pname(203), pname(201)])
     finally:
         reader.rollback()
         reader.close()
+    assert drain(conn) == 2
 
 
 def test_a_pinned_partition_and_a_busy_one_in_the_same_run(conn, dsn) -> None:
@@ -271,7 +274,7 @@ def test_the_parent_is_not_locked_while_the_partitions_are_checked(conn, dsn) ->
         th.join(30)
     finally:
         holder.close()
-    assert result["n"] == 2
+    assert result["n"] == 1
 
 
 # ------------------------------------------------------------------ a partition that changed after it was checked
@@ -319,24 +322,28 @@ def test_a_late_position_between_the_check_and_the_recheck_keeps_the_partition(c
     assert any("DROP REFUSED" in s and pname(200) in s for s in seen)
 
 
-def test_a_session_seen_again_between_the_recheck_and_the_lock_keeps_the_partition(conn) -> None:
-    """The last chance is inside the lock: after step 2 has passed both partitions, the first drop runs; a session of the second
-    partition comes back meanwhile (modelled by an event trigger that fires on the first DROP). The in-lock check by session id
-    keeps the second partition."""
-    add_session(conn, 9830011, day(200), day(200) + timedelta(hours=1), [day(200)])
-    y = add_session(conn, 9830012, day(199), day(199) + timedelta(hours=1), [day(199)])
+def test_a_session_seen_again_between_the_recheck_and_the_lock_keeps_the_partition(conn, hook) -> None:
+    """The last chance is inside the lock (the second call of the reconciliation for the day is step 2, after its pinning test). A session
+    of the day comes back meanwhile; the in-lock pinning test keeps the day."""
+    x = add_session(conn, 9830011, day(200), day(200) + timedelta(hours=1), [day(200)])
     process_flights(conn)
-    conn.execute(f"""
-        CREATE FUNCTION bring_back() RETURNS event_trigger LANGUAGE plpgsql AS $f$
-        BEGIN
-            UPDATE pilot_session SET last_seen = now() WHERE id = {y};
-        END $f$""")
-    conn.execute("CREATE EVENT TRIGGER bring_back_trg ON ddl_command_start WHEN TAG IN ('DROP TABLE') EXECUTE FUNCTION bring_back()")
+    hook(2, f"UPDATE pilot_session SET last_seen = now() WHERE id = {x}")
     seen = notices(conn)
-    try:
-        assert call(conn) == 1
-    finally:
-        conn.execute("DROP EVENT TRIGGER bring_back_trg")
-        conn.execute("DROP FUNCTION bring_back()")
-    assert pname(199) in state(conn)[0] and pname(200) not in state(conn)[0]
-    assert any("DROP REFUSED" in s and pname(199) in s for s in seen)
+    assert call(conn) == 0
+    assert pname(200) in state(conn)[0]
+    assert any("DROP REFUSED" in s and pname(200) in s for s in seen)
+
+
+def test_a_position_added_by_a_session_not_in_the_earlier_list_between_check_and_lock_keeps_the_day(conn, hook) -> None:
+    """The in-lock check is rebuilt from the partition, not from a list of sessions made before the lock. Session z has positions
+    only in day 150 when day 200 is checked (calls 1 and 3 for day 200, 2 and 4 for day 150); at the in-lock call for day 200
+    (call 5) z receives a position in day 200 that no written flight covers. Day 200 is kept, day 150 is dropped."""
+    add_session(conn, 9830021, day(200), day(200) + timedelta(hours=1), [day(200)])
+    z = add_session(conn, 9830022, day(150), day(150) + timedelta(hours=1), [day(150)])
+    process_flights(conn)
+    late = day(200) - timedelta(hours=6)
+    hook(5, f"INSERT INTO pilot_position (observed_at, session_id, alt_ft, gs_kt) VALUES ('{late:%Y-%m-%d %H:%M:%S+00}', {z}, 5000, 250)")
+    seen = notices(conn)
+    assert call(conn) == 1
+    assert pname(200) in state(conn)[0] and pname(150) not in state(conn)[0]
+    assert any("DROP REFUSED" in s and pname(200) in s for s in seen)

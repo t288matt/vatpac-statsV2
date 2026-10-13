@@ -125,7 +125,8 @@ def test_flights_survive_partition_drop(conn) -> None:
     refresh(conn)  # the pieces exist, as live (the 5 minute job)
     check(conn, 9300040, spanning)
     assert process_flights(conn) == 2  # issue 89 phase 4: the gate needs the flights WRITTEN, not the pieces finalised
-    dropped = conn.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07') AS n").fetchone()["n"]
+    from drop_gate_helpers import drain
+    dropped = drain(conn)
     assert dropped == 2  # 20260601 and 20260602
     assert conn.execute("SELECT count(*) AS n FROM pg_inherits WHERE inhparent = 'pilot_position'::regclass").fetchone()["n"] == 0
     assert conn.execute("SELECT count(*) AS n FROM pilot_position").fetchone()["n"] == 0

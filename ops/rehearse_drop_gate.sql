@@ -4,7 +4,7 @@
 --   as_role: run the drop calls as that role (the collector's), which needs GRANT EXECUTE on the drop function in the scratch copy (the runbook gives the line).
 -- What it does, in this order:
 --   A. predicts, for every daily partition, whether the gate should drop it (due, not pinned, nothing unreconciled) and says why not;
---   B. runs the drop function the way the collector does (10 partitions per call, one call more than needed, each its own transaction). THIS DROPS PARTITIONS OF THE COPY;
+--   B. runs the drop function the way the collector does (ONE partition per call, one call more than needed, each its own transaction). THIS DROPS PARTITIONS OF THE COPY;
 --   C. checks the outcome against the prediction: exactly the predicted partitions are gone, no written flight changed, and the
 --      positions left are exactly the positions before minus those of the dropped partitions. Last line: REHEARSAL RESULT: OK or FAIL.
 -- It refuses to run unless the database name ends in _test, so it cannot be pointed at the live database by mistake.
@@ -79,7 +79,7 @@ SELECT (SELECT count(*) FROM flight_record) AS flights,
 \echo '== B. the drop loop, as the collector runs it (each call its own transaction; THIS DROPS PARTITIONS OF THE COPY) =='
 CREATE TEMP TABLE gate_calls (dropped int);
 GRANT ALL ON gate_calls TO PUBLIC;
-SELECT least(60, ceil(count(*) FILTER (WHERE expect_drop) / 10.0)::int + 1) AS n_calls FROM gate_plan \gset
+SELECT least(700, count(*) FILTER (WHERE expect_drop)::int + 1) AS n_calls FROM gate_plan \gset
 \if :{?as_role}
   \echo 'running the drop calls as role' :as_role '(as the collector does)'
   SET ROLE :"as_role";

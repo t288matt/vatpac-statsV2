@@ -30,7 +30,7 @@ Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-
 
 | Requirement | Test |
 |---|---|
-| Same signature and return value; at most 10 per call; collector loop reaches the end state | L `test_at_most_ten_per_call_and_the_collector_loop_reaches_the_end_state`, G `test_a_catch_up_through_the_collector_loop_drops_every_reconciled_day` |
+| Same signature and return value; ONE drop per call (third review, 13-10-2026); collector loop (0.5 s pause, up to 600 calls) reaches the end state | L `test_one_day_per_call_and_the_collector_loop_reaches_the_end_state`, G `test_three_due_reconciled_days_are_dropped_one_per_call`, G `test_a_catch_up_through_the_collector_loop_drops_every_reconciled_day` |
 | Due, unpinned, processed partitions dropped; written flights untouched | L `test_due_unpinned_processed_partitions_are_dropped_and_the_rest_kept` |
 | Checks take no lock on the parent | L `test_the_parent_is_not_locked_while_the_partitions_are_checked` |
 | Step 2 re-check (a late position between check and re-check keeps it) | L `test_a_late_position_between_the_check_and_the_recheck_keeps_the_partition` |
@@ -73,6 +73,10 @@ Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-
 | 3. After the lock the session list is rebuilt from the partition and the whole gate (pinning, processed, covered, counted) is repeated | G `test_a_position_added_by_a_session_not_in_the_earlier_list_between_check_and_lock_keeps_the_day` (event trigger inserts the position at the first DROP); L `test_a_session_seen_again_between_the_recheck_and_the_lock_keeps_the_partition` |
 | 4. A refusal row and a `DROP REFUSED` notice on every keep path including lock failure; a row is cleared only when the day is dropped, no longer exists or is not due; a pinned day clears it | G `test_a_day_that_cannot_be_locked_is_refused_on_the_record_and_cleared_when_it_goes`, `test_refusal_rows_stay_until_the_day_is_dropped_or_gone_or_not_due` |
 | 5. Rehearsal: the independent count uses a LEFT JOIN (a missing session row is uncovered); run 2 deletes exactly one flight; run 1 is preceded by a writer catch-up step and the text says how to tell a timing effect from a finding | `ops/rehearse_drop_gate.sql`; runbook 4.3b, 4.4, 4.5 (documents; the real rehearsal is not run) |
+
+## Third review fix (13-10-2026): one drop per call
+
+After the first DROP the parent table stays ACCESS EXCLUSIVE locked to the end of the call; each further day would then run the full in-lock reconciliation (about 90,000 positions) under that lock and could pass the collector's 5 second insert timeout. The function now checks at most 3 candidate days and drops at most one (`EXIT` after the first drop); `maintenance.drop_old_partitions` loops up to 600 times with a 0.5 second pause (`DROP_PAUSE_S`), so the lock is released between days. Refusal-row behaviour is unchanged. Tests: G `test_three_due_reconciled_days_are_dropped_one_per_call` (three due days, one per call, the next call the next), L `test_one_day_per_call_and_the_collector_loop_reaches_the_end_state` (25 days drained by the loop), L `test_a_busy_first_day_does_not_starve_the_next_and_only_one_is_dropped`, L `test_busy_partitions_are_kept_without_an_error_or_a_stall` (three candidates, one drop), and the race tests moved to a hook inside the function (L `test_a_session_seen_again_between_the_recheck_and_the_lock_keeps_the_partition`, `test_a_position_added_by_a_session_not_in_the_earlier_list_between_check_and_lock_keeps_the_day`). Not tested: lock hold time at live volume.
 
 ## Section 5.3 (placeholder rows)
 
