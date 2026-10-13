@@ -1,5 +1,7 @@
 # Documentation audit (08-10-2026)
 
+> **Note, issue 89 phase 5 (13-10-2026, branch p5-remove-old, NOT YET DEPLOYED).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 drops the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renames `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
+
 Independent audit of the project documentation by a reviewer who did not write it. Scope: `README.md`, `SPEC.md`, `docs/*.md`, `docs/RUNBOOKS/*`, `docs/reference/` (read only), `tests/README.md`, the comments at the top of `ops/*.sh` and `.env.example`; the `docs/t14_notes/` working notes were checked only for contradictions with current code. Baseline: commit `8eb4e6f` (branch `main`); work is on branch `docs-audit`. Every statement of fact was checked against the repository (compose file, migrations, collector source, dashboards JSON, `ops/`, tests, CI workflow, `.env.example`), not against other documents. No code, SQL, migration, dashboard, test or workflow was changed. Times are UTC. Line numbers in the table refer to the baseline commit.
 
 Totals: 37 findings (10 high, 17 medium, 10 low).

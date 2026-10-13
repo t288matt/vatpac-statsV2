@@ -1,5 +1,7 @@
 # Issue #89 phase 1: conformance table
 
+> **Note, issue 89 phase 5 (13-10-2026, branch p5-remove-old, NOT YET DEPLOYED).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 drops the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renames `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
+
 Written 12-10-2026 (branch `p1-flight-record`, issues #89 and #137). Each requirement of `docs/DESIGN_89_FINAL.md` (branch `opus-89`) that phase 1 builds, and the test that proves it. Test files: `W` = `tests/integration/test_flight_writer.py`, `E` = `tests/integration/test_flight_writer_equivalence.py`, `C` = `tests/integration/test_compare_flights.py`. A requirement with no test is listed at the end, with the reason.
 
 ## 1.3 The quiet period

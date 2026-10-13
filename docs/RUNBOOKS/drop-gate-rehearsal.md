@@ -2,16 +2,18 @@
 
 Written 12-10-2026 (branch `p4-drop-gate`, issues #89 and #140). **Status: NOT YET DEPLOYED.** Nothing in this file has been run on the VM or the live database. The live function is still the one from migration `20261009000170` (it finalises the pieces table before a drop). Everything below describes migration `20261012000210` and the script `ops/rehearse_drop_gate.sql`, which exist only on the branch.
 
+> **After phase 5.** This version names the finished-flights table `flight_summary`. Phase 5 (migration 20261013000300, NOT YET DEPLOYED) renames the finished-flights table `flight_summary` to `flight_summary` and removes the old pieces table; in production the finished flights are still in `flight_summary` until it is deployed. To rehearse on a restore of a pre-phase-5 dump, read `flight_summary` wherever this runbook says `flight_summary` (and use the pre-phase-5 copy of `ops/rehearse_drop_gate.sql`).
+
 ## 1. What the gate does
 
 The daily maintenance asks `drop_old_pilot_position_partitions(retention_days)` to delete old daily partitions of `pilot_position`. Raw positions are irreplaceable, so the function keeps a day unless it can show that the flights made from it are safely written. A day is dropped only when all of this holds:
 
 1. It is due (the day ended on or before today minus the retention) and no session seen inside the retention window has positions in it (the pinning rule, unchanged).
 2. **Processed:** every session with positions in the day has `flown_upto` at or after its last position in that day.
-3. **Covered:** every position of a session that has a flight plan lies inside the `start_time` to `end_time` of a `flight_record` row that lists the session in `session_ids`. A session without a plan makes no flight and needs only rule 2.
-4. **Counted:** every `flight_record` row that lies wholly inside the day has `sample_count` equal to the positions stored for it.
+3. **Covered:** every position of a session that has a flight plan lies inside the `start_time` to `end_time` of a `flight_summary` row that lists the session in `session_ids`. A session without a plan makes no flight and needs only rule 2.
+4. **Counted:** every `flight_summary` row that lies wholly inside the day has `sample_count` equal to the positions stored for it.
 
-Anything else keeps the day. Nothing is deleted on a doubt. The old finalisation of the pieces table (`flight_summary.final`) is no longer a precondition and is never run by this function.
+Anything else keeps the day. Nothing is deleted on a doubt. The old finalisation of the pieces table (the `final` flag of the old pieces table) is no longer a precondition and is never run by this function.
 
 The function writes one notice per refused day, which the collector logs as a warning:
 
@@ -35,7 +37,7 @@ With `POSITION_RETENTION_DAYS=180` (ADR-026) the first real drop is about 06-04-
 
 1. Phase 1 is live, the backfill has finished and the integrity sweep is clean for the two writer checks.
 2. The rehearsal in section 4 has been run on a restore of a recent dump and both runs ended `REHEARSAL RESULT: OK`.
-3. **Phase 3 (the `flight` view reads `flight_record`) is live, or you agree never to run `SELECT refresh_flight_summary(NULL)` after the first drop.** The old pieces table is no longer finalised before a drop. The 5 minute job only recomputes sessions seen in the last 12 hours, so it never touches old sessions. But a full refresh (`refresh_flight_summary(NULL)`, used by some ops scripts and by hand) recomputes every non-final session from raw positions and deletes the pieces rows of a session whose positions are gone (`refresh_flight_summary_sessions`, the `del` step). Until phase 3 the charts read those rows. This is a reason to run phase 3 first, or in the same deploy window.
+3. **Phase 3 is live (it is, since 13-10-2026).** The old pieces table and its refresh functions are removed by phase 5, so nothing can delete the pieces of a session whose positions are gone and no ops script can run a full refresh.
 4. A manual backup is taken just before the first drop (`make backup`).
 5. After the first drop, check `partitions_dropped` in the "maintenance finished" log line and grep the log for `DROP REFUSED`.
 
@@ -68,10 +70,10 @@ docker compose exec -T db sh -c 'pg_restore --no-owner --no-acl --exit-on-error 
 Check it is a usable copy of a database that already has phase 1:
 
 ```sh
-docker compose exec -T db sh -c 'psql -X -q -t -A -U "$POSTGRES_USER" -d vatpac_gate_test -c "SELECT to_regclass('"'"'flight_record'"'"') IS NOT NULL AS has_flight_record, (SELECT count(*) FROM flight_record) AS flights, (SELECT count(*) FROM pilot_session) AS sessions, (SELECT count(*) FROM pg_inherits WHERE inhparent = '"'"'pilot_position'"'"'::regclass) AS partitions"'
+docker compose exec -T db sh -c 'psql -X -q -t -A -U "$POSTGRES_USER" -d vatpac_gate_test -c "SELECT to_regclass('"'"'flight_summary'"'"') IS NOT NULL AS has_flight_summary, (SELECT count(*) FROM flight_summary) AS flights, (SELECT count(*) FROM pilot_session) AS sessions, (SELECT count(*) FROM pg_inherits WHERE inhparent = '"'"'pilot_position'"'"'::regclass) AS partitions"'
 ```
 
-Expected: `t|<flights>|<sessions>|<partitions>` with flights greater than 0. If `has_flight_record` is `f`, phase 1 is not live: stop, the gate cannot be rehearsed yet.
+Expected: `t|<flights>|<sessions>|<partitions>` with flights greater than 0. If `has_flight_summary` is `f`, the finished-flights table is not there (phase 1 not live, or a pre-phase-5 dump): stop, the gate cannot be rehearsed yet.
 
 ### 4.3 Install the new gate in the copy only
 
@@ -109,14 +111,14 @@ A day refused on a real copy is not automatically a bug. List what stopped it:
 docker compose exec -T db sh -c 'psql -X -U "$POSTGRES_USER" -d vatpac_gate_test -c "SELECT * FROM unreconciled_partition_sessions('"'"'<day> 00:00+00'"'"', '"'"'<day+1> 00:00+00'"'"')"'
 ```
 
-and compare the session ids with `pilot_session` (is `flown_upto` empty or before `last_seen`?) and `flight_record` (`session_ids`).
+and compare the session ids with `pilot_session` (is `flown_upto` empty or before `last_seen`?) and `flight_summary` (`session_ids`).
 
 ### 4.5 Run 2: prove it refuses
 
-Throw the scratch database away and restore again (4.2 and 4.3: `DROP DATABASE vatpac_gate_test WITH (FORCE)` first). Then break one flight in the copy, choosing a session whose positions lie in a due day (the owner can take any `session_id` from `flight_record` whose `start_time` is older than the retention window used):
+Throw the scratch database away and restore again (4.2 and 4.3: `DROP DATABASE vatpac_gate_test WITH (FORCE)` first). Then break one flight in the copy, choosing a session whose positions lie in a due day (the owner can take any `session_id` from `flight_summary` whose `start_time` is older than the retention window used):
 
 ```sh
-docker compose exec -T db sh -c 'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d vatpac_gate_test -c "DELETE FROM flight_record WHERE session_id = (SELECT session_id FROM flight_record ORDER BY start_time LIMIT 1)"'
+docker compose exec -T db sh -c 'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d vatpac_gate_test -c "DELETE FROM flight_summary WHERE session_id = (SELECT session_id FROM flight_summary ORDER BY start_time LIMIT 1)"'
 ```
 
 Run the script exactly as in 4.4. **Success:** `REHEARSAL RESULT: OK` (the prediction and the outcome agree), the first day appears in the "due but the gate should keep" list with reason `positions not inside a written flight`, the log has a `DROP REFUSED: partition pilot_position_<day> kept` line naming that session, and that partition still exists afterwards (`\dt pilot_position_*` in the copy, or `partitions` in the summary is larger than `partitions_dropped` by at least one).
@@ -135,7 +137,7 @@ Paste the three summary blocks (part A summary, `partitions_dropped`, the part C
 1. Read the line: it names the partition, the number of sessions or flights and the reason, and up to five session ids.
 2. Reasons:
    - `positions not yet processed by the flight writer`: the writer has not run, has stopped, or the pilot is not yet quiet. Check `SELECT write_finished_flights(500)` as the owner role (it writes: do it deliberately) and the collector log for `write_finished_flights failed`. See `integrity-checks.md`.
-   - `positions not inside a written flight`: the session is marked processed but no flight of that session covers a position. Causes: a writer fault, a manual change to `flight_record`, or a plan filed only after the first part of the session was processed (that part made no flight). Do not edit `flight_record` by hand. Raise it on issue #89 / #140 with the session ids.
+   - `positions not inside a written flight`: the session is marked processed but no flight of that session covers a position. Causes: a writer fault, a manual change to `flight_summary`, or a plan filed only after the first part of the session was processed (that part made no flight). Do not edit `flight_summary` by hand. Raise it on issue #89 / #140 with the session ids.
    - `flight sample_count differs from its stored positions`: a position was added to, or removed from, a day that a flight lies in, after the flight was written. Raise it on issue #89 / #140.
    - `session row missing`: a position without a session row. Should be impossible (foreign key). Raise it.
 3. To see the full list for a day: `SELECT * FROM unreconciled_partition_sessions('<day> 00:00+00', '<day+1> 00:00+00')` as the owner role.
@@ -147,4 +149,4 @@ The table `drop_gate_refusal` (one row per refused day, with `first_refused`) fe
 
 Tested on a throwaway local PostgreSQL 16.2 with synthetic dates (no waiting for a real date): every rule above, the lock behaviour of migration 20261009000170, the rehearsal script (its refusal on a database not ending `_test`, its prediction against the real outcome), the new integrity check and the roles. Requirement-to-test table: `docs/CONFORMANCE_89_PHASE4.md`.
 
-Not tested: a real restored live dump (this runbook is the procedure for it); run times at live volume (about 90,000 positions a day at 5 years, 575,000 rows in the whole `flight_record`); behaviour on PostgreSQL 16.15 (CI and the VM) as opposed to 16.2; the deploy.
+Not tested: a real restored live dump (this runbook is the procedure for it); run times at live volume (about 90,000 positions a day at 5 years, 575,000 rows in the whole `flight_summary`); behaviour on PostgreSQL 16.15 (CI and the VM) as opposed to 16.2; the deploy.

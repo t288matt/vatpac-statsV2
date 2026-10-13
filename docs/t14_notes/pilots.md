@@ -1,5 +1,7 @@
 # T14 notes: pilot and demographic cards (branch t14-pilots)
 
+> **Note, issue 89 phase 5 (13-10-2026, branch p5-remove-old, NOT YET DEPLOYED).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 drops the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renames `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](../DATA_DICTIONARY.md) and ADR-030.
+
 > Working note from 08-10-2026, kept as a record of the T14 re-check. Statements such as "not run" or "owner question open" describe that moment; the current position is in [../TRACKER.md](../TRACKER.md) and [../CHART_DEFINITIONS.md](../CHART_DEFINITIONS.md), which win where they differ.
 
 Re-check on 08-10-2026 of v1 cards 55, 61, 93, 129 and 135 against the owner's current Metabase SQL (card 55 updated 13-02-2026, 61 on 04-10-2025, 93 on 02-01-2026, 129 on 09-12-2025, 135 on 30-09-2025). The coordinator merges this into `docs/CHART_DEFINITIONS.md` and `docs/TRACKER.md`. All times UTC.

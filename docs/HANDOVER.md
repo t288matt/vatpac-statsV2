@@ -1,5 +1,7 @@
 # HANDOVER: VATPAC Stats v3 (point-in-time, 07-10-2026)
 
+> **Note, issue 89 phase 5 (13-10-2026, branch p5-remove-old, NOT YET DEPLOYED).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 drops the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renames `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
+
 > **Point-in-time document.** Written 07-10-2026 at the end of the first build session and kept as history; it is not kept up to date. For the current state read [RESUME.md](RESUME.md) (the entry point for a cold start) and [TRACKER.md](TRACKER.md) (the live task list). Statements below that would now mislead carry an "Update 08-10-2026" note; everything else is as written on 07-10-2026.
 
 Written 07-10-2026 at the end of the first build session, for an agent with NO memory of that session.
