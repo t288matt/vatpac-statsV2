@@ -4,7 +4,7 @@ What changed in VATPAC Stats v3, newest first, in plain words. Dates are DD-MM-Y
 
 How to read it. "Deployed" means running on the production VM, with the date and time and commit taken from the deploy records in the tracker and the runbooks. Where a record gives only part of that, the entry says "not recorded". The code history is much finer than this page; the full list is `git log`. Decision numbers (ADR-nnn) are in docs/DECISIONS.md and issue numbers (#nn) are on GitHub.
 
-Updated 12-10-2026 (docs batch 3, issue #107). The production VM runs commit b3189ad, marked live on 11-10-2026 at 20:35:53 UTC in the VM's release record (`.deploy/release.log`, read on 12-10-2026). Everything merged to main up to c89e544 on 10-10-2026, plus the work of 11-10-2026 described below, is now deployed. Main has since moved on by documentation and tooling commits only (the last, 86a5172, adds no code to the running system; the VM marker stays b3189ad).
+Updated 12-10-2026 (docs batch 3, issue #107). The production VM runs commit c70e72f (issue 89 phase 1), marked live on 12-10-2026 at 17:58:21 UTC; the previous marker was b3189ad, marked 11-10-2026 at 20:35:53 UTC (both in the VM's release record, `.deploy/release.log`). Everything merged to main up to c89e544 on 10-10-2026, plus the work of 11-10-2026 described below, is now deployed. Main has since moved on by documentation and tooling commits only (these add no code to the running system).
 
 ## Issue 89 phase 3: the charts read the written flights (branch p3-switch-views, 12-10-2026; not merged, not deployed)
 
@@ -15,10 +15,14 @@ Migration 20261013000200 switches the flight readers to `flight_record` (refs #8
 - A connection longer than 8 hours, or with a long silence, is one flight (v1's rule; about 0.5% fewer flights).
 - Old against new on the same data: `tests/integration/test_flight_views_switch.py` (each affected view) and `ops/compare_views_89_phase3.sql` (for the owner, read only). Requirement-to-test table: [docs/CONFORMANCE_89_PHASE3.md](docs/CONFORMANCE_89_PHASE3.md).
 
-## Issue 89 phase 1: flights written once (branch p1-flight-record, 12-10-2026; not merged, not deployed)
+## Issue 89 phase 1b: quiet per flight, not per pilot (branch p1b-flight-quiet, 12-10-2026; not merged, NOT live)
+
+Owner decision 12-10-2026. Migration 20261012000200 replaces `write_finished_flights()`: a flight is written once the flight itself has had no position for 8 hours of stored data, even when the same pilot is flying again in a later flight. The first live run showed 141 pilots, online again within 8 hours, holding back all their older finished flights under the per-pilot rule. Same v1 join rule, same airborne rule, same locking. The backfill script's remaining-work query and the two watchdog checks about unprocessed flights now work per flight (the "pilots quiet..." check is renamed "flights quiet..."). Explained in [docs/DEFINITIONS.md](docs/DEFINITIONS.md) section 1b with a worked example; decision recorded as ADR-030 in [docs/DECISIONS.md](docs/DECISIONS.md); conformance in [docs/CONFORMANCE_89_PHASE1.md](docs/CONFORMANCE_89_PHASE1.md). Refs #89 #137.
+
+## Issue 89 phase 1: flights written once (deployed 12-10-2026, marked commit c70e72f at 17:58:21 UTC; its quiet rule was superseded by phase 1b below, which is NOT live)
 
 Adds the table `flight_record` and the writer `write_finished_flights()` (migration 20261012000190), run side by side with today's pieces table. Nothing reads the new table yet, so no chart changes. Refs #89 and #137; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md) (branch opus-89), requirement-to-test table in [docs/CONFORMANCE_89_PHASE1.md](docs/CONFORMANCE_89_PHASE1.md).
-- A pilot's flights are written, once, 8 hours of stored data after the pilot was last seen; the rule for joining reconnects is v1's (same pilot, callsign, departure and arrival; joined when the new connection logged on within 120 minutes of the last point).
+- In the version that is live today a pilot's flights are written, once, 8 hours of stored data after the pilot was last seen (phase 1b changes this to 8 hours after the flight's own last position); the rule for joining reconnects is v1's (same pilot, callsign, departure and arrival; joined when the new connection logged on within 120 minutes of the last point).
 - `pilot_session.flown_upto`, the setting `flight_quiet_hours`, `ops/backfill_flight_record.sh`, `ops/compare_flights_89.sql` (comparison A) and `ops/compare_flights_v1_89.sql` (comparison B, for the owner to run), three new watchdog checks, and `flight_record` in the restore check and the `watchdog_ro` grant.
 
 No deploy happened on 10-10-2026. The VM stayed on commit 3eb81a3 (deployed 09-10-2026) all that day; the work merged on 10-10-2026 went live in the deploys of 11-10-2026.
