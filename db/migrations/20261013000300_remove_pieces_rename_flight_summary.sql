@@ -12,7 +12,7 @@ SET LOCAL lock_timeout = '5s';   -- fail fast instead of queueing behind a long 
 --      view) makes the migration fail and roll back, which is the wanted outcome. Order: flight_legacy (reads flight_part), flight_part
 --      (reads the table), the functions (read the table), the table.
 --   2. ALTER TABLE flight_record RENAME TO flight_summary, plus the primary key, the CHECK constraint and the four indexes, so the
---      names are exactly what a fresh `CREATE TABLE flight_summary` would have given (the old table's same-named objects went in step 1).
+--      names follow the table. The key and the four indexes get the names a fresh `CREATE TABLE flight_summary` would give; the inline CHECK on end_time was auto-named `flight_record_end_time_check` (a fresh create would say `flight_summary_end_time_check`) and is renamed to `flight_summary_check`, which the tests pin. The old table's same-named objects were renamed aside first.
 --      Owner, ACL (watchdog_ro, via ops/migrate/migrate.sh), comments and the dependent views (flight, by OID) follow the table.
 --   3. PL/pgSQL and SQL function bodies store table names as text, so they are re-created with the word flight_record replaced by
 --      flight_summary and NOTHING ELSE changed: write_finished_flights(int), unreconciled_partition_sessions(timestamptz, timestamptz)
