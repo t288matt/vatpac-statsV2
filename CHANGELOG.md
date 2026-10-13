@@ -6,6 +6,13 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 12-10-2026 (docs batch 3, issue #107). The production VM runs commit b3189ad, marked live on 11-10-2026 at 20:35:53 UTC in the VM's release record (`.deploy/release.log`, read on 12-10-2026). Everything merged to main up to c89e544 on 10-10-2026, plus the work of 11-10-2026 described below, is now deployed. Main has since moved on by documentation and tooling commits only (the last, 86a5172, adds no code to the running system; the VM marker stays b3189ad).
 
+## Issue 89 phase 4: the raw-position drop gate checks the written flights (branch p4-drop-gate, 12-10-2026; not merged, not deployed)
+
+Changes when old daily partitions of `pilot_position` may be deleted (migration 20261012000210). Refs #89 and #140; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md) section 3 (branch opus-89), requirement-to-test table in [docs/CONFORMANCE_89_PHASE4.md](docs/CONFORMANCE_89_PHASE4.md).
+- A day is dropped only when every session with positions in it has been processed by the flight writer, every position of a session with a flight plan lies inside a written flight of that session, and every flight wholly inside the day has the right sample count. Any doubt keeps the day and logs `DROP REFUSED`. The old finalisation of the pieces table is no longer a condition.
+- New internal function `unreconciled_partition_sessions()` (read-only; used by the drop function and the rehearsal), new integrity check `processed flight-plan sessions in no written flight (ended 2 to 30 days ago)` (22 checks now), rehearsal script `ops/rehearse_drop_gate.sql` and runbook [docs/RUNBOOKS/drop-gate-rehearsal.md](docs/RUNBOOKS/drop-gate-rehearsal.md).
+- Before the first real drop, phase 3 should be live (or `refresh_flight_summary(NULL)` must not be run afterwards): see the runbook, section 3.
+
 ## Issue 89 phase 1: flights written once (branch p1-flight-record, 12-10-2026; not merged, not deployed)
 
 Adds the table `flight_record` and the writer `write_finished_flights()` (migration 20261012000190), run side by side with today's pieces table. Nothing reads the new table yet, so no chart changes. Refs #89 and #137; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md) (branch opus-89), requirement-to-test table in [docs/CONFORMANCE_89_PHASE1.md](docs/CONFORMANCE_89_PHASE1.md).

@@ -108,6 +108,21 @@ FROM pilot_session s
 WHERE (s.flown_upto IS NULL OR s.last_seen > s.flown_upto)
   AND s.last_seen < (SELECT max(observed_at) FROM network_snapshot) - interval '2 days'
 UNION ALL
+-- Issue 89 phase 4: the raw-position drop gate (drop_old_pilot_position_partitions) keeps a day when a position is processed but lies in
+-- no written flight. This is the same condition seen from the session side, so the owner hears of it long before a partition is
+-- due (the NOTICE "DROP REFUSED" in the collector log is the other half). Only sessions that still have raw positions, ended 2 to 30
+-- days before the newest snapshot, with a flight plan (departure and arrival non-empty, normalised as the writer does).
+SELECT 'processed flight-plan sessions in no written flight (ended 2 to 30 days ago)', count(*), NULL
+FROM pilot_session s
+WHERE s.flown_upto >= s.last_seen
+  AND s.last_seen < (SELECT max(observed_at) FROM network_snapshot) - interval '2 days'
+  AND s.last_seen >= (SELECT max(observed_at) FROM network_snapshot) - interval '30 days'
+  AND NULLIF(upper(btrim(s.departure, E' \t\r\n')), '') IS NOT NULL
+  AND NULLIF(upper(btrim(s.arrival,   E' \t\r\n')), '') IS NOT NULL
+  AND EXISTS (SELECT 1 FROM pilot_position p WHERE p.session_id = s.id AND p.observed_at >= s.first_seen AND p.observed_at <= s.last_seen)
+  AND s.id NOT IN (SELECT unnest(f.session_ids) FROM flight_record f
+                    WHERE f.end_time >= (SELECT max(observed_at) FROM network_snapshot) - interval '45 days')
+UNION ALL
 SELECT 'daily partitions missing for today..today+3', count(*), NULL FROM generate_series(0, 3) g(d)
 WHERE to_regclass(format('public.pilot_position_%s', to_char((now() AT TIME ZONE 'UTC')::date + g.d, 'YYYYMMDD'))) IS NULL
 UNION ALL
