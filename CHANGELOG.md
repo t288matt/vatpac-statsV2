@@ -30,7 +30,7 @@ Read-only exports from v3 and v1, matched in Python (`compare_raw.py`; method in
 - Against v1's raw positions, rebuilt with v1's own rule: v1 998 flights, v3 977. **974 of 998 match one to one, 0 split by v3.** v1-only 24 (23 amended flight plans and 1 flight that began before the window); v3-only 3 (1 amendment mirror and 2 flights of 4 and 1 positions that v1 never recorded).
 - Against v1's summary table (less complete): v1 1008, v3 996; 966 exact plus 18 with a logon a few minutes apart; 0 split, 0 merged; v1-only 24; v3-only 12. The 12 v3-only are flights whose raw positions v1 holds but whose summary v1 never wrote.
 - Timing on the 974: v1's first row is never earlier than v3's start (median 1.1 minutes later). Of 127 flights whose start differs by more than 5 minutes, 120 are explained (90 positions before the plan was filed, 30 plan changes inside one connection) and 7 are not individually traced. 12 flights where v1's last row is later than v3's end are plan amendments (the first comment's "up to 3.9 minutes" was corrected to 5 to 130 minutes).
-- Not recorded here: whether the owner has declared the #138 exit gate passed; issue #138 was still open on 13-10-2026. A second run before phase 5 is intended (docs/qa_89/README.md 2f).
+- The owner agreed in chat on 13-10-2026 that comparison B passes and that the leftovers are explainable (recorded on #138; the issue stays open until the owner closes it). Comparison A was rerun right after the pre-deploy dump on 13-10-2026 at about 10:02 UTC, before phase 5: sums equal, all 63 old-only and 53 new-only rows classified (25 airborne cap, 18 frozen plan time, 10 eight-hour cuts), none unclassified.
 
 ## Issue 89 phase 4: the raw-position drop gate checks the written flights (written 12-10-2026; deployed 13-10-2026, marked commit 7a71d30 at 10:05:56 UTC)
 
@@ -93,7 +93,7 @@ Three database and dashboard fixes and one measurement. Fixes issues #93, #94 an
 - The Monday event panel shows this Monday, not last Monday, before 07:00 UTC (issue #94).
 - Dropping old position partitions is rewritten as migration 20261009000170: it takes locks without waiting, re-checks each partition before dropping and drops at most 10 per call; `maintenance.py` repeats the call. The first real drop is not due until about 06-01-2027 (issue #98).
 - The flight view's growth with history is measured (docs/FLIGHT_VIEW_SCALING.md); the fix is future work (issue #108).
-- The first real partition drop is still not due until about 06-01-2027.
+- The first real partition drop is still not due until about 06-01-2027 (that was the date under the 90 day retention; at 180 days since 13-10-2026 it is about 05-04-2027).
 
 ### Replay and fuzz tests (issue #103; on main 10-10-2026, last commit 27cb266 at 20:39 UTC)
 Tests only; nothing to deploy. Two real raw-feed snapshots are kept as fixtures, with a replay tool, seeded fuzz generators, parser fuzz tests and ingest tests against Postgres. They found two real defects, now issues #111 (oversized multi-byte callsign) and #114 (infinite controller frequency), pinned as expected failures until fixed. The full fuzz grids run in CI.

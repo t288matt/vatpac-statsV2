@@ -46,7 +46,7 @@ Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-
 | Requirement | Test |
 |---|---|
 | A refusal writes a clear `DROP REFUSED` line naming partition, reason and session ids | G tests above that read `notices` (`refused(...)`) |
-| Watchdog alert from the data: new integrity check fires on a processed plan-session in no written flight, clears when a flight lists it, ignores no-plan sessions; pack has 23 checks on main (21 on the live database until phase 4 is deployed), all with plain wording and an action | I `test_each_invariant_fires_on_broken_data` (new case), I `test_a_processed_session_that_is_in_a_written_flight_does_not_fire_the_gate_invariant`, I `test_the_cases_cover_exactly_the_invariants_in_the_pack`, `tests/test_humane_messages.py`, `tests/test_integrity_schedule.py` |
+| Watchdog alert from the data: new integrity check fires on a processed plan-session in no written flight, clears when a flight lists it, ignores no-plan sessions; pack had 23 checks on main at the time of writing (21 on the live database until phase 4 was deployed; phase 5 later removed two, so 21 are live now), all with plain wording and an action | I `test_each_invariant_fires_on_broken_data` (new case), I `test_a_processed_session_that_is_in_a_written_flight_does_not_fire_the_gate_invariant`, I `test_the_cases_cover_exactly_the_invariants_in_the_pack`, `tests/test_humane_messages.py`, `tests/test_integrity_schedule.py` |
 
 ## Rehearsal (design 7.2, 7.5)
 
@@ -54,7 +54,7 @@ Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-
 |---|---|
 | Rehearsal script predicts exactly what the function drops (drop, refuse and pin cases) and checks flights and positions are accounted for | G `test_the_rehearsal_script_predicts_exactly_what_the_function_drops` (needs `psql`) |
 | Script refuses a database whose name does not end in `_test` | G `test_the_rehearsal_script_refuses_a_database_not_named_for_testing` |
-| Exact owner steps for a restored live dump, success criteria, clean-up | `docs/RUNBOOKS/drop-gate-rehearsal.md` section 4 (a document; the real rehearsal was run on the VM on 13-10-2026 at about 09:50 UTC, two runs, both OK: see the runbook status line) |
+| Exact owner steps for a restored live dump, success criteria, clean-up | `docs/RUNBOOKS/drop-gate-rehearsal.md` section 4 (a document; the real rehearsal was run on the VM on the morning of 13-10-2026, before the deploy, two runs, both OK: see the runbook status line) |
 
 ## Review fixes (13-10-2026)
 
