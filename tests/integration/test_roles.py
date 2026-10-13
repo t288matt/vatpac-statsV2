@@ -137,6 +137,13 @@ def test_maintenance_functions_are_not_public(conn) -> None:
                "refresh_flight_summary", "refresh_materialized_views", "write_finished_flights"):
         row = conn.execute("SELECT prosecdef, proconfig FROM pg_proc WHERE proname = %s", (fn,)).fetchone()
         assert row["prosecdef"] is True and any(c.startswith("search_path=public") for c in row["proconfig"])
+    # issue 89 phase 4: the reconciliation helper is internal. No PUBLIC grant, and not granted to the collector or anyone else
+    # (only the DEFINER drop function calls it), with a pinned search_path that puts pg_temp last.
+    helper = "unreconciled_partition_sessions(timestamptz, timestamptz)"
+    acl = conn.execute("SELECT proacl::text AS a FROM pg_proc WHERE oid = %s::regprocedure", (helper,)).fetchone()["a"]
+    assert acl is not None and "{=X" not in acl and ",=X" not in acl and "collector" not in acl
+    hrow = conn.execute("SELECT prosecdef, proconfig FROM pg_proc WHERE oid = %s::regprocedure", (helper,)).fetchone()
+    assert hrow["prosecdef"] is True and "search_path=public, pg_temp" in hrow["proconfig"]
     wf = conn.execute("SELECT proconfig FROM pg_proc WHERE oid = 'write_finished_flights(int)'::regprocedure").fetchone()
     assert "search_path=public, pg_temp" in wf["proconfig"]  # pg_temp last: no temp object can shadow a table
 
