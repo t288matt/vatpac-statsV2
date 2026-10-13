@@ -395,7 +395,8 @@ def psql(dsn: str, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 @pytest.mark.skipif(PSQL is None, reason="psql not installed (CI has it)")
-def test_the_rehearsal_script_predicts_exactly_what_the_function_drops(conn, dsn) -> None:
+@pytest.mark.parametrize("as_role", [None, "collector"])
+def test_the_rehearsal_script_predicts_exactly_what_the_function_drops(conn, dsn, as_role) -> None:
     """The script reports each partition, runs the drop loop the way the collector does, and checks the outcome against its own
     prediction. Here: three days that reconcile, one that does not (its flight is missing), one pinned by a recent session."""
     mk(conn, 9860001, mins(day(200), 10))
@@ -405,9 +406,13 @@ def test_the_rehearsal_script_predicts_exactly_what_the_function_drops(conn, dsn
     process_flights(conn)
     conn.execute("DELETE FROM flight_record WHERE session_id = %s", (bad,))
     conn.execute("UPDATE pilot_session SET last_seen = %s WHERE id = %s", (day(5), pinned))
-    r = psql(dsn, "-v", "retention=90", "-v", f"today={TODAY}", "-f", str(REPO / "ops" / "rehearse_drop_gate.sql"))
+    extra = ["-v", f"as_role={as_role}"] if as_role else []
+    if as_role and not conn.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (as_role,)).fetchone():
+        pytest.skip(f"role {as_role} not created")
+    r = psql(dsn, "-v", "retention=90", "-v", f"today={TODAY}", *extra, "-f", str(REPO / "ops" / "rehearse_drop_gate.sql"))
     assert r.returncode == 0, r.stderr
     assert "REHEARSAL RESULT: OK" in r.stdout, r.stdout
+    assert "gate_too_lax" in r.stdout and (as_role is None or f"as role {as_role}" in r.stdout)
     assert not exists(conn, 200) and not exists(conn, 198)
     assert exists(conn, 199) and exists(conn, 197)
 
@@ -421,3 +426,74 @@ def test_the_rehearsal_script_refuses_a_database_not_named_for_testing(dsn) -> N
     assert "REHEARSAL REFUSED" in r.stdout + r.stderr
     assert "REHEARSAL RESULT" not in r.stdout
     assert os.path.exists(REPO / "ops" / "rehearse_drop_gate.sql")
+
+
+# ------------------------------------------------------------------ review fixes (13-10-2026)
+def test_a_temp_table_named_like_a_real_table_cannot_make_the_gate_drop_a_day(conn) -> None:
+    """The function is SECURITY DEFINER. With pg_temp first in the search path a caller could shadow pilot_position and
+    pilot_session with empty temp tables, so the gate would see nothing to protect and drop the real day."""
+    mk(conn, 9870001, mins(day(200), 10))                          # NOT processed: the real day must be kept
+    conn.execute("CREATE TEMP TABLE pilot_position (LIKE public.pilot_position)")
+    conn.execute("CREATE TEMP TABLE pilot_session (LIKE public.pilot_session INCLUDING DEFAULTS)")
+    conn.execute("CREATE TEMP TABLE flight_record (LIKE public.flight_record)")
+    assert call(conn) == 0
+    conn.execute("DROP TABLE pg_temp.pilot_position, pg_temp.pilot_session, pg_temp.flight_record")
+    assert exists(conn, 200)
+    cfg = conn.execute("SELECT proconfig FROM pg_proc WHERE oid IN ('drop_old_pilot_position_partitions(int,date)'::regprocedure, "
+                       "'unreconciled_partition_sessions(timestamptz,timestamptz)'::regprocedure)").fetchall()
+    assert all("search_path=public, pg_temp" in r["proconfig"] for r in cfg) and len(cfg) == 2
+
+
+def test_the_gate_does_not_depend_on_the_date_style(conn) -> None:
+    mk(conn, 9870002, mins(day(200), 10))
+    process_flights(conn)
+    conn.execute("SET DateStyle = 'SQL, DMY'")
+    try:
+        assert call(conn) == 1 and not exists(conn, 200)
+    finally:
+        conn.execute("RESET DateStyle")
+
+
+def test_a_late_position_inside_a_midnight_spanning_flight_keeps_both_days(conn) -> None:
+    """A position lies inside the flight's time range, so per-position coverage passes, but the writer never counted it. While both
+    days are stored the count catches it; once the other day is gone the check is skipped and coverage alone stands."""
+    ts = mins(day(200, 22), 240)                                   # 22:00 to 02:00 next day
+    sid = mk(conn, 9870003, ts)
+    process_flights(conn)
+    late = ts[10] + timedelta(seconds=30)
+    conn.execute("INSERT INTO pilot_position (observed_at, session_id, alt_ft, gs_kt) VALUES (%s,%s,5000,250)", (late, sid))
+    got = dict(unreconciled(conn, *span(200)))
+    assert got == {sid: "flight sample_count differs from its stored positions"}
+    assert dict(unreconciled(conn, *span(199))) == got
+    seen = notices(conn)
+    assert call(conn) == 0 and exists(conn, 200) and exists(conn, 199)
+    assert refused(seen, 200) and refused(seen, 199)
+    conn.execute("UPDATE flight_record SET sample_count = sample_count + 1")        # the count now agrees
+    assert call(conn) == 2
+
+
+def test_a_refusal_is_recorded_for_the_watchdog_and_cleared_when_the_day_reconciles_or_goes(conn) -> None:
+    sid = mk(conn, 9870004, mins(day(200), 10))
+    assert call(conn) == 0
+    row = conn.execute("SELECT part_name, first_refused, last_refused, detail FROM drop_gate_refusal").fetchall()
+    assert [r["part_name"] for r in row] == [pname(200)] and "unreconciled" in row[0]["detail"]
+    conn.execute("UPDATE drop_gate_refusal SET first_refused = first_refused - interval '5 days'")
+    assert call(conn) == 0
+    again = conn.execute("SELECT first_refused, last_refused FROM drop_gate_refusal").fetchone()
+    assert again["last_refused"] > again["first_refused"] + timedelta(days=4)       # first_refused kept, last_refused moves
+    process_flights(conn)
+    assert call(conn) == 1
+    assert conn.execute("SELECT count(*) AS n FROM drop_gate_refusal").fetchone()["n"] == 0
+    assert sid
+
+
+def test_the_refusal_table_is_readable_by_the_watchdog_role_only_for_reading(conn) -> None:
+    if not conn.execute("SELECT 1 FROM pg_roles WHERE rolname = 'watchdog_ro'").fetchone():
+        pytest.skip("role watchdog_ro not created")
+    conn.execute("SET ROLE watchdog_ro")
+    try:
+        conn.execute("SELECT count(*) FROM drop_gate_refusal").fetchone()
+        with pytest.raises(Exception):
+            conn.execute("DELETE FROM drop_gate_refusal")
+    finally:
+        conn.execute("RESET ROLE")

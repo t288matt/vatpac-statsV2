@@ -54,6 +54,16 @@ Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-
 | Script refuses a database whose name does not end in `_test` | G `test_the_rehearsal_script_refuses_a_database_not_named_for_testing` |
 | Exact owner steps for a restored live dump, success criteria, clean-up | `docs/RUNBOOKS/drop-gate-rehearsal.md` section 4 (a document; the real rehearsal has not been run) |
 
+## Review fixes (13-10-2026)
+
+| Requirement | Test |
+|---|---|
+| 1. `search_path = public, pg_temp` and qualified tables on the drop function and the helper; temp tables named like the real ones cannot make the gate drop a day | G `test_a_temp_table_named_like_a_real_table_cannot_make_the_gate_drop_a_day` |
+| 2. Midnight-spanning flights: sample_count compared with stored positions while every day of the flight is stored; skipped when a day is already gone | G `test_a_late_position_inside_a_midnight_spanning_flight_keeps_both_days`, `test_a_flight_across_two_days_is_covered_in_both_and_the_second_day_still_drops_after_the_first_is_gone` |
+| 3. Alert at any age: `drop_gate_refusal` and the check `raw-position days kept by the deletion check for more than 3 days` | G `test_a_refusal_is_recorded_for_the_watchdog_and_cleared_when_the_day_reconciles_or_goes`, G `test_the_refusal_table_is_readable_by_the_watchdog_role_only_for_reading`, I `test_each_invariant_fires_on_broken_data`, I `test_a_fresh_refusal_does_not_fire_the_gate_refusal_check`; wording in `ops/watchdog/messages.py`, row in `integrity-checks.md`, counts in `alerts.md` |
+| 4. Rehearsal: independent per-position count (`gate_too_lax`) and optional run as the collector's role | G `test_the_rehearsal_script_predicts_exactly_what_the_function_drops[None, collector]`; runbook 4.3 and 4.4 |
+| 5. No date-to-text conversion (DateStyle) in the function or the script | G `test_the_gate_does_not_depend_on_the_date_style` |
+
 ## Section 5.3 (placeholder rows)
 
 Placeholder flights (`sample_count = 0`, no positions) never block a drop: G `test_a_flight_with_a_sample_count_of_zero_is_not_counted`. The carry-over itself belongs to phase 1.

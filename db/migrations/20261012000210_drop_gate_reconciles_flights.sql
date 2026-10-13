@@ -30,6 +30,17 @@
 -- reviewer point 4): the gate is monotone, because an old partition receives no inserts, flown_upto only rises and written flights
 -- are never removed, so a writer running at the same moment can only turn a "keep" into a later "drop".
 
+-- The record of refusals, so the watchdog can alert on a day kept for days (watchdog_ro reads it; ops/migrate/migrate.sh). One row per
+-- refused day, written by the drop function, removed when the day reconciles or is dropped.
+CREATE TABLE IF NOT EXISTS drop_gate_refusal (
+    part_name     text        PRIMARY KEY,                 -- pilot_position_YYYYMMDD
+    first_refused timestamptz NOT NULL DEFAULT now(),
+    last_refused  timestamptz NOT NULL DEFAULT now(),
+    detail        text        NOT NULL
+);
+COMMENT ON TABLE drop_gate_refusal IS
+    'Issue 89 phase 4: days of pilot_position that drop_old_pilot_position_partitions() kept because they are not reconciled with the written flights. Written only by that function.';
+
 CREATE OR REPLACE FUNCTION unreconciled_partition_sessions(p_start timestamptz, p_end timestamptz)
 RETURNS TABLE (session_id bigint, reason text)
 LANGUAGE sql
@@ -39,19 +50,19 @@ SET search_path = public, pg_temp
 AS $fn$
     WITH pos AS (                                  -- the day's positions, one row per session
         SELECT p.session_id, count(*) AS n, max(p.observed_at) AS last_at
-          FROM pilot_position p
+          FROM public.pilot_position p
          WHERE p.observed_at >= p_start AND p.observed_at < p_end
          GROUP BY p.session_id
     ),
     fl AS (                                        -- flights that overlap the day, one row per (flight, session)
         SELECT u.sid, f.start_time, f.end_time
-          FROM flight_record f
+          FROM public.flight_record f
          CROSS JOIN LATERAL unnest(f.session_ids) AS u(sid)
          WHERE f.end_time >= p_start AND f.start_time < p_end
     ),
     cov AS (                                       -- positions of the day inside a written flight of their own session
         SELECT p.session_id, count(*) AS n
-          FROM pilot_position p
+          FROM public.pilot_position p
          WHERE p.observed_at >= p_start AND p.observed_at < p_end
            AND EXISTS (SELECT 1 FROM fl
                         WHERE fl.sid = p.session_id AND p.observed_at BETWEEN fl.start_time AND fl.end_time)
@@ -69,7 +80,7 @@ AS $fn$
                    THEN 'positions not inside a written flight'
            END AS reason
       FROM pos
-      LEFT JOIN pilot_session s ON s.id = pos.session_id
+      LEFT JOIN public.pilot_session s ON s.id = pos.session_id
       LEFT JOIN cov ON cov.session_id = pos.session_id
      WHERE s.id IS NULL
         OR s.flown_upto IS NULL OR s.flown_upto < pos.last_at
@@ -77,14 +88,17 @@ AS $fn$
             AND NULLIF(upper(btrim(s.arrival, E' \t\r\n')), '') IS NOT NULL
             AND COALESCE(cov.n, 0) < pos.n)
     UNION ALL
-    -- Flights wholly inside the day: the stored count must equal the row's sample_count. A flight that crosses midnight is not
-    -- counted here (the other half may be in a partition already dropped); its positions are covered by the check above.
+    -- Stored count against sample_count for every flight that overlaps the day, provided EVERY day the flight spans is still stored
+    -- (a flight whose earlier day is already dropped cannot be recounted; its positions are still covered by the check above, and
+    -- the earlier day was compared when it was dropped). Fail safe: any difference keeps the day.
     SELECT f.session_id, 'flight sample_count differs from its stored positions'
-      FROM flight_record f
-     WHERE f.start_time >= p_start AND f.end_time < p_end AND f.sample_count > 0
-       AND f.sample_count <> (SELECT count(*) FROM pilot_position p
+      FROM public.flight_record f
+     WHERE f.end_time >= p_start AND f.start_time < p_end AND f.sample_count > 0
+       AND NOT EXISTS (SELECT 1 FROM generate_series((f.start_time AT TIME ZONE 'UTC')::date,
+                                                      (f.end_time AT TIME ZONE 'UTC')::date, interval '1 day') d
+                        WHERE to_regclass(format('public.pilot_position_%s', to_char(d, 'YYYYMMDD'))) IS NULL)
+       AND f.sample_count <> (SELECT count(*) FROM public.pilot_position p
                                WHERE p.session_id = ANY (f.session_ids)
-                                 AND p.observed_at >= p_start AND p.observed_at < p_end
                                  AND p.observed_at BETWEEN f.start_time AND f.end_time)
 $fn$;
 REVOKE ALL ON FUNCTION unreconciled_partition_sessions(timestamptz, timestamptz) FROM PUBLIC;
@@ -95,7 +109,7 @@ CREATE OR REPLACE FUNCTION drop_old_pilot_position_partitions(retention_days int
 RETURNS int
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $fn$
 DECLARE
     max_per_call constant int := 10;
@@ -121,7 +135,7 @@ BEGIN
     IF retention_days IS NULL OR retention_days < 1 THEN
         RAISE EXCEPTION 'retention_days must be >= 1';
     END IF;
-    cutoff := COALESCE((p_today::text || ' 00:00:00+00')::timestamptz, now()) - make_interval(hours => retention_days * 24);
+    cutoff := COALESCE(p_today::timestamp AT TIME ZONE 'UTC', now()) - make_interval(hours => retention_days * 24);
 
     -- 1. pinning rule, then the reconciliation with the written flights (oldest first, at most max_per_call partitions).
     --    Plain reads only: no lock on pilot_position, no write.
@@ -134,13 +148,13 @@ BEGIN
         ORDER BY c.relname
     LOOP
         EXIT WHEN cardinality(to_drop) >= max_per_call;
-        p_start := (to_date(right(r.relname, 8), 'YYYYMMDD')::text || ' 00:00:00+00')::timestamptz;
+        p_start := to_date(right(r.relname, 8), 'YYYYMMDD')::timestamp AT TIME ZONE 'UTC';
         p_end   := p_start + interval '24 hours';
         CONTINUE WHEN p_end > cutoff;
 
         SELECT array_agg(DISTINCT s.id) INTO pinned
-          FROM pilot_position p
-          JOIN pilot_session s ON s.id = p.session_id
+          FROM public.pilot_position p
+          JOIN public.pilot_session s ON s.id = p.session_id
          WHERE p.observed_at >= p_start AND p.observed_at < p_end
            AND s.last_seen >= cutoff;
         IF pinned IS NOT NULL THEN
@@ -153,10 +167,13 @@ BEGIN
 
         SELECT count(*), (array_agg(u.session_id ORDER BY u.session_id))[1:5], string_agg(DISTINCT u.reason, '; ')
           INTO n_bad, bad_ids, bad_reasons
-          FROM unreconciled_partition_sessions(p_start, p_end) u;
+          FROM public.unreconciled_partition_sessions(p_start, p_end) u;
         IF n_bad > 0 THEN
             RAISE NOTICE 'DROP REFUSED: partition % kept: % session(s) or flight(s) not reconciled with the written flights (%); first ids %',
                 r.relname, n_bad, bad_reasons, bad_ids;
+            INSERT INTO public.drop_gate_refusal (part_name, detail)
+                 VALUES (r.relname, left(n_bad || ' unreconciled: ' || bad_reasons, 500))
+            ON CONFLICT (part_name) DO UPDATE SET last_refused = now(), detail = EXCLUDED.detail;
             IF p_end < cutoff - make_interval(hours => retention_days * 24) THEN
                 RAISE NOTICE 'partition % is kept beyond twice the retention: the flight writer has stopped or a position is not in a written flight (see the previous notice)',
                     r.relname;
@@ -164,7 +181,8 @@ BEGIN
             CONTINUE;
         END IF;
 
-        ids := ARRAY(SELECT DISTINCT p.session_id FROM pilot_position p
+        DELETE FROM public.drop_gate_refusal WHERE part_name = r.relname;      -- reconciled: no refusal to report
+        ids := ARRAY(SELECT DISTINCT p.session_id FROM public.pilot_position p
                       WHERE p.observed_at >= p_start AND p.observed_at < p_end);
         to_drop := to_drop || r.relname;
         cand := cand || jsonb_build_object(r.relname, to_jsonb(ids));
@@ -172,19 +190,22 @@ BEGIN
 
     -- 2. re-check each candidate with no lock held: the world may have moved while later partitions were checked
     FOREACH part IN ARRAY to_drop LOOP
-        p_start := (to_date(right(part, 8), 'YYYYMMDD')::text || ' 00:00:00+00')::timestamptz;
+        p_start := to_date(right(part, 8), 'YYYYMMDD')::timestamp AT TIME ZONE 'UTC';
         p_end   := p_start + interval '24 hours';
-        IF EXISTS (SELECT 1 FROM pilot_position p JOIN pilot_session s ON s.id = p.session_id
+        IF EXISTS (SELECT 1 FROM public.pilot_position p JOIN public.pilot_session s ON s.id = p.session_id
                     WHERE p.observed_at >= p_start AND p.observed_at < p_end AND s.last_seen >= cutoff) THEN
             RAISE NOTICE 'partition % kept: a session in it was seen again inside the retention window', part;
             CONTINUE;
         END IF;
         SELECT count(*), (array_agg(u.session_id ORDER BY u.session_id))[1:5], string_agg(DISTINCT u.reason, '; ')
           INTO n_bad, bad_ids, bad_reasons
-          FROM unreconciled_partition_sessions(p_start, p_end) u;
+          FROM public.unreconciled_partition_sessions(p_start, p_end) u;
         IF n_bad > 0 THEN
             RAISE NOTICE 'DROP REFUSED: partition % kept: % session(s) or flight(s) no longer reconciled (%); first ids %',
                 part, n_bad, bad_reasons, bad_ids;
+            INSERT INTO public.drop_gate_refusal (part_name, detail)
+                 VALUES (part, left(n_bad || ' no longer reconciled: ' || bad_reasons, 500))
+            ON CONFLICT (part_name) DO UPDATE SET last_refused = now(), detail = EXCLUDED.detail;
         ELSE
             keep := keep || part;
         END IF;
@@ -195,7 +216,7 @@ BEGIN
         PERFORM set_config('lock_timeout', '1s', true);
         FOREACH part IN ARRAY keep LOOP
             ids := ARRAY(SELECT jsonb_array_elements_text(cand -> part)::bigint);
-            p_start := (to_date(right(part, 8), 'YYYYMMDD')::text || ' 00:00:00+00')::timestamptz;
+            p_start := to_date(right(part, 8), 'YYYYMMDD')::timestamp AT TIME ZONE 'UTC';
             p_end   := p_start + interval '24 hours';
             done := false;
             attempts := CASE WHEN n = 0 THEN 3 ELSE 1 END;         -- sleeping is only free while no parent lock is held
@@ -205,17 +226,18 @@ BEGIN
                     -- cheap, by session id (one index lookup each, the partition is locked): item 1 of the gate for the
                     -- last position of each session in this day, plus the pinning rule. Written flights are never removed
                     -- and flown_upto only rises, so item 2 cannot turn from true to false and is not repeated here.
-                    IF (SELECT count(*) FROM pilot_session s WHERE s.id = ANY (ids)) <> cardinality(ids)
-                       OR EXISTS (SELECT 1 FROM pilot_session s
+                    IF (SELECT count(*) FROM public.pilot_session s WHERE s.id = ANY (ids)) <> cardinality(ids)
+                       OR EXISTS (SELECT 1 FROM public.pilot_session s
                                    WHERE s.id = ANY (ids)
                                      AND (s.last_seen >= cutoff
                                           OR s.flown_upto IS NULL
-                                          OR s.flown_upto < (SELECT max(p.observed_at) FROM pilot_position p
+                                          OR s.flown_upto < (SELECT max(p.observed_at) FROM public.pilot_position p
                                                               WHERE p.session_id = s.id
                                                                 AND p.observed_at >= p_start AND p.observed_at < p_end))) THEN
                         RAISE EXCEPTION 'partition % changed since it was checked', part USING ERRCODE = 'VP001';
                     END IF;
                     EXECUTE format('DROP TABLE IF EXISTS public.%I', part);
+                    DELETE FROM public.drop_gate_refusal WHERE part_name = part;
                     n := n + 1;
                     done := true;
                     EXIT;
@@ -226,6 +248,9 @@ BEGIN
                         END IF;
                     WHEN SQLSTATE 'VP001' THEN
                         RAISE NOTICE 'DROP REFUSED: partition % kept: a session in it was seen again or has positions after its processed marker', part;
+                        INSERT INTO public.drop_gate_refusal (part_name, detail)
+                             VALUES (part, 'a session was seen again or has positions after its processed marker')
+                        ON CONFLICT (part_name) DO UPDATE SET last_refused = now(), detail = EXCLUDED.detail;
                         done := true;
                         EXIT;
                     WHEN undefined_table THEN
