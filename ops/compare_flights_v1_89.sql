@@ -1,4 +1,4 @@
--- Issue #89 phase 1 exit gate (#138), comparison (B), step 2 of 2: flight_record against v1's flight summaries. READ ONLY on v3.
+-- Issue #89 phase 1 exit gate (#138), comparison (B), step 2 of 2: flight_summary against v1's flight summaries. READ ONLY on v3.
 -- The independent check (the writer's author did not write v1). Run on the v3 database or a restore of a live dump, as a read-only session:
 --   psql -X -v ON_ERROR_STOP=1 -d DATABASE -v v1_csv=v1_flight_summaries.csv -f ops/compare_flights_v1_89.sql
 -- after step 1 (ops/compare_flights_v1_export.sql) produced the CSV. The temp table below is dropped when psql exits; nothing in v3 changes.
@@ -29,7 +29,7 @@ WITH win AS (
 ),
 v3 AS (
     SELECT f.session_id, f.cid, f.callsign, f.departure, f.arrival, date_trunc('second', f.logon_time) AS logon_s, f.start_time, f.end_time
-      FROM flight_record f, win w
+      FROM flight_summary f, win w
      WHERE f.logon_time >= w.w_start AND f.end_time < w.w_end AND NOT (f.start_time < w.cut_end AND f.end_time > w.cut_start)
 ),
 v1 AS (

@@ -53,7 +53,7 @@ def add_session(conn, cid: int, first: datetime, last: datetime, positions: list
 def state(conn) -> tuple[list[str], list[int]]:
     parts = sorted(r["p"] for r in conn.execute(
         "SELECT c.relname AS p FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid WHERE i.inhparent = 'pilot_position'::regclass").fetchall())
-    flights = [r["session_id"] for r in conn.execute("SELECT session_id FROM flight_record ORDER BY session_id").fetchall()]
+    flights = [r["session_id"] for r in conn.execute("SELECT session_id FROM flight_summary ORDER BY session_id").fetchall()]
     return parts, flights
 
 
@@ -245,7 +245,7 @@ def test_a_pinned_partition_and_a_busy_one_in_the_same_run(conn, dsn) -> None:
 
 # ------------------------------------------------------------------ the parent is not locked while the partitions are checked
 def test_the_parent_is_not_locked_while_the_partitions_are_checked(conn, dsn) -> None:
-    """The checks read flight_record. Another session holds that table exclusively, so the function waits inside its checks,
+    """The checks read flight_summary. Another session holds that table exclusively, so the function waits inside its checks,
     before any drop. A collector insert into pilot_position must go through meanwhile: nothing is dropped yet, so the parent is
     not locked (the earlier design finalised and dropped partition by partition and held the parent lock across the later checks)."""
     add_session(conn, 9810020, day(200), day(200) + timedelta(hours=1), [day(200)])
@@ -260,10 +260,10 @@ def test_the_parent_is_not_locked_while_the_partitions_are_checked(conn, dsn) ->
             result["n"] = c.execute(f"SELECT {FN}(90, %s) AS n", (TODAY,)).fetchone()["n"]
 
     try:
-        holder.execute("LOCK TABLE flight_record IN ACCESS EXCLUSIVE MODE")
+        holder.execute("LOCK TABLE flight_summary IN ACCESS EXCLUSIVE MODE")
         th = threading.Thread(target=run)
         th.start()
-        time.sleep(2)                                                # the function is waiting for flight_record
+        time.sleep(2)                                                # the function is waiting for flight_summary
         assert th.is_alive()
         with psycopg.connect(dsn, autocommit=True, options="-c lock_timeout=1000") as w:
             w.execute("INSERT INTO pilot_position (observed_at, session_id, alt_ft, gs_kt) VALUES (clock_timestamp(),%s,5000,250)", (live,))

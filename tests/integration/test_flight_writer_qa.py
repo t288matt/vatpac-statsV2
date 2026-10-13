@@ -200,7 +200,7 @@ def test_r7_a_skipped_conflict_pilot_is_not_counted_in_the_return_value(conn: An
     a = mk(conn, 432, ts)
     mk(conn, 433, ts, callsign="VOZ1")
     mk(conn, 434, ts, callsign="JST1")
-    conn.execute("INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
+    conn.execute("INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
                  "logon_time, sample_count) VALUES (%s, %s, %s, 432, 'QFA1', 'YSSY', 'YMML', ARRAY[%s::bigint], %s, 20)",
                  (a, ts[0], ts[-1], a, ts[0]))
     snap(conn, BASE + 20 * HOUR)
@@ -251,7 +251,7 @@ def test_opus2_pilots_with_a_key_conflict_do_not_starve_the_rest(conn: Any) -> N
     ts = times(BASE, 20)
     for i in range(50):
         sid = mk(conn, 500 + i, ts)
-        conn.execute("INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
+        conn.execute("INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
                      "logon_time, sample_count) VALUES (%s, %s, %s, %s, 'QFA1', 'YSSY', 'YMML', ARRAY[%s::bigint], %s, 20)",
                      (sid, ts[0], ts[-1], 500 + i, sid, ts[0]))
     later = times(BASE + 2 * HOUR, 20)

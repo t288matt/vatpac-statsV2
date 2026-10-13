@@ -1,6 +1,6 @@
 """T14: pilot and demographic cards re-checked against the owner's current v1 Metabase SQL (08-10-2026).
 
-Flights and controller sessions are inserted synthetically (flight_record / controller_session rows relative
+Flights and controller sessions are inserted synthetically (flight_summary / controller_session rows relative
 to now()), then the panel SQL is read from the dashboard JSON and executed, so the tests cover the SQL that
 Grafana runs. Grafana's $__timeFrom() / $__timeTo() macros are replaced with now() minus the panel's
 `timeFrom` (or 30 days, the dashboard default) and now().

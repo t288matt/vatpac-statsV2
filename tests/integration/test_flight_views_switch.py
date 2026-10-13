@@ -1,15 +1,13 @@
-"""Issue #89 phase 3 (#139, not yet deployed): `flight`, `flight_ext`, `movements`, `cohorts` and `monday_attendance` read flight_record.
+"""The flight views read the finished-flights table `flight_summary` (issue 89; built as flight_summary in phase 1, switched in phase 3 and
+renamed in phase 5, NOT YET DEPLOYED).
 
-Design: docs/DESIGN_89_FINAL.md sections 4, 7.2 (phase 3), 7.4 and 7.5; the requirement-to-test table is
-docs/CONFORMANCE_89_PHASE3.md. The question every test here answers: do the panels show the same numbers after the switch?
+Design: docs/DESIGN_89_FINAL.md sections 4 and 7.2; requirement-to-test tables: docs/CONFORMANCE_89_PHASE3.md and
+docs/CONFORMANCE_89_PHASE5.md. The old-against-new equivalence tests of phase 3 compared the new views with the old merging view
+(a view of the old pieces), which phase 5 removes; the equivalence ACROSS THE RENAME is tested in test_phase5_remove_old.py.
 
-  * Old against new, on the SAME data. Real sessions and positions are built, the pieces are refreshed (the old path:
-    flight_summary, read through the renamed view `flight_legacy`) and the writer runs (the new path: flight_record, read through
-    the new `flight`). Each affected view is compared with its pre-phase-3 definition, copied below as a temporary view
-    (`old_*`), by EXCEPT ALL in both directions. The data avoids the cases design section 5.2 lists as EXPECTED differences
-    (a session longer than 8 hours, a silence inside a connection, a join decided by logon_time); those have their own test.
-  * The new views are thin: no panel view reaches the pieces, the legacy view, the raw positions or pilot_session.
+  * The thin views: no panel view reaches the positions or pilot_session.
   * grafana_ro can read the views and nothing else, and every panel runs as grafana_ro on data.
+  * Panels count written flights only (a flight not yet written is in no view).
 """
 from __future__ import annotations
 
@@ -35,99 +33,8 @@ FLIGHT_COLS = ("session_id, cid, callsign, logon_time, name, home_icao, server, 
                "flight_rules, route, remarks, planned_alt, deptime, pilot_rating, military_rating, start_time, end_time, duration, "
                "duration_minutes, airborne_minutes, max_gs_kt, max_alt_ft, sample_count, is_circuit, is_zzzz, touches_home_region")
 
-# ---------------------------------------------------------------------------------------------------------------------
-# The definitions as they were BEFORE phase 3 (migrations 20261009000140 for flight_ext, 20261007000010 for movements and
-# cohorts, 20261007000020 for monday_attendance), re-pointed from `flight` to `flight_legacy`. Copied, not derived, so the
-# comparison cannot drift with the migration under test.
-# ---------------------------------------------------------------------------------------------------------------------
-OLD_VIEWS = [
-    """
-    CREATE TEMP VIEW old_flight_ext AS
-    SELECT f.session_id, f.cid, f.callsign, f.name, f.home_icao, f.server,
-           f.departure, f.arrival,
-           f.departure || '-' || f.arrival AS route_label,
-           upper(btrim(f.aircraft_icao)) AS aircraft_icao,
-           f.flight_rules, f.remarks,
-           f.start_time, f.end_time,
-           extract(epoch FROM (f.end_time - f.start_time)) / 60.0 AS duration_minutes,
-           f.airborne_minutes, f.max_gs_kt, f.max_alt_ft,
-           f.is_circuit, f.is_zzzz,
-           icao_is_home(f.departure) AS dep_is_home,
-           icao_is_home(f.arrival) AS arr_is_home,
-           icao_is_home(f.home_icao) AS pilot_is_local,
-           icao_region(f.home_icao) AS pilot_region,
-           (f.cid / 100000)::int AS cid_group,
-           CASE WHEN f.callsign ~ '^[A-Z]{3}[0-9]' THEN left(f.callsign, 3) END AS airline_prefix,
-           a.name AS airline_name,
-           t.category AS aircraft_category,
-           COALESCE(t.is_military, false) AS is_military,
-           (f.remarks ~* 'SEL/') AS has_selcal,
-           (f.remarks IS NOT NULL AND btrim(f.remarks) <> '') AS has_remarks
-    FROM flight_legacy f
-    LEFT JOIN airline a
-           ON a.prefix = CASE WHEN f.callsign ~ '^[A-Z]{3}[0-9]' THEN left(f.callsign, 3) END
-    LEFT JOIN aircraft_type t
-           ON t.icao = upper(btrim(f.aircraft_icao))
-    WHERE NOT f.is_in_progress
-    """,
-    """
-    CREATE TEMP VIEW old_movements AS
-    SELECT departure AS airport, 'departure'::text AS movement_type, start_time AS movement_time,
-           session_id, cid, callsign
-    FROM old_flight_ext
-    WHERE dep_is_home AND NOT is_zzzz
-    UNION ALL
-    SELECT arrival, 'arrival', end_time, session_id, cid, callsign
-    FROM old_flight_ext
-    WHERE arr_is_home AND NOT is_zzzz
-    """,
-    """
-    CREATE TEMP VIEW old_cohorts AS
-    SELECT session_id, cid, cid_group,
-           (cid_group * 100000)::text || '-' || (cid_group * 100000 + 99999)::text AS cohort,
-           start_time, end_time
-    FROM old_flight_ext
-    WHERE cid_group > 0
-    """,
-    """
-    CREATE TEMP VIEW old_monday_attendance AS
-    WITH mondays AS (
-      SELECT d::date AS monday_date
-      FROM generate_series(
-             date_trunc('week', (SELECT go_live FROM data_since) AT TIME ZONE 'UTC'),
-             date_trunc('week', now() AT TIME ZONE 'UTC'),
-             interval '1 week') AS d
-    ), win AS (
-      SELECT monday_date,
-             (monday_date + time '07:00') AT TIME ZONE 'UTC' AS win_start,
-             (monday_date + time '12:00') AT TIME ZONE 'UTC' AS win_end
-      FROM mondays
-    ), pil AS (
-      SELECT w.monday_date, count(DISTINCT fs.cid) AS n
-      FROM win w
-      JOIN flight_summary fs ON fs.start_time < w.win_end AND fs.end_time >= w.win_start
-      JOIN pilot_session ps ON ps.id = fs.session_id
-      WHERE btrim(ps.departure, E' \\t\\r\\n') <> '' AND btrim(ps.arrival, E' \\t\\r\\n') <> ''
-      GROUP BY w.monday_date
-    ), ctl AS (
-      SELECT w.monday_date, count(DISTINCT c.cid) AS n
-      FROM win w
-      JOIN controller_session_merged c ON c.start_time < w.win_end AND c.end_time >= w.win_start
-      GROUP BY w.monday_date
-    )
-    SELECT w.monday_date, w.win_start, w.win_end,
-           COALESCE(p.n, 0) AS pilot_cids,
-           COALESCE(c.n, 0) AS controller_cids
-    FROM win w
-    LEFT JOIN pil p ON p.monday_date = w.monday_date
-    LEFT JOIN ctl c ON c.monday_date = w.monday_date
-    """,
-]
-
-
 def build(conn: Any) -> None:
-    """Eleven pilots (ten flights) on and around Monday 05-10-2026, run through BOTH paths. Steps of 15 s keep every airborne sum a multiple of
-    0.25 minutes, so the old per-piece rounding and the new single rounding cannot differ."""
+    """Eleven pilots (ten flights) on and around Monday 05-10-2026, written by the writer."""
     assert MON.weekday() == 0
     set_poll_interval(conn, 30)
     snap(conn, MON)                                              # go-live: the Monday series starts here
@@ -154,108 +61,13 @@ def build(conn: Any) -> None:
        callsign="EDGE10", **pat)                                 # 40 samples 15 s apart: ends exactly 07:00:00, inside the Monday window
     mk(conn, 1000411, times(MON + 12 * HOUR, 20, 15), callsign="EDGE11", **pat)                      # starts exactly 12:00:00: outside
     snap(conn, MON + 4 * DAY)                                    # the data ends days later: every pilot is quiet
-    conn.execute("SELECT refresh_flight_summary(NULL)")          # the old path (this also runs the writer for up to 50 pilots)
-    while write(conn):                                           # the new path, for any pilots left
+    while write(conn):                                           # the writer, until nothing is left
         pass
-    for ddl in OLD_VIEWS:
-        conn.execute(ddl)
-
-
-def only_in(conn: Any, left: str, right: str) -> list[dict]:
-    return conn.execute(f"SELECT * FROM {left} EXCEPT ALL SELECT * FROM {right}").fetchall()  # noqa: S608
-
-
-def same(conn: Any, old: str, new: str) -> int:
-    """Both directions empty: returns the number of rows compared."""
-    assert only_in(conn, old, new) == [], f"rows only in {old}"
-    assert only_in(conn, new, old) == [], f"rows only in {new}"
-    return conn.execute(f"SELECT count(*) AS n FROM {new}").fetchone()["n"]  # noqa: S608
-
-
-def cols(conn: Any, rel: str) -> list[tuple[str, str]]:
-    return [(r["attname"], r["t"]) for r in conn.execute(
-        "SELECT attname, format_type(atttypid, atttypmod) AS t FROM pg_attribute WHERE attrelid = %s::regclass AND attnum > 0 "
-        "AND NOT attisdropped ORDER BY attnum", (rel,)).fetchall()]
-
-
-# ------------------------------------------------------------------ old against new, view by view
-def test_flight_returns_the_same_rows_as_the_old_view_for_finished_flights(conn: Any) -> None:
-    build(conn)
-    conn.execute(f"CREATE TEMP VIEW old_flight AS SELECT {FLIGHT_COLS} FROM flight_legacy WHERE NOT is_in_progress")  # noqa: S608
-    conn.execute(f"CREATE TEMP VIEW new_flight AS SELECT {FLIGHT_COLS} FROM flight")  # noqa: S608
-    assert same(conn, "old_flight", "new_flight") == 10          # 11 pilots, one without a plan; the reconnect pair is one flight
-    assert conn.execute("SELECT count(*) AS n FROM flight_legacy WHERE cid = 1000403").fetchone()["n"] == 1
-
-
-def test_flight_ext_returns_the_same_rows_as_the_old_view(conn: Any) -> None:
-    build(conn)
-    assert same(conn, "old_flight_ext", "flight_ext") == 10
-    # flight_ext keeps its 31 columns, names, order and types (CREATE OR REPLACE would have refused a change)
-    assert cols(conn, "flight_ext") == cols(conn, "old_flight_ext") and len(cols(conn, "flight_ext")) == 31
-
-
-def test_movements_return_the_same_rows_as_the_old_view(conn: Any) -> None:
-    build(conn)
-    n = same(conn, "old_movements", "movements")
-    assert n > 0 and cols(conn, "movements") == cols(conn, "old_movements")
-    # ZZZZ (1000404) makes no movement; the circuit (1000405) makes a departure and an arrival; a flight outside Y* none
-    assert conn.execute("SELECT count(*) AS n FROM movements WHERE cid IN (1000404, 1000406)").fetchone()["n"] == 0
-    assert conn.execute("SELECT count(*) AS n FROM movements WHERE cid = 1000405").fetchone()["n"] == 2
-
-
-def test_cohorts_return_the_same_rows_as_the_old_view(conn: Any) -> None:
-    build(conn)
-    assert same(conn, "old_cohorts", "cohorts") == 10
-    assert cols(conn, "cohorts") == cols(conn, "old_cohorts")
-    assert conn.execute("SELECT cohort FROM cohorts WHERE cid = 1100409").fetchone()["cohort"] == "1100000-1199999"
-
-
-def test_monday_attendance_returns_the_same_rows_as_the_old_view(conn: Any) -> None:
-    build(conn)
-    assert same(conn, "old_monday_attendance", "monday_attendance") >= 1
-    assert cols(conn, "monday_attendance") == cols(conn, "old_monday_attendance")
-    row = conn.execute("SELECT pilot_cids FROM monday_attendance WHERE monday_date = %s", (MON.date(),)).fetchone()
-    # present between 07:00 and 12:00Z: 1000402 (08:00), 1000403 (starts 11:50), 1000410 (ends exactly 07:00). Not 1000411
-    # (starts exactly 12:00), not 1000401 (ends 06:40), not the no-plan pilot, not the Tuesday pilots.
-    assert row["pilot_cids"] == 3
-
-
-def test_touches_home_region_follows_the_home_prefix_setting_in_both_views(conn: Any) -> None:
-    build(conn)
-    conn.execute("INSERT INTO app_setting (key, value) VALUES ('home_icao_prefixes', 'E') ON CONFLICT (key) DO UPDATE SET value = 'E'")
-    conn.execute(f"CREATE TEMP VIEW old_flight AS SELECT {FLIGHT_COLS} FROM flight_legacy WHERE NOT is_in_progress")  # noqa: S608
-    conn.execute(f"CREATE TEMP VIEW new_flight AS SELECT {FLIGHT_COLS} FROM flight")  # noqa: S608
-    same(conn, "old_flight", "new_flight")
-    assert [r["cid"] for r in conn.execute("SELECT cid FROM flight WHERE touches_home_region").fetchall()] == [1000406]
-
-
-# ------------------------------------------------------------------ the expected differences (design 5.2) stay what they are
-def test_a_session_longer_than_8_hours_is_two_old_rows_and_one_new_flight_and_every_view_follows(conn: Any) -> None:
-    set_poll_interval(conn, 30)
-    snap(conn, MON)
-    ts = times(MON + 8 * HOUR, 61, 600)                          # 10 hours, one connection
-    mk(conn, 1000420, ts, callsign="LNG420", gs=250)
-    snap(conn, ts[-1] + 9 * HOUR)
-    conn.execute("SELECT refresh_flight_summary(NULL)")
-    while write(conn):
-        pass
-    for ddl in OLD_VIEWS:
-        conn.execute(ddl)
-    assert conn.execute("SELECT count(*) AS n FROM flight_legacy WHERE cid = 1000420").fetchone()["n"] == 2
-    assert conn.execute("SELECT count(*) AS n FROM flight WHERE cid = 1000420").fetchone()["n"] == 1
-    assert conn.execute("SELECT sum(sample_count) AS n FROM flight_legacy WHERE cid = 1000420").fetchone()["n"] == \
-        conn.execute("SELECT sample_count AS n FROM flight WHERE cid = 1000420").fetchone()["n"] == 61
-    # the views built on flight follow: one flight, one departure and one arrival (old: two flights, four movements)
-    assert conn.execute("SELECT count(*) AS n FROM old_movements WHERE cid = 1000420").fetchone()["n"] == 4
-    assert conn.execute("SELECT count(*) AS n FROM movements WHERE cid = 1000420").fetchone()["n"] == 2
-    assert conn.execute("SELECT count(*) AS n FROM cohorts WHERE cid = 1000420").fetchone()["n"] == 1
-    # Monday attendance counts the pilot once in both
-    assert same(conn, "old_monday_attendance", "monday_attendance") >= 1
 
 
 # ------------------------------------------------------------------ thin views: no pieces, no positions, no pilot_session
 PANEL_VIEWS = ["flight", "flight_ext", "movements", "cohorts", "monday_attendance"]
-UNREACHABLE = {"pilot_position", "pilot_session", "flight_summary", "flight_part", "flight_legacy", "online_now"}
+UNREACHABLE = {"pilot_position", "pilot_session", "online_now"}
 
 
 def reach(conn: Any, views: list[str]) -> set[str]:
@@ -275,26 +87,12 @@ def reach(conn: Any, views: list[str]) -> set[str]:
         """, (views,)).fetchall()}
 
 
-def test_no_panel_view_reaches_the_pieces_the_legacy_view_the_positions_or_pilot_session(conn: Any) -> None:
+def test_no_panel_view_reaches_the_positions_or_pilot_session(conn: Any) -> None:
     got = reach(conn, PANEL_VIEWS)
-    assert "flight_record" in got                                # they do read the new table ...
-    assert got & UNREACHABLE == set(), got & UNREACHABLE         # ... and none of the old machinery
+    assert "flight_summary" in got                               # they do read the finished-flights table ...
+    assert got & UNREACHABLE == set(), got & UNREACHABLE         # ... and none of the raw data
     for v in ("flight", "flight_ext", "movements", "cohorts"):
         assert reach(conn, [v]) & (UNREACHABLE | {"controller_session"}) == set(), v
-
-
-def test_the_old_view_is_still_there_under_its_new_name_with_its_old_columns(conn: Any) -> None:
-    legacy = [c for c, _ in cols(conn, "flight_legacy")]
-    assert {"gap_segment", "span_part", "is_in_progress"} <= set(legacy)
-    new = cols(conn, "flight")
-    old = cols(conn, "flight_legacy")
-    assert new == [c for c in old if c[0] not in {"gap_segment", "span_part", "is_in_progress"}]     # same names, order, types
-    assert [c for c, _ in new][:3] == ["session_id", "cid", "callsign"]
-    assert "flight_part" in reach(conn, ["flight_legacy"]) and "flight_summary" in reach(conn, ["flight_legacy"])
-    readers = {r["relname"] for r in conn.execute(
-        "SELECT c.relname FROM pg_depend d JOIN pg_rewrite rw ON rw.oid = d.objid JOIN pg_class c ON c.oid = rw.ev_class "
-        "WHERE d.refobjid = 'flight_legacy'::regclass AND c.relname <> 'flight_legacy'").fetchall()}
-    assert readers == set()                                      # no other view reads it any more
 
 
 # ------------------------------------------------------------------ grants: grafana_ro reads the views and nothing else
@@ -305,7 +103,7 @@ def test_grafana_ro_reads_every_panel_view_and_not_the_tables_behind_them(conn: 
         for v in PANEL_VIEWS:
             conn.execute(f"SELECT * FROM {v} LIMIT 1").fetchall()  # noqa: S608
         assert conn.execute("SELECT count(*) AS n FROM flight").fetchone()["n"] == 10
-        for table in ("flight_record", "flight_summary", "pilot_position", "pilot_session"):
+        for table in ("flight_summary", "pilot_position", "pilot_session"):
             with pytest.raises(psycopg.errors.InsufficientPrivilege):
                 conn.execute(f"SELECT 1 FROM {table} LIMIT 1")  # noqa: S608
     finally:
@@ -437,45 +235,3 @@ def test_monday_attendance_counts_a_pilot_only_once_the_flight_is_written(conn: 
     snap(conn, MON + 17 * HOUR)                                  # more than 8 hours of stored data later
     assert write(conn) == 1
     assert conn.execute("SELECT pilot_cids FROM monday_attendance WHERE monday_date = %s", (MON.date(),)).fetchone()["pilot_cids"] == 1
-
-
-# ------------------------------------------------------------------ the owner's comparison script (ops/compare_views_89_phase3.sql)
-SCRIPT = REPO / "ops" / "compare_views_89_phase3.sql"
-
-
-def _metrics(conn: Any) -> tuple[dict[str, int], list[str]]:
-    rows = conn.execute(SCRIPT.read_text(encoding="utf-8")).fetchall()
-    return {r["metric"]: int(r["value"]) for r in rows if r["ord"] < 100}, [r["metric"] for r in rows if r["ord"] >= 100]
-
-
-def test_the_phase_3_comparison_script_is_one_read_only_statement(conn: Any) -> None:
-    body = "\n".join(line for line in SCRIPT.read_text(encoding="utf-8").splitlines() if not line.lstrip().startswith("--"))
-    assert body.count(";") == 1 and not re.search(r"\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE)\b", body, re.I)
-
-
-def test_the_phase_3_comparison_script_reports_no_difference_on_ordinary_data(conn: Any) -> None:
-    build(conn)
-    m, details = _metrics(conn)
-    assert m["pilots fully processed (scope)"] == 11
-    assert m["flight: old rows (flight_legacy, finished)"] == m["flight: new rows (flight)"] == 10
-    for key, value in m.items():
-        if "only in" in key:
-            assert value == 0, key
-    assert m["monday_attendance: Mondays whose pilot or controller count differs (expect 0, or the latest Monday while pilots are unwritten)"] == 0
-    assert details == []
-
-
-def test_the_phase_3_comparison_script_shows_the_expected_difference_for_a_session_over_8_hours(conn: Any) -> None:
-    set_poll_interval(conn, 30)
-    snap(conn, MON)
-    ts = times(MON + 8 * HOUR, 61, 600)
-    mk(conn, 1000421, ts, callsign="LNG421")
-    snap(conn, ts[-1] + 9 * HOUR)
-    conn.execute("SELECT refresh_flight_summary(NULL)")
-    while write(conn):
-        pass
-    m, details = _metrics(conn)
-    assert m["flight: old rows (flight_legacy, finished)"] == 2 and m["flight: new rows (flight)"] == 1
-    assert m["flight: rows only in old (EXCEPT ALL, 29 shared columns)"] == 2 and m["flight: rows only in new"] == 1
-    assert m["movements: old rows"] == 4 and m["movements: new rows"] == 2
-    assert len([d for d in details if d.startswith("flight only in old")]) == 2

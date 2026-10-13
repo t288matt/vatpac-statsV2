@@ -2,7 +2,7 @@
 
 v1's rule: distinct pilots (CIDs) per aircraft type, for types in v1's hand-written code list, over flights completed
 in the last week; the share of each type is its pilots divided by the SUM of the per-type pilot counts (a pilot who
-flew two types counts under both). v3 reads `flight_ext` (finished flights only: rows of flight_record, issue 89 phase 3) and takes the code list from
+flew two types counts under both). v3 reads `flight_ext` (finished flights only: rows of flight_summary, issue 89 phase 3) and takes the code list from
 `aircraft_type.in_v1_card65_list` (migration 20261009000160), which is deliberately not `is_military`.
 
 The panel SQL is read from the dashboard JSON and run on synthetic flights. The parity test loads the same flights into

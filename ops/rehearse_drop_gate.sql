@@ -53,7 +53,7 @@ UPDATE gate_plan g SET independent_uncovered = (
      WHERE p.observed_at >= g.p_start AND p.observed_at < g.p_end
        AND (s.flown_upto IS NULL OR p.observed_at > s.flown_upto
             OR (NULLIF(upper(btrim(s.departure, E' \t\r\n')), '') IS NOT NULL AND NULLIF(upper(btrim(s.arrival, E' \t\r\n')), '') IS NOT NULL
-                AND NOT EXISTS (SELECT 1 FROM flight_record f
+                AND NOT EXISTS (SELECT 1 FROM flight_summary f
                                  WHERE p.session_id = ANY (f.session_ids) AND p.observed_at BETWEEN f.start_time AND f.end_time))))
  WHERE g.due AND NOT g.pinned;
 UPDATE gate_plan g SET expect_drop = COALESCE(g.due AND NOT g.pinned AND g.unreconciled = 0 AND g.independent_uncovered = 0, false);
@@ -71,8 +71,8 @@ SELECT g.part, u.reason, count(*) AS sessions, min(u.session_id) AS example_sess
  GROUP BY g.part, u.reason ORDER BY g.part, u.reason;
 
 CREATE TEMP TABLE gate_before AS
-SELECT (SELECT count(*) FROM flight_record) AS flights,
-       (SELECT coalesce(sum(sample_count), 0) FROM flight_record) AS samples,
+SELECT (SELECT count(*) FROM flight_summary) AS flights,
+       (SELECT coalesce(sum(sample_count), 0) FROM flight_summary) AS samples,
        (SELECT count(*) FROM pilot_position) AS positions,
        (SELECT coalesce(sum(positions) FILTER (WHERE expect_drop), 0) FROM gate_plan) AS positions_expected_gone;
 
@@ -95,8 +95,8 @@ SELECT c.relname::text AS part FROM pg_inherits i JOIN pg_class c ON c.oid = i.i
  WHERE i.inhparent = 'public.pilot_position'::regclass;
 SELECT (SELECT count(*) FROM gate_plan g WHERE g.expect_drop AND EXISTS (SELECT 1 FROM gate_after a WHERE a.part = g.part)) AS predicted_gone_but_still_there,
        (SELECT count(*) FROM gate_plan g WHERE NOT g.expect_drop AND NOT EXISTS (SELECT 1 FROM gate_after a WHERE a.part = g.part)) AS dropped_but_not_predicted,
-       (SELECT count(*) FROM flight_record) - b.flights AS flights_changed,
-       (SELECT coalesce(sum(sample_count), 0) FROM flight_record) - b.samples AS samples_changed,
+       (SELECT count(*) FROM flight_summary) - b.flights AS flights_changed,
+       (SELECT coalesce(sum(sample_count), 0) FROM flight_summary) - b.samples AS samples_changed,
        (SELECT count(*) FROM pilot_position) - (b.positions - b.positions_expected_gone) AS positions_unaccounted,
        (SELECT count(*) FROM gate_plan g WHERE g.due AND NOT g.pinned AND g.unreconciled = 0 AND g.independent_uncovered > 0) AS gate_too_lax
   FROM gate_before b \gset

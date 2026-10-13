@@ -56,7 +56,7 @@ RAW = {
     "controller_session": "SELECT * FROM controller_session ORDER BY id",
     "network_snapshot": "SELECT * FROM network_snapshot ORDER BY observed_at",
     "poll_log": "SELECT id, polled_at, status, snapshot_ts, pilots_seen, pilots_inside, pilots_with_plan, pilots_kept, controllers_seen, controllers_kept, rejected_values FROM poll_log ORDER BY id",
-    "flight_summary": "SELECT * FROM flight_summary ORDER BY session_id, gap_segment, span_part",
+    "flight_summary": "SELECT * FROM flight_summary ORDER BY session_id, start_time",
     "airline": "SELECT * FROM airline",
     "aircraft_type": "SELECT * FROM aircraft_type",
     "region_map": "SELECT * FROM region_map",

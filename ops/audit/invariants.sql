@@ -76,18 +76,7 @@ SELECT 'snapshots that created sessions for more than 50% of in-region pilots', 
 JOIN network_snapshot n ON n.observed_at = c.first_seen WHERE n.pilots_in_region >= 10 AND c.n > 0.5 * n.pilots_in_region
   AND n.observed_at > (SELECT min(observed_at) FROM network_snapshot)  -- the very first snapshot of a database creates every session
 UNION ALL
-SELECT 'flight_summary rows missing for sessions older than 12 h', count(*), NULL
-FROM pilot_session s WHERE s.last_seen < now() - interval '12 hours'
-  AND NOT EXISTS (SELECT 1 FROM flight_summary f WHERE f.session_id = s.id)
-UNION ALL
-SELECT 'flight_summary sample_count differs from stored positions (final or settled sessions, last 3 days)', count(*), NULL FROM (
-  SELECT f.session_id, sum(f.sample_count) AS sc,
-         (SELECT count(*) FROM pilot_position p WHERE p.session_id = f.session_id AND p.observed_at >= now() - interval '3 days') AS pc
-  FROM flight_summary f JOIN pilot_session s ON s.id = f.session_id
-  WHERE s.last_seen < now() - interval '15 minutes' AND s.first_seen >= now() - interval '3 days' GROUP BY f.session_id) x
-WHERE sc <> pc
-UNION ALL
--- Issue 89 phase 1: the flight writer (write_finished_flights, table flight_record). A flight is written once THE FLIGHT has had no
+-- Issue 89 phase 1: the flight writer (write_finished_flights, table flight_summary). A flight is written once THE FLIGHT has had no
 -- position for the quiet period (owner decision 12-10-2026: quiet per flight, not per pilot). "Quiet" is measured against the
 -- newest stored snapshot, as the writer does, never the clock. The flights below are the v1 groups of unprocessed sessions (same
 -- cid, callsign, departure, arrival; a session joins when its logon_time is within 120 minutes of the latest earlier last_seen),
@@ -116,7 +105,7 @@ SELECT 'flights written in the last 3 days whose sample_count differs from the s
   SELECT f.session_id, f.start_time, f.sample_count,
          (SELECT count(*) FROM pilot_position p
            WHERE p.session_id = ANY (f.session_ids) AND p.observed_at BETWEEN f.start_time AND f.end_time) AS pc
-  FROM flight_record f WHERE f.written_at >= now() - interval '3 days' AND f.sample_count > 0) x
+  FROM flight_summary f WHERE f.written_at >= now() - interval '3 days' AND f.sample_count > 0) x
 WHERE sample_count <> pc
 UNION ALL
 -- Per flight too: sessions of a flight whose newest last_seen is more than 2 days behind the newest snapshot and that is still
@@ -151,7 +140,7 @@ WHERE s.flown_upto >= s.last_seen
   AND NULLIF(upper(btrim(s.departure, E' \t\r\n')), '') IS NOT NULL
   AND NULLIF(upper(btrim(s.arrival,   E' \t\r\n')), '') IS NOT NULL
   AND EXISTS (SELECT 1 FROM pilot_position p WHERE p.session_id = s.id AND p.observed_at >= s.first_seen AND p.observed_at <= s.last_seen)
-  AND s.id NOT IN (SELECT unnest(f.session_ids) FROM flight_record f
+  AND s.id NOT IN (SELECT unnest(f.session_ids) FROM flight_summary f
                     WHERE f.end_time >= (SELECT max(observed_at) FROM network_snapshot) - interval '45 days')
 UNION ALL
 -- Issue 89 phase 4: a day of raw positions that the drop gate has refused for more than 3 days (the table is written by

@@ -144,19 +144,47 @@ def test_allow_empty_waives_only_the_row_counts_not_the_age_limit(dsn: str, scra
     assert _sanity(scratch, "vatpac_20261007T020000Z.dump", RESTORE_SANITY_ALLOW_EMPTY="1", RESTORE_MAX_POLL_AGE_HOURS="0").returncode == 0
 
 
-def test_flight_record_is_counted_when_the_dump_has_it_and_ignored_when_it_predates_it(dsn: str, scratch: dict[str, str]) -> None:
-    """Issue 89 phase 1: the new table is read and counted; a dump from before the migration (kept 14 days) still passes."""
+def _dump_with(dsn: str, *statements: str) -> None:
     _fill(dsn, 3, ["2026-10-07 01:59:00+00"])
     with psycopg.connect(_dsn_for(dsn, SCRATCH), autocommit=True) as c:
-        c.execute("CREATE TABLE flight_record (session_id bigint)")
-        c.execute("INSERT INTO flight_record VALUES (1), (2)")
+        for st in statements:
+            c.execute(st)
+
+
+def test_a_dump_after_phase_5_counts_flight_summary(dsn: str, scratch: dict[str, str]) -> None:
+    """Issue 89 phase 5: flight_summary holds the finished flights (it has session_ids) and is read and counted."""
+    _dump_with(dsn, "CREATE TABLE flight_summary (session_id bigint, session_ids bigint[])",
+               "INSERT INTO flight_summary VALUES (1, '{1}'), (2, '{2}')")
     r = _sanity(scratch, "vatpac_20261007T020000Z.dump")
-    assert r.returncode == 0 and r.stdout.strip() == "poll_log=1 pilot_session=3 flight_record=2", (r.stdout, r.stderr)
+    assert r.returncode == 0 and r.stdout.strip() == "poll_log=1 pilot_session=3 flight_summary=2", (r.stdout, r.stderr)
 
 
-def test_an_unreadable_flight_record_fails_the_restore_check(dsn: str, scratch: dict[str, str]) -> None:
+def test_a_dump_from_before_phase_5_counts_the_finished_flights_under_their_old_name(dsn: str, scratch: dict[str, str]) -> None:
+    """Dumps are kept for 14 days. A pre-phase-5 dump has the finished flights as flight_record AND the old pieces as flight_summary
+    (no session_ids column): the count must be the flights (2), never the pieces (5)."""
+    _dump_with(dsn, "CREATE TABLE flight_record (session_id bigint)", "INSERT INTO flight_record VALUES (1), (2)",
+               "CREATE TABLE flight_summary (session_id bigint, gap_segment int, span_part int)",
+               "INSERT INTO flight_summary SELECT g, 1, 0 FROM generate_series(1, 5) g")
+    r = _sanity(scratch, "vatpac_20261007T020000Z.dump")
+    assert r.returncode == 0 and r.stdout.strip() == "poll_log=1 pilot_session=3 flight_summary=2", (r.stdout, r.stderr)
+
+
+def test_a_dump_from_before_phase_1_has_only_the_pieces_and_still_passes(dsn: str, scratch: dict[str, str]) -> None:
+    _dump_with(dsn, "CREATE TABLE flight_summary (session_id bigint, gap_segment int, span_part int)",
+               "INSERT INTO flight_summary VALUES (1, 1, 0)")
+    r = _sanity(scratch, "vatpac_20261007T020000Z.dump")
+    assert r.returncode == 0 and r.stdout.strip() == "poll_log=1 pilot_session=3", (r.stdout, r.stderr)
+
+
+def test_a_dump_without_any_flight_table_still_passes(dsn: str, scratch: dict[str, str]) -> None:
+    _fill(dsn, 3, ["2026-10-07 01:59:00+00"])
+    r = _sanity(scratch, "vatpac_20261007T020000Z.dump")
+    assert r.returncode == 0 and r.stdout.strip() == "poll_log=1 pilot_session=3", (r.stdout, r.stderr)
+
+
+def test_an_unreadable_flight_summary_fails_the_restore_check(dsn: str, scratch: dict[str, str]) -> None:
     _fill(dsn, 1, ["2026-10-07 01:59:00+00"])
     with psycopg.connect(_dsn_for(dsn, SCRATCH), autocommit=True) as c:
-        c.execute("CREATE VIEW flight_record AS SELECT 1 AS session_id WHERE 1 / (SELECT count(*) FROM poll_log WHERE false) = 1")
+        c.execute("CREATE VIEW flight_summary AS SELECT 1 AS session_id, ARRAY[1::bigint] AS session_ids WHERE 1 / (SELECT count(*) FROM poll_log WHERE false) = 1")
     r = _sanity(scratch, "vatpac_20261007T020000Z.dump")
-    assert r.returncode == 1 and "flight_record unreadable" in r.stderr
+    assert r.returncode == 1 and "flight_summary unreadable" in r.stderr

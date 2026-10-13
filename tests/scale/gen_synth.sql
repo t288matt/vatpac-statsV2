@@ -7,7 +7,7 @@ SELECT current_database() !~ '_test$' AS refuse \gset
     \echo 'REFUSING: database name must end in _test'
     DO $$ BEGIN RAISE EXCEPTION 'gen_synth.sql only runs on a database whose name ends in _test'; END $$;
 \endif
-TRUNCATE pilot_position, pilot_session, network_snapshot RESTART IDENTITY CASCADE;
+TRUNCATE pilot_position, pilot_session, flight_summary, network_snapshot RESTART IDENTITY CASCADE;
 CREATE TEMP TABLE airports(i serial, icao text, w int);
 INSERT INTO airports(icao,w) VALUES ('YSSY',30),('YMML',28),('YBBN',14),('YPPH',10),('YPAD',6),('YBCG',4),('YSCB',4),('YMHB',2),('YBCS',3),('YPDN',2),('NZAA',3),('NZWN',2),('WSSS',2),('VHHH',2),('KLAX',3),('EGLL',3),('YSRI',2),('YMAV',2),('YMEN',2),('YSBK',2);
 CREATE TEMP TABLE airport_pool AS SELECT icao, generate_series(1,w) FROM airports;
@@ -67,23 +67,18 @@ SELECT sid, cid, callsign, date_trunc('second', st), 'Pilot ' || cid,
 FROM sess;
 SELECT setval('pilot_session_id_seq', (SELECT max(id) FROM pilot_session));
 
--- flight_summary rows
-INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count, airborne_minutes, max_gs_kt, max_alt_ft, final)
-SELECT sid, 1, 0, cid, st, st + make_interval(mins => (dur_min / CASE WHEN shape = 1 THEN 2 ELSE 1 END)::int),
-       (dur_min * 4)::bigint, round((dur_min * 0.8)::numeric, 2), 250 + (sid % 300), 20000 + (sid % 20000), true
-FROM sess WHERE shape <> 2
-UNION ALL  -- second gap segment for gap-split sessions
-SELECT sid, 2, 0, cid, st + make_interval(mins => (dur_min / 2)::int + 130), st + make_interval(mins => dur_min::int + 130),
-       (dur_min * 2)::bigint, round((dur_min * 0.4)::numeric, 2), 200, 18000, true
-FROM sess WHERE shape = 1
-UNION ALL  -- 8 hour span parts for long sessions (3 parts)
-SELECT sid, 1, k, cid, st + make_interval(mins => k * 480), st + make_interval(mins => LEAST((k + 1) * 480, dur_min::int)),
-       1000, round(400::numeric, 2), 300, 36000, true
-FROM sess, generate_series(0, 2) k WHERE shape = 2 AND k * 480 < dur_min;
--- placeholder rows: sessions with no positions (about 1%), as the migration created for pre-partition history
-DELETE FROM flight_summary WHERE session_id IN (SELECT sid FROM sess WHERE sid % 97 = 0);
-INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count, airborne_minutes, max_gs_kt, max_alt_ft, final)
-SELECT ps.id, 0, 0, ps.cid, ps.first_seen, ps.last_seen, 0, NULL, ps.max_gs_kt, ps.max_alt_ft, true FROM pilot_session ps WHERE ps.id % 97 = 0;
+-- flight_summary rows: one finished flight per session that passes the flight gate (departure and arrival non-empty after upper(btrim)),
+-- as write_finished_flights() writes them (reconnects are not joined here: the scale test measures the readers, not the writer; the
+-- writer needs positions, which this script does not generate). About 1% of the flights have no airborne figure (carried over).
+INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time,
+                            name, aircraft_icao, flight_rules, remarks, airborne_minutes, max_gs_kt, max_alt_ft, sample_count)
+SELECT ps.id, ps.first_seen, ps.last_seen, ps.cid, ps.callsign, upper(btrim(ps.departure)), upper(btrim(ps.arrival)), ARRAY[ps.id], ps.logon_time,
+       ps.name, ps.aircraft_icao, ps.flight_rules, ps.remarks,
+       CASE WHEN ps.id % 97 = 0 THEN NULL ELSE round((extract(epoch FROM ps.last_seen - ps.first_seen) / 60.0 * 0.8)::numeric, 2) END,
+       ps.max_gs_kt, ps.max_alt_ft, (extract(epoch FROM ps.last_seen - ps.first_seen) / 15)::bigint + 1
+FROM pilot_session ps
+WHERE NULLIF(upper(btrim(ps.departure)), '') IS NOT NULL AND NULLIF(upper(btrim(ps.arrival)), '') IS NOT NULL
+  AND ps.last_seen < now() - interval '8 hours';
 -- a few flights in progress (online now)
 INSERT INTO network_snapshot VALUES (now() - interval '5 seconds', 1, 1, 1, 1);
 UPDATE pilot_session SET last_seen = now() - interval '5 seconds' WHERE id % 700 = 1 AND last_seen > now() - interval '3 days' OR id % 7000 = 1;

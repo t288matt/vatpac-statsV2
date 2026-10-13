@@ -11,7 +11,7 @@ from datetime import timedelta
 
 import pytest
 
-from helpers import T0, make_session, refresh, run, write_all
+from helpers import T0, make_session, run, write_all
 
 pytestmark = pytest.mark.integration
 
@@ -88,10 +88,3 @@ def test_movements_count_a_reconnected_flight_once(conn) -> None:
     n = conn.execute("SELECT count(*) AS n FROM movements WHERE cid = %s", (CID + 8,)).fetchone()["n"]
     assert n == 2                                            # one departure and one arrival
 
-
-def test_per_session_parts_stay_available(conn) -> None:
-    a = run(10)
-    make_session(conn, CID + 9, a)
-    make_session(conn, CID + 9, after(a, 1, 10))
-    refresh(conn)
-    assert conn.execute("SELECT count(*) AS n FROM flight_part WHERE cid = %s", (CID + 9,)).fetchone()["n"] == 2

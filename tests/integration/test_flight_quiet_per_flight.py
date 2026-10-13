@@ -140,13 +140,13 @@ def test_a_failed_call_leaves_nothing_half_done_and_the_next_call_resumes(conn: 
     mk(conn, 709, times(BASE + 3 * HOUR, 20), logon=BASE + 3 * HOUR, dep="YMML", arr="YBBN")
     snap(conn, BASE + 30 * HOUR)
     conn.execute("CREATE FUNCTION boom() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.departure = 'YMML' THEN RAISE EXCEPTION 'boom'; END IF; RETURN NEW; END $$")
-    conn.execute("CREATE TRIGGER boom BEFORE INSERT ON flight_record FOR EACH ROW EXECUTE FUNCTION boom()")
+    conn.execute("CREATE TRIGGER boom BEFORE INSERT ON flight_summary FOR EACH ROW EXECUTE FUNCTION boom()")
     try:
         with pytest.raises(psycopg.errors.Error):
             write(conn)
         assert records(conn) == [] and conn.execute("SELECT count(*) AS n FROM pilot_session WHERE flown_upto IS NOT NULL").fetchone()["n"] == 0
     finally:
-        conn.execute("DROP TRIGGER boom ON flight_record")
+        conn.execute("DROP TRIGGER boom ON flight_summary")
         conn.execute("DROP FUNCTION boom()")
     assert write(conn) == 2 and write(conn) == 0 and len(records(conn, 709)) == 2
 

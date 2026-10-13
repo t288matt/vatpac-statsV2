@@ -38,8 +38,6 @@ INVARIANT_WORDS: dict[str, str] = {
     "pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)": "one pilot connection may have been stored as two flights",
     "controller session pairs, same cid+callsign, logon_time within 2 s (identity flap)": "one controller connection may have been stored as two sessions",
     "snapshots that created sessions for more than 50% of in-region pilots": "a snapshot started new flights for over half the pilots in our region, as if everyone had reconnected",
-    "flight_summary rows missing for sessions older than 12 h": "a finished flight has no summary row",
-    "flight_summary sample_count differs from stored positions (final or settled sessions, last 3 days)": "a flight summary disagrees with the positions stored for that flight",
     "flights quiet longer than the quiet period plus 1 hour with unprocessed positions": "some flights ended over nine hours ago and are not yet in the finished-flights table",
     "flights written in the last 3 days whose sample_count differs from the stored positions of their sessions": "a finished flight counts a different number of positions from those stored for it",
     "sessions ended more than 2 days ago with unprocessed positions": "some flights that ended over two days ago are not yet in the finished-flights table",
@@ -52,8 +50,7 @@ INVARIANT_WORDS: dict[str, str] = {
 _IG = "docs/RUNBOOKS/integrity-checks.md"
 _ENGINEER = f"Not urgent, but an engineer should look (see {_IG} on the VM)."
 _LOGON = "VATSIM may have changed how it stamps logon times; an engineer should look (docs/RUNBOOKS/alerts.md on the VM, identity_flap)."
-_MAINTENANCE = f"Check the collector and maintenance log today (see {_IG} on the VM)."
-_WRITER = f"Not urgent, no chart reads the new table yet. It clears as the backfill runs after a deploy; if not, see {_IG} on the VM."
+_WRITER = f"Not urgent: charts show these flights once they are written. It clears at the next writer run (every 5 minutes); if it does not, check the collector log and see {_IG} on the VM."
 _GATE = f"Nothing is lost: the old position data of those flights is simply not deleted until they are written. An engineer should look (see {_IG} on the VM)."
 
 # What to do about each invariant, same keys as INVARIANT_WORDS (a test checks both). Wording only: the alert stays one level (WARN).
@@ -73,8 +70,6 @@ INVARIANT_ACTIONS: dict[str, str] = {
     "pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)": _LOGON,
     "controller session pairs, same cid+callsign, logon_time within 2 s (identity flap)": _LOGON,
     "snapshots that created sessions for more than 50% of in-region pilots": _LOGON,
-    "flight_summary rows missing for sessions older than 12 h": _MAINTENANCE,
-    "flight_summary sample_count differs from stored positions (final or settled sessions, last 3 days)": _MAINTENANCE,
     "flights quiet longer than the quiet period plus 1 hour with unprocessed positions": _WRITER,
     "flights written in the last 3 days whose sample_count differs from the stored positions of their sessions": _WRITER,
     "sessions ended more than 2 days ago with unprocessed positions": _WRITER,
@@ -234,7 +229,6 @@ def _integrity_failing_names(detail: str) -> list[str]:
 SAME_DAY_INVARIANTS: tuple[str, ...] = (
     "daily partitions missing for today..today+3",
     "newest snapshot in the future or older than 5 minutes",
-    "flight_summary rows missing for sessions older than 12 h",
     "positions outside plausibility caps",
     "in-region count above global count",
     "positions per snapshot differ from pilots_in_region",

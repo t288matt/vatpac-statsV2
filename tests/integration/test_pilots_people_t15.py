@@ -1,6 +1,6 @@
 """T15 (pilots and people): cards 180, 181, 182, 175, 183 and 155 ported from the v1 Metabase cards.
 
-Pilot and session rows are inserted synthetically (pilot_session plus the flight_record row the writer would write,
+Pilot and session rows are inserted synthetically (pilot_session plus the flight_summary row the writer would write,
 so the `flight` view returns them), then the panel SQL is read from the dashboard JSON files and executed, so the test covers the
 SQL that Grafana runs. Rules under test (owner's Metabase export, 08-10-2026):
   Y rule      = the fourth character from the end of the pilot name is 'Y' (v1 quirk, kept: "Joe Yoda" counts)
@@ -56,7 +56,7 @@ def utc(year, month, day, hour=0, minute=0, second=0) -> datetime:
 
 def add_flight(conn, cid: int, name: str, end: datetime, airborne: float | None = 0,
                online_minutes: float = 60, logon: datetime | None = None) -> None:
-    """One flight (one session, one flight_record row) ending at ``end``."""
+    """One flight (one session, one flight_summary row) ending at ``end``."""
     _n["i"] += 1
     start = end - timedelta(minutes=online_minutes)
     logon = logon or start

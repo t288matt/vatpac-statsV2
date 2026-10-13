@@ -67,7 +67,7 @@ def test_replaying_a_snapshot_does_not_count_a_near_miss_poll_twice(db, payload,
     assert [(r["callsign"], r["polls_seen"]) for r in rows] == [("AD_XYZ_TWR", 1), ("ML_XYZ_CTR", 1)]
 
 
-# ------------------------------------------------------------------ flight_summary boundaries
+# ------------------------------------------------------------------ flight boundaries
 
 def test_groundspeed_of_exactly_60_kt_is_airborne(conn) -> None:
     """Mutant S01 (`gs_kt > 60`): SPEC section 5 says airborne = groundspeed of 60 kt or more at the earlier
@@ -281,14 +281,15 @@ def test_trim_poll_log_removes_only_rows_older_than_400_days(conn) -> None:
     assert ages == [1, 399]
 
 
-def test_flight_refresh_covers_sessions_seen_in_the_last_twelve_hours(conn) -> None:
-    """Mutant C29 (window 12 h -> 1 minute): refresh_flights() with its default window refreshes a session last seen
-    11 hours ago but not one last seen 13 hours ago."""
+def test_flight_refresh_writes_finished_flights_not_flights_still_open(conn) -> None:
+    """Issue 89 phase 5 replaces mutant C29 (the 12 h window of the pieces refresh, which no longer exists): refresh_flights() calls the
+    writer, which writes a flight 8 hours after its last position (against the newest snapshot) and not before."""
     from vatpac.maintenance import refresh_flights
 
     now = datetime.now(timezone.utc).replace(microsecond=0)
     make_session(conn, 9740001, run(10, start=now - timedelta(hours=11)))
-    make_session(conn, 9740002, run(10, start=now - timedelta(hours=13)))
+    make_session(conn, 9740002, run(10, start=now - timedelta(hours=5)))
+    conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (now,))
     assert refresh_flights(conn) == 1
     got = [r["cid"] for r in conn.execute("SELECT cid FROM flight_summary WHERE cid IN (9740001, 9740002)").fetchall()]
     assert got == [9740001]

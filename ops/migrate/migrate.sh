@@ -4,7 +4,7 @@
 #   - grafana_ro, collector, backup_ro : created and granted by /db/roles.sql (passwords passed as
 #     psql variables grafana_ro_password, collector_password, backup_password)
 #   - watchdog_ro : created here (pg_monitor + SELECT on the few tables the watchdog reads; the two session tables are
-#     for the identity-flap check, and pilot_position, flight_summary, flight_record and reference_data_change are for the scheduled
+#     for the identity-flap check, and pilot_position, flight_summary (the finished flights) and reference_data_change are for the scheduled
 #     invariant sweep and archive cross-check, ops/audit/invariants.sql, issue 20)
 # This job is the only place the owner/superuser password is used for schema work.
 # Passwords never leave this container's environment and are not echoed.
@@ -36,7 +36,7 @@ GRANT USAGE ON SCHEMA public TO watchdog_ro;
 GRANT pg_monitor TO watchdog_ro;
 SELECT format('GRANT SELECT ON %I TO watchdog_ro', t)
   FROM unnest(ARRAY['poll_log', 'network_snapshot', 'controller_unlisted_sighting', 'pilot_session', 'controller_session',
-                'pilot_position', 'flight_summary', 'flight_record', 'drop_gate_refusal', 'reference_data_change']) AS t
+                'pilot_position', 'flight_summary', 'drop_gate_refusal', 'reference_data_change']) AS t
  WHERE to_regclass('public.' || t) IS NOT NULL \gexec
 COMMIT;
 SQL

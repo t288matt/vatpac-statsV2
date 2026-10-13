@@ -34,13 +34,12 @@ MIGRATION_TEXT = "\n".join(f.read_text(encoding="utf-8") for f in MIGRATION_FILE
 MIGRATION_VIEWS = set(VIEW_RE.findall(MIGRATION_TEXT))
 ALLOWED = MIGRATION_VIEWS | (LOOKUPS & set(TABLE_RE.findall(MIGRATION_TEXT)))
 SKIP_RELATIONS = {"generate_series", "unnest", "lateral"}  # functions / keywords after FROM or JOIN
-# Views that exist but no panel may read (issue 89 phase 3). flight_legacy is the old merging view kept until phase 5 only to compare
-# old and new; flight_part is its per-session layer. Both read the pieces table and pilot_position and are slow and about to go.
-# A panel that read one would silently keep the old cost and would break when phase 5 drops them. Base tables are refused already
-# (they are not in ALLOWED); the message below is the specific one.
+# Views that appear in the migration history but no longer exist, and that no panel may read (issue 89 phase 3 refused them while they
+# were kept for comparison; phase 5 dropped them). The migrations still create them, so they are in ALLOWED unless named here.
+# Base tables are refused already (they are not in ALLOWED); the message below is the specific one.
 NEVER_FOR_PANELS = {
-    "flight_legacy": "the old merging view, kept until issue 89 phase 5 for comparison only; read flight instead",
-    "flight_part": "the per-session pieces view, removed in issue 89 phase 5; read flight instead",
+    "flight_legacy": "the old merging view, dropped in issue 89 phase 5; read flight instead",
+    "flight_part": "the per-session pieces view, dropped in issue 89 phase 5; read flight instead",
 }
 
 MACROS = [

@@ -1,13 +1,12 @@
-"""Issue #89 phase 1 exit gate (#138): the two comparison scripts the owner runs, exercised on synthetic data.
+"""Issue #89 exit gate (#138), comparison (B): the script the owner runs, exercised on synthetic data. (Comparison A, the new table
+against the old merging view, was retired with that view in phase 5; it stays in git history.)
 
-ops/compare_flights_89.sql   (A) flight_record against the `flight` view, one read-only statement.
-ops/compare_flights_v1_89.sql (B) flight_record against v1's flight summaries, loaded from a CSV by psql's \\copy. The test cannot run
+ops/compare_flights_v1_89.sql (B) flight_summary against v1's flight summaries, loaded from a CSV by psql's \\copy. The test cannot run
 psql meta-commands, so it drops the \\copy line and fills the temp table with rows of its own: it proves the classification
 logic, not the owner's real v1 data (the script says so).
 """
 from __future__ import annotations
 
-import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -24,41 +23,6 @@ def metrics(conn: Any, sql: str) -> tuple[dict[str, int], list[str]]:
     """(the numbered metric rows by name, the detail lines)."""
     rows = conn.execute(sql).fetchall()
     return {r["metric"]: int(r["value"]) for r in rows if r["ord"] < 100}, [r["metric"] for r in rows if r["ord"] >= 100]
-
-
-def test_comparison_a_reports_the_move_and_the_explained_differences(conn: Any) -> None:
-    base = datetime(2026, 10, 8, 10, 0, tzinfo=UTC)
-    mk(conn, 301, times(base, 40, 15))                                      # identical in old and new
-    long = times(base, 61, 600)                                             # 10 hours: old cuts it at 8 hours
-    mk(conn, 302, long)
-    waiting = mk(conn, 303, times(base + 30 * HOUR, 10), logon=base + 30 * HOUR)   # not quiet yet: outside the scope
-    snap(conn, base + 29 * HOUR)
-    conn.execute("SELECT refresh_flight_summary(NULL)")
-    sql = (REPO / "ops" / "compare_flights_89.sql").read_text(encoding="utf-8")
-    m, details = metrics(conn, sql)
-    assert m["pilots fully processed (scope)"] == 2 and waiting
-    assert m["old rows (flight view, finished)"] == 3 and m["new rows (flight_record)"] == 2          # 10 h session: 2 old rows, 1 new
-    assert m["old sum(sample_count)"] == m["new sum(sample_count)"] == 101
-    assert m["rows only in old (EXCEPT ALL, all shared columns)"] == 2     # the two old pieces of the 10 hour session
-    assert m["rows only in new (EXCEPT ALL, all shared columns)"] == 1
-    assert m["explained: new rows from a session the old table cut at 8 hours (span_part > 0)"] == 1
-    assert m["explained: new rows from a session the old table cut at a 120 minute silence (gap_segment > 1)"] == 0
-    assert m["independent: new sum(sample_count) minus those positions (expect 0, negative if positions were dropped)"] == 0
-    assert m["carried-over flights without positions (sample_count = 0, expected 0 live)"] == 0
-    assert len([d for d in details if d.startswith("only in old")]) == 2 and len([d for d in details if d.startswith("only in new")]) == 1
-
-
-def test_comparison_a_is_read_only_one_statement_and_clean_when_old_and_new_agree(conn: Any) -> None:
-    base = datetime(2026, 10, 8, 10, 0, tzinfo=UTC)
-    mk(conn, 310, times(base, 40, 15))
-    snap(conn, base + 24 * HOUR)
-    conn.execute("SELECT refresh_flight_summary(NULL)")
-    sql = (REPO / "ops" / "compare_flights_89.sql").read_text(encoding="utf-8")
-    body = "\n".join(line for line in sql.splitlines() if not line.lstrip().startswith("--"))
-    assert body.count(";") == 1 and not re.search(r"\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE)\b", body, re.I)
-    m, details = metrics(conn, sql)
-    assert m["rows only in old (EXCEPT ALL, all shared columns)"] == 0 and m["rows only in new (EXCEPT ALL, all shared columns)"] == 0
-    assert details == []
 
 
 def _v1(conn: Any, rows: list[tuple]) -> None:
