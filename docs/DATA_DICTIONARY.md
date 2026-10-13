@@ -4,7 +4,7 @@ Checked against the migrations up to 20261013000300 on 13-10-2026 (merged: phase
 
 *Describes main; behaviour added by changes not yet deployed is listed in CHANGELOG.md.*
 
-Objects at the time of checking (live counts as of 11-10-2026, plus the additions of migrations 20261012000190 and 20261012000210): 20 base tables (19 ordinary plus the partitioned `pilot_position`, which has 11 daily partitions on the live database), 23 views (24 after migration 20261013000200, which renames the old merging view to `flight_legacy` and creates a new thin `flight`), 10 functions, 4 declared foreign keys, no materialised views, no triggers.
+Objects at the time of checking (live counts as of 11-10-2026, plus the additions of migrations 20261012000190 and 20261012000210): 20 base tables (19 ordinary plus the partitioned `pilot_position`, which has 11 daily partitions on the live database), 23 views in production (24 after migration 20261013000200; 21 after migration 20261013000300, which also drops `flight_legacy` and `flight_part` again), 8 functions after migration 20261013000300 (10 before), 3 declared foreign keys (4 before migration 20261013000300), no materialised views, no triggers.
 
 ## 0. Orientation
 
@@ -20,7 +20,7 @@ Objects at the time of checking (live counts as of 11-10-2026, plus the addition
 
 | Layer | What | Who uses it |
 |---|---|---|
-| Base tables (section 2) | Written only by the collector (sessions, positions, snapshots, logs), by `refresh_flight_summary` (`flight_summary`) and by `write_finished_flights` (`flight_record`, and `pilot_session.flown_upto`). | `collector` (writes), `backup_ro` (dump), `watchdog_ro` (a few tables). |
+| Base tables (section 2) | Written only by the collector (sessions, positions, snapshots, logs) and by `write_finished_flights` (`flight_summary`, and `pilot_session.flown_upto`), which the collector calls every 5 minutes (from migration 20261013000300, NOT YET DEPLOYED; in production the same job calls `refresh_flight_summary`, which fills the old pieces table and ends with a guarded call of the writer, and the finished flights are in `flight_record`). | `collector` (writes), `backup_ro` (dump), `watchdog_ro` (a few tables). |
 | Lookups (section 3) | Small reference tables: ratings, facilities, airlines, aircraft types, regions. Seeded by migrations. | Views, and `grafana_ro` directly. |
 | Functions (section 5) | Partition maintenance, the flight-summary refresh, and three SQL helpers used by the views. | Collector (EXECUTE on four of them), views. |
 | Views (section 4) | The only thing the dashboards read. All derived rules (flight merging, online windows, normalisation) live here. | Grafana, as `grafana_ro`, which sees views and the six lookups only. |
@@ -35,12 +35,12 @@ Dashboards read these 18 views and no others (checked by `python grafana/validat
 ```
                        pilot_session  (cid, callsign, logon_time) unique
                       /      |
-        ON DELETE    /       | FK, no cascade
-         CASCADE    /        |
-   flight_summary  /   pilot_position  (partitioned by day on observed_at)
-   (session_id,           (session_id, observed_at)
-    gap_segment,           |  pilot_position_YYYYMMDD ... each inherits the FK
-    span_part)             `-- views: pilot_latest, online_now, pilot_sample
+                     /       | FK, no cascade
+                    /        |
+                       pilot_position  (partitioned by day on observed_at)
+                       (session_id, observed_at)
+                        |  pilot_position_YYYYMMDD ... each inherits the FK
+                        `-- views: pilot_latest, online_now, pilot_sample
 
    controller_session  (cid, callsign, logon_time) unique
         |  FK, no cascade            |  FK, no cascade
@@ -49,7 +49,7 @@ Dashboards read these 18 views and no others (checked by `python grafana/validat
 
    Stand-alone (no foreign key):  network_snapshot, poll_log, controller_unlisted_sighting,
                                   reference_data_change, app_setting, schema_migrations,
-                                  flight_record (names its sessions in session_ids; no foreign key, nothing reads it yet)
+                                  flight_summary (the finished flights; names its sessions in session_ids; no foreign key)
 
    Joined by VALUE (no foreign key), see 1.3:
      pilot_session.aircraft_icao      -> aircraft_type.icao        (via flight_ext)
@@ -59,7 +59,7 @@ Dashboards read these 18 views and no others (checked by `python grafana/validat
      controller_session.rating        -> controller_rating.id
      controller_session.facility      -> facility.id
 
-   flight_summary --> flight_part --> flight --> flight_ext --> movements, cohorts
+   flight_summary --> flight --> flight_ext --> movements, cohorts   (and flight --> monday_attendance)
    controller_session --> controller_session_merged --> controller_session_ranked
                           --> controller_summaries, controller_activity_daily
 ```
@@ -71,7 +71,6 @@ There are exactly four declared foreign keys. There are no foreign keys to or fr
 | Child column | Parent column | On delete | Constraint |
 |---|---|---|---|
 | `pilot_position.session_id` | `pilot_session.id` | no action (a session that has positions cannot be deleted) | `pilot_position_session_id_fkey` |
-| `flight_summary.session_id` | `pilot_session.id` | CASCADE | `flight_summary_session_id_fkey` |
 | `controller_rating_event.session_id` | `controller_session.id` | no action | `controller_rating_event_session_id_fkey` |
 | `controller_frequency_event.session_id` | `controller_session.id` | no action | `controller_frequency_event_session_id_fkey` |
 
@@ -88,7 +87,7 @@ The daily partitions of `pilot_position` **inherit** the foreign key: each `pilo
 | `controller_session.rating` | `controller_rating.id` | Unknown ids show as Unknown/Other on the dashboards (no foreign key, on purpose). |
 | `controller_session.facility` | `facility.id` | As above. |
 | `pilot_session.pilot_rating` | `pilot_rating.id` | The feed value is a bit-flag; only 0, 1, 3, 7, 15, 31, 63 are seeded. |
-| parts of one flight | `flight` | **Merge rule** (ADR-023, issue 35): rows of `flight_part` with the same `(cid, callsign, departure, arrival)` (departure and arrival normalised upper case) belong to one flight when they come from **different sessions** and the next part starts no more than 120 minutes after everything before it ended. Parts of one session are never joined (the 8-hour split stays). A changed plan (different airports) is a different flight. |
+| sessions of one flight | `flight_summary` | **Join rule** (v1; ADR-030, which supersedes the merge rule of ADR-023): sessions with the same `(cid, callsign, departure, arrival)` (departure and arrival normalised upper case) belong to one flight when the later session's `logon_time` is no more than 120 minutes after the latest last position of the earlier ones. A connection is never cut inside (no gap or 8-hour split). A changed plan (different airports) is a different flight. Applied once, by `write_finished_flights`, when the flight is finished; not at read time. |
 | `controller_session` reconnects | `controller_session_merged` | Same `(cid, callsign)`; a new merged session starts when `first_seen` is more than 5 minutes after the latest earlier `last_seen`. |
 
 ### 1.4 Keys at a glance
@@ -97,8 +96,7 @@ The daily partitions of `pilot_position` **inherit** the foreign key: each `pilo
 |---|---|---|
 | `pilot_session` | `id` | `(cid, callsign, logon_time)` (`pilot_session_identity`) |
 | `pilot_position` and each partition | `(session_id, observed_at)` | |
-| `flight_summary` | `(session_id, gap_segment, span_part)` | |
-| `flight_record` | `(session_id, start_time)` | `session_id` alone is not unique: a session that comes back after being processed starts a second flight |
+| `flight_summary` | `(session_id, start_time)` | `session_id` alone is not unique: a session that comes back after being processed starts a second flight |
 | `controller_session` | `id` | `(cid, callsign, logon_time)` (`controller_session_identity`) |
 | `controller_rating_event`, `controller_frequency_event` | `(session_id, observed_at)` | |
 | `network_snapshot` | `observed_at` | |
@@ -116,7 +114,7 @@ The daily partitions of `pilot_position` **inherit** the foreign key: each `pilo
 `pilot_position` is `PARTITION BY RANGE (observed_at)` with one partition per UTC day, named `pilot_position_YYYYMMDD` (bounds `00:00:00+00` to the next midnight). The primary key includes the partition key, as PostgreSQL requires.
 
 - **Created** by `ensure_pilot_position_partitions(days_ahead, p_today)`: yesterday through today + `days_ahead` (default 7). The collector calls it at start-up and daily. Existing partitions are skipped. On 09-10-2026 there are 11 partitions (`pilot_position_20261006` to `pilot_position_20261016`).
-- **Dropped** by `drop_old_pilot_position_partitions(retention_days, p_today)`: a partition is dropped when it ends on or before `today - retention_days` (collector setting `POSITION_RETENTION_DAYS`, default 90), unless it still holds positions of a session whose `last_seen` is inside the window (the partition is "pinned", and a notice is raised once it is pinned beyond twice the retention). **Drop gate (migration 20261012000210, issue 89 phase 4, NOT YET DEPLOYED; until it is deployed the live function still finalises the flights of the partition's sessions in `flight_summary` first and keeps the partition if that fails):** a partition that is due and not pinned is dropped only when every position in it is reconciled with the written flights: each session's `flown_upto` is at or after its last position in the day; each position of a session with a flight plan lies inside the `start_time` to `end_time` of a `flight_record` row that lists the session in `session_ids` (a session without a plan needs only the first rule); and every flight wholly inside the day has `sample_count` equal to the positions stored for it. Anything else keeps the partition with a notice that starts `DROP REFUSED` (the collector logs it as a warning); the function never finalises the pieces table and never reads it. Since migration 20261009000170 a call checks at most 10 eligible partitions, re-checks them, and drops them last in one short block (`LOCK ... NOWAIT`, 1 second lock timeout, up to three attempts while no drop has succeeded yet), so a catch-up does not hold the lock on `pilot_position` while it checks later partitions; a partition that cannot be locked or changed meanwhile is kept with a notice and dropped by a later run; the collector calls the function until it drops nothing (issue 98). Flights therefore survive the 90 days; raw positions do not. After the phase 4 deploy the surviving flights are the rows of `flight_record` (written once, 8 hours after the pilot was last seen); the old pieces rows of the dropped sessions are left untouched, but a full refresh of the pieces (`refresh_flight_summary(NULL)`) deletes the non-final pieces of a session whose positions are gone, so do not run it after the first drop (docs/RUNBOOKS/drop-gate-rehearsal.md, 'Before the first real drop').
+- **Dropped** by `drop_old_pilot_position_partitions(retention_days, p_today)`: a partition is dropped when it ends on or before `today - retention_days` (collector setting `POSITION_RETENTION_DAYS`, default 90), unless it still holds positions of a session whose `last_seen` is inside the window (the partition is "pinned", and a notice is raised once it is pinned beyond twice the retention). **Drop gate (migration 20261012000210, issue 89 phase 4, NOT YET DEPLOYED; until it is deployed the live function still finalises the flights of the partition's sessions in the old pieces table first and keeps the partition if that fails; migration 20261013000300 re-creates the function with only the table name changed):** a partition that is due and not pinned is dropped only when every position in it is reconciled with the written flights: each session's `flown_upto` is at or after its last position in the day; each position of a session with a flight plan lies inside the `start_time` to `end_time` of a `flight_summary` row that lists the session in `session_ids` (a session without a plan needs only the first rule); and every flight wholly inside the day has `sample_count` equal to the positions stored for it. Anything else keeps the partition with a notice that starts `DROP REFUSED` (the collector logs it as a warning); the function never finalises or reads the old pieces table. Since migration 20261009000170 a call checks at most 10 eligible partitions, re-checks them, and drops them last in one short block (`LOCK ... NOWAIT`, 1 second lock timeout, up to three attempts while no drop has succeeded yet), so a catch-up does not hold the lock on `pilot_position` while it checks later partitions; a partition that cannot be locked or changed meanwhile is kept with a notice and dropped by a later run; the collector calls the function until it drops nothing (issue 98). Flights therefore survive the 90 days; raw positions do not. The surviving flights are the rows of `flight_summary` (written once, 8 hours after the pilot was last seen; the table is called `flight_record` in production until migration 20261013000300 deploys). The old pieces table and its refresh functions are removed by that migration (NOT YET DEPLOYED), so there is nothing that can delete the pieces of a dropped session.
 - `pilot_session`, `controller_session`, the event tables, `network_snapshot` and `flight_summary` are **not** trimmed (data retention for them is an open owner decision, issue 21). Only `poll_log` is trimmed, to 400 days, by the collector's maintenance task.
 
 ## 2. Base tables
@@ -152,7 +150,7 @@ One row per pilot connection inside the polygon. Identity is `(cid, callsign, lo
 | `plan_changed_at` | timestamptz | yes | Snapshot time when a non-null departure or arrival differed from the stored value (including the first time a plan appears on an existing session). |
 | `max_gs_kt`, `max_alt_ft` | integer | yes | Maximum plausible groundspeed and altitude seen (GREATEST on each upsert). |
 | `pilot_rating`, `military_rating` | integer | yes | Feed values. |
-| `flown_upto` | timestamptz | yes | Added by migration 20261012000190 (issue 89 phase 1). Bookkeeping for `write_finished_flights`: this session's positions up to this time have been processed (written into `flight_record`, or the session has no flight). NULL = never processed; `last_seen > flown_upto` = unprocessed positions. Set only for the sessions of a flight that has been written (or for a session that forms no flight once that session is itself quiet); a session of a flight that is still active keeps it unchanged. The collector does not touch it. Partial index `pilot_session_unwritten_idx (cid) WHERE flown_upto IS NULL OR last_seen > flown_upto` is the writer's work list. |
+| `flown_upto` | timestamptz | yes | Added by migration 20261012000190 (issue 89 phase 1). Bookkeeping for `write_finished_flights`: this session's positions up to this time have been processed (written into `flight_summary`, or the session has no flight). NULL = never processed; `last_seen > flown_upto` = unprocessed positions. Set only for the sessions of a flight that has been written (or for a session that forms no flight once that session is itself quiet); a session of a flight that is still active keeps it unchanged. The collector does not touch it. Partial index `pilot_session_unwritten_idx (cid) WHERE flown_upto IS NULL OR last_seen > flown_upto` is the writer's work list. |
 
 ### pilot_position
 Raw position samples, one per session per processed poll (every 30 s at the current cadence). Partitioned (section 1.5). Primary key `(session_id, observed_at)`; foreign key to `pilot_session.id`.
@@ -166,22 +164,6 @@ Raw position samples, one per session per processed poll (every 30 s at the curr
 | `gs_kt` | integer | yes | CHECK 0..700; out-of-range values are stored as NULL. |
 | `hdg` | integer | yes | CHECK 0..360. |
 
-### flight_summary
-Per-flight aggregates computed from `pilot_position` (migration 20, ADR-016). One row per `(session_id, gap_segment, span_part)`. Maintained by `refresh_flight_summary()`, which the collector calls every 5 minutes for sessions seen in the last 12 hours; a row is marked `final` and finalised before its raw-position partition is dropped, so flights survive the position retention. Read through `flight_part` and `flight`, never directly by Grafana. Indexes: primary key; `flight_summary_start_time_idx (start_time)`; `flight_summary_end_time_idx (end_time)`.
-
-| Column | Type | Null | Meaning |
-|---|---|---|---|
-| `session_id` | bigint | no | FK to `pilot_session.id`, ON DELETE CASCADE. |
-| `gap_segment` | bigint | no | The segment after splitting the session on gaps over 120 minutes. |
-| `span_part` | integer | no | The 8-hour bucket within the segment. |
-| `cid` | bigint | no | Copied from the session. |
-| `start_time`, `end_time` | timestamptz | no | First and last stored sample of the part. |
-| `sample_count` | bigint | no | Number of samples. |
-| `airborne_minutes` | numeric | yes | See [DEFINITIONS.md](DEFINITIONS.md) section 3 (groundspeed at least 60 kt at the earlier sample, each gap capped at `airborne_gap_cap_seconds`). NULL for sessions whose raw positions were already gone when the table was introduced. |
-| `max_gs_kt`, `max_alt_ft` | integer | yes | Maxima for this part. |
-| `final` | boolean | no | Default false. True when the session is dead and fully summarised, so its raw partitions may be dropped. |
-| `computed_at` | timestamptz | no | Default `now()`; when the row was last recomputed. |
-
 ### drop_gate_refusal
 Added by migration 20261012000210 (issue 89 phase 4, NOT YET DEPLOYED). One row per day of `pilot_position` that `drop_old_pilot_position_partitions()` kept because it is not reconciled with the written flights; removed when the day reconciles or is dropped. Written only by that function; the watchdog role reads it (integrity check `raw-position days kept by the deletion check for more than 3 days`).
 
@@ -191,8 +173,10 @@ Added by migration 20261012000210 (issue 89 phase 4, NOT YET DEPLOYED). One row 
 | `first_refused`, `last_refused` | timestamptz | no | First and latest refusal. |
 | `detail` | text | no | Count and reasons of the latest refusal. |
 
-### flight_record
-Added by migration 20261012000190 (issue 89 phase 1, design `docs/DESIGN_89_FINAL.md`). One row per **finished flight**, written once by `write_finished_flights()` and never changed. In production nothing reads it yet. From migration 20261013000200 (phase 3, not yet deployed) the `flight` view reads it, and so, through `flight`, do `flight_ext`, `movements`, `cohorts` and `monday_attendance`; and the table is renamed `flight_summary` in phase 5. A flight is one session, or several sessions of the same `cid`, `callsign`, `departure` and `arrival` joined across reconnects by v1's rule (a new connection joins when its `logon_time` is no more than 120 minutes after the latest last position of the earlier sessions; no 8-hour parts and no cut inside a connection). Written when **the flight itself** has had no position for `flight_quiet_hours` (default 8) of stored data (owner decision 12-10-2026, migration 20261012000200, not yet deployed; the deployed version of 20261012000190 waits for the whole pilot to be quiet; see [DEFINITIONS.md](DEFINITIONS.md) section 1b). Plan and name fields are frozen at write time. Primary key `(session_id, start_time)`; indexes on `cid`, `start_time`, `end_time`, `logon_time`; CHECK `end_time >= start_time`; no foreign key. Not readable by `grafana_ro` or `collector`; readable by `backup_ro` and `watchdog_ro`.
+### flight_summary
+Built as `flight_record` by migration 20261012000190 (issue 89 phase 1, design `docs/DESIGN_89_FINAL.md`) and renamed `flight_summary` by migration 20261013000300 (phase 5, NOT YET DEPLOYED: in production the name `flight_summary` still belongs to the old pieces table, which that migration drops). One row per **finished flight**, written once by `write_finished_flights()` and never changed. From migration 20261013000200 (phase 3, not yet deployed) the `flight` view reads it, and so, through `flight`, do `flight_ext`, `movements`, `cohorts` and `monday_attendance`. Its primary key, CHECK constraint and four indexes are renamed with it (`flight_summary_pkey`, `flight_summary_check`, `flight_summary_cid_idx`, `_start_time_idx`, `_end_time_idx`, `_logon_time_idx`). Unlike the old pieces table it has no foreign key to `pilot_session`: deleting a session does not delete its flights, so a session delete must also delete its flights by `session_ids` (ADR-026, amended by ADR-030). A flight is one session, or several sessions of the same `cid`, `callsign`, `departure` and `arrival` joined across reconnects by v1's rule (a new connection joins when its `logon_time` is no more than 120 minutes after the latest last position of the earlier sessions; no 8-hour parts and no cut inside a connection). Written when **the flight itself** has had no position for `flight_quiet_hours` (default 8) of stored data (owner decision 12-10-2026, migration 20261012000200, not yet deployed; the deployed version of 20261012000190 waits for the whole pilot to be quiet; see [DEFINITIONS.md](DEFINITIONS.md) section 1b). Plan and name fields are frozen at write time. Primary key `(session_id, start_time)`; indexes on `cid`, `start_time`, `end_time`, `logon_time`; CHECK `end_time >= start_time`; no foreign key. Not readable by `grafana_ro` or `collector` (the collector only EXECUTEs the writer); readable by `backup_ro` and `watchdog_ro`.
+
+**Removed by migration 20261013000300 (NOT YET DEPLOYED).** The old pieces table (named `flight_summary` until then: one row per `(session_id, gap_segment, span_part)` with the `final` flag and `computed_at`), the views `flight_part` and `flight_legacy`, and the functions `refresh_flight_summary(interval)` and `refresh_flight_summary_sessions(bigint[], boolean)`. History: migrations 20, 110, 130, 140, 170 and the older ADRs describe them.
 
 | Column | Type | Null | Meaning |
 |---|---|---|---|
