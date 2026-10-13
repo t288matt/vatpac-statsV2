@@ -1,5 +1,7 @@
 # Pending document changes (prepared for deploys)
 
+**13-10-2026: issue 89 phases 1, 1b and 3 are live (markers c70e72f, 3d4b5b6, 38e3958) and their text has been switched into the documents (see the section "Issue 89" at the end of this page). Still pending: phase 4 and phase 5.**
+
 **12-10-2026: the deploys listed below all went live on 11-10-2026 (CHANGELOG.md). The restore.md, CONFIG_MAP.md, stuck-collector.md and db-full.md switch-ins were not re-checked one by one; treat this page as history and check each named document against the code before relying on it.**
 
 Created 10-10-2026. The documents describe what is deployed and running now (commit 3eb81a3 plus migration 160). Work that is merged to `main` but not yet deployed is described in [../CHANGELOG.md](../CHANGELOG.md) and [RESUME.md](RESUME.md) only. This page lists, per deploy, which document changes are ready to switch in once that deploy is VERIFIED LIVE (smoke, panel check, restart counts, watch period), so the update afterwards is quick. Rule: documents are updated after each deploy is verified live, not after each merge.
@@ -34,3 +36,16 @@ Callsign, departure and arrival byte caps and infinite or huge controller freque
 
 ## Scripted checks, `ops/deploy.sh` (merged, read-only; no deploy needed to use it, but the owner decides when it enters the procedure)
 RUNBOOKS/deploy-to-vm.md: the section "Scripted checks (`ops/deploy.sh`)" (`--preflight`, `--verify`, `--status`, `--mark`) from `git show c89e544:docs/RUNBOOKS/deploy-to-vm.md`. README.md and RESUME.md may then mention it.
+
+## Issue 89 (updated 13-10-2026)
+Done on 13-10-2026 after reading the VM read-only: phases 1, 1b and 3 switched to live in CHANGELOG.md, DATA_DICTIONARY.md, DEFINITIONS.md, CONFIG_MAP.md, CHART_DEFINITIONS.md, DECISIONS.md (ADR-030), TRACKER.md (T73 to T77), ARCHITECTURE.md, FLIGHT_VIEW_SCALING.md, the conformance tables and the runbooks deploy-to-vm, alerts, integrity-checks and daily-checks. The exit-test record (#138) is in CHANGELOG.md.
+
+Still to switch in when phase 4 (migration 20261013000210, marker not yet written) is VERIFIED LIVE:
+| Document | What to switch in |
+|---|---|
+| DATA_DICTIONARY.md | Remove "NOT YET DEPLOYED" from `drop_gate_refusal`, `unreconciled_partition_sessions` and the drop-gate paragraph in section 1.5; header "live database at 20261013000210"; counts become 20 tables and 10 functions, plus the new migration row count in `schema_migrations` (28). |
+| RUNBOOKS/alerts.md, integrity-checks.md | The live pack becomes 23 checks; delete the "21 live" notes; remove "not yet deployed" from the two phase 4 rows. |
+| RUNBOOKS/drop-gate-rehearsal.md | Status line from NOT YET DEPLOYED to the deploy date and marker. |
+| CHANGELOG.md, TRACKER.md (T76), DECISIONS.md (ADR-030, ADR-026 amendment), CONFORMANCE_89_PHASE4.md | Deploy date and marker. |
+
+Phase 5 (branch p5-remove-old; removes the old pieces table and renames `flight_record` to `flight_summary`): nothing may describe the rename as live until it is deployed. When it is: DATA_DICTIONARY (tables, functions, views, `flight_legacy` removed), DEFINITIONS section 1 (delete the old pieces model), CHART_DEFINITIONS (delete the history section), ARCHITECTURE, FLIGHT_VIEW_SCALING, TRACKER T77.

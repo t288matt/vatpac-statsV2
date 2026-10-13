@@ -1,6 +1,6 @@
 """T15: RAAFv cards 142, 143, 161, 184 and Monday event card 156, rebuilt from the owner's current Metabase SQL.
 
-Rows are inserted synthetically (pilot_session plus flight_summary, which the `flight` view joins; pilot_position
+Rows are inserted synthetically (pilot_session plus the flight_record row the writer would write, which the `flight` view reads; pilot_position
 for card 156). The panel SQL is read from the dashboard JSON, the Grafana time macros are replaced by literal UTC
 timestamps, and the query is executed. Rules under test:
   all RAAFv cards  RAAFv = flight-plan remarks contain RAAFVIRTUAL.ORG (any case), whatever the aircraft type.
@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import REPO
-from helpers import partition_for
+from helpers import partition_for, record_flight
 
 pytestmark = pytest.mark.integration
 
@@ -48,7 +48,8 @@ def run_panel(conn, dashboard, title_start: str, start: datetime, end: datetime,
 def add_flight(conn, cid: int, start: datetime, end: datetime, airborne: float = 60.0, dep="YSSY", arr="YMML",
                remarks: str | None = None, aircraft: str = "B738", name: str | None = None,
                segments: int = 1) -> int:
-    """One pilot_session with `segments` flight_summary rows (segments > 1 mimics a gap or span split)."""
+    """One pilot_session with `segments` flight_record rows (segments > 1 mimics a returning session: one session, several
+    flights, which the per-session panels must count once)."""
     sid = conn.execute(
         "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival, "
         "aircraft_icao, remarks, name) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
@@ -56,11 +57,7 @@ def add_flight(conn, cid: int, start: datetime, end: datetime, airborne: float =
     ).fetchone()["id"]
     for seg in range(1, segments + 1):
         seg_end = end - timedelta(minutes=10 * (segments - seg))
-        conn.execute(
-            "INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, "
-            "sample_count, airborne_minutes, final) VALUES (%s,%s,0,%s,%s,%s,10,%s,true)",
-            (sid, seg, cid, start, seg_end, airborne),
-        )
+        record_flight(conn, sid, start, seg_end, airborne=airborne, gs=None, alt=None, start_offset_s=seg - 1)
     return sid
 
 

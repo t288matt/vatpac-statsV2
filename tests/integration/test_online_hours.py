@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import REPO
+from helpers import record_flight
 
 pytestmark = pytest.mark.integration
 
@@ -44,11 +45,7 @@ def add_flight(conn, day: datetime, start_hm: tuple[int, int], end: datetime, ai
         "VALUES (%s,%s,%s,%s,%s,%s,'YSSY','YMML') RETURNING id",
         (9400000 + _n["i"], f"HR{_n['i']:03d}", start.replace(microsecond=0), "Pilot", start, end),
     ).fetchone()["id"]
-    conn.execute(
-        "INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count, "
-        "airborne_minutes, max_gs_kt, max_alt_ft) VALUES (%s,0,0,%s,%s,%s,10,%s,450,35000)",
-        (sid, 9400000 + _n["i"], start, end, airborne),
-    )
+    record_flight(conn, sid, start, end, airborne=airborne)
 
 
 def add_controller(conn, day: datetime, start_hm: tuple[int, int], minutes: int) -> None:

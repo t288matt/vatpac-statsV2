@@ -1,4 +1,5 @@
-"""Incremental flight_summary (review H1/M1): equivalence with the SPEC section 5 `flight` semantics,
+"""Incremental flight_summary (review H1/M1): equivalence with the SPEC section 5 `flight` semantics (read through `flight_legacy`
+since issue 89 phase 3: the pieces and their old merging view are kept until phase 5, `flight` now reads flight_record),
 idempotent refresh, and flights surviving the raw-position partition drop.
 
 Expected values are computed independently in Python from the synthetic samples (the old live view is
@@ -10,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from drop_gate_helpers import process_flights
 from helpers import T0, make_session, partition_for, refresh, run
 
 pytestmark = pytest.mark.integration
@@ -18,7 +20,7 @@ pytestmark = pytest.mark.integration
 def summary(conn, cid: int) -> list[dict]:
     return conn.execute(
         "SELECT gap_segment, span_part, start_time, end_time, sample_count, airborne_minutes "
-        "FROM flight WHERE cid = %s ORDER BY gap_segment, span_part", (cid,)).fetchall()
+        "FROM flight_legacy WHERE cid = %s ORDER BY gap_segment, span_part", (cid,)).fetchall()
 
 
 def expected(samples: list[tuple[datetime, int | None]], cap: float) -> list[tuple]:
@@ -76,13 +78,13 @@ def test_gate_and_normalisation_with_tab(conn) -> None:
     make_session(conn, 9300011, run(5), dep="YSSY", arr="\t \r\n")
     make_session(conn, 9300012, run(5), dep=None, arr="YMML")
     refresh(conn)
-    rows = conn.execute("SELECT cid, departure, arrival FROM flight WHERE cid BETWEEN 9300010 AND 9300012").fetchall()
+    rows = conn.execute("SELECT cid, departure, arrival FROM flight_legacy WHERE cid BETWEEN 9300010 AND 9300012").fetchall()
     assert [(r["cid"], r["departure"], r["arrival"]) for r in rows] == [(9300010, "YSSY", "YMML")]
     # the summary holds all three sessions: the gate is applied by the view, so a flight plan filed
     # later makes the flight appear without recomputing anything
     assert conn.execute("SELECT count(*) AS n FROM flight_summary WHERE cid BETWEEN 9300010 AND 9300012").fetchone()["n"] == 3
     conn.execute("UPDATE pilot_session SET departure = 'YSCB' WHERE cid = 9300012")
-    assert conn.execute("SELECT departure FROM flight WHERE cid = 9300012").fetchone()["departure"] == "YSCB"
+    assert conn.execute("SELECT departure FROM flight_legacy WHERE cid = 9300012").fetchone()["departure"] == "YSCB"
 
 
 def test_refresh_is_idempotent_and_incremental(conn) -> None:
@@ -119,19 +121,26 @@ def test_flights_survive_partition_drop(conn) -> None:
     short = run(40, start=old)
     make_session(conn, 9300040, spanning)
     make_session(conn, 9300041, short)
-    assert summary(conn, 9300040) == []  # never refreshed: the drop itself must finalise
-    dropped = conn.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07') AS n").fetchone()["n"]
+    assert summary(conn, 9300040) == []  # never refreshed
+    refresh(conn)  # the pieces exist, as live (the 5 minute job)
+    check(conn, 9300040, spanning)
+    assert process_flights(conn) == 2  # issue 89 phase 4: the gate needs the flights WRITTEN, not the pieces finalised
+    from drop_gate_helpers import drain
+    dropped = drain(conn)
     assert dropped == 2  # 20260601 and 20260602
     assert conn.execute("SELECT count(*) AS n FROM pg_inherits WHERE inhparent = 'pilot_position'::regclass").fetchone()["n"] == 0
     assert conn.execute("SELECT count(*) AS n FROM pilot_position").fetchone()["n"] == 0
-    check(conn, 9300040, spanning)  # identical to the SPEC reference although the raw rows are gone
-    check(conn, 9300041, short)
-    assert conn.execute("SELECT bool_and(final) AS f FROM flight_summary").fetchone()["f"] is True
-    refresh(conn)  # a later refresh must not wipe the finalised rows
+    # the written flights hold the numbers although the raw rows are gone
+    got = {r["cid"]: (r["sample_count"], r["start_time"], r["end_time"]) for r in conn.execute(
+        "SELECT cid, sample_count, start_time, end_time FROM flight_record").fetchall()}
+    assert got == {9300040: (960, spanning[0][0], spanning[-1][0]), 9300041: (40, short[0][0], short[-1][0])}
+    # the old pieces rows are not touched by the drop (no finalising any more). NOT asserted: what a later FULL refresh of
+    # the pieces does to sessions whose positions are gone (it deletes their non-final rows); see docs/RUNBOOKS/drop-gate-rehearsal.md.
     check(conn, 9300040, spanning)
+    check(conn, 9300041, short)
 
 
-def test_pinned_partition_is_kept_and_not_finalised(conn) -> None:
+def test_pinned_partition_is_kept(conn) -> None:
     old = datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc)
     p = partition_for(conn, old)
     sid = conn.execute(
@@ -141,4 +150,4 @@ def test_pinned_partition_is_kept_and_not_finalised(conn) -> None:
     conn.execute("INSERT INTO pilot_position (observed_at, session_id, gs_kt) VALUES (%s,%s,250)", (old, sid))
     assert conn.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07') AS n").fetchone()["n"] == 0
     assert conn.execute("SELECT to_regclass(%s) AS r", (p,)).fetchone()["r"] is not None
-    assert conn.execute("SELECT count(*) AS n FROM flight_summary WHERE final").fetchone()["n"] == 0
+    assert conn.execute("SELECT count(*) AS n FROM flight_summary WHERE final").fetchone()["n"] == 0  # nothing finalises it now either

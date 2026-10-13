@@ -209,7 +209,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT DISTINCT f.callsign, f.cid, f.name,\n       upper(btrim(f.aircraft_icao)) AS aircraft_type,\n       f.departure, f.arrival, f.remarks, f.logon_time\nFROM flight f\nWHERE NOT f.is_in_progress\n  AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\n  AND f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\nORDER BY f.logon_time DESC, f.callsign\nLIMIT 500"
+          "rawSql": "SELECT DISTINCT f.callsign, f.cid, f.name,\n       upper(btrim(f.aircraft_icao)) AS aircraft_type,\n       f.departure, f.arrival, f.remarks, f.logon_time\nFROM flight f\nWHERE f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\n  AND f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\nORDER BY f.logon_time DESC, f.callsign\nLIMIT 500"
         }
       ],
       "options": {},
@@ -279,7 +279,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT t.aircraft AS aircraft,\n       count(*) AS \"Flights\",\n       round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS \"% of RAAFv flights\"\nFROM (\n  SELECT COALESCE(NULLIF(upper(btrim(f.aircraft_icao)), ''), '(none)') AS aircraft,\n         row_number() OVER (PARTITION BY f.session_id ORDER BY f.end_time DESC) AS rn\n  FROM flight f\n  WHERE NOT f.is_in_progress\n    AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\n    AND f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\n) t\nWHERE t.rn = 1\nGROUP BY t.aircraft\nORDER BY count(*) DESC, t.aircraft\nLIMIT 25"
+          "rawSql": "SELECT t.aircraft AS aircraft,\n       count(*) AS \"Flights\",\n       round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS \"% of RAAFv flights\"\nFROM (\n  SELECT COALESCE(NULLIF(upper(btrim(f.aircraft_icao)), ''), '(none)') AS aircraft,\n         row_number() OVER (PARTITION BY f.session_id ORDER BY f.end_time DESC) AS rn\n  FROM flight f\n  WHERE f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\n    AND f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\n) t\nWHERE t.rn = 1\nGROUP BY t.aircraft\nORDER BY count(*) DESC, t.aircraft\nLIMIT 25"
         }
       ],
       "options": {
