@@ -2,6 +2,8 @@
 
 Written 13-10-2026 by the QA agent (branch `qa-signoff`). Deployed code under review: commit 7a71d3054506d5d6e5e0165860de0feb97e0f651 (phases 1, 1b, 3, 4 and 5 live; the finished-flights table is `flight_summary`). Sources read for this note: `db/migrations/20261012000200_flight_quiet_per_flight.sql` (the live `write_finished_flights()`), as amended by `20261013000300_remove_pieces_rename_flight_summary.sql` (which only re-points it at `flight_summary`), ADR-030 in `docs/DECISIONS.md`, `docs/DEFINITIONS.md` section 1b and `docs/CONFORMANCE_89_PHASE1.md`.
 
+**Owner decision, 13-10-2026:** the two items marked 'owner to confirm' were ACCEPTED as recommended: gap 6 (plan fields come from the last session, blanks included; route is the latest non-blank) is a recorded known difference from v1, and gap 15b (the batch cap counts pilots examined per round, so one call can write up to ten times the cap) is accepted. Recorded on issue #138.
+
 ## QA SIGN-OFF
 
 **Verdict: SIGNED OFF WITH CONDITIONS.** No defect that loses or corrupts data was found. Four conditions are listed under "Conditions" below; none blocks the 24 hour watch that is already running.
@@ -71,13 +73,13 @@ The issue text says "7 of the 127 start-time differences not individually traced
 
 | Pilot (CID, callsign) | Leg | v3 flight ends | v1 last row for the same key | Difference |
 |---|---|---|---|---|
-| 1990189, 8IA | YSBK-YSBK | 09-10 04:11:57 | 09-10 05:21:48 | 70 min |
-| 1110096, BZN600 | YPAD-YCBP | 08-10 23:50:27 | 09-10 02:00:04 | 130 min |
-| 2010197, JST777 | YPAD-YMML | 09-10 01:05:27 | 09-10 02:44:14 | 99 min |
-| 2031740, STAL51 | YSRI-YAMB | 09-10 06:37:27 | 09-10 07:45:19 | 68 min |
-| 1967135, 3JA | YSBK-YSHL | 10-10 00:40:27 | 10-10 01:29:21 | 49 min |
-| 1692982, UAE8JH | NZAA-YSSY | 10-10 22:42:27 | 10-10 23:04:49 | 22 min |
-| 1872991, HM4 | YMEN-ZZZZ | 11-10 00:26:42 | 11-10 01:21:17 | 55 min |
+| 1990189, 8IA | YSBK-YSBK | 09-10-2026 04:11:57 | 09-10-2026 05:21:48 | 70 min |
+| 1110096, BZN600 | YPAD-YCBP | 08-10-2026 23:50:27 | 09-10-2026 02:00:04 | 130 min |
+| 2010197, JST777 | YPAD-YMML | 09-10-2026 01:05:27 | 09-10-2026 02:44:14 | 99 min |
+| 2031740, STAL51 | YSRI-YAMB | 09-10-2026 06:37:27 | 09-10-2026 07:45:19 | 68 min |
+| 1967135, 3JA | YSBK-YSHL | 10-10-2026 00:40:27 | 10-10-2026 01:29:21 | 49 min |
+| 1692982, UAE8JH | NZAA-YSSY | 10-10-2026 22:42:27 | 10-10-2026 23:04:49 | 22 min |
+| 1872991, HM4 | YMEN-ZZZZ | 11-10-2026 00:26:42 | 11-10-2026 01:21:17 | 55 min |
 
 **Finding: these are not start-time differences. In all 7 the start agrees within 5 minutes; the END of v1's flight is later than v3's.** In every case v3 has a second session of the same pilot and callsign that starts right at the end of the first (for BZN600, a new session with a new plan YCBP-YBAS from 23:50:57), while v1 goes on stamping the previous leg's key until 1.5 minutes before its next-leg run begins, and the next-leg run in v1 starts later than the v3 one by the same amount. Every v1 row of the pilot belongs to exactly one run, with no gap larger than about 2 minutes between the runs, so no position is missing from either system; the two systems cut the boundary in different places.
 

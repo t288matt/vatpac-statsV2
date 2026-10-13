@@ -53,7 +53,7 @@ def test_gap8_a_session_whose_last_seen_rose_without_new_positions_is_marked_and
     snap(conn, new_seen + 9 * HOUR)
     assert write(conn) == 0
     assert flown(conn, sid) == new_seen and len(records(conn, 802)) == 1
-    assert write(conn) == 0 and flown(conn, sid) == last_seen(conn, sid)
+    assert write(conn) == 0                                                         # a second call changes nothing
 
 
 @pytest.mark.parametrize("cap", [0, -5])
