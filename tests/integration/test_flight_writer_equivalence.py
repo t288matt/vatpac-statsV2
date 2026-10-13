@@ -1,4 +1,6 @@
-"""Issue #89 phase 1 (#137): flight_record against today's `flight` view (comparison A of design section 5.2, in miniature).
+"""Issue #89 phase 1 (#137): flight_record against the old merging view (comparison A of design section 5.2, in miniature).
+
+Since phase 3 (#139, not yet deployed) the old view is called `flight_legacy`; `flight` now reads flight_record.
 
 Where the old rule and the new rule agree, the rows must be identical on every shared column; where they differ, they must
 differ in exactly the ways section 5.2 lists as expected (8 hour parts of one session, a join decided by logon_time). Anything
@@ -23,7 +25,7 @@ SHARED = ("session_id, cid, callsign, departure, arrival, logon_time, start_time
 def both(conn: Any, cids: list[int]) -> tuple[list[dict], list[dict]]:
     """Run the pieces refresh (which also runs the writer) and return (old view rows, new table rows) for the pilots."""
     conn.execute("SELECT refresh_flight_summary(NULL)")
-    old = conn.execute(f"SELECT {SHARED} FROM flight WHERE cid = ANY(%s) AND NOT is_in_progress ORDER BY cid, start_time", (cids,)).fetchall()  # noqa: S608
+    old = conn.execute(f"SELECT {SHARED} FROM flight_legacy WHERE cid = ANY(%s) AND NOT is_in_progress ORDER BY cid, start_time", (cids,)).fetchall()  # noqa: S608
     new = conn.execute(f"SELECT {SHARED} FROM flight_record WHERE cid = ANY(%s) ORDER BY cid, start_time", (cids,)).fetchall()  # noqa: S608
     return old, new
 
@@ -45,7 +47,7 @@ def test_expected_difference_1_a_session_longer_than_8_hours_is_two_old_rows_and
     mk(conn, 210, ts)
     snap(conn, ts[-1] + 8 * HOUR)
     conn.execute("SELECT refresh_flight_summary(NULL)")
-    old = conn.execute("SELECT * FROM flight WHERE cid = 210 ORDER BY start_time").fetchall()
+    old = conn.execute("SELECT * FROM flight_legacy WHERE cid = 210 ORDER BY start_time").fetchall()
     parts = conn.execute("SELECT span_part, sample_count FROM flight_summary WHERE cid = 210 ORDER BY span_part").fetchall()
     new = conn.execute("SELECT * FROM flight_record WHERE cid = 210").fetchall()
     assert len(parts) == 2 and parts[1]["span_part"] > 0                 # how the owner recognises it: span_part > 0 in the pieces
@@ -59,7 +61,7 @@ def test_expected_difference_2_a_120_minute_silence_inside_a_session_is_two_old_
     mk(conn, 216, a + b)
     snap(conn, b[-1] + 8 * HOUR)
     conn.execute("SELECT refresh_flight_summary(NULL)")
-    assert conn.execute("SELECT count(*) AS n FROM flight WHERE cid = 216").fetchone()["n"] == 2
+    assert conn.execute("SELECT count(*) AS n FROM flight_legacy WHERE cid = 216").fetchone()["n"] == 2
     assert conn.execute("SELECT max(gap_segment) AS g FROM flight_summary WHERE cid = 216").fetchone()["g"] == 2
     assert conn.execute("SELECT count(*) AS n FROM flight_record WHERE cid = 216").fetchone()["n"] == 1
 
@@ -71,7 +73,7 @@ def test_expected_difference_3_a_join_decided_by_logon_time_is_two_old_rows_and_
     mk(conn, 211, times(first[-1] + 150 * MIN, 10), logon=logon)   # ... but the first position is 150 minutes after it
     snap(conn, BASE + 24 * HOUR)
     conn.execute("SELECT refresh_flight_summary(NULL)")
-    assert conn.execute("SELECT count(*) AS n FROM flight WHERE cid = 211").fetchone()["n"] == 2
+    assert conn.execute("SELECT count(*) AS n FROM flight_legacy WHERE cid = 211").fetchone()["n"] == 2
     assert conn.execute("SELECT count(*) AS n FROM flight_record WHERE cid = 211").fetchone()["n"] == 1
 
 
@@ -80,7 +82,7 @@ def test_expected_difference_4_new_plan_fields_are_frozen_the_old_view_reads_the
     snap(conn, BASE + 24 * HOUR)
     conn.execute("SELECT refresh_flight_summary(NULL)")
     conn.execute("UPDATE pilot_session SET route = 'CHANGED LATER' WHERE cid = 212")
-    assert conn.execute("SELECT route FROM flight WHERE cid = 212").fetchone()["route"] == "CHANGED LATER"
+    assert conn.execute("SELECT route FROM flight_legacy WHERE cid = 212").fetchone()["route"] == "CHANGED LATER"
     assert conn.execute("SELECT route FROM flight_record WHERE cid = 212").fetchone()["route"] == "DCT"
 
 
@@ -89,7 +91,7 @@ def test_expected_difference_5_airborne_is_rounded_once_not_per_piece(conn: Any)
     mk(conn, 213, ts)
     snap(conn, ts[-1] + 8 * HOUR)
     conn.execute("SELECT refresh_flight_summary(NULL)")
-    old = conn.execute("SELECT sum(airborne_minutes) AS m FROM flight WHERE cid = 213").fetchone()["m"]
+    old = conn.execute("SELECT sum(airborne_minutes) AS m FROM flight_legacy WHERE cid = 213").fetchone()["m"]
     new = conn.execute("SELECT airborne_minutes AS m FROM flight_record WHERE cid = 213").fetchone()["m"]
     assert abs(float(old) - float(new)) <= 0.011                             # at most 0.01 per extra old piece
 

@@ -2,7 +2,7 @@
 was checked, and a partition that cannot be locked is kept for the next run instead of failing the whole call.
 
 Issue 89 phase 4 (#140): the gate no longer finalises the pieces table; a partition is droppable once the flight writer has
-processed its sessions and a written flight covers every position (db/migrations/20261012000210). The lock behaviour is the one
+processed its sessions and a written flight covers every position (db/migrations/20261013000210). The lock behaviour is the one
 of migration 20261009000170 and is unchanged, so these tests keep their shape; the reconciliation itself is tested in
 test_drop_gate.py. Every builder here runs the writer (process_flights) before the first call, as production does.
 """

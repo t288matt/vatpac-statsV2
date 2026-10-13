@@ -5,7 +5,8 @@ from sqlglot.optimizer.qualify import qualify
 sys.path.insert(0,'grafana')
 import validate_dashboards as v
 schema={
- 'flight':"session_id gap_segment span_part cid callsign logon_time name home_icao server departure arrival aircraft_icao aircraft_faa flight_rules route remarks planned_alt deptime pilot_rating military_rating start_time end_time duration duration_minutes airborne_minutes max_gs_kt max_alt_ft sample_count is_circuit is_zzzz touches_home_region is_in_progress",
+ 'flight':"session_id cid callsign logon_time name home_icao server departure arrival aircraft_icao aircraft_faa flight_rules route remarks planned_alt deptime pilot_rating military_rating start_time end_time duration duration_minutes airborne_minutes max_gs_kt max_alt_ft sample_count is_circuit is_zzzz touches_home_region",
+ 'flight_record':"session_id start_time end_time cid callsign departure arrival session_ids logon_time name home_icao server aircraft_icao aircraft_faa flight_rules route remarks planned_alt deptime pilot_rating military_rating airborne_minutes max_gs_kt max_alt_ft sample_count written_at",
  'controller_session_merged':"cid callsign merge_group first_session_id session_count name rating facility server frequency_hz start_time end_time duration duration_hours is_open",
  'online_now':"kind session_id cid callsign name logon_time first_seen last_seen as_of departure arrival aircraft_icao lat lon alt_ft gs_kt rating facility frequency_hz",
  'data_freshness':"checked_at latest_snapshot_ts snapshot_age_seconds data_since last_ok_poll_at last_ok_age_seconds ok_last_hour skipped_last_hour error_last_hour",

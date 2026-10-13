@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import REPO
-from helpers import partition_for, set_poll_interval
+from helpers import partition_for, record_flight, set_poll_interval
 
 pytestmark = pytest.mark.integration
 
@@ -56,10 +56,7 @@ def flight(conn, cid: int, *, home: str | None, dep="YSSY", arr="YMML", days_ago
         "INSERT INTO pilot_session (cid, callsign, logon_time, name, first_seen, last_seen, departure, arrival, home_icao) "
         "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
         (cid, f"GAP{_serial['n']:04d}", start.replace(microsecond=0), "Pilot", start, end, dep, arr, home)).fetchone()["id"]
-    conn.execute(
-        "INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count, "
-        "airborne_minutes, max_gs_kt, max_alt_ft, final) VALUES (%s,0,0,%s,%s,%s,10,%s,450,35000,true)",
-        (sid, cid, start, end, airborne))
+    record_flight(conn, sid, start, end, airborne=airborne)
 
 
 def ctrl(conn, cid: int, days_ago: float, minutes: int = 60, rating: int = 3, callsign: str | None = None,

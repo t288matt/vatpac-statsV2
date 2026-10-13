@@ -8,10 +8,19 @@ Updated 12-10-2026 (docs batch 3, issue #107). The production VM runs commit c70
 
 ## Issue 89 phase 4: the raw-position drop gate checks the written flights (branch p4-drop-gate, 12-10-2026; not merged, not deployed)
 
-Changes when old daily partitions of `pilot_position` may be deleted (migration 20261012000210). Refs #89 and #140; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md) section 3 (branch opus-89), requirement-to-test table in [docs/CONFORMANCE_89_PHASE4.md](docs/CONFORMANCE_89_PHASE4.md).
+Changes when old daily partitions of `pilot_position` may be deleted (migration 20261013000210). Refs #89 and #140; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md) section 3 (branch opus-89), requirement-to-test table in [docs/CONFORMANCE_89_PHASE4.md](docs/CONFORMANCE_89_PHASE4.md).
 - A day is dropped only when every session with positions in it has been processed by the flight writer, every position of a session with a flight plan lies inside a written flight of that session, and every flight wholly inside the day has the right sample count. Any doubt keeps the day and logs `DROP REFUSED`. The old finalisation of the pieces table is no longer a condition.
 - New internal function `unreconciled_partition_sessions()` (read-only; used by the drop function and the rehearsal), new integrity check `processed flight-plan sessions in no written flight (ended 2 to 30 days ago)` (22 checks now), rehearsal script `ops/rehearse_drop_gate.sql` and runbook [docs/RUNBOOKS/drop-gate-rehearsal.md](docs/RUNBOOKS/drop-gate-rehearsal.md).
 - Before the first real drop, phase 3 should be live (or `refresh_flight_summary(NULL)` must not be run afterwards): see the runbook, section 3.
+
+## Issue 89 phase 3: the charts read the written flights (branch p3-switch-views, 12-10-2026; not merged, not deployed)
+
+Migration 20261013000200 switches the flight readers to `flight_record` (refs #89 and #139; design in [docs/DESIGN_89_FINAL.md](docs/DESIGN_89_FINAL.md)). It needs phase 1 deployed, the backfill finished and the phase 1 exit gate (#138) passed first.
+- `flight` becomes a thin view over `flight_record`; `flight_ext`, `movements`, `cohorts` and `monday_attendance` follow it. The old merging view is kept as `flight_legacy` for comparison only (no panel may read it).
+- Nothing is shown in progress: a finished flight appears in the charts about 8 hours after its pilot's last connection ends. The `NOT is_in_progress` filter is removed from the 11 panels that carried it and from `flight_ext`; `flight` loses `gap_segment`, `span_part` and `is_in_progress`.
+- Monday attendance follows the standard rule (distinct pilots of finished flights overlapping 07:00 to 12:00Z); a Monday is complete about 8 hours after the last pilot in the window disconnects.
+- A connection longer than 8 hours, or with a long silence, is one flight (v1's rule; about 0.5% fewer flights).
+- Old against new on the same data: `tests/integration/test_flight_views_switch.py` (each affected view) and `ops/compare_views_89_phase3.sql` (for the owner, read only). Requirement-to-test table: [docs/CONFORMANCE_89_PHASE3.md](docs/CONFORMANCE_89_PHASE3.md).
 
 ## Issue 89 phase 1b: quiet per flight, not per pilot (branch p1b-flight-quiet, 12-10-2026; not merged, NOT live)
 

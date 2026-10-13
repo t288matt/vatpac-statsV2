@@ -571,6 +571,10 @@ def test_the_backfill_scripts_remaining_query_counts_exactly_the_finished_unproc
 def test_placeholder_flights_without_positions_are_carried_over_once_and_marked(conn: Any) -> None:
     sql = (REPO / "db" / "migrations" / "20261012000190_flight_record_writer.sql").read_text(encoding="utf-8")
     block = sql.split("-- carry-over:begin", 1)[1].split("-- carry-over:end", 1)[0]
+    # Since phase 3 the `flight` view reads flight_record (empty here); the carry-over ran at deploy time against the old
+    # definition, which now lives in flight_legacy.
+    assert "FROM flight f" in block
+    block = block.replace("FROM flight f", "FROM flight_legacy f")
     old = BASE - timedelta(days=30)
     sid = conn.execute(
         "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "

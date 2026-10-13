@@ -2,6 +2,8 @@
 
 Written 10-10-2026 from the code review (issue #80). Status: measured, designed, NOT changed. Recommendation at the end.
 
+> **Note, 12-10-2026 (issue 89 phase 3, migration 20261013000200, not yet deployed):** this page describes the old merging view. After that migration the merging view is `flight_legacy` (kept until phase 5 for comparison) and `flight` is a thin view over `flight_record`, which `write_finished_flights()` fills once per finished flight; nothing here is merged at read time any more. See `docs/DESIGN_89_FINAL.md`.
+
 ## The problem
 
 `flight` (migration `20261009000110_flight_merge_reconnects.sql`, last redefined by `20261009000130`) merges the sessions of one flight (ADR-023, 120 minute rule). It does this at query time: two window functions and about twenty ordered `array_agg` calls over EVERY row of `flight_part` (one row per session, gap segment and 8 hour part), sorted by (cid, callsign, departure, arrival, start_time). Nothing in a panel's time range can be pushed below a window function, so a panel that wants the last 7 days still pays for all of history. History is kept forever (ADR-026), so every panel gets slower as the database grows. `flight_ext`, `movements` (which reads `flight_ext` twice), `cohorts` and about 35 panels sit on top of it.
