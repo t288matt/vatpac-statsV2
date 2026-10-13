@@ -1,6 +1,6 @@
 # Issue #89 phase 3: conformance table
 
-Written 12-10-2026 (branch `p3-switch-views`, issues #89 and #139). **Not yet deployed. Not run against PostgreSQL**: no database was available on the machine that built this branch (no local PostgreSQL, Docker Desktop not running), so none of the database tests below has been executed; see "What was not verified" at the end. Each requirement of `docs/DESIGN_89_FINAL.md` (branch `opus-89`, sections 1.2, 4, 7.2 phase 3, 7.4, 7.5) that phase 3 builds, and the test or check that proves it. Test files: `V` = `tests/integration/test_flight_views_switch.py` (new), `P` = `tests/test_phase3_switch.py` (new, no database), `FV` = `test_flight_view.py`, `RM` = `test_flight_reconnect_merge.py`, `E2E` = `test_end_to_end.py`, `A` = `test_audit_t30.py`, `C65` = `test_card_65.py`, `EQ` = `test_flight_writer_equivalence.py`, `CF` = `test_compare_flights.py`. All integration files are in `tests/integration/`.
+Written 12-10-2026 (branch `p3-switch-views`, issues #89 and #139). **Deployed 13-10-2026 (marker 38e3958, 08:14:12 UTC). When written it was not run against PostgreSQL**: no database was available on the machine that built this branch (no local PostgreSQL, Docker Desktop not running), so none of the database tests below has been executed; see "What was not verified" at the end. Each requirement of `docs/DESIGN_89_FINAL.md` (branch `opus-89`, sections 1.2, 4, 7.2 phase 3, 7.4, 7.5) that phase 3 builds, and the test or check that proves it. Test files: `V` = `tests/integration/test_flight_views_switch.py` (new), `P` = `tests/test_phase3_switch.py` (new, no database), `FV` = `test_flight_view.py`, `RM` = `test_flight_reconnect_merge.py`, `E2E` = `test_end_to_end.py`, `A` = `test_audit_t30.py`, `C65` = `test_card_65.py`, `EQ` = `test_flight_writer_equivalence.py`, `CF` = `test_compare_flights.py`. All integration files are in `tests/integration/`.
 
 ## Migration `20261013000200_switch_flight_views.sql`
 
@@ -53,9 +53,9 @@ Written 12-10-2026 (branch `p3-switch-views`, issues #89 and #139). **Not yet de
 
 | Requirement | Test or check |
 |---|---|
-| CHART_DEFINITIONS: the in-progress section becomes one sentence; Monday attendance by the standard rule; phase 3 marked not yet deployed | `docs/CHART_DEFINITIONS.md`; `tests/test_chart_definitions_tests.py` (every named test exists) |
+| CHART_DEFINITIONS: the in-progress section becomes one sentence; Monday attendance by the standard rule; phase 3 marked not yet deployed (switched to live on 13-10-2026) | `docs/CHART_DEFINITIONS.md`; `tests/test_chart_definitions_tests.py` (every named test exists) |
 | DATA_DICTIONARY: `flight` (thin), `flight_legacy`, `flight_ext`, `movements`, `cohorts`, `monday_attendance`, `flight_record` readers; header names the latest migration | `docs/DATA_DICTIONARY.md`; `tests/test_data_dictionary_tests.py` |
-| FLIGHT_VIEW_SCALING, DEFINITIONS, CHANGELOG | noted "not yet deployed" |
+| FLIGHT_VIEW_SCALING, DEFINITIONS, CHANGELOG | noted "not yet deployed" at the time; flipped to live on 13-10-2026 |
 
 ## Not built, with the reason
 

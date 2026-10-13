@@ -25,7 +25,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | File | What it is for | Who reads it | Status |
 |---|---|---|---|
 | [RUNBOOKS/daily-checks.md](RUNBOOKS/daily-checks.md) | Daily and weekly health checks; the soak report and its verdicts | Operator | CURRENT |
-| [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) | What each Telegram alert means and what to do | Operator, owner | CURRENT for main; describes the plain-language wording that is not yet deployed (see CHANGELOG.md); the VM sends the older technical form |
+| [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) | What each Telegram alert means and what to do | Operator, owner | CURRENT for main; production differs only in the invariant pack (21 live checks, 23 on main: the two phase 4 checks are not yet deployed) |
 | [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md) | Public read-only dashboards through a Cloudflare Tunnel and Traefik: the links script, proxy and tunnel set-up, checks, roll back | Owner | CURRENT |
 | [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md) | How to install, deploy, roll back and verify; the special cases and traps (sections 4b to 4f) | Operator | CURRENT; long, accumulates one section per release |
 | [RUNBOOKS/restore.md](RUNBOOKS/restore.md) | Backups, restore, the restore drill, off-box copies | Operator | CURRENT (deployed behaviour; the hardening is in PENDING_DOC_CHANGES.md) |
@@ -33,7 +33,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | [RUNBOOKS/feed-outage.md](RUNBOOKS/feed-outage.md) | VATSIM feed is down or unreachable | Operator | CURRENT |
 | [RUNBOOKS/feed-archive.md](RUNBOOKS/feed-archive.md) | The rolling archive of raw feed snapshots | Operator | CURRENT |
 | [RUNBOOKS/integrity-checks.md](RUNBOOKS/integrity-checks.md) | The scheduled data-integrity checks in the watchdog | Operator | CURRENT |
-| [RUNBOOKS/db-full.md](RUNBOOKS/db-full.md) | Database or disk full | Operator | CURRENT for main (includes the partition-drop change, migration 170, not yet deployed) |
+| [RUNBOOKS/db-full.md](RUNBOOKS/db-full.md) | Database or disk full | Operator | CURRENT for main (includes the partition-drop change, migration 170, which is on the live database) |
 | [RUNBOOKS/outside-heartbeat.md](RUNBOOKS/outside-heartbeat.md) | The check on the owner's PC that sees a dead VM | Owner | CURRENT |
 | [RUNBOOKS/update-reference-files.md](RUNBOOKS/update-reference-files.md) | Changing the airspace polygon or the controller whitelist | Operator | CURRENT |
 | [RUNBOOKS/dashboards.md](RUNBOOKS/dashboards.md) | Adding or changing a Grafana dashboard (dashboards are code) | Engineer | CURRENT |
