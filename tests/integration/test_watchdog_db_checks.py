@@ -74,7 +74,10 @@ def test_near_miss_callsigns_are_listed_oldest_first(conn, cfg) -> None:
 
 
 def test_an_unreachable_database_is_critical(cfg) -> None:
-    cfg.db_dsn = "host=127.0.0.1 port=1 dbname=x user=x connect_timeout=2"
+    # Linux refuses a closed local port at once. Windows retries the SYN for about 2 s before reporting the refusal, which races
+    # connect_timeout and gives ConnectionTimeout instead of OperationalError; there a missing socket directory fails instantly.
+    host = "/nonexistent-socket-dir" if sys.platform == "win32" else "127.0.0.1 port=1"
+    cfg.db_dsn = f"host={host} dbname=x user=x connect_timeout=2"
     got = wd.check_db(cfg)
     assert got == {"database": (wd.CRIT, "query/connect failed (OperationalError)")}
 

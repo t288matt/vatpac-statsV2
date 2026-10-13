@@ -31,6 +31,27 @@ with psycopg.connect(os.environ["SHIM_BASE_DSN"] + db, autocommit=True) as c:
 '''
 
 
+def _find_bash() -> str | None:
+    """A bash that understands the repo's scripts. On Windows a bare `bash` resolves to the System32 WSL launcher (which cannot see
+    Windows drive paths), so use Git Bash explicitly; on Linux and macOS it is simply the bash on PATH."""
+    if sys.platform != "win32":
+        return shutil.which("bash")
+    for root in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), os.environ.get("LOCALAPPDATA")):
+        for sub in ("Git", "Programs/Git"):
+            cand = Path(root or "/nonexistent") / sub / "bin" / "bash.exe"
+            if cand.is_file():
+                return str(cand)
+    git = shutil.which("git")
+    if git:
+        cand = Path(git).resolve().parent.parent / "bin" / "bash.exe"
+        if cand.is_file():
+            return str(cand)
+    return None
+
+
+BASH = _find_bash()
+
+
 def _dsn_for(dsn: str, db: str) -> str:
     parts = urlsplit(dsn)
     return urlunsplit((parts.scheme, parts.netloc, "/" + db, "", ""))
@@ -38,8 +59,8 @@ def _dsn_for(dsn: str, db: str) -> str:
 
 @pytest.fixture()
 def scratch(dsn: str, tmp_path: Path):
-    if shutil.which("bash") is None:
-        pytest.skip("bash not available")
+    if BASH is None:
+        pytest.skip("bash not available (on Windows this needs Git for Windows; WSL bash cannot read Windows drive paths)")
     admin = psycopg.connect(_dsn_for(dsn, "postgres"), autocommit=True)
     admin.execute(f'DROP DATABASE IF EXISTS "{SCRATCH}" WITH (FORCE)')
     admin.execute(f'CREATE DATABASE "{SCRATCH}"')
@@ -72,7 +93,7 @@ def _fill(dsn: str, sessions: int, poll_times: list[str]) -> None:
 def _sanity(env: dict[str, str], dump_name: str | None, **extra: str) -> subprocess.CompletedProcess[str]:
     arg = f'"/backups/{dump_name}"' if dump_name else ""
     e = dict(env, **extra)
-    return subprocess.run(["bash", "-c", f'. "{LIB}"; sanity_check "{SCRATCH}" {arg}'], env=e, capture_output=True, text=True, timeout=60)
+    return subprocess.run([BASH or "bash", "-c", f'. "{LIB.as_posix()}"; sanity_check "{SCRATCH}" {arg}'], env=e, capture_output=True, text=True, timeout=60)
 
 
 def test_a_schema_only_dump_fails(dsn: str, scratch: dict[str, str]) -> None:
