@@ -21,6 +21,10 @@ from pathlib import Path
 
 import psycopg
 import pytest
+
+# Every test in this file is selected by the integration job (-m integration): the static checks below need no database, but they sat
+# unmarked under tests/integration, where the unit job skips them (no database) and the integration job deselects them, so they never ran in CI.
+pytestmark = pytest.mark.integration
 from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
 
@@ -133,7 +137,6 @@ HISTORY_DOCS = {  # dated records of earlier phases, audits and decisions: they 
 }
 
 
-@pytest.mark.integration   # CI runs only marked tests in the integration job; unmarked, this guard was skipped everywhere in CI (found 13-10-2026)
 def test_no_code_test_grant_or_watchdog_file_names_an_old_object_outside_the_listed_exceptions() -> None:
     """Requirement 7. Migrations are history and skipped. The word flight_summary is NOT an old name any more (it is the new table)."""
     hits: dict[str, list[str]] = {}
