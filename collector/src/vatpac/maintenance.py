@@ -51,10 +51,11 @@ def ensure_partitions(
 
 
 def drop_old_partitions(conn: psycopg.Connection[Any], today: date, retention_days: int) -> int:
-    """Finalise flights, then drop partitions older than retention that hold no recently active session.
+    """Drop partitions older than retention: no recently active session, every position in a written flight.
 
     Returns the number dropped. The SQL function raises a NOTICE for a partition pinned beyond twice the
-    retention; it is logged here as a warning.
+    retention, and "DROP REFUSED" when it keeps a partition because the flight writer has not covered it
+    (issue 89 phase 4); both are logged here as warnings.
     """
 
     def on_notice(diag: Any) -> None:
