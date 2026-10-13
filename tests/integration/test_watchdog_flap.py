@@ -93,6 +93,9 @@ def test_watchdog_ro_runs_the_flap_check_and_stays_read_only(as_watchdog) -> Non
     for sql in ("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "
                 "VALUES (1, 'X', now(), now(), now())", "DELETE FROM controller_session", "SELECT 1 FROM app_setting",
                 "INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count) "
-                "VALUES (1, 0, 0, 1, now(), now(), 1)", "DELETE FROM pilot_position"):
+                "VALUES (1, 0, 0, 1, now(), now(), 1)", "DELETE FROM pilot_position",
+                "INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
+                "logon_time, sample_count) VALUES (1, now(), now(), 1, 'X', 'YSSY', 'YMML', ARRAY[1], now(), 1)",
+                "DELETE FROM flight_record"):
         with pytest.raises(psycopg.errors.Error):
             c.execute(sql)
