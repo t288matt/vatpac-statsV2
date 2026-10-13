@@ -44,13 +44,19 @@ def test_the_migration_drops_without_cascade_in_the_safe_order_and_is_forward_on
     order = [code.index(s) for s in ("DROP VIEW IF EXISTS flight_legacy", "DROP VIEW flight_part",
                                       "DROP FUNCTION IF EXISTS refresh_flight_summary(interval)",
                                       "DROP FUNCTION IF EXISTS refresh_flight_summary_sessions(bigint[], boolean)",
-                                      "DROP TABLE flight_summary;", "ALTER TABLE flight_record RENAME TO flight_summary")]
-    assert order == sorted(order)                                                   # legacy -> part -> functions -> table -> rename
+                                      "ALTER TABLE flight_summary RENAME TO flight_summary_old_p5",
+                                      "ALTER TABLE flight_record RENAME TO flight_summary", "DROP TABLE flight_summary_old_p5;")]
+    assert order == sorted(order)         # legacy -> part -> functions -> pieces renamed aside -> finished-flights rename -> the pieces dropped
+    # lock order (Opus review 13-10-2026): the one statement that locks pilot_session (the DROP of the pieces table, which owns the foreign
+    # key) is the LAST statement, after every statement that can wait for a reader of the flight view
+    statements = [x.strip() for x in code.split(";") if x.strip()]
+    assert statements[-1] == "DROP TABLE flight_summary_old_p5"
+    assert [x for x in statements if re.match(r"(?i)DROP\s+TABLE", x)] == ["DROP TABLE flight_summary_old_p5"]
     assert "SET LOCAL lock_timeout = '5s'" in up
     assert "Forward-only" in text.split("-- migrate:down")[1]
     names = sorted(p.name for p in MIG_DIR.glob("*.sql"))
     assert names[-1] == NEW or names.index(NEW) > names.index("20261013000200_switch_flight_views.sql")
-    assert names.index(NEW) > names.index("20261012000210_drop_gate_reconciles_flights.sql")
+    assert names.index(NEW) > names.index("20261013000210_drop_gate_reconciles_flights.sql")
 
 
 def test_the_migration_renames_the_key_the_check_and_the_four_indexes() -> None:
@@ -283,7 +289,12 @@ def test_the_recreated_functions_are_the_old_ones_with_only_the_table_name_chang
     for f in FUNCS:
         expected = re.sub(r"\bflight_record\b", "flight_summary", before[f][0])
         assert after[f][0] == expected, f
-        assert after[f][1] == before[f][1], f                                        # grants unchanged
+        # grants unchanged, except that the migration adds EXECUTE on the writer for the collector (requirement 1)
+        def acl(a: str | None) -> set[str]:
+            return {x for x in (a or "").strip("{}").split(",") if x}
+        extra = {x for x in acl(after[f][1]) - acl(before[f][1])}
+        assert acl(before[f][1]) <= acl(after[f][1]), f
+        assert extra == set() or (f == "write_finished_flights(int)" and all(x.startswith("collector=X/") for x in extra)), (f, extra)
         assert "SET search_path TO 'public', 'pg_temp'" in after[f][0] or "search_path=public, pg_temp" in after[f][0]
         assert "SECURITY DEFINER" in after[f][0]
     assert before["write_finished_flights(int)"][0] != after["write_finished_flights(int)"][0]
@@ -316,7 +327,12 @@ def test_the_writer_and_the_drop_function_work_after_the_rename(db) -> None:
     assert db.execute("SELECT write_finished_flights(500) AS n").fetchone()["n"] == 1
     assert db.execute("SELECT count(*) AS n FROM flight WHERE cid = 4120").fetchone()["n"] == 1
     # the drop gate (phase 4 logic) still reconciles against the renamed table: the processed, covered days are dropped, flights stay
-    dropped = db.execute("SELECT drop_old_pilot_position_partitions(90, %s) AS n", ((MON + timedelta(days=400)).date(),)).fetchone()["n"]
+    dropped = 0
+    for _ in range(20):                                                                          # phase 4 drops ONE day per call
+        n = db.execute("SELECT drop_old_pilot_position_partitions(90, %s) AS n", ((MON + timedelta(days=400)).date(),)).fetchone()["n"]
+        dropped += n
+        if n == 0:
+            break
     assert dropped >= 3
     assert db.execute("SELECT count(*) AS n FROM flight_summary").fetchone()["n"] == 9
 
@@ -335,3 +351,56 @@ def test_the_migration_refuses_to_run_before_phase_3_and_changes_nothing(dsn: st
                 assert c.execute("SELECT to_regclass('flight_part') IS NOT NULL AS ok").fetchone()["ok"]
         finally:
             admin.execute(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)")
+
+
+def test_a_reader_of_the_flight_view_does_not_make_a_poll_write_wait(db, dsn: str) -> None:
+    """Opus review of 13-10-2026 (lock order). While a Grafana-style reader holds the flight view, the migration waits at the rename of the
+    finished-flights table. It must hold NO exclusive lock on pilot_session during that wait, so the collector's writes are not delayed
+    (the DROP of the pieces table, the only statement that locks pilot_session, comes last)."""
+    import threading
+    import time
+
+    _load(db)
+    sid = db.execute("SELECT min(id) AS i FROM pilot_session").fetchone()["i"]
+    dsn_db = make_conninfo(dsn, dbname=db.info.dbname)
+    reader = psycopg.connect(dsn_db, autocommit=False)
+    reader.execute("SELECT count(*) FROM flight")                                       # holds ACCESS SHARE on the flight view and its table
+    result: dict[str, object] = {}
+
+    def migrate() -> None:
+        try:
+            with psycopg.connect(dsn_db, autocommit=True) as c:
+                result["pid"] = c.info.backend_pid
+                c.execute(up_half(MIG_DIR / NEW))
+            result["ok"] = True
+        except Exception as exc:  # noqa: BLE001
+            result["ok"] = repr(exc)
+
+    t = threading.Thread(target=migrate)
+    t.start()
+    try:
+        deadline = time.time() + 3
+        waiting = False
+        while time.time() < deadline and not waiting:                                   # the migration is queued behind the reader
+            waiting = bool(db.execute("SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND pid <> pg_backend_pid() "
+                                      "AND pid <> %s", (reader.info.backend_pid,)).fetchall())
+            time.sleep(0.05)
+        assert waiting
+        # evidence: no ACCESS EXCLUSIVE lock on pilot_session is held while the migration waits
+        held = db.execute("SELECT count(*) AS n FROM pg_locks l JOIN pg_class c ON c.oid = l.relation WHERE c.relname = 'pilot_session' "
+                          "AND l.mode = 'AccessExclusiveLock'").fetchone()["n"]
+        assert held == 0
+        worst = 0.0
+        with psycopg.connect(dsn_db, autocommit=True) as writer:
+            writer.execute("SET lock_timeout = '2s'")
+            for _ in range(10):                                                         # what the collector does: update a session
+                t0 = time.time()
+                writer.execute("UPDATE pilot_session SET last_seen = last_seen WHERE id = %s", (sid,))
+                worst = max(worst, time.time() - t0)
+                time.sleep(0.05)
+        assert worst < 0.5, worst
+    finally:
+        reader.rollback()
+        reader.close()
+        t.join(timeout=30)
+    assert result.get("ok") is True, result
