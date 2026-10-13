@@ -4,7 +4,7 @@ Checked against the migrations up to 20261013000210 on 13-10-2026. The live data
 
 *Describes main; behaviour added by changes not yet deployed is listed in CHANGELOG.md.*
 
-Objects on the live database, counted read-only on 13-10-2026 (migration 20261013000200): 19 base tables (18 ordinary, `schema_migrations` and `flight_record` among them, plus the partitioned `pilot_position`, which has 28 daily partitions), 24 views (including `flight_legacy` and the thin `flight`), 9 functions in the `public` schema, 4 declared foreign keys, no materialised views, no triggers. Main (migration 20261013000210, not deployed) adds one table (`drop_gate_refusal`) and one function (`unreconciled_partition_sessions`): 20 tables and 10 functions. These counts replace the 11-10-2026 figures. The 23 views then plus `flight_legacy` give 24, which matches; the earlier 20 tables and 10 functions are not reproduced by the 13-10-2026 count (19 and 9, with `flight_record` included), and how the earlier figures were counted is not recorded.
+Objects on the live database, counted read-only on 13-10-2026 (migration 20261013000200): 19 base tables (18 ordinary, `schema_migrations` and `flight_record` among them, plus the partitioned `pilot_position`, which has 28 daily partitions), 24 views (including `flight_legacy` and the thin `flight`), 9 functions in the `public` schema, 4 declared foreign keys, no materialised views, no triggers. Main (migration 20261013000210, not deployed) adds one table (`drop_gate_refusal`) and one function (`unreconciled_partition_sessions`): 20 tables and 10 functions. These counts replace the 11-10-2026 figures.
 
 ## 0. Orientation
 
