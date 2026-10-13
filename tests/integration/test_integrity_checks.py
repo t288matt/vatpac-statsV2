@@ -99,7 +99,7 @@ def failing(counts: dict[str, int]) -> set[str]:
 def test_a_clean_database_reports_zero_for_every_invariant(conn: Any, dsn: str, role: str | None) -> None:
     World(conn)
     counts = sweep(dsn, role)
-    assert set(counts) == set(NAMES) and len(counts) == 21
+    assert set(counts) == set(NAMES) and len(counts) == 23
     assert failing(counts) == set(), failing(counts)
 
 
@@ -324,6 +324,33 @@ def _(conn: Any, w: World) -> None:
                  "VALUES (1701, 'OLD2', %s, %s, %s, 'YSSY', 'YMML')", (old.replace(microsecond=0), old, old))
 
 
+@case("processed flight-plan sessions in no written flight (ended 2 to 30 days ago)",
+      "flight_summary rows missing for sessions older than 12 h")
+def _(conn: Any, w: World) -> None:
+    old = w.ts[0] - timedelta(days=5)
+    partition_for(conn, old)
+    sid = conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival, flown_upto) "
+                       "VALUES (1702, 'OLD3', %s, %s, %s, 'YSSY', 'YMML', %s) RETURNING id",
+                       (old.replace(microsecond=0), old, old, old)).fetchone()["id"]
+    conn.execute("INSERT INTO pilot_position (observed_at, session_id, lat, lon, alt_ft, gs_kt, hdg) VALUES (%s, %s, -33.9, 151.2, 5000, 250, 90)", (old, sid))
+
+
+def test_a_processed_session_that_is_in_a_written_flight_does_not_fire_the_gate_invariant(conn: Any, dsn: str) -> None:
+    w = World(conn)
+    old = w.ts[0] - timedelta(days=5)
+    partition_for(conn, old)
+    sid = conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival, flown_upto) "
+                       "VALUES (1703, 'OLD4', %s, %s, %s, 'YSSY', 'YMML', %s) RETURNING id",
+                       (old.replace(microsecond=0), old, old, old)).fetchone()["id"]
+    conn.execute("INSERT INTO pilot_position (observed_at, session_id, lat, lon, alt_ft, gs_kt, hdg) VALUES (%s, %s, -33.9, 151.2, 5000, 250, 90)", (old, sid))
+    name = "processed flight-plan sessions in no written flight (ended 2 to 30 days ago)"
+    assert sweep(dsn)[name] == 1
+    conn.execute("INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time, sample_count) "
+                 "VALUES (%s, %s, %s, 1703, 'OLD4', 'YSSY', 'YMML', ARRAY[%s], %s, 1)", (sid, old, old, sid, old))
+    assert sweep(dsn)[name] == 0
+    conn.execute("UPDATE pilot_session SET departure = '' WHERE id = %s", (sid,))     # a session without a plan makes no flight
+    conn.execute("DELETE FROM flight_record")
+    assert sweep(dsn)[name] == 0
 def test_the_unprocessed_flight_checks_work_per_flight_not_per_pilot(conn: Any, dsn: str) -> None:
     """Owner decision 12-10-2026 (quiet per flight): a pilot with an old finished flight AND a recent different flight is flagged for
     the old one only if it is overdue; a quiet pilot is flagged; a flight kept open by an active reconnect (joined by the v1 rule) is not."""
@@ -347,6 +374,20 @@ def test_the_unprocessed_flight_checks_work_per_flight_not_per_pilot(conn: Any, 
     assert after[n1] == 1 and after[n3] == 1                                               # the open flight adds nothing
 
 
+@case("raw-position days kept by the deletion check for more than 3 days")
+def _(conn: Any, w: World) -> None:
+    conn.execute("INSERT INTO drop_gate_refusal (part_name, first_refused, detail) VALUES ('pilot_position_20260101', now() - interval '4 days', 'x')")
+
+
+def test_a_fresh_refusal_does_not_fire_the_gate_refusal_check(conn: Any, dsn: str) -> None:
+    World(conn)
+    conn.execute("INSERT INTO drop_gate_refusal (part_name, first_refused, detail) VALUES ('pilot_position_20260101', now() - interval '2 days', 'x')")
+    name = "raw-position days kept by the deletion check for more than 3 days"
+    assert sweep(dsn)[name] == 0
+    conn.execute("UPDATE drop_gate_refusal SET first_refused = now() - interval '4 days'")
+    assert sweep(dsn)[name] == 1
+
+
 @case("daily partitions missing for today..today+3")
 def _(conn: Any, w: World) -> None:
     conn.execute(f"DROP TABLE pilot_position_{(w.now + timedelta(days=3)):%Y%m%d}")
@@ -361,7 +402,7 @@ def test_the_cases_cover_exactly_the_invariants_in_the_pack() -> None:
     """The guard: delete or rename an invariant, or add one without a case, and this fails."""
     assert set(NAMES) - set(CASES) == set(), "an invariant has no broken-data test"
     assert set(CASES) - set(NAMES) == set()
-    assert len(NAMES) == 21 and len(CASES) == len(NAMES)
+    assert len(NAMES) == 23 and len(CASES) == len(NAMES)
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -399,11 +440,11 @@ def test_run_due_reports_ok_on_clean_data_and_a_named_warning_on_broken_data(con
     w = World(conn)
     state: dict[str, Any] = {}
     res, _ = integrity.run_due(plan(dsn, tmp_path, crosscheck_interval_s=0), state, now=1000.0)
-    assert res["data_integrity"][0] == "ok" and "all 21 invariants hold" in res["data_integrity"][1]
+    assert res["data_integrity"][0] == "ok" and "all 23 invariants hold" in res["data_integrity"][1]
     conn.execute("DELETE FROM poll_log WHERE snapshot_ts = %s", (w.ts[5],))
     res, _ = integrity.run_due(plan(dsn, tmp_path, crosscheck_interval_s=0), state, now=1000.0 + 72 * 3600)
     level, text = res["data_integrity"]
-    assert level == "warn" and "snapshot rows without an ok poll_log row (1)" in text and "1 of 21" in text
+    assert level == "warn" and "snapshot rows without an ok poll_log row (1)" in text and "1 of 23" in text
     assert state["integrity"]["data_integrity"]["retry_at"] is not None  # rechecked in 6 h, not 3 days
 
 
