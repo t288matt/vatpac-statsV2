@@ -180,6 +180,9 @@ END
 $do$;
 
 -- 6. LAST statement: drop the old pieces table (takes ACCESS EXCLUSIVE on pilot_session for the rest of the transaction, i.e. the commit).
+-- Opus 5.5 recheck (13-10-2026): a poll write queued behind this lock finished in 3.5 s with the 5 s timeout above, right at the poll's own
+-- 5 s limit. A 2 s timeout here makes the migration fail (whole transaction rolled back, safe to retry) instead of making a poll wait.
+SET LOCAL lock_timeout = '2s';
 DROP TABLE flight_summary_old_p5;
 
 -- migrate:down
