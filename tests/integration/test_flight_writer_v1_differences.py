@@ -15,10 +15,10 @@ pytestmark = pytest.mark.integration
 
 def test_a_plan_changed_inside_one_connection_is_one_flight_under_the_final_plan(conn: Any) -> None:
     """v1 keys a flight summary on (callsign, cid, departure, arrival), so a pilot who amends the arrival halfway through one connection
-    gets TWO v1 summaries (one per plan; the E5 duplicates of the v1 comparison). v3 never splits inside a connection: the session holds
+    gets one v1 summary per plan (the key includes departure and arrival; seen live as the 'amended plan' duplicates in comparison B of 13-10-2026, docs/qa_89/README.md section 2f). v3 never splits inside a connection: the session holds
     the final plan, so there is ONE flight, with every position of the session, under the final plan."""
     ts = times(BASE, 90)                                                        # 90 minutes, one connection
-    sid = mk(conn, 950, ts, dep="YSSY", arr="YBBN", plan_changed_at=ts[45])      # filed YMML at the start, amended to YBBN halfway
+    sid = mk(conn, 950, ts, dep="YSSY", arr="YBBN", plan_changed_at=ts[45])      # narrative only: the schema keeps just the final plan, so the test sets it and plan_changed_at; imagine YMML first, amended to YBBN halfway
     snap(conn, ts[-1] + 8 * HOUR)
     assert write(conn) == 1
     (r,) = records(conn, 950)
