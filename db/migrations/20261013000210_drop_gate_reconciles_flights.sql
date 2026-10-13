@@ -24,7 +24,7 @@
 -- session over the day, one range semi-join against the flights that overlap the day (served by the start_time and end_time
 -- indexes), never a probe per position. It is SECURITY DEFINER, not granted to anyone (REVOKE FROM PUBLIC), like the other helpers.
 --
--- Unchanged: the signature, the return value (partitions dropped in this call), at most 10 partitions per call, the lock-friendly
+-- Unchanged: the signature, the return value (partitions dropped in this call), at most 3 candidates checked and ONE partition dropped per call (the collector loops, with a pause, so the parent table lock of one drop is released before the next day is read), the lock-friendly
 -- order of migration 20261009000170 (no parent lock while checking; LOCK ... NOWAIT per partition; DROP with a 1 s lock timeout; retries
 -- only before the first drop), the restore of lock_timeout, the permissions. No writer advisory lock is taken (design section 3,
 -- reviewer point 4): the gate is monotone, because an old partition receives no inserts, flown_upto only rises and written flights
@@ -112,18 +112,16 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $fn$
 DECLARE
-    max_per_call constant int := 10;
+    max_per_call constant int := 3;   -- candidates checked per call (a busy one must not starve the next); at most ONE is dropped
     old_lock_timeout text := current_setting('lock_timeout');
     cutoff       timestamptz;
     r            record;
     p_start      timestamptz;
     p_end        timestamptz;
     pinned       bigint[];
-    ids          bigint[];
     n_bad        bigint;
     bad_ids      bigint[];
     bad_reasons  text;
-    cand         jsonb := '{}'::jsonb;
     to_drop      text[] := ARRAY[]::text[];
     keep         text[] := ARRAY[]::text[];
     part         text;
@@ -136,6 +134,12 @@ BEGIN
         RAISE EXCEPTION 'retention_days must be >= 1';
     END IF;
     cutoff := COALESCE(p_today::timestamp AT TIME ZONE 'UTC', now()) - make_interval(hours => retention_days * 24);
+
+    -- A refusal row is cleared only when its day is dropped (below), no longer exists (dropped by hand) or is no longer due (the
+    -- retention was raised). Any other keep path leaves it, or writes it, so a day kept for ever stays visible to the watchdog.
+    DELETE FROM public.drop_gate_refusal d
+     WHERE to_regclass(format('public.%I', d.part_name)) IS NULL
+        OR to_date(right(d.part_name, 8), 'YYYYMMDD')::timestamp AT TIME ZONE 'UTC' + interval '24 hours' > cutoff;
 
     -- 1. pinning rule, then the reconciliation with the written flights (oldest first, at most max_per_call partitions).
     --    Plain reads only: no lock on pilot_position, no write.
@@ -162,6 +166,7 @@ BEGIN
                 RAISE NOTICE 'partition % is pinned beyond twice the retention by session id(s) %',
                     r.relname, pinned[1:5];
             END IF;
+            DELETE FROM public.drop_gate_refusal WHERE part_name = r.relname;      -- pinned is the rule working, not a refusal
             CONTINUE;
         END IF;
 
@@ -181,11 +186,7 @@ BEGIN
             CONTINUE;
         END IF;
 
-        DELETE FROM public.drop_gate_refusal WHERE part_name = r.relname;      -- reconciled: no refusal to report
-        ids := ARRAY(SELECT DISTINCT p.session_id FROM public.pilot_position p
-                      WHERE p.observed_at >= p_start AND p.observed_at < p_end);
         to_drop := to_drop || r.relname;
-        cand := cand || jsonb_build_object(r.relname, to_jsonb(ids));
     END LOOP;
 
     -- 2. re-check each candidate with no lock held: the world may have moved while later partitions were checked
@@ -195,6 +196,7 @@ BEGIN
         IF EXISTS (SELECT 1 FROM public.pilot_position p JOIN public.pilot_session s ON s.id = p.session_id
                     WHERE p.observed_at >= p_start AND p.observed_at < p_end AND s.last_seen >= cutoff) THEN
             RAISE NOTICE 'partition % kept: a session in it was seen again inside the retention window', part;
+            DELETE FROM public.drop_gate_refusal WHERE part_name = part;
             CONTINUE;
         END IF;
         SELECT count(*), (array_agg(u.session_id ORDER BY u.session_id))[1:5], string_agg(DISTINCT u.reason, '; ')
@@ -215,25 +217,19 @@ BEGIN
     IF cardinality(keep) > 0 THEN
         PERFORM set_config('lock_timeout', '1s', true);
         FOREACH part IN ARRAY keep LOOP
-            ids := ARRAY(SELECT jsonb_array_elements_text(cand -> part)::bigint);
             p_start := to_date(right(part, 8), 'YYYYMMDD')::timestamp AT TIME ZONE 'UTC';
             p_end   := p_start + interval '24 hours';
             done := false;
-            attempts := CASE WHEN n = 0 THEN 3 ELSE 1 END;         -- sleeping is only free while no parent lock is held
+            attempts := 3;                                         -- no parent lock is held yet (one drop per call), so sleeping between tries is free
             FOR attempt IN 1..attempts LOOP
                 BEGIN
                     EXECUTE format('LOCK TABLE public.%I IN ACCESS EXCLUSIVE MODE NOWAIT', part);
-                    -- cheap, by session id (one index lookup each, the partition is locked): item 1 of the gate for the
-                    -- last position of each session in this day, plus the pinning rule. Written flights are never removed
-                    -- and flown_upto only rises, so item 2 cannot turn from true to false and is not repeated here.
-                    IF (SELECT count(*) FROM public.pilot_session s WHERE s.id = ANY (ids)) <> cardinality(ids)
-                       OR EXISTS (SELECT 1 FROM public.pilot_session s
-                                   WHERE s.id = ANY (ids)
-                                     AND (s.last_seen >= cutoff
-                                          OR s.flown_upto IS NULL
-                                          OR s.flown_upto < (SELECT max(p.observed_at) FROM public.pilot_position p
-                                                              WHERE p.session_id = s.id
-                                                                AND p.observed_at >= p_start AND p.observed_at < p_end))) THEN
+                    -- With the partition locked nothing can be inserted into it any more. Rebuild everything from the partition itself (not
+                    -- from a list made before the lock: a session not on that list could have added a position since) and repeat the
+                    -- whole gate: pinning, processed, covered and counted.
+                    IF EXISTS (SELECT 1 FROM public.pilot_position p JOIN public.pilot_session s ON s.id = p.session_id
+                                WHERE p.observed_at >= p_start AND p.observed_at < p_end AND s.last_seen >= cutoff)
+                       OR EXISTS (SELECT 1 FROM public.unreconciled_partition_sessions(p_start, p_end)) THEN
                         RAISE EXCEPTION 'partition % changed since it was checked', part USING ERRCODE = 'VP001';
                     END IF;
                     EXECUTE format('DROP TABLE IF EXISTS public.%I', part);
@@ -247,9 +243,9 @@ BEGIN
                             PERFORM pg_sleep(0.5);
                         END IF;
                     WHEN SQLSTATE 'VP001' THEN
-                        RAISE NOTICE 'DROP REFUSED: partition % kept: a session in it was seen again or has positions after its processed marker', part;
+                        RAISE NOTICE 'DROP REFUSED: partition % kept: it changed after it was checked (a session seen again, or a position not covered by a written flight)', part;
                         INSERT INTO public.drop_gate_refusal (part_name, detail)
-                             VALUES (part, 'a session was seen again or has positions after its processed marker')
+                             VALUES (part, 'changed after it was checked (session seen again, or a position not covered)')
                         ON CONFLICT (part_name) DO UPDATE SET last_refused = now(), detail = EXCLUDED.detail;
                         done := true;
                         EXIT;
@@ -258,8 +254,13 @@ BEGIN
                         EXIT;
                 END;
             END LOOP;
+            EXIT WHEN n > 0;     -- ONE drop per call: the DROP leaves the parent table ACCESS EXCLUSIVE locked until the call ends, so no
+                                 -- further day is re-checked (a full day read) or locked behind it; the caller pauses and calls again
             IF NOT done THEN
-                RAISE NOTICE 'partition % kept: could not lock it (readers or writers busy); retried by the next run', part;
+                RAISE NOTICE 'DROP REFUSED: partition % kept: could not lock it (readers or writers busy); retried by the next run', part;
+                INSERT INTO public.drop_gate_refusal (part_name, detail)
+                     VALUES (part, 'could not lock it (readers or writers busy)')
+                ON CONFLICT (part_name) DO UPDATE SET last_refused = now(), detail = EXCLUDED.detail;
             END IF;
         END LOOP;
         PERFORM set_config('lock_timeout', old_lock_timeout, true);
@@ -269,7 +270,7 @@ END
 $fn$;
 REVOKE ALL ON FUNCTION drop_old_pilot_position_partitions(int, date) FROM PUBLIC;
 COMMENT ON FUNCTION drop_old_pilot_position_partitions(int, date) IS
-    'Drops daily pilot_position partitions older than the retention, only when every position in them is processed by the flight writer and covered by a written flight (issue 89 phase 4, unreconciled_partition_sessions). Fails safe: any doubt keeps the partition with a NOTICE starting DROP REFUSED. Pinning rule unchanged. At most 10 per call; returns the number dropped.';
+    'Drops daily pilot_position partitions older than the retention, only when every position in them is processed by the flight writer and covered by a written flight (issue 89 phase 4, unreconciled_partition_sessions). Fails safe: any doubt keeps the partition with a NOTICE starting DROP REFUSED. Pinning rule unchanged. At most one drop per call (the collector repeats the call); returns the number dropped (0 or 1).';
 
 -- migrate:down
 -- Forward-only project: no automatic rollback (the previous definition is in migration 20261009000170).

@@ -1,6 +1,6 @@
 """Issue #89 phase 4 (#140): the raw-position drop gate reconciles against WRITTEN flights.
 
-Design: docs/DESIGN_89_FINAL.md section 3; migration db/migrations/20261012000210_drop_gate_reconciles_flights.sql; the
+Design: docs/DESIGN_89_FINAL.md section 3; migration db/migrations/20261013000210_drop_gate_reconciles_flights.sql; the
 requirement-to-test table is docs/CONFORMANCE_89_PHASE4.md. A daily partition of pilot_position may be dropped only when, for
 every session with positions in it, (1) the flight writer has processed them (flown_upto), (2) a written flight covers them if
 the session has a flight plan, and (3) each flight wholly inside the day has the right sample_count. Anything else keeps the
@@ -19,7 +19,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from drop_gate_helpers import process_flights, unreconciled
+from drop_gate_helpers import drain, process_flights, unreconciled
 from helpers import REPO, partition_for
 
 pytestmark = pytest.mark.integration
@@ -264,14 +264,14 @@ def test_the_old_finalisation_is_gone_and_the_gate_decides_alone(conn) -> None:
     assert conn.execute("SELECT count(*) AS n FROM information_schema.columns WHERE table_name = 'flight_summary' "
                         "AND column_name IN ('final', 'gap_segment', 'span_part')").fetchone()["n"] == 0
     mk(conn, 9840030, mins(day(200), 10))
-    assert call(conn) == 0 and exists(conn, 200)                                          # unprocessed: kept
+    assert drain(conn) == 0 and exists(conn, 200)                                          # unprocessed: kept
     process_flights(conn)
-    assert call(conn) == 1 and not exists(conn, 200)
+    assert drain(conn) == 1 and not exists(conn, 200)
 
 
 def test_the_function_no_longer_mentions_the_old_finalisation(conn) -> None:
     body = conn.execute("SELECT pg_get_functiondef('drop_old_pilot_position_partitions(int,date)'::regprocedure) AS d").fetchone()["d"]
-    for word in ("refresh_flight_summary", "flight_part", "flight_legacy", "flight_summary", "final"):
+    for word in ("refresh_flight_summary", "flight_part", "flight_legacy", "flight_record", "final"):
         assert word not in body, word
     assert "unreconciled_partition_sessions" in body
 
@@ -305,7 +305,7 @@ def test_one_bad_partition_does_not_stop_the_good_ones(conn) -> None:
     mk(conn, 9840044, mins(day(199), 10))
     process_flights(conn)
     conn.execute("DELETE FROM flight_summary WHERE session_id = %s", (bad,))
-    assert call(conn) == 2
+    assert drain(conn) == 2
     assert not exists(conn, 201) and exists(conn, 200) and not exists(conn, 199)
 
 
@@ -417,9 +417,9 @@ def test_the_rehearsal_script_predicts_exactly_what_the_function_drops(conn, dsn
 
 @pytest.mark.skipif(PSQL is None, reason="psql not installed (CI has it)")
 def test_the_rehearsal_script_refuses_a_database_not_named_for_testing(dsn) -> None:
-    other = dsn.rsplit("/", 1)[0] + "/postgres"
-    if "?" in dsn:
-        other += "?" + dsn.split("?", 1)[1]
+    from urllib.parse import urlsplit, urlunsplit
+    parts = urlsplit(dsn)                       # the query (time zone options) can itself contain a slash: split properly
+    other = urlunsplit((parts.scheme, parts.netloc, "/postgres", parts.query, ""))
     r = psql(other, "-v", "retention=90", "-v", f"today={TODAY}", "-f", str(REPO / "ops" / "rehearse_drop_gate.sql"))
     assert "REHEARSAL REFUSED" in r.stdout + r.stderr
     assert "REHEARSAL RESULT" not in r.stdout
@@ -467,7 +467,7 @@ def test_a_late_position_inside_a_midnight_spanning_flight_keeps_both_days(conn)
     assert call(conn) == 0 and exists(conn, 200) and exists(conn, 199)
     assert refused(seen, 200) and refused(seen, 199)
     conn.execute("UPDATE flight_summary SET sample_count = sample_count + 1")        # the count now agrees
-    assert call(conn) == 2
+    assert drain(conn) == 2
 
 
 def test_a_refusal_is_recorded_for_the_watchdog_and_cleared_when_the_day_reconciles_or_goes(conn) -> None:
@@ -495,3 +495,52 @@ def test_the_refusal_table_is_readable_by_the_watchdog_role_only_for_reading(con
             conn.execute("DELETE FROM drop_gate_refusal")
     finally:
         conn.execute("RESET ROLE")
+
+
+# ------------------------------------------------------------------ second review fixes (13-10-2026)
+def refusal_rows(conn) -> dict[str, str]:
+    return {r["part_name"]: r["detail"] for r in conn.execute("SELECT part_name, detail FROM drop_gate_refusal").fetchall()}
+
+
+def test_a_day_that_cannot_be_locked_is_refused_on_the_record_and_cleared_when_it_goes(conn, dsn) -> None:
+    import psycopg
+    mk(conn, 9880010, mins(day(200), 10))
+    process_flights(conn)
+    reader = psycopg.connect(dsn, autocommit=False)
+    reader.execute(f"SELECT count(*) FROM {pname(200)}")
+    seen = notices(conn)
+    try:
+        assert call(conn) == 0
+    finally:
+        reader.rollback()
+        reader.close()
+    assert refused(seen, 200) and "could not lock" in refused(seen, 200)[0]
+    assert "could not lock" in refusal_rows(conn)[pname(200)]
+    assert call(conn) == 1 and refusal_rows(conn) == {}
+
+
+def test_refusal_rows_stay_until_the_day_is_dropped_or_gone_or_not_due(conn) -> None:
+    mk(conn, 9880011, mins(day(200), 10))                          # refused (not processed)
+    sid = mk(conn, 9880012, mins(day(199), 10))
+    process_flights(conn)
+    conn.execute("UPDATE pilot_session SET last_seen = %s WHERE id = %s", (day(5), sid))   # day 199 pinned
+    conn.execute("DELETE FROM flight_summary WHERE session_ids <> ARRAY[0::bigint] AND start_time < %s", (day(199, 23),))
+    for part in (pname(200), pname(199), "pilot_position_20200101", pname(3)):
+        conn.execute("INSERT INTO drop_gate_refusal (part_name, first_refused, last_refused, detail) VALUES (%s, now() - interval '9 days', now(), 'old')", (part,))
+    call(conn)
+    rows = refusal_rows(conn)
+    assert pname(200) in rows and rows[pname(200)] != "old"        # refreshed, still there (flight deleted: kept)
+    assert pname(199) not in rows                                    # pinned is the rule working, not a refusal
+    assert "pilot_position_20200101" not in rows                     # partition no longer exists
+    assert pname(3) not in rows                                      # not due
+
+
+def test_three_due_reconciled_days_are_dropped_one_per_call(conn) -> None:
+    """After a DROP the parent table stays locked to the end of the call, so a call drops exactly one day; the next call, the next."""
+    for k, off in enumerate((202, 201, 200)):
+        mk(conn, 9890000 + k, mins(day(off), 10))
+    process_flights(conn)
+    assert call(conn) == 1 and not exists(conn, 202) and exists(conn, 201) and exists(conn, 200)
+    assert call(conn) == 1 and not exists(conn, 201) and exists(conn, 200)
+    assert call(conn) == 1 and not exists(conn, 200)
+    assert call(conn) == 0
