@@ -4,7 +4,7 @@
 --   as_role: run the drop calls as that role (the collector's), which needs GRANT EXECUTE on the drop function in the scratch copy (the runbook gives the line).
 -- What it does, in this order:
 --   A. predicts, for every daily partition, whether the gate should drop it (due, not pinned, nothing unreconciled) and says why not;
---   B. runs the drop function the way the collector does (10 partitions per call, one call more than needed, each its own transaction). THIS DROPS PARTITIONS OF THE COPY;
+--   B. runs the drop function the way the collector does (ONE partition per call, one call more than needed, each its own transaction). THIS DROPS PARTITIONS OF THE COPY;
 --   C. checks the outcome against the prediction: exactly the predicted partitions are gone, no written flight changed, and the
 --      positions left are exactly the positions before minus those of the dropped partitions. Last line: REHEARSAL RESULT: OK or FAIL.
 -- It refuses to run unless the database name ends in _test, so it cannot be pointed at the live database by mistake.
@@ -49,9 +49,9 @@ UPDATE gate_plan g SET unreconciled = (SELECT count(*) FROM unreconciled_partiti
 -- counts as uncovered when its session was not processed up to it, or the session has a flight plan and no written flight of that
 -- session has the position inside its time range. The gate must agree: if it says "reconciled" while this count is not 0, that is a FAIL.
 UPDATE gate_plan g SET independent_uncovered = (
-    SELECT count(*) FROM pilot_position p JOIN pilot_session s ON s.id = p.session_id
+    SELECT count(*) FROM pilot_position p LEFT JOIN pilot_session s ON s.id = p.session_id
      WHERE p.observed_at >= g.p_start AND p.observed_at < g.p_end
-       AND (s.flown_upto IS NULL OR p.observed_at > s.flown_upto
+       AND (s.id IS NULL OR s.flown_upto IS NULL OR p.observed_at > s.flown_upto
             OR (NULLIF(upper(btrim(s.departure, E' \t\r\n')), '') IS NOT NULL AND NULLIF(upper(btrim(s.arrival, E' \t\r\n')), '') IS NOT NULL
                 AND NOT EXISTS (SELECT 1 FROM flight_summary f
                                  WHERE p.session_id = ANY (f.session_ids) AND p.observed_at BETWEEN f.start_time AND f.end_time))))
@@ -79,7 +79,7 @@ SELECT (SELECT count(*) FROM flight_summary) AS flights,
 \echo '== B. the drop loop, as the collector runs it (each call its own transaction; THIS DROPS PARTITIONS OF THE COPY) =='
 CREATE TEMP TABLE gate_calls (dropped int);
 GRANT ALL ON gate_calls TO PUBLIC;
-SELECT least(60, ceil(count(*) FILTER (WHERE expect_drop) / 10.0)::int + 1) AS n_calls FROM gate_plan \gset
+SELECT least(700, count(*) FILTER (WHERE expect_drop)::int + 1) AS n_calls FROM gate_plan \gset
 \if :{?as_role}
   \echo 'running the drop calls as role' :as_role '(as the collector does)'
   SET ROLE :"as_role";

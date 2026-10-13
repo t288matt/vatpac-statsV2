@@ -5,6 +5,7 @@ run_maintenance runs daily (and at startup); refresh_flights alone runs every FL
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from typing import Any
@@ -20,7 +21,8 @@ POLL_LOG_RETENTION_DAYS = 400
 PARTITIONS_AHEAD = 7
 FLIGHT_REFRESH_INTERVAL_S = 300.0  # main.py: how often to call refresh_flights
 FLIGHT_WRITE_BATCH = 50  # pilots per call: small, so the 20 s statement_timeout is never close
-MAX_DROP_CALLS = 60  # safety bound for the drop loop (10 partitions per call, so 600 partitions)
+MAX_DROP_CALLS = 600  # safety bound for the drop loop (one partition per call, so 600 partitions)
+DROP_PAUSE_S = 0.5  # between two drops: the parent table lock of the first is released and polls can write
 
 
 def sync_settings(conn: psycopg.Connection[Any], settings: Settings) -> None:
@@ -64,11 +66,12 @@ def drop_old_partitions(conn: psycopg.Connection[Any], today: date, retention_da
     conn.add_notice_handler(on_notice)
     try:
         total = 0
-        for _ in range(MAX_DROP_CALLS):  # SQL drops at most 10 per call: short transactions
+        for _ in range(MAX_DROP_CALLS):  # SQL drops at most ONE per call: a short transaction, a pause, the next day
             dropped = _scalar(conn, "SELECT drop_old_pilot_position_partitions(%s, %s)", (retention_days, today))
             total += dropped
             if dropped == 0:
                 break
+            time.sleep(DROP_PAUSE_S)
         return total
     finally:
         conn.remove_notice_handler(on_notice)
