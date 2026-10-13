@@ -44,7 +44,7 @@ sh ops/check_env.sh    # rejects blank, change-me*, shorter than 16 characters, 
 - `GRAFANA_BIND` (default `127.0.0.1`, this machine only) and `GRAFANA_PORT` (3300). For access from your LAN set `GRAFANA_BIND` to the machine's LAN address; then firewall it (section 8).
 - `GRAFANA_ROOT_URL` (default `http://localhost:3300/`) and `GRAFANA_COOKIE_SECURE` (`false`; `true` only when users reach Grafana over https).
 - `GRAFANA_ADMIN_USER` (default `admin`), `POSTGRES_DB` and `POSTGRES_USER` (default `vatpac`).
-- `HOME_ICAO_PREFIXES` (default `Y`, the Australian airport prefix), `POSITION_RETENTION_DAYS` (code default 90; production runs 180 since 13-10-2026, issue 142, because raw positions are needed until flights are written and the drop gate keeps any day it cannot reconcile; ADR-026, ADR-030), `BACKUP_RETENTION_DAYS` (14), `BACKUP_TIME_UTC` (02:00).
+- `HOME_ICAO_PREFIXES` (default `Y`, the Australian airport prefix), `POSITION_RETENTION_DAYS` (code default 90; production runs 180 since 13-10-2026, issue 142, to give a six-month window in which a rule mistake can be spotted and airborne time recalculated, and time to build and rehearse the new drop gate without a deadline (the drop gate also keeps any day it cannot reconcile); ADR-026, ADR-030), `BACKUP_RETENTION_DAYS` (14), `BACKUP_TIME_UTC` (02:00).
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: leave blank unless you want alerts (section 7).
 
 Everything else has a working default. The full list with meanings is [CONFIG_MAP.md](CONFIG_MAP.md).
