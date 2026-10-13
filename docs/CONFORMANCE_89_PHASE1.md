@@ -117,7 +117,7 @@ Decisions taken from the coordinator: cadence 30 s and cap 75 s (tests that depe
 
 v1 joins a new connection when its `logon_time` is within 120 minutes of the previous last point. The writer decides at write time, and a flight is written once the pilot has been quiet for 8 hours of stored data. Failing input: session A (YSSY to YMML) is last seen 10:00; session B of the same pilot, callsign and route logs on at 11:00 (within 120 minutes, v1 joins) but is first stored at 19:00 (for example the pilot flew outside the kept area first). At 18:00 the pilot has been quiet for 8 hours, so A is written; B then arrives as a new flight. v1 would have joined them. Rare, accepted, logic unchanged.
 
-## Deliberate deviation from design 1.3: quiet per FLIGHT, not per pilot (owner decision 12-10-2026; migration 20261012000200, NOT YET LIVE)
+## Deliberate deviation from design 1.3: quiet per FLIGHT, not per pilot (owner decision 12-10-2026; migration 20261012000200, LIVE since 13-10-2026 08:01:09 UTC, marker 3d4b5b6)
 
 **What the design said.** `DESIGN_89_FINAL.md` section 1.3: a pilot's unwritten flights are written once that pilot has had no session seen for 8 hours, one test for all of a pilot's flights ("why per pilot": joins never cross pilots and a pilot has one connection at a time).
 
