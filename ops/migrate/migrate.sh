@@ -36,7 +36,7 @@ GRANT USAGE ON SCHEMA public TO watchdog_ro;
 GRANT pg_monitor TO watchdog_ro;
 SELECT format('GRANT SELECT ON %I TO watchdog_ro', t)
   FROM unnest(ARRAY['poll_log', 'network_snapshot', 'controller_unlisted_sighting', 'pilot_session', 'controller_session',
-                'pilot_position', 'flight_summary', 'flight_record', 'reference_data_change']) AS t
+                'pilot_position', 'flight_summary', 'flight_record', 'drop_gate_refusal', 'reference_data_change']) AS t
  WHERE to_regclass('public.' || t) IS NOT NULL \gexec
 COMMIT;
 SQL

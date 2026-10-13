@@ -44,6 +44,7 @@ INVARIANT_WORDS: dict[str, str] = {
     "flights written in the last 3 days whose sample_count differs from the stored positions of their sessions": "a finished flight counts a different number of positions from those stored for it",
     "sessions ended more than 2 days ago with unprocessed positions": "some flights that ended over two days ago are not yet in the finished-flights table",
     "processed flight-plan sessions in no written flight (ended 2 to 30 days ago)": "some flights that ended days ago are marked done but are missing from the finished-flights table",
+    "raw-position days kept by the deletion check for more than 3 days": "old position data is being kept because the safety check before deleting it keeps refusing",
     "daily partitions missing for today..today+3": "the storage tables for today or the next three days have not been created",
     "reference file hashes in poll_log differ from reference_data_change": "the airspace or callsign list used for polling does not match the recorded change history",
 }
@@ -78,6 +79,7 @@ INVARIANT_ACTIONS: dict[str, str] = {
     "flights written in the last 3 days whose sample_count differs from the stored positions of their sessions": _WRITER,
     "sessions ended more than 2 days ago with unprocessed positions": _WRITER,
     "processed flight-plan sessions in no written flight (ended 2 to 30 days ago)": _GATE,
+    "raw-position days kept by the deletion check for more than 3 days": _GATE,
     "daily partitions missing for today..today+3": ("Writes will start to fail if today's table is missing. Check the collector and maintenance log today "
                                                     "(docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM)."),
     "reference file hashes in poll_log differ from reference_data_change": "An engineer should look (docs/RUNBOOKS/update-reference-files.md on the VM).",

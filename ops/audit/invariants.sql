@@ -154,6 +154,11 @@ WHERE s.flown_upto >= s.last_seen
   AND s.id NOT IN (SELECT unnest(f.session_ids) FROM flight_record f
                     WHERE f.end_time >= (SELECT max(observed_at) FROM network_snapshot) - interval '45 days')
 UNION ALL
+-- Issue 89 phase 4: a day of raw positions that the drop gate has refused for more than 3 days (the table is written by
+-- drop_old_pilot_position_partitions and emptied when the day reconciles or is dropped). Covers a refusal at any age, e.g. at day 90 to 180.
+SELECT 'raw-position days kept by the deletion check for more than 3 days', count(*), min(part_name)
+FROM drop_gate_refusal WHERE first_refused < now() - interval '3 days'
+UNION ALL
 SELECT 'daily partitions missing for today..today+3', count(*), NULL FROM generate_series(0, 3) g(d)
 WHERE to_regclass(format('public.pilot_position_%s', to_char((now() AT TIME ZONE 'UTC')::date + g.d, 'YYYYMMDD'))) IS NULL
 UNION ALL

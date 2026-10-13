@@ -4,7 +4,7 @@ Checked against the migrations up to 20261012000210 on 12-10-2026 (the live data
 
 *Describes main; behaviour added by changes not yet deployed is listed in CHANGELOG.md.*
 
-Objects at the time of checking (live counts as of 11-10-2026, plus the additions of migrations 20261012000190 and 20261012000210): 19 base tables (18 ordinary plus the partitioned `pilot_position`, which has 11 daily partitions on the live database), 23 views, 10 functions, 4 declared foreign keys, no materialised views, no triggers.
+Objects at the time of checking (live counts as of 11-10-2026, plus the additions of migrations 20261012000190 and 20261012000210): 20 base tables (19 ordinary plus the partitioned `pilot_position`, which has 11 daily partitions on the live database), 23 views, 10 functions, 4 declared foreign keys, no materialised views, no triggers.
 
 ## 0. Orientation
 
@@ -181,6 +181,15 @@ Per-flight aggregates computed from `pilot_position` (migration 20, ADR-016). On
 | `max_gs_kt`, `max_alt_ft` | integer | yes | Maxima for this part. |
 | `final` | boolean | no | Default false. True when the session is dead and fully summarised, so its raw partitions may be dropped. |
 | `computed_at` | timestamptz | no | Default `now()`; when the row was last recomputed. |
+
+### drop_gate_refusal
+Added by migration 20261012000210 (issue 89 phase 4, NOT YET DEPLOYED). One row per day of `pilot_position` that `drop_old_pilot_position_partitions()` kept because it is not reconciled with the written flights; removed when the day reconciles or is dropped. Written only by that function; the watchdog role reads it (integrity check `raw-position days kept by the deletion check for more than 3 days`).
+
+| Column | Type | Null | Meaning |
+|---|---|---|---|
+| `part_name` | text | no | Primary key, `pilot_position_YYYYMMDD`. |
+| `first_refused`, `last_refused` | timestamptz | no | First and latest refusal. |
+| `detail` | text | no | Count and reasons of the latest refusal. |
 
 ### flight_record
 Added by migration 20261012000190 (issue 89 phase 1, design `docs/DESIGN_89_FINAL.md`). One row per **finished flight**, written once by `write_finished_flights()` and never changed. Nothing reads it yet: the `flight` view is switched to it in phase 3, and the table is renamed `flight_summary` in phase 5. A flight is one session, or several sessions of the same `cid`, `callsign`, `departure` and `arrival` joined across reconnects by v1's rule (a new connection joins when its `logon_time` is no more than 120 minutes after the latest last position of the earlier sessions; no 8-hour parts and no cut inside a connection). Written when **the flight itself** has had no position for `flight_quiet_hours` (default 8) of stored data (owner decision 12-10-2026, migration 20261012000200, not yet deployed; the deployed version of 20261012000190 waits for the whole pilot to be quiet; see [DEFINITIONS.md](DEFINITIONS.md) section 1b). Plan and name fields are frozen at write time. Primary key `(session_id, start_time)`; indexes on `cid`, `start_time`, `end_time`, `logon_time`; CHECK `end_time >= start_time`; no foreign key. Not readable by `grafana_ro` or `collector`; readable by `backup_ro` and `watchdog_ro`.

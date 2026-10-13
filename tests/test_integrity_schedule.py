@@ -43,7 +43,7 @@ def test_every_select_of_the_pack_is_recognised_as_an_invariant() -> None:
 
 
 def test_the_pack_has_the_known_invariants() -> None:
-    assert len(NAMES) == 22
+    assert len(NAMES) == 23
     assert "identity duplicates (cid, callsign, logon_time)" in NAMES
 
 
@@ -66,13 +66,13 @@ def rows(**over: int) -> list[tuple[str, int, str | None]]:
 def test_all_zero_is_ok() -> None:
     findings, problems = integrity.evaluate(rows(), NAMES)
     assert findings == [] and problems == []
-    assert integrity.summarise_invariants(findings, problems, len(NAMES)) == (integrity.OK, "all 22 invariants hold")
+    assert integrity.summarise_invariants(findings, problems, len(NAMES)) == (integrity.OK, "all 23 invariants hold")
 
 
 def test_one_violation_is_a_warning_naming_it() -> None:
     findings, problems = integrity.evaluate(rows(**{NAMES[9]: 3}), NAMES)
     level, text = integrity.summarise_invariants(findings, problems, len(NAMES))
-    assert level == integrity.WARN and NAMES[9] in text and "(3)" in text and "1 of 22" in text
+    assert level == integrity.WARN and NAMES[9] in text and "(3)" in text and "1 of 23" in text
 
 
 def test_a_missing_invariant_is_a_failure_not_a_pass() -> None:
@@ -96,7 +96,7 @@ def test_an_empty_pack_is_a_failure() -> None:
 def test_long_lists_are_cut_and_still_short_enough_for_telegram() -> None:
     findings, problems = integrity.evaluate([(n, 9999, "x" * 500) for n in NAMES], NAMES)
     level, text = integrity.summarise_invariants(findings, problems, len(NAMES))
-    assert level == integrity.WARN and "and 16 more" in text and len(text) < 1200
+    assert level == integrity.WARN and "and 17 more" in text and len(text) < 1200
     assert "x" * 50 not in text  # details go to the log, not the message
 
 

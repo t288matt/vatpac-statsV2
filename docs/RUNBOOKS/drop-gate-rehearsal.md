@@ -81,19 +81,25 @@ docker compose exec -T db sh -c 'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USE
 
 No output means it worked. This changes the scratch database only.
 
+Then let the collector's role call the function, as it does in production (the restore used `--no-acl`, so the grant is missing in the copy; the role itself already exists in the cluster):
+
+```sh
+docker compose exec -T db sh -c 'psql -X -q -U "$POSTGRES_USER" -d vatpac_gate_test -c "GRANT EXECUTE ON FUNCTION drop_old_pilot_position_partitions(int, date) TO collector"'
+```
+
 ### 4.4 Run 1: the untouched copy
 
 Choose the test date. The live database holds only a few days, so the real retention would make nothing due. The rehearsal uses a tiny retention and a date a few days after the newest data: take the date of the dump (`<d>`, as `YYYY-MM-DD`) plus 2 days, and a retention of 2.
 
 ```sh
-docker compose exec -T db sh -c 'psql -X -v ON_ERROR_STOP=1 -v retention=2 -v today=<YYYY-MM-DD> -U "$POSTGRES_USER" -d vatpac_gate_test -f -' < /tmp/rehearse_drop_gate.sql
+docker compose exec -T db sh -c 'psql -X -v ON_ERROR_STOP=1 -v retention=2 -v today=<YYYY-MM-DD> -v as_role=collector -U "$POSTGRES_USER" -d vatpac_gate_test -f -' < /tmp/rehearse_drop_gate.sql
 ```
 
 Read the output top to bottom:
 
 - Part A prints one summary row (`partitions`, `due`, `pinned`, `refused_by_gate`, `expected_to_drop`, `positions_expected_gone`) and then, if any, the days that are due but that the gate will keep, with the reason and an example session.
 - Part B prints the `DROP REFUSED` and `pinned beyond twice the retention` notices as they happen and then `calls`, `partitions_dropped`.
-- Part C prints five numbers that must all be 0 and the last line.
+- Part C prints six numbers that must all be 0 and the last line. The sixth, `gate_too_lax`, comes from an independent per-position count in part A (written differently from the gate: no aggregate, no range join); it is not 0 if the gate would have called a day reconciled while that count finds a position that is unprocessed or in no written flight of its session.
 
 **Success:** the last line is `REHEARSAL RESULT: OK`, and `partitions_dropped` equals `expected_to_drop`, and `expected_to_drop` is greater than 0. If `expected_to_drop` is 0 the run proves nothing: repeat from 4.2 with a later date. **Failure:** `REHEARSAL RESULT: FAIL`, or `refused_by_gate` is greater than 0 on a copy where every pilot has long since left. That is a finding: stop, keep the output, do not deploy, report it on issue #140.
 
@@ -134,6 +140,8 @@ Paste the three summary blocks (part A summary, `partitions_dropped`, the part C
    - `session row missing`: a position without a session row. Should be impossible (foreign key). Raise it.
 3. To see the full list for a day: `SELECT * FROM unreconciled_partition_sessions('<day> 00:00+00', '<day+1> 00:00+00')` as the owner role.
 4. A day that stays refused costs only disk. If many days are refused and cannot be cleared quickly, raise `POSITION_RETENTION_DAYS` to 365 (design section 6; the lever and its steps are there).
+
+The table `drop_gate_refusal` (one row per refused day, with `first_refused`) feeds the integrity check `raw-position days kept by the deletion check for more than 3 days`, which works at any age of the day. Look at it with `SELECT * FROM drop_gate_refusal`.
 
 ## 6. What was and was not tested (12-10-2026)
 
