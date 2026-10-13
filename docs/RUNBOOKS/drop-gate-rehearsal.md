@@ -51,14 +51,18 @@ The aim: prove, on a copy of the real data, that the gate drops exactly the days
 
 All commands run from `~/vatpac-statsV2` on the VM. No password is typed and no `.env` value is printed: the `sh -c` arguments are in single quotes, so the container's own `$POSTGRES_USER` is used.
 
-### 4.1 Fetch the migration and the script without changing the checked-out code
+### 4.1 Put the migration and the script on the VM without changing the deployed code
+
+The VM's `~/vatpac-statsV2` is not a git checkout and has no GitHub access, so the two files are sent from the PC. In Git Bash on the PC, in the repository root (use the branch or commit being rehearsed; after phase 4 is on main replace `origin/p4-drop-gate` with `origin/main`):
 
 ```sh
 git fetch origin
-git show origin/p4-drop-gate:db/migrations/20261013000210_drop_gate_reconciles_flights.sql | sed '/^-- migrate:down/,$d' > /tmp/gate_up.sql
-git show origin/p4-drop-gate:ops/rehearse_drop_gate.sql > /tmp/rehearse_drop_gate.sql
-wc -l /tmp/gate_up.sql /tmp/rehearse_drop_gate.sql        # about 250 and 90 lines
+git show origin/p4-drop-gate:db/migrations/20261013000210_drop_gate_reconciles_flights.sql | sed '/^-- migrate:down/,$d' | ssh vatpac-v3 'cat > /tmp/gate_up.sql'
+git show origin/p4-drop-gate:ops/rehearse_drop_gate.sql | ssh vatpac-v3 'cat > /tmp/rehearse_drop_gate.sql'
+ssh vatpac-v3 'wc -l /tmp/gate_up.sql /tmp/rehearse_drop_gate.sql'        # about 250 and 90 lines
 ```
+
+Everything from 4.2 on runs on the VM, in `~/vatpac-statsV2` (`ssh vatpac-v3`, then `cd ~/vatpac-statsV2`). Before you start: `uptime` must show a 1-minute load below 2.0, it must not be between 01:50 and 02:30 UTC (backup), and no other scratch database may exist (`docker compose exec -T db sh -c 'psql -X -U "$POSTGRES_USER" -d postgres -c "\l"'`).
 
 ### 4.2 Restore the newest dump into the scratch database
 
