@@ -4,7 +4,7 @@
 
 Written 10-10-2026 from the code review (issue #80). Status: measured, designed, NOT changed. Recommendation at the end.
 
-> **Note, 12-10-2026 (issue 89 phase 3, migration 20261013000200, not yet deployed):** this page describes the old merging view. After that migration the merging view is `flight_legacy` (kept until phase 5 for comparison) and `flight` is a thin view over `flight_record`, which `write_finished_flights()` fills once per finished flight; nothing here is merged at read time any more. See `docs/DESIGN_89_FINAL.md`.
+> **Note, 13-10-2026 (issue 89 phase 3, migration 20261013000200, live since 13-10-2026 08:14:12 UTC):** this page describes the old merging view. Since that migration the merging view is `flight_legacy` (kept until phase 5 for comparison) and `flight` is a thin view over `flight_record`, which `write_finished_flights()` fills once per finished flight; nothing here is merged at read time any more. See `docs/DESIGN_89_FINAL.md`.
 
 ## The problem
 

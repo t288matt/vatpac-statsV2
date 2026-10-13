@@ -46,7 +46,7 @@ Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-
 | Requirement | Test |
 |---|---|
 | A refusal writes a clear `DROP REFUSED` line naming partition, reason and session ids | G tests above that read `notices` (`refused(...)`) |
-| Watchdog alert from the data: new integrity check fires on a processed plan-session in no written flight, clears when a flight lists it, ignores no-plan sessions; pack has 22 checks, all with plain wording and an action | I `test_each_invariant_fires_on_broken_data` (new case), I `test_a_processed_session_that_is_in_a_written_flight_does_not_fire_the_gate_invariant`, I `test_the_cases_cover_exactly_the_invariants_in_the_pack`, `tests/test_humane_messages.py`, `tests/test_integrity_schedule.py` |
+| Watchdog alert from the data: new integrity check fires on a processed plan-session in no written flight, clears when a flight lists it, ignores no-plan sessions; pack has 23 checks on main (21 on the live database until phase 4 is deployed), all with plain wording and an action | I `test_each_invariant_fires_on_broken_data` (new case), I `test_a_processed_session_that_is_in_a_written_flight_does_not_fire_the_gate_invariant`, I `test_the_cases_cover_exactly_the_invariants_in_the_pack`, `tests/test_humane_messages.py`, `tests/test_integrity_schedule.py` |
 
 ## Rehearsal (design 7.2, 7.5)
 
