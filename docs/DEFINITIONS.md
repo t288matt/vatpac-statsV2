@@ -16,6 +16,28 @@ A session becomes one or more **flights**, computed into the table `flight_summa
 
 **Difference from v1.** v1 keyed sessions on departure and arrival as well, which produced duplicates when a plan was amended (ADR-006); since ADR-023 v3 merges reconnects with the same airports as v1 does, but still keeps a changed plan as a separate flight without v1's duplicate rows. v1 closed a flight after `FLIGHT_COMPLETION_HOURS` of 8 hours from first logon (v1 compose); v3 splits by gap and span in the view and closes nothing in the collector.
 
+## 1b. A finished flight, and when it is written (issue 89; NOT YET LIVE except where stated)
+
+**Status (12-10-2026).** Phase 1 of issue #89 is deployed: the table `flight_record` and the writer `write_finished_flights()` run beside the old `flight_summary` pieces, and NO chart reads `flight_record` yet (that is phase 3). The rule below ("quiet per flight", owner decision 12-10-2026) is migration 20261012000200 and is **not yet deployed**; what runs on the VM today is the earlier "quiet per pilot" version of migration 20261012000190, which is described in section 1b.4.
+
+**1b.1 What a flight is.** One connection (a session), or several connections of the same pilot joined together by v1's rule: same CID, same callsign, same departure, same arrival, and the new connection **logged on** no more than 120 minutes after the latest earlier position of that flight. A reconnect that happens within two hours is therefore the same flight; a connection that logs on later than that, or with another callsign or another departure or arrival (an amended plan), is a different flight. A connection is never cut: a long session, or a long silence inside one, is still one flight. A session with no departure or no arrival makes no flight.
+
+**1b.2 When a flight is written.** A flight is written into `flight_record`, once, and never changed afterwards, as soon as **the flight itself has had no position for 8 hours** (`app_setting.flight_quiet_hours`). The 8 hours are counted on stored data: the clock is the time of the newest stored snapshot (never the wall clock, never later than now plus 5 minutes), so a stopped collector or a frozen feed cannot make a flight that is still flying look finished. Why 8 hours: any wait longer than 120 minutes guarantees that no later reconnect can still join the flight; 8 hours is the owner's choice and matches v1.
+
+**1b.3 What "per flight" means, with a worked example.** A pilot flies YSSY to YMML from 08:00 to 10:00, disconnects, and flies YMML to YSSY from 17:00 to 19:00.
+- At 12:00 nothing is written: the first flight has been quiet for only 2 hours.
+- At 18:30 the first flight has been quiet for 8.5 hours, so it **is written**, even though the pilot is flying right now. The second flight is still in progress and is left alone (nothing is marked, nothing is written).
+- At 03:00 the next day the second flight has been quiet for 8 hours and is written.
+Under the earlier "quiet per pilot" rule nothing would have appeared until 03:00, and a pilot who flew two days ago and is online again today would have kept the two-day-old flight hidden. The live deploy showed this: 141 pilots who were online again within 8 hours were holding back all their older flights.
+Two cases the rule decides on purpose:
+- *Reconnect that continues the flight.* The first connection ends at 10:00 and the pilot logs on again at 11:30 with the same callsign and airports (within 120 minutes). That is one flight, and it is quiet only 8 hours after the **second** connection ends. Nothing is written for the first connection on its own.
+- *Reconnect that does not continue it.* The pilot logs on again at 12:01 (121 minutes later) or with another arrival. That is a different flight, so the first flight is written 8 hours after 10:00 and is not held up.
+A session that forms no flight (no flight plan, or no positions) is marked as processed once that session is itself quiet for 8 hours; it never holds anything up.
+
+**1b.4 What the VM runs today (before migration 20261012000200).** The quiet test looks at the whole pilot: nothing of a pilot is written until the pilot's newest session is 8 hours old. Same flights, same numbers, only later. After the new migration is deployed the backfill (`ops/backfill_flight_record.sh`) catches up the held-back flights.
+
+**1b.5 How it can be checked.** `docs/CONFORMANCE_89_PHASE1.md` lists each requirement against the test that proves it; the tests for this rule are in `tests/integration/test_flight_quiet_per_flight.py`. Two watchdog checks report flights that are overdue (`docs/RUNBOOKS/integrity-checks.md`).
+
 ## 2. The flight gate
 
 **v3.** A session counts as a "flight" only when departure and arrival are both non-empty after `UPPER` and trimming. The gate is applied in the `flight` view, not at ingest, so every in-region session and all its positions are stored.
