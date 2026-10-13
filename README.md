@@ -12,7 +12,7 @@ One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside
 
 v3 replaces the original v1 system (a FastAPI service with Metabase). The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
 
-- Flights are built from sessions: reconnects with the same callsign and airports within 120 minutes are one flight, and flights still connected are left out of the flight counts (see [docs/DEFINITIONS.md](docs/DEFINITIONS.md)).
+- Flights are built from sessions: reconnects with the same callsign and airports within 120 minutes are one flight, and a flight is counted only once it is finished, about 8 hours after its last position (see [docs/DEFINITIONS.md](docs/DEFINITIONS.md)).
 - Charts start empty at go-live (07-10-2026, 21:38 UTC) and fill as data arrives. There is no backfill. The 30 to 90 day charts need that much history before they say anything useful.
 - Names and CIDs are stored and shown, as in v1.
 
@@ -71,7 +71,7 @@ Ten dashboards, all in Grafana (folder: dashboard). Times are UTC. The exact rul
 | Management: people online | Headline counts of people online |
 | Monitoring: collector and data freshness | Whether data is arriving; check this first if a number looks wrong |
 
-Charts start empty at go-live (07-10-2026) and fill as data arrives; flights still in progress are not counted in the flight totals.
+Charts start empty at go-live (07-10-2026) and fill as data arrives; a flight appears in the flight totals about 8 hours after its last position.
 
 ## Configuration
 
@@ -80,7 +80,7 @@ Everything is set through `.env` (names and defaults in `.env.example`; every va
 | Variable | Default | Meaning |
 |---|---|---|
 | `POLL_INTERVAL_SECONDS` | 30 | How often the collector reads the feed. The airborne gap cap, the archive gap and the "online now" windows are all derived from it |
-| `POSITION_RETENTION_DAYS` | 90 | How long raw positions are kept (sessions and flights are kept forever). Retention is decided to move to 180 days before the first partition drop, about 06-01-2027 (ADR-026, not built yet) |
+| `POSITION_RETENTION_DAYS` | 90 | How long raw positions are kept (sessions and flights are kept forever). The VM runs 180 days (read on 13-10-2026), so the first possible drop is about 05-04-2027 (ADR-026, ADR-030) |
 | `HOME_ICAO_PREFIXES` | `Y` | Which airports count as the home region |
 | `GRAFANA_BIND`, `GRAFANA_PORT` | loopback, 3300 | Where Grafana listens |
 | `BACKUP_RETENTION_DAYS` | 14 | How many backup dumps are kept |

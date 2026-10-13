@@ -1,6 +1,6 @@
 # Documentation index
 
-Index of the project documents. Merged work that is not yet deployed is in CHANGELOG.md and [PENDING_DOC_CHANGES.md](PENDING_DOC_CHANGES.md); documents are updated after each deploy is verified live.
+Index of the project documents. Merged work that is not yet deployed is in CHANGELOG.md and [PENDING_DOC_CHANGES.md](PENDING_DOC_CHANGES.md); documents are updated after each deploy is verified live. Issue 89 (phases 1 to 5) is fully live since 13-10-2026 10:05:56 UTC (marker 7a71d30).
 
 **Status key.** CURRENT: kept up to date, trust it (subject to the notes). HISTORICAL: a dated record of a moment; correct for that date, not maintained, do not edit. OBSOLETE: wrong or superseded; do not use.
 
@@ -25,7 +25,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | File | What it is for | Who reads it | Status |
 |---|---|---|---|
 | [RUNBOOKS/daily-checks.md](RUNBOOKS/daily-checks.md) | Daily and weekly health checks; the soak report and its verdicts | Operator | CURRENT |
-| [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) | What each Telegram alert means and what to do | Operator, owner | CURRENT for main; production differs only in the invariant pack (21 live checks, 23 on main: the two phase 4 checks are not yet deployed) |
+| [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) | What each Telegram alert means and what to do | Operator, owner | CURRENT (main and production agree: 21 invariant checks, marker 7a71d30) |
 | [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md) | Public read-only dashboards through a Cloudflare Tunnel and Traefik: the links script, proxy and tunnel set-up, checks, roll back | Owner | CURRENT |
 | [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md) | How to install, deploy, roll back and verify; the special cases and traps (sections 4b to 4f) | Operator | CURRENT; long, accumulates one section per release |
 | [RUNBOOKS/restore.md](RUNBOOKS/restore.md) | Backups, restore, the restore drill, off-box copies | Operator | CURRENT (deployed behaviour; the hardening is in PENDING_DOC_CHANGES.md) |

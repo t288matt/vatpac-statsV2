@@ -1,6 +1,6 @@
 # Conformance: issue 89 phase 5 (issue #141), requirement to test
 
-Written 13-10-2026, branch `p5-remove-old` (merged with `origin/main` 38e3958, phase 3 live, and `origin/p4-drop-gate` 704bc8a, phase 4 not yet merged). Migration `20261013000300_remove_pieces_rename_flight_summary.sql`. **NOT YET DEPLOYED.** Forward-only and destructive: after the deploy the way back is the pre-deploy dump. Design: `docs/DESIGN_89_FINAL.md` sections 1.2, 4, 7.2, 7.4 to 7.6 and its addendum of 13-10-2026.
+Written 13-10-2026, branch `p5-remove-old` (merged with `origin/main` 38e3958, phase 3 live, and `origin/p4-drop-gate` 704bc8a). Migration `20261013000300_remove_pieces_rename_flight_summary.sql`. **DEPLOYED 13-10-2026 together with phase 4** (about 10:03 UTC on commit 7a71d3054506d5d6e5e0165860de0feb97e0f651, migration applied in 67 ms, release marker 10:05:56 UTC). Forward-only and destructive: the way back was the pre-deploy dump. After the deploy, read on the live database: the old pieces table, `flight_part`, `flight_legacy` and the two refresh functions do not exist; `flight_summary` has its primary key `flight_summary_pkey`, check `flight_summary_check` and four `flight_summary_*` indexes; 22 views, 8 functions, 3 foreign keys, 29 migrations; 21 integrity checks. The phase 5 rehearsal on a restore of a live dump (before the deploy) found the views identical by row count and md5 and 13 object checks true. Design: `docs/DESIGN_89_FINAL.md` sections 1.2, 4, 7.2, 7.4 to 7.6 and its addendum of 13-10-2026.
 
 Test key: DB = `tests/integration/test_phase5_remove_old.py` (builds a database from every migration before phase 5, loads data, applies the migration, compares); S = static test in the same file (no database); other files named in full.
 
@@ -26,7 +26,7 @@ Against the CI database (PostgreSQL 16.15 plus the production migrate image: dbm
 | Migration refuses a state it was not written for; `lock_timeout` set | DB `test_the_migration_refuses_to_run_before_phase_3_and_changes_nothing`; S (lock timeout) |
 | Writer still works after the rename (new flight written, idempotent) | DB `test_the_writer_and_the_drop_function_work_after_the_rename` |
 | Grafana: no panel reads an old name; the validator refuses the dropped views | `tests/test_phase3_switch.py`, `grafana/validate_dashboards.py`, `grafana/check_columns.py` |
-| Scale data generator and drop timing script | `tests/scale/gen_synth.sql` (inserts finished flights directly; positions are not generated, so it measures readers, not the writer), `tests/scale/measure_partition_drop.py`: not run |
+| Scale data generator and drop timing script | `tests/scale/gen_synth.sql` (inserts finished flights directly; positions are not generated, so it measures readers, not the writer), `tests/scale/measure_partition_drop.py`: not run (the lock-hold time of one drop at live volume is to be measured before the first real drop, about 05-04-2027; owner accepted on issue #140) |
 
 ## Retired with the old model (kept in git history)
 
@@ -37,6 +37,6 @@ Against the CI database (PostgreSQL 16.15 plus the production migrate image: dbm
 - **Function bodies are rewritten from the catalogue, not copied.** The migration takes each function that names the old table with `pg_get_functiondef`, replaces the word, and executes it, so whatever text phase 4 finally merges is carried over exactly (phase 4 is still being fixed). The Opus 5.5 check of the drop function should read the definition after the migration (the test compares it with the one before).
 - **The one remaining reference to the old table name in code is `ops/backup/restore-lib.sh`**, on purpose (requirement 6).
 - **`SAME_DAY_INVARIANTS` lost its only flight entry** (the old "rows missing" check). Nothing replaces it: a stopped writer shows up as the not-urgent "flights quiet longer than..." check. Decide whether that should be same-day.
-- **The second comparison A before the deploy cannot be done from this branch** (it read the pieces and the legacy view, which this phase removes). It must be run from the phase 3 tree (`ops/compare_flights_89.sql` at origin/main) immediately before the deploy.
+- **(Done before the deploy.) The second comparison A cannot be done from this branch** (it read the pieces and the legacy view, which this phase removes). It was run from the phase 3 tree immediately before the deploy on 13-10-2026 and passed (all differing rows classified; see issues #141 and #89).
 - **The migration needs phase 3 applied**; it checks and stops without changing anything if not.
 - No foreign key from the flight table to `pilot_session`: ADR-026 amended in ADR-030 (delete flights by `session_ids`).

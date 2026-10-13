@@ -1,8 +1,8 @@
 # Issue #89 phase 4: conformance table
 
-> **Note, issue 89 phase 5 (13-10-2026, branch p5-remove-old, NOT YET DEPLOYED).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 drops the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renames `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
+> **Note, issue 89 phase 5 (LIVE since 13-10-2026, marker 7a71d30 at 10:05:56 UTC).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 (live) dropped the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renamed `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
 
-Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-10-2026. Branch `p4-drop-gate`, issues #89 and #140. **NOT YET DEPLOYED.** Requirements of `docs/DESIGN_89_FINAL.md` sections 3, 5.3, 6, 7.2 (phase 4), 7.4 and 7.5 that phase 4 builds, and the test that proves each. Files: `G` = `tests/integration/test_drop_gate.py`, `L` = `tests/integration/test_partition_drop_locks.py`, `I` = `tests/integration/test_integrity_checks.py`, `R` = `tests/integration/test_roles.py`, `T` = `tests/integration/test_audit_t30.py`, `F` = `tests/integration/test_flight_summary.py`. The migration is `db/migrations/20261013000210_drop_gate_reconciles_flights.sql`. The semantics of `flown_upto` (per session) are unchanged by the per-flight writer of migration 20261012000200, so the gate needs no change for it; every test builds its flights by running the real writer.
+Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-10-2026. Branch `p4-drop-gate`, issues #89 and #140. **DEPLOYED 13-10-2026** (about 10:03 UTC on commit 7a71d3054506d5d6e5e0165860de0feb97e0f651 together with phase 5, migration applied in 33 ms, release marker 10:05:56 UTC). Requirements of `docs/DESIGN_89_FINAL.md` sections 3, 5.3, 6, 7.2 (phase 4), 7.4 and 7.5 that phase 4 builds, and the test that proves each. Files: `G` = `tests/integration/test_drop_gate.py`, `L` = `tests/integration/test_partition_drop_locks.py`, `I` = `tests/integration/test_integrity_checks.py`, `R` = `tests/integration/test_roles.py`, `T` = `tests/integration/test_audit_t30.py`, `F` = `tests/integration/test_flight_summary.py`. The migration is `db/migrations/20261013000210_drop_gate_reconciles_flights.sql`. The semantics of `flown_upto` (per session) are unchanged by the per-flight writer of migration 20261012000200, so the gate needs no change for it; every test builds its flights by running the real writer.
 
 ## Section 3: the gate
 
@@ -54,7 +54,7 @@ Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-
 |---|---|
 | Rehearsal script predicts exactly what the function drops (drop, refuse and pin cases) and checks flights and positions are accounted for | G `test_the_rehearsal_script_predicts_exactly_what_the_function_drops` (needs `psql`) |
 | Script refuses a database whose name does not end in `_test` | G `test_the_rehearsal_script_refuses_a_database_not_named_for_testing` |
-| Exact owner steps for a restored live dump, success criteria, clean-up | `docs/RUNBOOKS/drop-gate-rehearsal.md` section 4 (a document; the real rehearsal has not been run) |
+| Exact owner steps for a restored live dump, success criteria, clean-up | `docs/RUNBOOKS/drop-gate-rehearsal.md` section 4 (a document; the real rehearsal was run on the VM on 13-10-2026 at about 09:50 UTC, two runs, both OK: see the runbook status line) |
 
 ## Review fixes (13-10-2026)
 
@@ -90,4 +90,4 @@ Placeholder flights (`sample_count = 0`, no positions) never block a drop: G `te
 - Behaviour at live volume and on PostgreSQL 16.15 / 16.4: tests ran on a local PostgreSQL 16.2 (the bundled build has no time-zone database; the Australia/Sydney pass was emulated with a fixed +10 offset).
 - "No writer lock": shown only by the function body having none; a concurrent writer race is argued in the migration header (monotone gate), not tested.
 - Fallback to retention 365 (design 6): an owner action, unchanged by this phase.
-- Deploy and the first real drop: not done; see the checklist in the runbook, section 3.
+- The deploy is done (13-10-2026). The first real drop is not: nothing is due before about 05-04-2027 at 180 days retention, and the lock-hold time of one drop at live volume (about 78,000 positions a day) is still to be measured before it (owner accepted on issue #140); see the checklist in the runbook, section 3.
