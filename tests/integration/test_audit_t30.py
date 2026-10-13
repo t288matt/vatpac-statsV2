@@ -21,6 +21,7 @@ import test_controller_retention as ret
 import test_events_t14 as ev14
 import test_online_hours as hours
 import test_pilots_t14 as p14
+from drop_gate_helpers import process_flights
 from helpers import apply, at, partition_for
 from helpers import T0, flights, make_session, run, set_poll_interval
 
@@ -127,6 +128,7 @@ def test_retention_drops_exactly_the_days_older_than_ninety(conn) -> None:
     for cid, d in cases.items():
         day = datetime(d.year, d.month, d.day, 10, tzinfo=timezone.utc)
         _session_with_position(conn, cid, day, day + timedelta(minutes=5))
+    process_flights(conn)  # issue 89 phase 4: the gate drops only what the flight writer has processed
     dropped = conn.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07') AS n").fetchone()["n"]
     assert dropped == 1
     assert _partitions(conn) == {"pilot_position_20260709", "pilot_position_20260808"}
@@ -137,6 +139,7 @@ def test_session_last_seen_exactly_at_the_cutoff_pins_its_partition(conn) -> Non
     old = datetime(2026, 6, 1, 10, tzinfo=timezone.utc)
     cutoff = datetime(2026, 7, 9, tzinfo=timezone.utc)
     _session_with_position(conn, 9710010, old, cutoff)
+    process_flights(conn)  # processed, so only the pinning rule can keep the partition (kills the `>` mutant)
     assert conn.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07') AS n").fetchone()["n"] == 0
     assert "pilot_position_20260601" in _partitions(conn)
 

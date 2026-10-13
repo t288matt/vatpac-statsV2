@@ -1,3 +1,5 @@
+-- NOTE 12-10-2026: this drill describes the drop gate BEFORE issue 89 phase 4 (it finalises the pieces table). Under the phase 4 gate (migration 20261012000210,
+-- not yet deployed) nothing here is dropped until write_finished_flights() has processed the sessions; use ops/rehearse_drop_gate.sql instead.
 -- Retention drill: a session wholly older than 90 days, one straddling the cutoff, one recent. Shows that dropping old daily
 -- partitions keeps the flight rows and airborne minutes, and that a straddling session pins its partition until it ages out.
 \set ON_ERROR_STOP on
