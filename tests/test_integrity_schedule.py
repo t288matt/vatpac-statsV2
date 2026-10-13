@@ -43,7 +43,7 @@ def test_every_select_of_the_pack_is_recognised_as_an_invariant() -> None:
 
 
 def test_the_pack_has_the_known_invariants() -> None:
-    assert len(NAMES) == 23
+    assert len(NAMES) == 21
     assert "identity duplicates (cid, callsign, logon_time)" in NAMES
 
 
@@ -96,7 +96,7 @@ def test_an_empty_pack_is_a_failure() -> None:
 def test_long_lists_are_cut_and_still_short_enough_for_telegram() -> None:
     findings, problems = integrity.evaluate([(n, 9999, "x" * 500) for n in NAMES], NAMES)
     level, text = integrity.summarise_invariants(findings, problems, len(NAMES))
-    assert level == integrity.WARN and "and 17 more" in text and len(text) < 1200
+    assert level == integrity.WARN and "and 15 more" in text and len(text) < 1200
     assert "x" * 50 not in text  # details go to the log, not the message
 
 
