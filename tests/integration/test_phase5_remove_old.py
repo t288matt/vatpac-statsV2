@@ -21,12 +21,12 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from psycopg.conninfo import make_conninfo
+from psycopg.rows import dict_row
 
 # Every test in this file is selected by the integration job (-m integration): the static checks below need no database, but they sat
 # unmarked under tests/integration, where the unit job skips them (no database) and the integration job deselects them, so they never ran in CI.
 pytestmark = pytest.mark.integration
-from psycopg.conninfo import make_conninfo
-from psycopg.rows import dict_row
 
 REPO = Path(__file__).resolve().parents[2]
 MIG_DIR = REPO / "db" / "migrations"
