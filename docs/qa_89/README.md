@@ -81,3 +81,23 @@ python run_comparisons.py b --v3-csv b_v3.csv --v1-csv b_v1.csv --cutoff "<TO_TS
 `RESULT: PASS` only means no split, no merge and no unexplained v1-only flight (and, with `--strict`, the design counts). The v3-only list always needs your eyes; save it as `list.csv` for later runs.
 
 Report both results as a comment on #138.
+
+### 2e. Stronger check against v1's raw positions (added 13-10-2026)
+
+v1's summary table is an incomplete reference: on 13-10-2026 v1 held raw positions for 11 flights that its summary job never summarised, although they were more than 30 hours old. So also compare against v1's raw table, rebuilt with v1's own rule (`compare_raw.py`). All commands are read only and run in Git Bash from a scratch folder.
+
+1. Exports (6 hour chunks keep each v1 query under its 30 second limit; edit the dates for another window):
+   - v1 raw rows: `SELECT cid, callsign, departure, arrival, last_updated FROM flights WHERE last_updated >= '<A>+00' AND last_updated < '<B>+00' AND COALESCE(departure,'')<>'' AND COALESCE(arrival,'')<>'' ORDER BY cid, callsign, last_updated;` with `SET default_transaction_read_only = on; SET statement_timeout='30s';` first, through `ssh vatpac 'docker exec -i vatsim_postgres sh -c "psql -X -q -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" --csv -f -"' < query.sql > v1raw_<n>.csv`. Never query `flights_archive` or `transceivers`.
+   - v3 flights: `SELECT cid, callsign, departure, arrival, date_trunc('second', logon_time) AS logon_time, start_time, end_time, session_id, cardinality(session_ids) AS session_count, sample_count FROM flight_record WHERE end_time >= '<W0 - 2 h>' AND start_time < '<W1 + 2 h>' ORDER BY cid, callsign, start_time;` through `ssh vatpac-v3 'cd ~/vatpac-statsV2 && docker compose exec -T db sh -c "psql -X -q -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" --csv -f -"' < query.sql > b_v3_wide.csv`. Do not filter by logon time or the power cut here: `compare_raw.py` applies the exclusions to both sides alike.
+2. `python compare_raw.py` in that folder.
+
+### 2f. What the numbers were on 13-10-2026 (so the second run before phase 5 is read correctly)
+
+Window 08-10-2026 08:00 to 11-10-2026 03:00 UTC (both systems collecting; v1 was off 11-10 03:00 to 12-10 about 15:30), power cut 09-10 15:30 to 15:50 and 30 minutes at each edge excluded, every flight ended at least 30 hours before the run.
+
+| comparison | result |
+|---|---|
+| flight_record against v1 summaries (v1 1008, v3 996) | 966 exact, 18 more match with a logon a few minutes apart (984 of 1008), 0 split, 0 merged, v1-only 24 (22 amended plans and 2 of the same kind), v3-only 12 |
+| flight_record against v1 raw positions (v1 998 flights after exclusions, v3 977) | 974 matched one to one, 0 split, v1-only 24 (23 amended plans, 1 flight that started before the window), v3-only 3 (1 amendment mirror, 2 flights of 4 and 1 positions that v1 never recorded) |
+
+The 12 v3-only against the summaries are all flights v1's raw table holds; v1 never wrote their summary. Expected differences that are not defects: a pilot who files a new plan inside one connection is ONE flight in v3 under the final plan (rule: no split inside a connection) but one v1 flight per plan; v3 keeps positions from before a plan was filed and v1 drops them at ingest, so v3 starts earlier; v1 polls about every 92 seconds and misses very short flights and short leading connections.
