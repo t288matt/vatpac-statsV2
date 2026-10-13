@@ -133,11 +133,12 @@ HISTORY_DOCS = {  # dated records of earlier phases, audits and decisions: they 
 }
 
 
+@pytest.mark.integration   # CI runs only marked tests in the integration job; unmarked, this guard was skipped everywhere in CI (found 13-10-2026)
 def test_no_code_test_grant_or_watchdog_file_names_an_old_object_outside_the_listed_exceptions() -> None:
     """Requirement 7. Migrations are history and skipped. The word flight_summary is NOT an old name any more (it is the new table)."""
     hits: dict[str, list[str]] = {}
     for f in _tracked_files():
-        if f.startswith("db/migrations/") or f.startswith("docs/reviews/") or f in ALLOWED_OLD_NAMES or f in HISTORY_DOCS:
+        if f.startswith("db/migrations/") or f.startswith("docs/reviews/") or f.startswith("docs/qa_89/") or f in ALLOWED_OLD_NAMES or f in HISTORY_DOCS:   # docs/qa_89: QA tools and dated records that compare the old model with the new one
             continue
         if not f.endswith((".py", ".sql", ".sh", ".json", ".md", ".yml", ".yaml", ".toml", ".txt", ".ini", ".cfg", ".env.example")):
             continue
