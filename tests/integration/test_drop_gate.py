@@ -1,6 +1,6 @@
 """Issue #89 phase 4 (#140): the raw-position drop gate reconciles against WRITTEN flights.
 
-Design: docs/DESIGN_89_FINAL.md section 3; migration db/migrations/20261012000210_drop_gate_reconciles_flights.sql; the
+Design: docs/DESIGN_89_FINAL.md section 3; migration db/migrations/20261013000210_drop_gate_reconciles_flights.sql; the
 requirement-to-test table is docs/CONFORMANCE_89_PHASE4.md. A daily partition of pilot_position may be dropped only when, for
 every session with positions in it, (1) the flight writer has processed them (flown_upto), (2) a written flight covers them if
 the session has a flight plan, and (3) each flight wholly inside the day has the right sample_count. Anything else keeps the
@@ -419,9 +419,9 @@ def test_the_rehearsal_script_predicts_exactly_what_the_function_drops(conn, dsn
 
 @pytest.mark.skipif(PSQL is None, reason="psql not installed (CI has it)")
 def test_the_rehearsal_script_refuses_a_database_not_named_for_testing(dsn) -> None:
-    other = dsn.rsplit("/", 1)[0] + "/postgres"
-    if "?" in dsn:
-        other += "?" + dsn.split("?", 1)[1]
+    from urllib.parse import urlsplit, urlunsplit
+    parts = urlsplit(dsn)                       # the query (time zone options) can itself contain a slash: split properly
+    other = urlunsplit((parts.scheme, parts.netloc, "/postgres", parts.query, ""))
     r = psql(other, "-v", "retention=90", "-v", f"today={TODAY}", "-f", str(REPO / "ops" / "rehearse_drop_gate.sql"))
     assert "REHEARSAL REFUSED" in r.stdout + r.stderr
     assert "REHEARSAL RESULT" not in r.stdout
@@ -497,3 +497,68 @@ def test_the_refusal_table_is_readable_by_the_watchdog_role_only_for_reading(con
             conn.execute("DELETE FROM drop_gate_refusal")
     finally:
         conn.execute("RESET ROLE")
+
+
+# ------------------------------------------------------------------ second review fixes (13-10-2026)
+def test_a_position_added_by_a_session_not_in_the_earlier_list_between_check_and_lock_keeps_the_day(conn) -> None:
+    """The in-lock check is rebuilt from the partition, not from the sessions listed before the lock. Session x was never in day 199;
+    while day 200 is being dropped it receives an old-timestamp position there (modelled by an event trigger on the first DROP)."""
+    add = mk(conn, 9880001, mins(day(200), 10))
+    mk(conn, 9880002, mins(day(199), 10))
+    x = mk(conn, 9880003, mins(day(200, 3), 10))                  # in day 200 only
+    process_flights(conn)
+    late = day(199, 6)
+    partition_for(conn, late)
+    conn.execute(f"""
+        CREATE FUNCTION add_old_position() RETURNS event_trigger LANGUAGE plpgsql AS $f$
+        BEGIN
+            INSERT INTO pilot_position (observed_at, session_id, alt_ft, gs_kt) VALUES ('{late:%Y-%m-%d %H:%M:%S+00}', {x}, 5000, 250)
+            ON CONFLICT DO NOTHING;
+        END $f$""")
+    conn.execute("CREATE EVENT TRIGGER add_old_position_trg ON ddl_command_start WHEN TAG IN ('DROP TABLE') EXECUTE FUNCTION add_old_position()")
+    seen = notices(conn)
+    try:
+        assert call(conn) == 1
+    finally:
+        conn.execute("DROP EVENT TRIGGER add_old_position_trg")
+        conn.execute("DROP FUNCTION add_old_position()")
+    assert not exists(conn, 200) and exists(conn, 199) and add
+    assert refused(seen, 199)
+    assert conn.execute("SELECT count(*) AS n FROM drop_gate_refusal WHERE part_name = %s", (pname(199),)).fetchone()["n"] == 1
+
+
+def refusal_rows(conn) -> dict[str, str]:
+    return {r["part_name"]: r["detail"] for r in conn.execute("SELECT part_name, detail FROM drop_gate_refusal").fetchall()}
+
+
+def test_a_day_that_cannot_be_locked_is_refused_on_the_record_and_cleared_when_it_goes(conn, dsn) -> None:
+    import psycopg
+    mk(conn, 9880010, mins(day(200), 10))
+    process_flights(conn)
+    reader = psycopg.connect(dsn, autocommit=False)
+    reader.execute(f"SELECT count(*) FROM {pname(200)}")
+    seen = notices(conn)
+    try:
+        assert call(conn) == 0
+    finally:
+        reader.rollback()
+        reader.close()
+    assert refused(seen, 200) and "could not lock" in refused(seen, 200)[0]
+    assert "could not lock" in refusal_rows(conn)[pname(200)]
+    assert call(conn) == 1 and refusal_rows(conn) == {}
+
+
+def test_refusal_rows_stay_until_the_day_is_dropped_or_gone_or_not_due(conn) -> None:
+    mk(conn, 9880011, mins(day(200), 10))                          # refused (not processed)
+    sid = mk(conn, 9880012, mins(day(199), 10))
+    process_flights(conn)
+    conn.execute("UPDATE pilot_session SET last_seen = %s WHERE id = %s", (day(5), sid))   # day 199 pinned
+    conn.execute("DELETE FROM flight_record WHERE session_ids <> ARRAY[0::bigint] AND start_time < %s", (day(199, 23),))
+    for part in (pname(200), pname(199), "pilot_position_20200101", pname(3)):
+        conn.execute("INSERT INTO drop_gate_refusal (part_name, first_refused, last_refused, detail) VALUES (%s, now() - interval '9 days', now(), 'old')", (part,))
+    call(conn)
+    rows = refusal_rows(conn)
+    assert pname(200) in rows and rows[pname(200)] != "old"        # refreshed, still there (flight deleted: kept)
+    assert pname(199) not in rows                                    # pinned is the rule working, not a refusal
+    assert "pilot_position_20200101" not in rows                     # partition no longer exists
+    assert pname(3) not in rows                                      # not due

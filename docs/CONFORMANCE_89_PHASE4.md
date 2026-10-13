@@ -1,6 +1,6 @@
 # Issue #89 phase 4: conformance table
 
-Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-10-2026. Branch `p4-drop-gate`, issues #89 and #140. **NOT YET DEPLOYED.** Requirements of `docs/DESIGN_89_FINAL.md` sections 3, 5.3, 6, 7.2 (phase 4), 7.4 and 7.5 that phase 4 builds, and the test that proves each. Files: `G` = `tests/integration/test_drop_gate.py`, `L` = `tests/integration/test_partition_drop_locks.py`, `I` = `tests/integration/test_integrity_checks.py`, `R` = `tests/integration/test_roles.py`, `T` = `tests/integration/test_audit_t30.py`, `F` = `tests/integration/test_flight_summary.py`. The migration is `db/migrations/20261012000210_drop_gate_reconciles_flights.sql`. The semantics of `flown_upto` (per session) are unchanged by the per-flight writer of migration 20261012000200, so the gate needs no change for it; every test builds its flights by running the real writer.
+Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-10-2026. Branch `p4-drop-gate`, issues #89 and #140. **NOT YET DEPLOYED.** Requirements of `docs/DESIGN_89_FINAL.md` sections 3, 5.3, 6, 7.2 (phase 4), 7.4 and 7.5 that phase 4 builds, and the test that proves each. Files: `G` = `tests/integration/test_drop_gate.py`, `L` = `tests/integration/test_partition_drop_locks.py`, `I` = `tests/integration/test_integrity_checks.py`, `R` = `tests/integration/test_roles.py`, `T` = `tests/integration/test_audit_t30.py`, `F` = `tests/integration/test_flight_summary.py`. The migration is `db/migrations/20261013000210_drop_gate_reconciles_flights.sql`. The semantics of `flown_upto` (per session) are unchanged by the per-flight writer of migration 20261012000200, so the gate needs no change for it; every test builds its flights by running the real writer.
 
 ## Section 3: the gate
 
@@ -63,6 +63,16 @@ Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-
 | 3. Alert at any age: `drop_gate_refusal` and the check `raw-position days kept by the deletion check for more than 3 days` | G `test_a_refusal_is_recorded_for_the_watchdog_and_cleared_when_the_day_reconciles_or_goes`, G `test_the_refusal_table_is_readable_by_the_watchdog_role_only_for_reading`, I `test_each_invariant_fires_on_broken_data`, I `test_a_fresh_refusal_does_not_fire_the_gate_refusal_check`; wording in `ops/watchdog/messages.py`, row in `integrity-checks.md`, counts in `alerts.md` |
 | 4. Rehearsal: independent per-position count (`gate_too_lax`) and optional run as the collector's role | G `test_the_rehearsal_script_predicts_exactly_what_the_function_drops[None, collector]`; runbook 4.3 and 4.4 |
 | 5. No date-to-text conversion (DateStyle) in the function or the script | G `test_the_gate_does_not_depend_on_the_date_style` |
+
+## Second review fixes (13-10-2026; migration renamed 20261013000210 after merging phase 3, migration 20261013000200)
+
+| Requirement | Test |
+|---|---|
+| 1. The refuse-on-wrong-database test builds its URI with `urlsplit` (the time-zone option contains a slash), so it also passes in the Australia/Sydney pass | G `test_the_rehearsal_script_refuses_a_database_not_named_for_testing` |
+| 2. Re-run on the combined code: the gate reads only `pilot_session`, `pilot_position`, `flight_record`; it does not touch the pieces or the new views. `test_flight_summary.py` now reads `flight_legacy` (phase 3) and still passes with the gate; the 23rd check reads `drop_gate_refusal` only | whole suite run after the merge (see the report); G `test_the_pieces_table_is_not_a_precondition_either_way` |
+| 3. After the lock the session list is rebuilt from the partition and the whole gate (pinning, processed, covered, counted) is repeated | G `test_a_position_added_by_a_session_not_in_the_earlier_list_between_check_and_lock_keeps_the_day` (event trigger inserts the position at the first DROP); L `test_a_session_seen_again_between_the_recheck_and_the_lock_keeps_the_partition` |
+| 4. A refusal row and a `DROP REFUSED` notice on every keep path including lock failure; a row is cleared only when the day is dropped, no longer exists or is not due; a pinned day clears it | G `test_a_day_that_cannot_be_locked_is_refused_on_the_record_and_cleared_when_it_goes`, `test_refusal_rows_stay_until_the_day_is_dropped_or_gone_or_not_due` |
+| 5. Rehearsal: the independent count uses a LEFT JOIN (a missing session row is uncovered); run 2 deletes exactly one flight; run 1 is preceded by a writer catch-up step and the text says how to tell a timing effect from a finding | `ops/rehearse_drop_gate.sql`; runbook 4.3b, 4.4, 4.5 (documents; the real rehearsal is not run) |
 
 ## Section 5.3 (placeholder rows)
 

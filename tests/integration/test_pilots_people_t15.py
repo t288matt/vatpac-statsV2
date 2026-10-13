@@ -1,7 +1,7 @@
 """T15 (pilots and people): cards 180, 181, 182, 175, 183 and 155 ported from the v1 Metabase cards.
 
-Pilot and session rows are inserted synthetically (pilot_session plus flight_summary, so the `flight` view
-returns them), then the panel SQL is read from the dashboard JSON files and executed, so the test covers the
+Pilot and session rows are inserted synthetically (pilot_session plus the flight_record row the writer would write,
+so the `flight` view returns them), then the panel SQL is read from the dashboard JSON files and executed, so the test covers the
 SQL that Grafana runs. Rules under test (owner's Metabase export, 08-10-2026):
   Y rule      = the fourth character from the end of the pilot name is 'Y' (v1 quirk, kept: "Joe Yoda" counts)
   180         = pilots with flights completed in the last 90 days, none with airborne time; most flights first
@@ -20,6 +20,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import REPO
+from helpers import record_flight
 
 pytestmark = pytest.mark.integration
 
@@ -55,7 +56,7 @@ def utc(year, month, day, hour=0, minute=0, second=0) -> datetime:
 
 def add_flight(conn, cid: int, name: str, end: datetime, airborne: float | None = 0,
                online_minutes: float = 60, logon: datetime | None = None) -> None:
-    """One flight (one session, one flight_summary row) ending at ``end``."""
+    """One flight (one session, one flight_record row) ending at ``end``."""
     _n["i"] += 1
     start = end - timedelta(minutes=online_minutes)
     logon = logon or start
@@ -64,11 +65,7 @@ def add_flight(conn, cid: int, name: str, end: datetime, airborne: float | None 
         "VALUES (%s,%s,%s,%s,%s,%s,'YSSY','YMML') RETURNING id",
         (cid, f"TP{_n['i']:05d}", logon.replace(microsecond=0), name, start, end),
     ).fetchone()["id"]
-    conn.execute(
-        "INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count, "
-        "airborne_minutes, max_gs_kt, max_alt_ft) VALUES (%s,0,0,%s,%s,%s,10,%s,450,35000)",
-        (sid, cid, start, end, airborne),
-    )
+    record_flight(conn, sid, start, end, airborne=airborne)
 
 
 def add_controller(conn, cid: int, start: datetime, minutes: int = 30) -> None:

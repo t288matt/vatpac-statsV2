@@ -75,11 +75,27 @@ def run(n: int, start: datetime = T0, step: int = 15, gs: int | None = 250):
     return [(start + timedelta(seconds=step * i), gs) for i in range(n)]
 
 
+def write_all(conn, hours: float = 9.0) -> int:
+    """Put a network_snapshot ``hours`` after the newest session sighting (never later than now, which the writer would ignore
+    anyway) and call write_finished_flights until it has nothing left. Returns the number of flights written. The flight table is
+    written only for pilots quiet for 8 hours of STORED data, so a test that builds sessions has to say when the data ends."""
+    last = conn.execute("SELECT max(last_seen) AS t FROM pilot_session").fetchone()["t"]
+    if last is not None:
+        ref = min(last + timedelta(hours=hours), datetime.now(UTC))
+        conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1) ON CONFLICT DO NOTHING", (ref,))
+    total = 0
+    while True:
+        n = conn.execute("SELECT write_finished_flights(500) AS n").fetchone()["n"]
+        total += n
+        if n == 0:
+            return total
+
+
 def flights(conn, cid: int) -> list[dict]:
-    # `flight` reads the incremental flight_summary table: recompute it for all sessions first
-    # (the collector does this every 5 minutes with refresh_flight_summary()).
-    conn.execute("SELECT refresh_flight_summary(NULL)")
-    return conn.execute("SELECT * FROM flight WHERE cid = %s ORDER BY 1", (cid,)).fetchall()
+    # `flight` reads flight_record (issue 89 phase 3), which write_finished_flights() fills once a pilot has been quiet for
+    # 8 hours of stored data: build the sessions, say when the data ends (write_all), then read the view.
+    write_all(conn)
+    return conn.execute("SELECT * FROM flight WHERE cid = %s ORDER BY start_time", (cid,)).fetchall()
 
 
 def refresh(conn, since: str | None = None) -> int:
@@ -149,23 +165,55 @@ def run_panel(conn, path, title: str) -> list[dict]:
 _serial = {"n": 0}
 
 
+def record_flight(conn, sid: int, start: datetime, end: datetime, *, airborne: float | None = None, gs: int | None = 450,
+                  alt: int | None = 35000, samples: int = 10, start_offset_s: int = 0) -> None:
+    """Write the flight_record row the writer would write for pilot_session ``sid`` (issue 89 phase 3), without positions.
+
+    For the panel tests, which assert the panel arithmetic and not the writer (the writer has its own tests, test_flight_writer.py
+    and test_flight_views_switch.py). The flight gate is applied as the writer applies it: a session whose departure or arrival is
+    empty after upper(btrim) makes no row. Plan fields are copied from the session, as the writer freezes them.
+    ``start_offset_s`` lets a test create a second flight of one session (a returning session): the key is (session_id, start_time)."""
+    conn.execute(
+        r"""
+        INSERT INTO flight_record (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time,
+               name, home_icao, server, aircraft_icao, aircraft_faa, flight_rules, route, remarks, planned_alt, deptime,
+               pilot_rating, military_rating, airborne_minutes, max_gs_kt, max_alt_ft, sample_count)
+        SELECT ps.id, %s::timestamptz + make_interval(secs => %s::double precision), %s::timestamptz, ps.cid, ps.callsign,
+               upper(btrim(ps.departure, E' 	
+')), upper(btrim(ps.arrival, E' 	
+')), ARRAY[ps.id], ps.logon_time,
+               ps.name, ps.home_icao, ps.server, ps.aircraft_icao, ps.aircraft_faa, ps.flight_rules, ps.route, ps.remarks,
+               ps.planned_alt, ps.deptime, ps.pilot_rating, ps.military_rating, %s::numeric, %s::int, %s::int, %s::bigint
+          FROM pilot_session ps
+         WHERE ps.id = %s
+           AND NULLIF(upper(btrim(ps.departure, E' 	
+')), '') IS NOT NULL
+           AND NULLIF(upper(btrim(ps.arrival, E' 	
+')), '') IS NOT NULL
+        """,
+        (start, start_offset_s, end, airborne, gs, alt, samples, sid),
+    )
+
+
 def add_flight(conn, cid: int, *, callsign: str | None = None, dep="YSSY", arr="YMML", aircraft="B738",
                days_ago: float = 1.0, minutes: int = 120, airborne: float | None = 100, gs: int | None = 450,
-               alt: int | None = 35000, logon_days_ago: float | None = None) -> int:
-    """One pilot session plus its flight_summary row. The flight ends ``days_ago`` days ago."""
+               alt: int | None = 35000, logon_days_ago: float | None = None, **plan) -> int:
+    """One pilot session plus its flight_record row. The flight ends ``days_ago`` days ago.
+
+    ``plan`` sets further plan fields of the session (flight_rules, remarks, home_icao, server, route, planned_alt, deptime,
+    pilot_rating, military_rating): the row is frozen when it is written, so a test cannot change the session afterwards and
+    expect the view to follow (it did before issue 89 phase 3, when the view read the session live)."""
     _serial["n"] += 1
     end = datetime.now(UTC) - timedelta(days=days_ago)
     start = end - timedelta(minutes=minutes)
     logon = datetime.now(UTC) - timedelta(days=logon_days_ago) if logon_days_ago is not None else start
     logon = min(logon, start)
+    fields = {"cid": cid, "callsign": callsign or f"TST{_serial['n']:04d}", "logon_time": logon.replace(microsecond=0),
+              "name": f"Pilot {cid}", "first_seen": logon, "last_seen": end, "departure": dep, "arrival": arr,
+              "aircraft_icao": aircraft, **plan}
     sid = conn.execute(
-        "INSERT INTO pilot_session (cid, callsign, logon_time, name, first_seen, last_seen, departure, arrival, aircraft_icao) "
-        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-        (cid, callsign or f"TST{_serial['n']:04d}", logon.replace(microsecond=0), f"Pilot {cid}", logon, end, dep, arr, aircraft),
+        f"INSERT INTO pilot_session ({', '.join(fields)}) VALUES ({', '.join(['%s'] * len(fields))}) RETURNING id",  # noqa: S608
+        list(fields.values()),
     ).fetchone()["id"]
-    conn.execute(
-        "INSERT INTO flight_summary (session_id, gap_segment, span_part, cid, start_time, end_time, sample_count, "
-        "airborne_minutes, max_gs_kt, max_alt_ft) VALUES (%s,0,0,%s,%s,%s,10,%s,%s,%s)",
-        (sid, cid, start, end, airborne, gs, alt),
-    )
+    record_flight(conn, sid, start, end, airborne=airborne, gs=gs, alt=alt)
     return sid

@@ -1,6 +1,6 @@
 # Runbook: the raw-position drop gate (issue 89 phase 4) and its rehearsal
 
-Written 12-10-2026 (branch `p4-drop-gate`, issues #89 and #140). **Status: NOT YET DEPLOYED.** Nothing in this file has been run on the VM or the live database. The live function is still the one from migration `20261009000170` (it finalises the pieces table before a drop). Everything below describes migration `20261012000210` and the script `ops/rehearse_drop_gate.sql`, which exist only on the branch.
+Written 12-10-2026 (branch `p4-drop-gate`, issues #89 and #140). **Status: NOT YET DEPLOYED.** Nothing in this file has been run on the VM or the live database. The live function is still the one from migration `20261009000170` (it finalises the pieces table before a drop). Everything below describes migration `20261013000210` and the script `ops/rehearse_drop_gate.sql`, which exist only on the branch.
 
 ## 1. What the gate does
 
@@ -35,7 +35,7 @@ With `POSITION_RETENTION_DAYS=180` (ADR-026) the first real drop is about 06-04-
 
 1. Phase 1 is live, the backfill has finished and the integrity sweep is clean for the two writer checks.
 2. The rehearsal in section 4 has been run on a restore of a recent dump and both runs ended `REHEARSAL RESULT: OK`.
-3. **Phase 3 (the `flight` view reads `flight_record`) is live, or you agree never to run `SELECT refresh_flight_summary(NULL)` after the first drop.** The old pieces table is no longer finalised before a drop. The 5 minute job only recomputes sessions seen in the last 12 hours, so it never touches old sessions. But a full refresh (`refresh_flight_summary(NULL)`, used by some ops scripts and by hand) recomputes every non-final session from raw positions and deletes the pieces rows of a session whose positions are gone (`refresh_flight_summary_sessions`, the `del` step). Until phase 3 the charts read those rows. This is a reason to run phase 3 first, or in the same deploy window.
+3. **Phase 3 (migration 20261013000200, now merged on main, the `flight` view reads `flight_record`) is live, or you agree never to run `SELECT refresh_flight_summary(NULL)` after the first drop.** The old pieces table is no longer finalised before a drop. The 5 minute job only recomputes sessions seen in the last 12 hours, so it never touches old sessions. But a full refresh (`refresh_flight_summary(NULL)`, used by some ops scripts and by hand) recomputes every non-final session from raw positions and deletes the pieces rows of a session whose positions are gone (`refresh_flight_summary_sessions`, the `del` step). Until phase 3 the charts read those rows. This is a reason to run phase 3 first, or in the same deploy window.
 4. A manual backup is taken just before the first drop (`make backup`).
 5. After the first drop, check `partitions_dropped` in the "maintenance finished" log line and grep the log for `DROP REFUSED`.
 
@@ -51,7 +51,7 @@ All commands run from `~/vatpac-statsV2` on the VM. No password is typed and no 
 
 ```sh
 git fetch origin
-git show origin/p4-drop-gate:db/migrations/20261012000210_drop_gate_reconciles_flights.sql | sed '/^-- migrate:down/,$d' > /tmp/gate_up.sql
+git show origin/p4-drop-gate:db/migrations/20261013000210_drop_gate_reconciles_flights.sql | sed '/^-- migrate:down/,$d' > /tmp/gate_up.sql
 git show origin/p4-drop-gate:ops/rehearse_drop_gate.sql > /tmp/rehearse_drop_gate.sql
 wc -l /tmp/gate_up.sql /tmp/rehearse_drop_gate.sql        # about 250 and 90 lines
 ```
@@ -87,6 +87,17 @@ Then let the collector's role call the function, as it does in production (the r
 docker compose exec -T db sh -c 'psql -X -q -U "$POSTGRES_USER" -d vatpac_gate_test -c "GRANT EXECUTE ON FUNCTION drop_old_pilot_position_partitions(int, date) TO collector"'
 ```
 
+### 4.3b Let the writer catch up in the copy
+
+The dump holds the live moment, when the newest pilots had not yet been quiet for 8 hours, so their flights are not written yet and the gate would rightly refuse the days they touch. In production the 5 minute job writes them later. Reproduce that in the copy by moving the writer's clock one day on and running the writer until it writes nothing:
+
+```sh
+docker compose exec -T db sh -c 'psql -X -q -U "$POSTGRES_USER" -d vatpac_gate_test -c "INSERT INTO network_snapshot (observed_at, pilots_in_region, controllers_in_region, pilots_global, controllers_global) SELECT max(observed_at) + interval '"'"'1 day'"'"', 0, 0, 0, 0 FROM network_snapshot"'
+docker compose exec -T db sh -c 'psql -X -q -t -A -U "$POSTGRES_USER" -d vatpac_gate_test -c "SELECT write_finished_flights(500)"'     # repeat until it prints 0
+```
+
+After this, any day the gate refuses in run 1 is a finding, not a timing effect. (To tell the two apart if you skip this step: a refused day whose example session has `last_seen` within about 8 hours of the dump's newest `network_snapshot` is a timing effect; any other refused day is a finding.)
+
 ### 4.4 Run 1: the untouched copy
 
 Choose the test date. The live database holds only a few days, so the real retention would make nothing due. The rehearsal uses a tiny retention and a date a few days after the newest data: take the date of the dump (`<d>`, as `YYYY-MM-DD`) plus 2 days, and a retention of 2.
@@ -113,10 +124,10 @@ and compare the session ids with `pilot_session` (is `flown_upto` empty or befor
 
 ### 4.5 Run 2: prove it refuses
 
-Throw the scratch database away and restore again (4.2 and 4.3: `DROP DATABASE vatpac_gate_test WITH (FORCE)` first). Then break one flight in the copy, choosing a session whose positions lie in a due day (the owner can take any `session_id` from `flight_record` whose `start_time` is older than the retention window used):
+Throw the scratch database away and restore again (4.2 and 4.3: `DROP DATABASE vatpac_gate_test WITH (FORCE)` first). Then break exactly one flight in the copy: the command below deletes the single oldest `flight_record` row (one flight, identified by `session_id` and `start_time`), whose positions lie in the oldest due day:
 
 ```sh
-docker compose exec -T db sh -c 'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d vatpac_gate_test -c "DELETE FROM flight_record WHERE session_id = (SELECT session_id FROM flight_record ORDER BY start_time LIMIT 1)"'
+docker compose exec -T db sh -c 'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d vatpac_gate_test -c "DELETE FROM flight_record WHERE (session_id, start_time) = (SELECT session_id, start_time FROM flight_record ORDER BY start_time LIMIT 1)"'
 ```
 
 Run the script exactly as in 4.4. **Success:** `REHEARSAL RESULT: OK` (the prediction and the outcome agree), the first day appears in the "due but the gate should keep" list with reason `positions not inside a written flight`, the log has a `DROP REFUSED: partition pilot_position_<day> kept` line naming that session, and that partition still exists afterwards (`\dt pilot_position_*` in the copy, or `partitions` in the summary is larger than `partitions_dropped` by at least one).
