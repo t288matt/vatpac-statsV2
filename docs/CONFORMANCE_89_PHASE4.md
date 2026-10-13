@@ -37,7 +37,7 @@ Written 12-10-2026, merged with main (writer of migration 20261012000200) on 13-
 | In-lock re-check by session id (a session back between re-check and lock keeps it) | L `test_a_session_seen_again_between_the_recheck_and_the_lock_keeps_the_partition` |
 | Lock and busy-partition behaviour unchanged (NOWAIT, 1 s timeout, retries only before the first drop, lock_timeout restored) | L `test_lock_timeout_is_restored`, `test_busy_partitions_are_kept_without_an_error_or_a_stall`, `test_a_reader_that_leaves_during_the_retries_lets_the_drop_through`, `test_an_open_writer_transaction_on_the_parent_does_not_hold_the_drop_for_the_session_lock_timeout`, `test_a_busy_partition_after_the_first_drop_is_skipped_without_waiting`, `test_a_pinned_partition_and_a_busy_one_in_the_same_run` |
 | No writer advisory lock taken (monotone gate) | G `test_the_function_no_longer_mentions_the_old_finalisation` (body contains no writer lock or finalisation); not separately tested, see below |
-| Permissions: helper not public, not granted, pinned `search_path`; collector can still call the drop function | R `test_maintenance_functions_are_not_public`, R `test_collector_can_run_the_maintenance_functions` (existing, calls the drop function as `collector`), G `test_the_reconciliation_is_not_granted_to_anyone` |
+| Permissions: helper not public, not granted, pinned `search_path`; collector can still call the drop function | R `test_maintenance_functions_are_not_public`, R `test_collector_can_write_data_and_run_maintenance` (existing, calls the drop function as `collector`), G `test_the_reconciliation_is_not_granted_to_anyone` |
 
 ## Refusal log line and watchdog alert
 
