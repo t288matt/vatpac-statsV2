@@ -33,6 +33,8 @@ docker compose ps            # wait until db, collector, grafana, backup and wat
 
 On every start the `migrate` container applies new SQL migrations and re-applies the database roles, then exits. `migrate` showing `exited (0)` is expected.
 
+**How production is deployed (issue 173; prepared 14-10-2026, not yet in use).** The commands above build the images on the machine (local-build mode, the default and what a PC, CI and the production VM use today). The planned production method is different: the VM is a read-only git checkout, GitHub Actions publishes four commit-tagged images (collector, watchdog, backup, migrate) to a private registry (GHCR) on request, and the VM runs `git checkout <commit>`, `docker compose pull` and `docker compose up -d --no-build`. Two optional `.env` lines choose the mode (`VATPAC_IMAGE_PREFIX`, `VATPAC_IMAGE_TAG`; [docs/CONFIG_MAP.md](docs/CONFIG_MAP.md)). None of this has been run on the VM yet. The procedure, the rollback and the old method kept as a fallback are in [docs/RUNBOOKS/deploy-to-vm.md](docs/RUNBOOKS/deploy-to-vm.md).
+
 **Check that it works:**
 
 ```
@@ -129,7 +131,7 @@ On Windows without `make`, run the underlying commands.
 | `make smoke` | Health checks on a running stack |
 | `make config` | Validate the compose files with a throwaway env |
 | `make soak` | Soak report from `poll_log`: was a snapshot stored every poll interval over the last `HOURS` (default 24) |
-| `make up` / `make dev` / `make down` | Start (optionally with the dev overlay) or stop the stack; volumes are kept |
+| `make up` / `make dev` / `make down` | Start (optionally with the dev overlay) or stop the stack; volumes are kept. `make up` builds the images locally; it is not the registry deploy (see the deploy runbook) |
 | `make logs` / `make ps` | Follow logs; container status |
 | `make backup` / `make backup-test` | Take a backup now; restore the newest into a scratch database and check it |
 | `make restore FILE=... CONFIRM=...` | Restore a dump ([docs/RUNBOOKS/restore.md](docs/RUNBOOKS/restore.md)) |

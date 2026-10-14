@@ -87,7 +87,7 @@ Do not tell the owner the goal is met before 4 and 5 are done. The owner has bee
 - `poll_log` gets a row for every poll attempt including skipped ones: check the real daily row count after a few days (retention is 400 days).
 - The `flight` view's 8 h span split is an approximation (fixed buckets), documented in the view.
 - The two "online now" definitions differ slightly (core view: within 5 min of now and 2 x the poll interval of the newest snapshot, 60 s at 30 s polling, ADR-024; dashboard views: last two snapshots and a 5-minute wall-clock guard).
-- A deploy key for the VM so it can `git pull` (today code is pushed with `git archive | ssh`). Planned 14-10-2026 in issue 173 (draft runbook section 2d).
+- Deploy by git checkout plus registry images (issue 173, decided 14-10-2026, hybrid). Today (14-10-2026) code is still pushed with `git archive | ssh` and the images are built on the VM. Prepared and merged but NOT yet run on the VM: the release workflow, the compose image variables, the deploy key and checkout (runbook section 2d), the registry login and the first pull (section 2e). Next: the owner's go for each step, the first publish, then the VM steps. Related and not decided: issue 176 (floating major tags for third-party images, parked), issue 164 (Grafana boot race, parked).
 
 ### 4.3 Open owner decisions
 1. ~~Retention or anonymisation of names and CIDs~~ DECIDED 07-10-2026: keep forever, no rule (ADR-019).
@@ -111,7 +111,7 @@ Do not tell the owner the goal is met before 4 and 5 are done. The owner has bee
 - Repo has NO secrets. `.env` is git-ignored. `.env.example` has blank secret values on purpose; `sh ops/gen_env.sh [OUT]` writes a `.env` with random hex passwords (prints variable names only); `sh ops/check_env.sh [FILE]` rejects blank, `change-me*`, under 16 characters, non letter/digit values (passwords go inside URLs) and repeated values.
 - Secrets: `POSTGRES_PASSWORD` (owner role; db, migrate, restore only), `GRAFANA_RO_PASSWORD`, `COLLECTOR_DB_PASSWORD`, `BACKUP_DB_PASSWORD`, `WATCHDOG_DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, optional `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`. Changing a role password later: edit `.env`, `docker compose up -d` (the migrate job runs `ALTER ROLE`); `POSTGRES_PASSWORD` itself and `GRAFANA_ADMIN_PASSWORD` only apply at first initialisation (rotate with `ALTER ROLE` / `grafana cli admin reset-admin-password`).
 - The local PC `.env` and the VM `.env` are different files with different passwords.
-- GitHub: the owner's PC authenticates with an SSH key. The VM has NO GitHub credentials.
+- GitHub: the owner's PC authenticates with an SSH key. The VM has NO GitHub credentials today (14-10-2026). Planned (not yet run): a read-only deploy key on the VM, and a classic GitHub token with only `read:packages` (90 day expiry, calendar reminder) stored by `docker login ghcr.io` in `~/.docker/config.json` on the VM. Neither is ever in the repository or in `.env`.
 
 ## 6. How to verify everything (commands)
 Run from the repo root locally, or on the VM inside `~/vatpac-statsV2`.
@@ -146,19 +146,25 @@ docker rm -f vp-test
 
 ### 7.1 First deploy on a fresh host
 ```bash
-git clone git@github.com:t288matt/vatpac-statsV2.git && cd vatpac-statsV2   # or copy the tree (7.2)
+git clone git@github.com:t288matt/vatpac-statsV2.git && cd vatpac-statsV2   # needs a read credential; or copy the tree (7.2, fallback)
 sh ops/gen_env.sh .env && chmod 600 .env
 # LAN access: set GRAFANA_BIND to the host LAN IP (default 127.0.0.1 = this host only) and GRAFANA_ROOT_URL
 sh ops/check_env.sh .env && docker compose up -d --build
 ```
 Order: db healthy, then `migrate` (dbmate migrations, then `db/roles.sql` with the three password variables, then creates `watchdog_ro`), then collector, grafana, backup, watchdog. Detailed runbooks: `docs/RUNBOOKS/` (deploy-to-vm, restore, feed-outage, stuck-collector, update-reference-files, db-full).
 
-### 7.2 Deploying a new commit to the VM (the VM has no git credentials)
+### 7.2 Deploying a new commit to the VM
+Planned method (issue 173; prepared 14-10-2026, NOT yet run on the VM; steps and checks in `docs/RUNBOOKS/deploy-to-vm.md` sections 2d to 2f). Publish the commit, then on the VM:
+```bash
+git fetch origin && git checkout --detach <commit>     # then set VATPAC_IMAGE_TAG=sha-<7> in .env
+docker compose pull && docker compose up -d --no-build
+```
+Fallback and today's method (the VM has no git credentials until section 2d is run):
 ```bash
 git archive --format=tar HEAD | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'     # the VM's .env is not in git, so it is preserved
 ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/check_env.sh && docker compose up -d --build'
 ```
-`tar -x` overwrites but does not delete files removed from git. Migrations are forward-only: never edit an applied migration; add a new numbered file (latest on 07-10-2026: `20261007000024`; on 08-10-2026: `20261008000031`).
+`tar -x` overwrites but never deletes files removed from git (the VM held 15 stale files on 14-10-2026; a stale migration file would be applied). Migrations are forward-only: never edit an applied migration; add a new numbered file (latest on 07-10-2026: `20261007000024`; on 08-10-2026: `20261008000031`).
 
 ### 7.3 Routine operations
 - Backups: nightly 02:00 UTC `pg_dump -Fc` as `backup_ro` into the `backups` volume, 14 days kept, weekly restore test (`/backups/.last_restore_test`, checked by the watchdog). Manual: `docker compose exec backup backup.sh once`. Restore (guarded): `docker compose exec -e RESTORE_CONFIRM=<db> backup restore.sh <file> <db>`, it restores into `<db>_restoring`, sanity-checks, swaps by renaming, keeps `<db>_old`. Read `docs/RUNBOOKS/restore.md` first.

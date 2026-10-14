@@ -93,14 +93,14 @@ ls -ln ~/vatpac-backup-keys
 
 ## C. Wiring (I do this, with your go)
 
-1. **A compose override on the VM** that mounts that folder read-only into the backup container. I create `~/vatpac-statsV2/docker-compose.override.yml` (compose reads it automatically; it exists only on the VM, is not in git, and the `git archive` deploy never deletes it):
+1. **A compose override on the VM** that mounts that folder read-only into the backup container. I create `~/vatpac-statsV2/docker-compose.override.yml` (compose reads it automatically; it exists only on the VM, is not in git, and the `git archive` deploy never deletes it. Note 14-10-2026: once the VM is a git checkout (deploy-to-vm.md section 2d) this untracked file shows in `git status --short`, which the deploy steps expect to be empty; add it with `echo docker-compose.override.yml >> .git/info/exclude`. A checkout never deletes an untracked file):
 ```yaml
 services:
   backup:
     volumes:
       - /home/matt/vatpac-backup-keys:/run/keys:ro
 ```
-2. **Tools in the image.** The stock backup image has neither `rsync` nor `ssh` (checked in the running container on 10-10-2026). In the VM's `.env` I edit the EXISTING empty line `BACKUP_EXTRA_APT_PACKAGES=` (do not add a second copy) to `BACKUP_EXTRA_APT_PACKAGES=rsync openssh-client` (a non-secret line; I will not print the file), then run `docker compose up -d --build backup`. The backup container is rebuilt and recreated and the collector is not touched (the idempotent `migrate` job may run again, because the backup service waits for it). The build downloads packages from the internet (UNVERIFIED that the VM can reach the Debian mirrors; it can reach the internet for the feed).
+2. **Tools in the image.** The stock backup image has neither `rsync` nor `ssh` (checked in the running container on 10-10-2026). In the VM's `.env` I edit the EXISTING empty line `BACKUP_EXTRA_APT_PACKAGES=` (do not add a second copy) to `BACKUP_EXTRA_APT_PACKAGES=rsync openssh-client` (a non-secret line; I will not print the file), then run `docker compose up -d --build backup`. The backup container is rebuilt and recreated and the collector is not touched (the idempotent `migrate` job may run again, because the backup service waits for it). The build downloads packages from the internet (UNVERIFIED that the VM can reach the Debian mirrors; it can reach the internet for the feed). **Note 14-10-2026 (issue 173, prepared, not yet run): this step needs local-build mode.** In registry mode (`VATPAC_IMAGE_PREFIX` and `VATPAC_IMAGE_TAG` set) the backup image comes from the registry and the build argument `BACKUP_EXTRA_APT_PACKAGES` is ignored, so the image would still have no `rsync` or `ssh`. Until the tools are added to the published image (a change to `ops/backup/Dockerfile`, which needs the owner's decision), set up the off-box copy while the VM is in local-build mode, or use a different copy method that runs outside the image.
 
 ## D. You type the BACKUP_REMOTE line into the VM's `.env`
 
@@ -135,7 +135,7 @@ What the watchdog will report:
 
 ## F. Taking it out again
 
-1. VM `.env`: set `BACKUP_REMOTE=` (empty) and `BACKUP_EXTRA_APT_PACKAGES=` (empty). Then `docker compose up -d --build backup watchdog`. The check switches itself off (it reports "off-box copy not configured").
+1. VM `.env`: set `BACKUP_REMOTE=` (empty) and `BACKUP_EXTRA_APT_PACKAGES=` (empty). Then `docker compose up -d --build backup watchdog` (in registry mode: set the tag, `docker compose pull`, `docker compose up -d --no-build backup watchdog`). The check switches itself off (it reports "off-box copy not configured").
 2. Remove the override: `rm ~/vatpac-statsV2/docker-compose.override.yml`, then `docker compose up -d backup`.
 3. Delete the key: `sudo rm -r ~/vatpac-backup-keys` (the private key is owned by uid 999, hence sudo).
 4. Proxmox: delete the user and its keys with `deluser --remove-home vatpacbackup`, remove `/etc/cron.d/vatpac-backup-prune`, and decide deliberately about `/srv/vatpac-backups`: it holds real backups and is not removed by `deluser`. Delete it only when you no longer want them.

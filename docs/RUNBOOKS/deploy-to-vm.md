@@ -2,9 +2,45 @@
 
 > **Note, issue 89 phase 5 (LIVE since 13-10-2026, marker 7a71d30 at 10:05:56 UTC).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 (live) dropped the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renamed `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](../DATA_DICTIONARY.md) and ADR-030.
 
-Last reviewed 13-10-2026; the commit running in production is 7a71d3054506d5d6e5e0165860de0feb97e0f651 (issue 89 phases 4 and 5, deployed together about 10:03 UTC), release marker of 13-10-2026 10:05:56 UTC. Marker history read from the VM's `.deploy/release.log` on 13-10-2026: b3189ad (11-10-2026 20:35:53 UTC), c70e72f (phase 1, 12-10-2026 17:58:21 UTC), 3d4b5b6 (phase 1b, 13-10-2026 08:01:09 UTC), 38e3958 (phase 3, 13-10-2026 08:14:12 UTC), 7a71d30 (phases 4 and 5, 13-10-2026 10:05:56 UTC). The phase 4 and 5 deploy was done by the owner with a pre-deploy dump (the only way back from phase 5, which is forward-only), a rollback copy of the tree on the VM and the scripted checks of `ops/deploy.sh` (preflight 12 checks, then verify); the plan, the decision tree for each failure and the 24 hour watch list are `DEPLOY_PLAN_PHASE_4_5.md` in the `vatpac-claude-setup` repository. Sections written before 11-10-2026 were not all re-checked line by line against that commit; where a step names 3eb81a3 or deploys 1 and 2 at 520dc3e, read it as history. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD**. The production VM is reached as `ssh vatpac-v3` (an alias in the owner's `~/.ssh/config`) and the stack lives in `~/vatpac-statsV2`. That VM has the git program installed (version 2.43.0 on 10-10-2026) but `~/vatpac-statsV2` is not a git checkout and the VM holds no GitHub credentials, so code is deployed with `git archive` (section 2c). Times in this runbook are UTC.
+Last reviewed 13-10-2026; the commit running in production is 7a71d3054506d5d6e5e0165860de0feb97e0f651 (issue 89 phases 4 and 5, deployed together about 10:03 UTC), release marker of 13-10-2026 10:05:56 UTC. Marker history read from the VM's `.deploy/release.log` on 13-10-2026: b3189ad (11-10-2026 20:35:53 UTC), c70e72f (phase 1, 12-10-2026 17:58:21 UTC), 3d4b5b6 (phase 1b, 13-10-2026 08:01:09 UTC), 38e3958 (phase 3, 13-10-2026 08:14:12 UTC), 7a71d30 (phases 4 and 5, 13-10-2026 10:05:56 UTC). The phase 4 and 5 deploy was done by the owner with a pre-deploy dump (the only way back from phase 5, which is forward-only), a rollback copy of the tree on the VM and the scripted checks of `ops/deploy.sh` (preflight 12 checks, then verify); the plan, the decision tree for each failure and the 24 hour watch list are `DEPLOY_PLAN_PHASE_4_5.md` in the `vatpac-claude-setup` repository. Sections written before 11-10-2026 were not all re-checked line by line against that commit; where a step names 3eb81a3 or deploys 1 and 2 at 520dc3e, read it as history. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD** (the minimum; the production VM has 4 cores, 6 GB RAM and 161 GB free, read 14-10-2026). The production VM is reached as `ssh vatpac-v3` (an alias in the owner's `~/.ssh/config`) and the stack lives in `~/vatpac-statsV2`. As of 14-10-2026 that VM has the git program installed (version 2.43.0) but `~/vatpac-statsV2` is not yet a git checkout and the VM holds no GitHub credentials, so code is still deployed with `git archive` (section 2c) and the images are built on the VM. The replacement (git checkout plus registry images) is in the overview below; none of it has been run on the VM yet. Times in this runbook are UTC.
 
 Disk sizing: about 2 to 3 GB of positions at 90 days, plus WAL (up to 2 GB), plus `BACKUP_RETENTION_DAYS` (default 14) dumps on the same disk, plus Docker images, logs and build cache. 20 GB is too tight. Provision 40 GB or more, or set `BACKUP_RETENTION_DAYS=7` and copy dumps off-box (`restore.md`, "Off-box copies"). The watchdog checks the filesystems listed in `WATCHDOG_DISK_PATHS` (default `/backups,/`, which is the Docker data-root filesystem that holds the `pgdata` and `backups` named volumes) and warns at `WATCHDOG_DISK_PCT` (80%). If you move a volume onto its own mount, mount that path into the watchdog and add it to the list.
+
+## Overview: how a deploy works (issue 173; prepared 14-10-2026, NOT YET RUN on the VM)
+
+**Status on 14-10-2026, stated plainly.** The procedure below is prepared, not in use. Merged to main: the release workflow (PR 177), the compose image variables (PR 178) and runbook section 2d (PR 177). Not yet done: the first publish of images, the deploy key, the git checkout on the VM, the registry login, the two `.env` lines and the first pull. Until the owner has run them, the VM is deployed by the old method (section 2c, now the fallback). Each step below that depends on something not yet run says so. This page is edited again after the first registry deploy has been verified.
+
+**The idea.** The VM becomes a read-only git checkout of this repository. The four images that this project builds (collector, watchdog, backup, migrate) are built once by GitHub Actions and stored in a private registry (GHCR), tagged with the commit (`sha-` plus the first 7 characters). The VM pulls them instead of building them. A deploy is:
+
+```sh
+git fetch origin && git checkout --detach <commit> && docker compose pull && docker compose up -d --no-build
+```
+
+**What stays on the VM tree (mounts, not images):** `grafana/dashboards`, `grafana/provisioning`, `config/`, `db/` (the migrations; the migrate image also holds a copy) and `ops/postgres/postgresql.conf`. A dashboard change still shows within 30 seconds of a checkout, with no image and no Grafana restart. The VM also runs its own `ops/smoke.sh`, `ops/check_panels.py` and `ops/grafana_public.py` from the tree, which is why the tree stays.
+
+**Not ours:** the postgres and grafana images (and the python base image of the builds) come from Docker Hub as before, at the exact versions pinned in `docker-compose.yml`. A move to floating major tags is proposed in issue 176 and is parked, not decided; this page does not assume it.
+
+**Two modes, one compose file.** `VATPAC_IMAGE_PREFIX` and `VATPAC_IMAGE_TAG` in `.env` choose the mode ([../CONFIG_MAP.md](../CONFIG_MAP.md)):
+
+| Mode | `.env` | Image names | Deploy command | Used by |
+|---|---|---|---|---|
+| Local build | both unset | `vatpac-stats-<name>:local` | `docker compose up -d --build` (`make up`) | PC, CI, dev, and the production VM today |
+| Registry | both set | `ghcr.io/t288matt/vatpac-stats-<name>:sha-<7>` | `docker compose pull`, then `docker compose up -d --no-build` | production VM after the first registry deploy |
+
+Setting only one of the two fails `sh ops/check_env.sh`. In registry mode never use `--build`: compose would build from source and tag the result with the registry name, so the VM would run something other than the published image. `--no-build` makes that impossible.
+
+**Order of the first-time set-up on the VM** (the owner runs every VM command; each step has a check and a way back):
+
+| Step | What | Where described | Status 14-10-2026 |
+|---|---|---|---|
+| 1 | Publish the images for the commit to be deployed (release workflow) | "Publishing commit-tagged images" at the end of this page | Workflow merged, never run |
+| 2 | Deploy key and git checkout of the live folder (phase P0) | section 2d | Prepared, not yet run on the VM |
+| 3 | Registry token, `docker login`, the two `.env` lines, first pull (phase P3) | section 2e | Prepared, not yet run on the VM |
+| 4 | Every later deploy | section 2f | Prepared, not yet run on the VM |
+
+Owner cards for steps 2 and 3: [../OWNER_ACTIONS.md](../OWNER_ACTIONS.md) cards 15 to 18. Decision record: ADR-031 in [../DECISIONS.md](../DECISIONS.md).
+
+**The old method is kept as a fallback:** section 2c (`git archive | tar -x`) and the "Fallback" notes under Updating and Roll back. It never deletes files, so stale files on the VM survive it; read the warning in 2c before using it.
 
 ## 0. VM CPU type (Proxmox or QEMU)
 Set the VM CPU type to `host` (or `x86-64-v2-AES`), not the default "Common KVM processor": the collector uses numpy 2.x, which needs the x86-64-v2 baseline (SSE4.2, POPCNT) and otherwise crash-loops on import (07-10-2026). Check on the VM: `grep -m1 -ow sse4_2 /proc/cpuinfo` prints `sse4_2`. Changing the type needs a full stop and start of the VM, not a reboot.
@@ -31,7 +67,9 @@ Alternative: HTTPS with a fine-grained personal access token (Contents: read-onl
 git fetch origin && git checkout --detach <commit>   # deploy a commit (sha), not a moving branch; there are no semver tags (issue 173)
 ```
 
-## 2c. Copy the code without git (the method in use on the production VM)
+## 2c. FALLBACK: copy the code without git (the method in use on the production VM until section 2d is run)
+**No-delete warning.** `tar -x` never deletes anything. Files removed or renamed in git stay on the VM: a stale migration file would still be applied by `migrate`, and a stale module under `collector/src` would still be baked into an image. The VM held 15 such stale files on 14-10-2026 (listed in section 2d). Use this method only when the git checkout of section 2d is not in place or cannot be used, and delete removed files by hand afterwards.
+
 Run from the repository root on the PC, with the commit you want to deploy checked out and committed (`git archive` ships committed files only):
 ```sh
 git archive --format=tar HEAD | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'
@@ -109,15 +147,11 @@ Check: no error; the same five services with their old uptimes (nothing restarte
 
 10. **PC: verify.** `bash ops/deploy.sh --verify`, then `bash ops/deploy.sh --status`. Check: all PASS and the marker unchanged. `--preflight`, `--mark` and `ops/stale_issues.sh` need no change: they `cd ~/vatpac-statsV2` over ssh and read `.deploy/release`, and that folder, its name and the marker are untouched.
 
-**New deploy line (from the next deploy).** On the VM, with the commit chosen on the PC:
+**Deploying after 2d.** Section 2d only turns the live folder into a git checkout. After it, deploys use section 2f (registry mode, after 2e). Until 2e is done, use this local-build line:
 ```sh
 cd ~/vatpac-statsV2 && git fetch origin && git checkout --detach <commit> && git status --short && sh ops/check_env.sh && docker compose up -d --build
 ```
-Then `bash ops/deploy.sh --verify` and `--mark <commit>` from the PC as before. Notes: `git checkout` removes files the new commit deleted, which `tar -x` never did. Like `tar -x`, it replaces the single-file mount `ops/postgres/postgresql.conf` with a new file, so a changed postgresql.conf still needs `docker compose restart db`. A checkout refuses to overwrite an untracked file that the new commit adds, which stops the deploy loudly instead of silently. Untracked files (other than `.env*`, `.deploy`, `.claude`) show in the `git status --short` printed by that line; look at it before the build.
-
-**Registry mode (issue 173, P2; compose side built, not yet used on the VM).** `docker-compose.yml` takes the image of migrate, collector, backup and watchdog from two optional `.env` variables, `VATPAC_IMAGE_PREFIX` and `VATPAC_IMAGE_TAG` (docs/CONFIG_MAP.md). The owner must be told the exact two lines before they are added (they are in `.env.example`, commented out); until then nothing changes.
-- Local-build mode (both unset; today): the deploy line above, unchanged.
-- Registry mode (both set, after P3): `cd ~/vatpac-statsV2 && git fetch origin && git checkout --detach <commit> && docker compose config --images && docker compose pull && docker compose up -d --no-build`, where the tag in `.env` is `sha-<first 7 characters of <commit>>` and that commit was published by the release workflow. `config --images` first shows the resolved names (check they are the ghcr.io names and the tag you mean). After `pull` the images exist; `--no-build` is a safety net that guarantees nothing is built locally (without it, a missing image would be built from source). `docker compose pull` in local-build mode would try to pull `vatpac-stats-<name>:local` from Docker Hub and fail, so do not use it there. Set both variables or neither: `sh ops/check_env.sh` fails when only one is set.
+Then `bash ops/deploy.sh --verify` and `--mark <commit>` from the PC as before. Notes: `git checkout` removes files the new commit deleted, which `tar -x` never did. Like `tar -x`, it replaces the single-file mount `ops/postgres/postgresql.conf` with a new file, so a changed postgresql.conf still needs `docker compose restart db`. A checkout refuses to overwrite an untracked file that the new commit adds, which stops the deploy loudly instead of silently. Untracked files (other than `.env*`, `.deploy`, `.claude`) show in the `git status --short` printed by that line; look at it before the build. `docker compose pull` in local-build mode would try to pull `vatpac-stats-<name>:local` from Docker Hub and fail, so do not use it there.
 
 **Roll back (to the tar method).** Nothing else changed.
 - VM: `rm -rf ~/vatpac-statsV2/.git`, then use section 2c again.
@@ -126,6 +160,71 @@ Then `bash ops/deploy.sh --verify` and `--mark <commit>` from the PC as before. 
 - VM, check the stack is untouched: `cd ~/vatpac-statsV2 && git status` says "not a git repository", and `docker compose ps --format '{{.Name}} {{.Status}}'` shows the same five services with their old uptimes.
 
 **If you prefer swapping folders anyway** (not recommended): copy `.env*`, `.deploy/` and `.claude/` into the clone, run `docker compose config -q` there, rename the live folder to `~/vatpac-statsV2-old` and the clone to `~/vatpac-statsV2`, then `docker compose up -d --force-recreate` (restarts every service including the database; about 45 seconds of snapshots) and `bash ops/deploy.sh --verify`. Way back: rename the folders back and force-recreate again.
+
+## 2e. Registry login and the two `.env` lines (issue 173, phase P3; prepared 14-10-2026, not yet run on the VM)
+Do this after section 2d is done and checked, and after the images for the target commit have been published (see "Publishing commit-tagged images"). The owner runs every command on the VM. Nothing here is typed into chat, committed to git, or written into `.env` except the two non-secret lines in step 4.
+
+**What it needs.** A GitHub personal access token (classic) with ONE scope, `read:packages`. GitHub documents that its container registry only supports a personal access token (classic) (GitHub Docs, "Working with the Container registry", read 14-10-2026), so a fine-grained token cannot be used. Check at creation that only `read:packages` is ticked. Know what it can do: it can read every package the account `t288matt` can reach, until it expires. It cannot push (the release workflow pushes with its own short-lived workflow token, not this one).
+
+1. **PC (browser): create the token.** GitHub > your profile > Settings > Developer settings > Personal access tokens > Tokens (classic) > Generate new token (classic). Note: `vatpac-vm ghcr read`. Expiration: **90 days**. Scope: tick `read:packages` only. Generate and copy it once. Put the expiry date in your calendar now, with a reminder 10 days before (see "When the token expires" below).
+2. **VM: log in to the registry.**
+```sh
+docker login ghcr.io -u t288matt --password-stdin
+```
+Paste the token when the cursor waits, press Enter, then Ctrl-D. The owner types or pastes the token; it is never put on the command line, in chat, in the repository or in `.env`. Check: it prints `Login Succeeded`. Docker stores the credential in `~/.docker/config.json` on the VM (base64, not encrypted): `ls -l ~/.docker/config.json` should show `-rw-------`. Anyone who can read that file can read the packages, so do not copy it.
+3. **VM: take a fresh dump first** (a registry deploy cannot undo a migration): `cd ~/vatpac-statsV2 && docker compose exec backup backup.sh once`, then check the new file in `/backups` ([restore.md](restore.md)).
+4. **The owner is told the exact two lines before they are added** (rule: no `.env` change without advance notice; the values are never printed back). With `<7>` the first 7 characters of the commit being deployed:
+```
+VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/
+VATPAC_IMAGE_TAG=sha-<7>
+```
+Neither line is secret. The prefix must end with a slash. The same text is in `.env.example`, commented out. Add them on the VM:
+```sh
+cd ~/vatpac-statsV2 && printf '\nVATPAC_IMAGE_PREFIX=ghcr.io/t288matt/\nVATPAC_IMAGE_TAG=sha-<7>\n' >> .env && grep '^VATPAC_IMAGE' .env && sh ops/check_env.sh
+```
+Check: `grep` prints exactly these two lines (it is the only way `.env` is read here; never `cat .env`) and `check_env.sh` passes.
+5. **VM: look before pulling.**
+```sh
+docker compose config --images
+```
+Check: the four project images show as `ghcr.io/t288matt/vatpac-stats-{migrate,collector,backup,watchdog}:sha-<7>` with the tag you mean, and postgres and grafana are unchanged.
+6. **VM: first pull, then start without building.**
+```sh
+docker compose pull && docker compose up -d --no-build
+```
+`pull` fetches the project images (their size is not known yet) and checks the others. `up -d --no-build` recreates the services whose image changed. Expect a collector restart of about 45 seconds of snapshots, so do not do it during a soak ([daily-checks.md](daily-checks.md)). `unauthorized` or `denied` at `pull` means the login, the token scope or the package access is wrong; nothing has changed yet, so fix that and repeat. `manifest unknown` means that tag was not published.
+7. **PC: verify.** `bash ops/deploy.sh --verify` (all PASS), then open the ten public addresses (on the VM `python3 ops/grafana_public.py --list --public-url https://vpac.mpengor.com` lists them; [public-access.md](public-access.md)) and check each loads. Then `bash ops/deploy.sh --mark <commit>` (it first lists issues without a comment; see "Silent issues" under Updating).
+8. **Way back.** VM: `sed -i '/^VATPAC_IMAGE_/d' .env`, then `git checkout --detach <previous commit>` and `docker compose up -d --build` (local-build mode, as before). `docker logout ghcr.io` removes the stored credential if wanted. The database is not rolled back by this; restore the step 3 dump only if a migration caused the problem ([restore.md](restore.md)).
+
+**Not verified as of 14-10-2026:** that the packages are private and readable with this token alone; the GHCR storage and transfer quota (the CLI token gets 403 on packages); the image sizes. The first pull is the test. Confirm in the repository's Packages page that each package says Private before the first pull.
+
+**When the token expires.** After the expiry date `docker compose pull` fails with `unauthorized` or `denied`. The stack keeps running on the images it already has; only deploys stop. Fix: create a new classic token (`read:packages` only, 90 days), run the `docker login` line of step 2 again, set a new calendar reminder, and delete the old token on GitHub. A deploy that fails at `pull` has changed nothing, because `up -d --no-build` runs only after `pull` succeeds (the two are joined with `&&`).
+
+## 2f. Deploy a commit in registry mode (issue 173; prepared 14-10-2026, not yet run on the VM)
+Use after section 2e has been done once. Before deploying read [daily-checks.md](daily-checks.md): a redeploy restarts the collector (about 45 seconds of snapshots) and breaks a 24 hour soak in progress. Every deploy needs the owner's explicit go.
+
+1. **PC: choose the commit and publish it.** The commit is on main and its CI run on main passed. Start the release workflow: Actions > release > Run workflow with the commit, or `gh workflow run release.yml -f commit=<sha>`. A docs-only commit skips CI and cannot be published; deploy the last code commit instead. Check: the run shows four green `images` jobs.
+2. **PC: preflight.** `bash ops/deploy.sh --preflight <commit>` (reads only; PASS, or a WARN you understand).
+3. **VM: fresh dump.** `cd ~/vatpac-statsV2 && docker compose exec backup backup.sh once`, then check the new file in `/backups`. The git checkout is the rollback copy of the code; the dump is what matters, because an image cannot undo a migration.
+4. **VM: check out the commit and set the tag.**
+```sh
+git fetch origin && git checkout --detach <commit> && git status --short
+sed -i 's/^VATPAC_IMAGE_TAG=.*/VATPAC_IMAGE_TAG=sha-<7>/' .env && grep '^VATPAC_IMAGE' .env && sh ops/check_env.sh
+```
+Check: `git status --short` prints nothing (anything listed is an edited or untracked file: look before going on); `grep` shows the prefix and the new tag. New releases may add settings to `.env.example`: add any new blank secrets before the next step.
+5. **VM: look, pull, start.**
+```sh
+docker compose config --images
+docker compose pull
+docker compose up -d --no-build
+```
+`config --images` shows the resolved names first. `pull` fetches only what the VM does not have yet. `--no-build` guarantees nothing is built locally. `migrate` runs first and applies any new numbered file in `db/migrations` from the tree (the `./db` mount is kept), then the services whose image changed are recreated. Confirm: `docker compose ps -a migrate` shows `exited (0)` and `docker compose logs --tail=20 migrate` ends with `migrate: done`. A changed `ops/postgres/postgresql.conf` still needs `docker compose restart db`.
+6. **PC: verify.** `bash ops/deploy.sh --verify` (all PASS), then open the ten public addresses ([public-access.md](public-access.md)).
+7. **PC: mark.** `bash ops/deploy.sh --mark <commit>` after commenting on the issues in the commits (the guard refuses otherwise). The tag in the VM's `.env` must name the same 7 characters as the marker: compare `bash ops/deploy.sh --status` with `grep '^VATPAC_IMAGE_TAG' .env` on the VM.
+
+**What a change needs in registry mode.** The table "What a change needs" below still applies, with one change: wherever it says `docker compose up -d --build` for collector, watchdog, backup or migrate code, read "publish the commit, set the tag, `docker compose pull`, `docker compose up -d --no-build`". The build arguments `BACKUP_EXTRA_APT_PACKAGES` and `VATPAC_VERSION` are ignored in registry mode: the published backup image has no `rsync`, `ssh` or `rclone`, so an off-box copy hook that needs them ([restore.md](restore.md), [../OWNER_BACKUP_COPY.md](../OWNER_BACKUP_COPY.md)) works only in local-build mode until the tools are added to the published image. Dashboards, provisioning, `config/` and migrations are mounts: a checkout is enough, as before.
+
+**Old images pile up.** Each deploy leaves the previous four images on the VM (a quick rollback uses them). List them with `docker images 'ghcr.io/*'`. Remove old ones only with the owner's go ([../OWNER_ACTIONS.md](../OWNER_ACTIONS.md), tidy card), never with `docker system prune` or `docker volume prune`.
 
 ## 3. Configure
 `.env.example` has **blank secrets on purpose**: the stack will not start with trivial credentials.
@@ -141,10 +240,15 @@ Two caveats:
 - Changing the other passwords: edit `.env`, then `docker compose up -d` (the migrate job runs `ALTER ROLE ... PASSWORD`; `POSTGRES_PASSWORD` itself is only read by Postgres at first initialisation, so rotate it with `ALTER ROLE` inside the database as well).
 
 ## 4. Start
+Local-build mode (both image variables unset), as on a PC or a new VM before the registry is set up:
 ```sh
 make up                      # = check_env + docker compose up -d --build
 docker compose ps            # migrate shows "exited (0)"; everything else healthy within about 2 minutes
 ```
+Registry mode (prepared 14-10-2026, not yet run): after the `docker login` and the two `.env` lines of section 2e, start with `docker compose pull && docker compose up -d --no-build` instead of `make up` (`make up` builds).
+
+## 4a. About sections 4b to 4e
+They are dated records of special deploys, written for local-build mode. Keep them as they are. In registry mode read each `docker compose up -d --build` in them as "publish the commit, set the tag, `docker compose pull`, `docker compose up -d --no-build`" (section 2f), and read `git archive` as the git checkout of section 2d.
 
 ## 4b. Special case: migration 20261008000100 (whole-second logon_time, T36 / ADR-021)
 This migration merges duplicate sessions and rewrites `logon_time` in both session tables. It cannot be undone by its down half (the fractions are gone), so **take a fresh dump first** (`docker compose exec backup backup.sh once`, then check the new file in `/backups`) and keep a copy of the VM's current tree. Stop the old collector before the migration runs (`docker compose stop collector`), so nothing writes while sessions are merged, then `docker compose up -d --build`. Afterwards run `psql -X -f ops/check_identity_flap.sql` in the db container (every count must be 0). Roll-back is the restore of the pre-deploy dump (restore.md).
@@ -222,20 +326,22 @@ Open `http://localhost:3300` on the VM (or `http://<GRAFANA_BIND>:3300` from the
 ## Updating
 Before deploying read [daily-checks.md](daily-checks.md): **a redeploy restarts the collector, which costs about 45 seconds of snapshots, and breaks a 24 hour soak that is in progress.** Do not redeploy while a soak is running unless it is necessary, and say so if you do.
 
-With git on the host:
+Which method applies (status 14-10-2026; sections 2d to 2f are prepared and not yet run on the VM):
+- **Registry mode** (target, after sections 2d and 2e have been run): section 2f.
+- **Local-build mode with git** (after 2d, before 2e):
 ```sh
 git fetch origin && git checkout --detach <new commit>   # a commit (sha); no semver tags
 sh ops/check_env.sh                # new releases may add secrets (see .env.example); add any blank ones
 docker compose up -d --build     # migrate runs first; collector waits for it
 make smoke
 ```
-Without git (production VM), from the PC:
+- **Fallback, no git (the method in use on the production VM today, until section 2d is run).** Read the no-delete warning in section 2c first. From the PC:
 ```sh
 git archive --format=tar HEAD | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'
 ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/check_env.sh && docker compose up -d --build'
 ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/smoke.sh && python3 ops/check_panels.py'
 ```
-`docker compose up -d --build` rebuilds the images whose inputs changed, recreates only the services whose image or configuration changed, and starts the `migrate` job before the services that wait for it. Confirm the migrations ran: `docker compose ps -a migrate` shows `exited (0)`, and `docker compose logs --tail=20 migrate` ends with `migrate: done`. If a new migration did not run, `docker compose up migrate` runs the job on its own (it is idempotent).
+`docker compose up -d --build` (local-build modes) rebuilds the images whose inputs changed, recreates only the services whose image or configuration changed, and starts the `migrate` job before the services that wait for it. In registry mode the same recreate rule applies to `docker compose up -d --no-build` after the pull. Confirm the migrations ran: `docker compose ps -a migrate` shows `exited (0)`, and `docker compose logs --tail=20 migrate` ends with `migrate: done`. If a new migration did not run, `docker compose up migrate` runs the job on its own (it is idempotent).
 
 **Silent issues (built 11-10-2026, issue #104).** After a verified deploy, `bash ops/deploy.sh --mark <commit>` first lists every issue named in the commits since the previous marker and refuses to mark if any has no comment newer than its newest commit: comment on each (what shipped, the commit, how it was verified), then mark again. If `gh` fails, or no previous marker can be read, it refuses too; the first-ever mark on a VM therefore needs `--allow-silent-issues`. `--allow-silent-issues` marks anyway and prints a warning. To look without marking: `bash ops/stale_issues.sh` (since the last marker) or `--since <sha|date>`; it is read-only and exits 1 when it finds any. The guard is built and awaiting review; the deploy of it still needs the owner's go.
 
@@ -258,16 +364,25 @@ ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/smoke.sh && python3 ops/check_panel
 | `ops/*.sh`, `ops/*.py`, `grafana/*.py`, `docs/`, `tests/`, `Makefile` | Nothing: they run from the host or are only documentation | No |
 
 ## Roll back
-Code, dashboards and configuration go back by deploying the previous commit; the database does not go back by itself.
-1. Note the commit that was deployed before (`git log --oneline`), then deploy it: `git archive --format=tar <previous commit> | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'`, then `docker compose up -d --build` on the VM.
-2. Delete files the newer commit added, because `tar -x` leaves them behind. In particular delete a newer migration file you do not want applied **before** running `docker compose up -d`, or `migrate` will apply it.
-3. Migrations are forward-only. A migration that already ran stays applied after a code rollback; additive migrations (a new view, an index) are harmless to older code. If a migration must be undone, add a new corrective numbered migration, or restore from backup (`restore.md`); never edit an applied migration.
-4. Verify with `sh ops/smoke.sh` and `python3 ops/check_panels.py`.
+Code, dashboards and configuration go back by deploying the previous commit; the database does not go back by itself. Migrations are forward-only. A migration that already ran stays applied after a code rollback; additive migrations (a new view, an index) are harmless to older code. If a migration must be undone, add a new corrective numbered migration, or restore from backup ([restore.md](restore.md)); never edit an applied migration. Images cannot undo a migration either, so the dump taken before the deploy is the way back from a bad one.
 
-With git on the host, check out the previous commit (sha) instead and run `docker compose up -d --build`.
+**Registry mode (prepared 14-10-2026, not yet run on the VM).**
+1. Note the commit and tag that were deployed before (`bash ops/deploy.sh --status`, or `.deploy/release.log` on the VM). The previous commit must have been published to the registry; a commit that was never published has no images (use the local-build rollback below).
+2. VM: check out the previous commit, which also removes any newer migration file you do not want applied, and set the previous tag:
+```sh
+cd ~/vatpac-statsV2 && git checkout --detach <previous commit> && sed -i 's/^VATPAC_IMAGE_TAG=.*/VATPAC_IMAGE_TAG=sha-<previous 7>/' .env && grep '^VATPAC_IMAGE' .env
+docker compose config --images && docker compose pull && docker compose up -d --no-build
+```
+`pull` fetches nothing if the previous images are still on the VM. Do not use `--build`.
+3. Verify with `bash ops/deploy.sh --verify` and the ten public addresses; mark the previous commit with `--mark` if the old marker should be restored.
+4. First registry deploy only: the previous commit has no registry images yet, so the way back is the local-build rollback of section 2e step 8.
+
+**Local-build mode with git.** `git checkout --detach <previous commit>`, then `docker compose up -d --build`, then `sh ops/smoke.sh` and `python3 ops/check_panels.py`. The checkout already removes files the newer commit added.
+
+**Fallback, no git (today).** Note the commit deployed before, then deploy it: `git archive --format=tar <previous commit> | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'` and `docker compose up -d --build` on the VM. `tar -x` leaves files the newer commit added: delete them by hand. In particular delete a newer migration file you do not want applied **before** running `docker compose up -d`, or `migrate` will apply it.
 
 ## Image pinning
-Third-party images (`postgres`, `grafana`, `dbmate`, `python`) are pinned by exact version tag. Digest pinning (`image:tag@sha256:...`) is the stricter policy; add digests when you can resolve them with `docker buildx imagetools inspect <image>:<tag>`. Dependabot (docker and docker-compose ecosystems) proposes bumps.
+Third-party images (`postgres`, `grafana`, `dbmate`, `python`) are pinned by exact version tag. (Issue 176 proposes floating major tags; it is parked and not decided, so this section still describes the exact pins.) Our own four images are tagged by commit (`sha-<7>`), never `latest`. Digest pinning (`image:tag@sha256:...`) is the stricter policy; add digests when you can resolve them with `docker buildx imagetools inspect <image>:<tag>`. Dependabot (docker and docker-compose ecosystems) proposes bumps.
 
-## Publishing commit-tagged images (issue 173, P1; built, not yet run)
-The `release` workflow (`.github/workflows/release.yml`) is started by hand: Actions > release > Run workflow, or `gh workflow run release.yml -f commit=<sha>`. The commit must be on main and its `ci` run on main must have passed (a docs-only commit skips CI, so pick the last code commit). The workflow checks that, does not repeat CI, and pushes `ghcr.io/t288matt/vatpac-stats-{collector,watchdog,backup,migrate}:sha-<7 characters>` (the full SHA is in the `org.opencontainers.image.revision` label). There is no `latest` and no semver tag. The packages are created private (the repository is private); leave them private. The `migrate` image now contains `db/`, so its migrations always match the code it was built from. Nothing pulls these images yet: the stack still builds on the VM (`docker-compose.yml` keeps the `:local` names and the `./db` mount) until phase P2.
+## Publishing commit-tagged images (issue 173, P1; merged in PR 177, never run)
+The `release` workflow (`.github/workflows/release.yml`) is started by hand: Actions > release > Run workflow, or `gh workflow run release.yml -f commit=<sha>`. The commit must be on main and its `ci` run on main must have passed (a docs-only commit skips CI, so pick the last code commit). The workflow checks that, does not repeat CI, and pushes `ghcr.io/t288matt/vatpac-stats-{collector,watchdog,backup,migrate}:sha-<7 characters>` (the full SHA is in the `org.opencontainers.image.revision` label). There is no `latest` and no semver tag. The packages are created private (the repository is private); leave them private. The `migrate` image now contains `db/`, so its migrations always match the code it was built from. `docker-compose.yml` takes these images when `VATPAC_IMAGE_PREFIX` and `VATPAC_IMAGE_TAG` are set (phase P2, merged in PR 178); the `./db` mount is kept. Nothing on the VM pulls them yet: the workflow has never been run and the VM is still in local-build mode until section 2e is run. The workflow's first run is also the first proof that its checks work as written (the commit-on-main comparison and the CI-run lookup); if it fails, fix the workflow, not the docs.
