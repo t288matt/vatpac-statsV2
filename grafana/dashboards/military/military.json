@@ -59,7 +59,7 @@
       "id": 2,
       "type": "piechart",
       "title": "Most popular military aircraft (unique pilots, last 7 days)",
-      "description": "v1 card 65, rebuilt from v1's rule. Counts distinct pilots (CIDs) per military aircraft type over completed flights that ended in the selected time range (default last 7 days). A type counts as military only if it is in v1's card 65 code list (aircraft_type.in_v1_card65_list, 225 exact codes; v1's wildcard entries never matched anything and are not used). The share is each type's pilots divided by the sum of the per-type pilot counts, so a pilot who flew two types is counted under both and the shares add up to 100%. Flights still connected are left out. Differs from the broader aircraft_type.is_military flag by seven codes: EA18, EUFI, FA18, HAWK, K35R, KC10, KC30. Flights appear here about 8 hours after the flight ends.",
+      "description": "Pilots per military aircraft type over the selected time range (default last 7 days).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -111,7 +111,7 @@
       "id": 3,
       "type": "table",
       "title": "Most popular RAAFv routes (last month)",
-      "description": "v1 card 78 ('What were the most popular RAAFv routes last month?', edited 07-10-2025). RAAFv flights are those whose flight-plan remarks contain RAAFVIRTUAL.ORG (case-insensitive), not an aircraft-type list. Window is the last month (UTC), not 7 days. Each session is counted once (v1 de-duplicated on callsign and logon time). Shows share of RAAFv flights and pilots; top 25 routes. Flights appear here about 8 hours after the flight ends.",
+      "description": "Most popular RAAFv routes over the last month (UTC).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -146,7 +146,7 @@
       "id": 4,
       "type": "timeseries",
       "title": "Hours flown by RAAFv aircraft per week (last 14 weeks)",
-      "description": "v1 card 66 ('Hours flown by RAAFv aircraft per week', edited 18-10-2025). RAAFv flights are those whose flight-plan remarks contain RAAFVIRTUAL.ORG (case-insensitive), not an aircraft-type list. Airborne hours per UTC week (v1 summed time online); last 98 days. Weeks start on Monday (UTC). Flights appear here about 8 hours after the flight ends.",
+      "description": "Airborne hours flown by RAAFv flights per week over the last 98 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -187,7 +187,7 @@
       "id": 5,
       "type": "table",
       "title": "RAAFv flights (last 7 days)",
-      "description": "v1 card 142 ('Show RAAFVIRTUAL flights last 7 days', edited 22-09-2025). RAAFv flights are those whose flight-plan remarks contain RAAFVIRTUAL.ORG (case-insensitive). Window is logon time in the last 7 days (UTC). One row per distinct callsign, CID, name, aircraft type, route, remarks and logon time; flights without a filed departure and arrival are not listed (v3 flight gate); newest 500. Names and CIDs are shown by decision (ADR-009, ADR-019). Flights appear here about 8 hours after the flight ends.",
+      "description": "RAAFv flights that logged on in the last 7 days, newest first.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -222,7 +222,7 @@
       "id": 6,
       "type": "table",
       "title": "RAAFv flights by aircraft type (last 30 days)",
-      "description": "v1 card 143 ('RAAFV flights by acft type - last 30 days', edited 18-10-2025). RAAFv = remarks contain RAAFVIRTUAL.ORG. Flights ending in the last 30 days (UTC), per aircraft type: distinct sessions, airborne minutes and hours (v1 summed total_enroute_time_minutes; v3 uses airborne minutes) and average airborne hours per flight. Top 50 types by hours. Shown as a table, as in v1. Flights appear here about 8 hours after the flight ends.",
+      "description": "RAAFv flights, airborne hours and average hours per flight by aircraft type over the last 30 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -257,7 +257,7 @@
       "id": 7,
       "type": "piechart",
       "title": "Most popular RAAFv aircraft last month (flights)",
-      "description": "v1 card 161 ('What were the most popular RAAFv aircraft last month (flights)?', edited 07-10-2025). RAAFv = remarks contain RAAFVIRTUAL.ORG. Flights by aircraft type with logon in the last 30 days (UTC), one count per session (v1 de-duplicated on callsign and logon time, keeping the latest row). Top 25 types; the share column is of all RAAFv flights. Flights appear here about 8 hours after the flight ends.",
+      "description": "RAAFv flights by aircraft type over the last 30 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -310,7 +310,7 @@
       "id": 8,
       "type": "timeseries",
       "title": "Flights flown by RAAFv aircraft per week (last 14 weeks)",
-      "description": "v1 card 184 ('Flights flown by RAAFv aircraft per week', edited 02-01-2026). RAAFv = remarks contain RAAFVIRTUAL.ORG. Flights ending in each UTC week (weeks start Monday; v1 labelled the week start 'week_end'), last 98 days. Shown oldest to newest as bars; the current week is partial. Flights appear here about 8 hours after the flight ends.",
+      "description": "RAAFv flights per week over the last 98 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
