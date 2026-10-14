@@ -29,7 +29,7 @@ A Task Scheduler job on your PC checks Grafana every 5 minutes and messages you 
 
 ## 4. Dependabot pull requests (issue #31, T9, T48). DONE: tested, applied and DEPLOYED 09-10-2026 at 13:46 to 13:47 UTC (commit 8905d85); issue #31 closed.
 Postgres 16.15 (db and backup), Grafana 11.6.5 (history: Grafana has run 12.4.12 since 11-10-2026) and dbmate 2.36.0 were tested on throwaway containers (all pass) and committed to main directly (commit aecec21, because the repo token cannot merge pull requests); the four PRs were closed with a note. Deploying them recreated the db and grafana containers (see docs/RUNBOOKS/deploy-to-vm.md section 4d).
-**You do:** nothing. Postgres 17 or 18, Grafana 13, numpy 2.x and other major bumps stay ignored.
+**You do:** nothing. Postgres 17 or 18 and Grafana 13 stay ignored. numpy is no longer ignored (14-10-2026): a numpy bump PR needs the VM CPU type to stay `host` or `x86-64-v2-AES`.
 **Emma did:** the deploy (fresh dump first) and the checks (tracker T48).
 
 ## 5. Read-only deploy key for the VM (issue #28, T8). WON'T DO: owner decision 09-10-2026, issue closed as not planned. Kept below as a record only.
