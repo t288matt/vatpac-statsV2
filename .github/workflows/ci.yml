@@ -30,7 +30,7 @@ on:
       - 'docs/DATA_INTEGRITY_AUDIT.md'
       - 'docs/DEFINITIONS.md'
       - 'docs/TEST_AUDIT.md'
-  workflow_call:  # release.yml runs this workflow and only publishes images if it passes
+  workflow_call:  # reusable; release.yml no longer calls it (it checks the commit's main CI run instead, issue 173)
 
 permissions:
   contents: read
@@ -136,7 +136,7 @@ jobs:
           WATCHDOG_DB_PASSWORD: ci-watchdog-pw
         run: |
           psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE vatpac_test"
-          docker build -q -t vatpac-migrate-ci ops/migrate
+          docker build -q -t vatpac-migrate-ci -f ops/migrate/Dockerfile .
           docker run --rm --network host --add-host db:127.0.0.1 \
             -e POSTGRES_USER -e POSTGRES_PASSWORD -e POSTGRES_DB \
             -e GRAFANA_RO_PASSWORD -e COLLECTOR_DB_PASSWORD -e BACKUP_DB_PASSWORD -e WATCHDOG_DB_PASSWORD \

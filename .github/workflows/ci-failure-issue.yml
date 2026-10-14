@@ -1,6 +1,6 @@
 # Keeps one GitHub issue ("CI failing on main", label ci-failure) in step with the ci workflow on main:
 # opened or commented on when ci fails, closed when ci passes again. Runs from the default branch after ci
-# completes, so ci.yml and release.yml (which calls ci.yml) need no extra permissions. No third-party actions:
+# completes, so ci.yml needs no extra permissions. No third-party actions:
 # the gh CLI is preinstalled on GitHub-hosted runners. Event values reach the script through env variables, never
 # by inline interpolation, because commit titles are untrusted text.
 name: ci-failure-issue

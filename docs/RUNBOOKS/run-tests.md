@@ -34,7 +34,7 @@ Docker Desktop on the owner's PC works again (13-10-2026; the older note in sect
 docker network create vatpac-pgtest
 docker run -d --name vatpac-pgtest-db --network vatpac-pgtest --network-alias db -p 54329:5432   -e POSTGRES_PASSWORD=ci-superuser-pw -e POSTGRES_DB=vatpac_test postgres:16.15
 # every time migrations change (and the first time): apply them with the production migrate image
-docker build -q -t vatpac-migrate-ci ops/migrate
+docker build -q -t vatpac-migrate-ci -f ops/migrate/Dockerfile .
 MSYS_NO_PATHCONV=1 docker run --rm --network vatpac-pgtest   -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=ci-superuser-pw -e POSTGRES_DB=vatpac_test   -e GRAFANA_RO_PASSWORD=ci-grafana-ro-pw -e COLLECTOR_DB_PASSWORD=ci-collector-pw -e BACKUP_DB_PASSWORD=ci-backup-pw   -e WATCHDOG_DB_PASSWORD=ci-watchdog-pw -v "$(pwd -W)/db:/db:ro" vatpac-migrate-ci
 # run the tests (libpq must be findable by Python: the PostgreSQL 17 client that is installed on the PC has it)
 export PATH="$PATH:/c/Program Files/PostgreSQL/17/bin" PYTHONPATH=collector/src

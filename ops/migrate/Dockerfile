@@ -6,7 +6,11 @@ FROM amacneil/dbmate:2.36.0
 
 RUN apk add --no-cache postgresql-client
 
-COPY migrate.sh /usr/local/bin/migrate.sh
+# Build context is the repository root (issue 173, P1): db/ is baked into the image so the migrations always match the
+# code the image was built from. Dockerfile.dockerignore (next to this file) limits the context to db/ and migrate.sh.
+COPY ops/migrate/migrate.sh /usr/local/bin/migrate.sh
+COPY db /db
 
-# db/ is mounted read-only at /db by compose
+# docker-compose.yml still mounts ./db read-only over /db (the mount wins over the baked copy; it is removed in P2, when
+# the stack starts pulling commit-tagged images).
 ENTRYPOINT ["/bin/sh", "/usr/local/bin/migrate.sh"]
