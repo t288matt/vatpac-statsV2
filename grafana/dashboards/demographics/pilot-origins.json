@@ -236,7 +236,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT cohort,\n       count(*) AS flights,\n       count(DISTINCT cid) AS pilots\nFROM cohorts\nWHERE end_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY cid_group, cohort\nORDER BY cid_group"
+          "rawSql": "SELECT (split_part(cohort, '-', 1)::bigint / 10000)::text || '-' AS cohort,\n       count(*) AS flights,\n       count(DISTINCT cid) AS pilots\nFROM cohorts\nWHERE end_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY cid_group, cohort\nORDER BY cid_group"
         }
       ],
       "options": {
