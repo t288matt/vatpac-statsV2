@@ -44,7 +44,6 @@
     {
       "id": 1,
       "type": "text",
-      "title": "Data since",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -53,14 +52,14 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+        "content": "**Data since ${go_live}.** There is no earlier data. All times are UTC."
       }
     },
     {
       "id": 2,
       "type": "table",
       "title": "Most popular international routes (last 30 days)",
-      "description": "v1 card 45. Top 10 departure-arrival pairs where either end is outside the home region (home prefixes from app_setting home_icao_prefixes). Flights with unknown (ZZZZ) ends and same-airport circuits are excluded. Flights appear here about 8 hours after the flight ends.",
+      "description": "Most popular routes over the last 30 days with at least one end outside the home region.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -94,7 +93,7 @@
       "id": 3,
       "type": "table",
       "title": "Most popular domestic routes (last 30 days)",
-      "description": "v1 card 97. Top 10 departure-arrival pairs where both ends are in the home region. Same-airport circuits and ZZZZ are excluded. Flights appear here about 8 hours after the flight ends.",
+      "description": "Most popular routes over the last 30 days with both ends in the home region.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -128,7 +127,7 @@
       "id": 4,
       "type": "table",
       "title": "Most popular VFR routes (last 30 days)",
-      "description": "v1 card 59. VFR flights (flight rules V) between two different airports, routes flown by at least 3 distinct pilots. Changed from v1: counts distinct CIDs (v1 counted callsigns) and drops the average ATC contact percentage, which depended on frequency matching. Flights appear here about 8 hours after the flight ends.",
+      "description": "Most popular VFR routes over the last 30 days, flown by at least 3 pilots.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -162,7 +161,7 @@
       "id": 5,
       "type": "table",
       "title": "Pilots with the most diverse routes (last 14 days)",
-      "description": "v1 card 46. Pilots ranked by number of distinct departure-arrival pairs, flights longer than 60 minutes only. Pilot name as shown on the network. Flights appear here about 8 hours after the flight ends.",
+      "description": "Pilots who flew the most distinct routes over the last 14 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -197,7 +196,7 @@
       "id": 6,
       "type": "barchart",
       "title": "Busiest home-region airports (last 30 days)",
-      "description": "v1 card 55. Departures and arrivals at home-region airports (from the movements view), top 10 by total movements. Departures are counted at flight start, arrivals at flight end. Flights appear here about 8 hours after the flight ends.",
+      "description": "Busiest home-region airports by departures and arrivals over the last 30 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -239,7 +238,7 @@
       "id": 7,
       "type": "table",
       "title": "Quietest home-region airports (last 30 days)",
-      "description": "Screenshot-only chart ('Which airport had the least movements'). The 20 home-region airports with the fewest movements; every airport with at least one movement appears. Flights appear here about 8 hours after the flight ends.",
+      "description": "Quietest home-region airports by departures and arrivals over the last 30 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -273,7 +272,7 @@
       "id": 8,
       "type": "barchart",
       "title": "Most popular airlines (last 30 days)",
-      "description": "v1 card 58. Callsign prefix (three letters followed by a digit, so private registrations such as VHABC are not counted as airlines) mapped to a name through the airline lookup. Top 10 by flights. Changed from v1, which took the first three characters of every callsign. Flights appear here about 8 hours after the flight ends.",
+      "description": "Most popular airlines by flights over the last 30 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -314,7 +313,7 @@
       "id": 9,
       "type": "table",
       "title": "Most popular callsigns (last 30 days)",
-      "description": "v1 card 57. Callsign and route flown by at least 2 distinct pilots, top 10 by distinct pilots then flights. Flights appear here about 8 hours after the flight ends.",
+      "description": "Most popular callsigns and routes flown by at least 2 pilots over the last 30 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -348,7 +347,7 @@
       "id": 10,
       "type": "piechart",
       "title": "Most popular aircraft by flights (last 6 months)",
-      "description": "v1 card 90. Flights per aircraft category from the aircraft_type lookup (codes not in the lookup are 'Other / uncategorised'). Changed from v1: categories come from a lookup table instead of a LIKE ladder that mis-classified many types. v1 card 90: flights per aircraft category over 6 months, flights with an aircraft type and airborne time only; categories come from the aircraft_type lookup (owner decision 08-10-2026), not v1 pattern ladder. v1 average-time-with-ATC column stays dropped (ADR-002). Flights appear here about 8 hours after the flight ends.",
+      "description": "Flights per aircraft category over the last 6 months.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -401,7 +400,7 @@
       "id": 11,
       "type": "piechart",
       "title": "Most popular aircraft by pilots (last 6 months)",
-      "description": "v1 card 135 (SQL re-checked 08-10-2026). Distinct pilots per aircraft category over the last 6 months, counting only flights with some airborne time and a filed aircraft type (v1: enroute minutes above 0, aircraft type not empty). Categories come from the aircraft_type lookup, not v1's LIKE ladder (open question for the owner). v1's average-time-with-ATC column is dropped (ATC matching is out of scope, ADR-002). Flights appear here about 8 hours after the flight ends.",
+      "description": "Pilots per aircraft category over the last 6 months.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -454,7 +453,7 @@
       "id": 12,
       "type": "table",
       "title": "Highest groundspeeds (last 7 days)",
-      "description": "v1 card 61 (SQL re-checked 08-10-2026). Peak groundspeed per callsign (top 20) over the last 7 days. Flights need a destination, a peak above 100 kt and a highest altitude above 1000 ft. Excludes military (lookup), supersonic, business jets and turboprops (lookup) plus the v1 code list entries the lookup lacks, including the Embraer E-series; other regional jets are NOT excluded, as in v1. Changed from v1: uses the maximum groundspeed stored on the session (capped at 700 kt on ingest) and the highest altitude reached, not the altitude at the moment of peak speed. Flights appear here about 8 hours after the flight ends.",
+      "description": "Highest peak groundspeeds per callsign over the last 7 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -489,7 +488,7 @@
       "id": 13,
       "type": "table",
       "title": "Busiest days by flights (last 6 months)",
-      "description": "v1 card 128. The five UTC dates with the most flights (by flight start). Flights appear here about 8 hours after the flight ends.",
+      "description": "The five days with the most flights over the last 6 months (UTC).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -524,7 +523,7 @@
       "id": 14,
       "type": "table",
       "title": "Busiest days by pilots online (last 6 months)",
-      "description": "v1 card 129 (SQL re-checked 08-10-2026). The ten UTC dates with the most distinct pilots, counted by the date the pilot logged on (v1 used the session logon date, not the flight start), over the last 6 months, with weekday and rank. Flights appear here about 8 hours after the flight ends.",
+      "description": "The ten days with the most pilots online over the last 6 months (UTC).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -559,7 +558,7 @@
       "id": 15,
       "type": "stat",
       "title": "Flights with SELCAL in the remarks",
-      "description": "v1 card 103. Share of flights whose remarks contain 'SEL/', out of flights that have any remarks (same denominator as v1). Flights appear here about 8 hours after the flight ends.",
+      "description": "Share of flights with SELCAL in the remarks, out of flights that have remarks.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -617,7 +616,7 @@
       "id": 16,
       "type": "table",
       "title": "Which member spent the most time online? (last 7 days)",
-      "description": "v1 Metabase card 155. Top 10 pilots with a Y-suffixed name by hours with airborne time (v1: enroute time) over the last 7 days, counting only flights with more than 30 minutes airborne. The v1 title says 'online' but the figure is airborne time, as in v1. Fixed 7-day window (not the time picker). Flights appear here about 8 hours after the flight ends.",
+      "description": "Australian-based pilots with the most airborne hours over the last 7 days, regardless of the time selector.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"

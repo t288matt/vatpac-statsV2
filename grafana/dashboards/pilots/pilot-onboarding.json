@@ -44,7 +44,6 @@
     {
       "id": 1,
       "type": "text",
-      "title": "Data since",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -53,7 +52,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+        "content": "**Data since ${go_live}.** There is no earlier data. All times are UTC."
       }
     },
     {
@@ -75,7 +74,7 @@
       "id": 3,
       "type": "table",
       "title": "Pilots who logged on but never flew (90 days)",
-      "description": "v1 Metabase card 180. Pilots with a Y-suffixed name who completed at least one flight in the last 90 days, none with airborne time (v1: enroute time). Shows flights, their online minutes and totals. Most flights first, limited to 200 rows. Flights whose airborne time is unknown (raw positions already removed) are ignored. Flights appear here about 8 hours after the flight ends.",
+      "description": "Australian-based pilots with flights in the last 90 days but no airborne time, most flights first.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -112,7 +111,7 @@
       "id": 4,
       "type": "timeseries",
       "title": "Pilots who logged on in a month but never flew that month",
-      "description": "v1 Metabase card 181 (v1 drew a bar chart). Per UTC month of logon: pilots with a Y-suffixed name, and how many of them had no airborne time on any of their flights that month (bars), and that as a percentage (line, right axis). Flights are placed in the month of the session logon, as in v1. Flights appear here about 8 hours after the flight ends.",
+      "description": "Australian-based pilots each month who logged on but had no airborne time, as a count and a percentage.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -244,7 +243,7 @@
       "id": 5,
       "type": "timeseries",
       "title": "Pilots who flew last month but not this month (lapsed)",
-      "description": "v1 Metabase card 182. Per UTC month of flight completion: pilots with a Y-suffixed name who flew that month (pilots_current_month), how many of the previous month's pilots did not fly this month (lapsed), and that as a percentage of the previous month's pilots. v1 quirk kept: 'previous month' is the previous row, so a month with no flights is skipped. Flights appear here about 8 hours after the flight ends.",
+      "description": "Australian-based pilots who flew in each month, and how many of the previous month's pilots did not fly.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
