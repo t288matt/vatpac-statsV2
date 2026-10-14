@@ -35,8 +35,8 @@ updates:
     directory: /collector
     schedule:
       interval: weekly
-    # numpy 2.x needs the x86-64-v2 CPU baseline: the VM's Proxmox CPU type must stay 'host' or 'x86-64-v2-AES'
-    # (changed 14-10-2026; the default kvm64 crash-looped the collector on 07-10-2026). CI cannot catch it (modern runners).
+    # numpy is no longer ignored (14-10-2026). It needs the x86-64-v2 CPU baseline, so the VM's Proxmox CPU type must be
+    # 'host' or 'x86-64-v2-AES' (the default kvm64 crash-looped the collector on 07-10-2026). CI cannot catch it (modern runners).
   - package-ecosystem: pip
     directory: /ops/watchdog
     schedule:

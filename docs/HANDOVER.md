@@ -140,7 +140,7 @@ cd collector && ./.venv/Scripts/python.exe -m ruff check src && ./.venv/Scripts/
 python ops/check_size_budget.py collector/src/vatpac; python ops/check_config_drift.py; python grafana/validate_dashboards.py
 docker rm -f vp-test
 ```
-`collector/.venv` is git-ignored: recreate with Python 3.11+ and `pip install -r collector/requirements.txt pytest pytest-asyncio ruff mypy`. NOTE: the venv now has numpy 1.26.4 (pinned for baseline CPUs).
+`collector/.venv` is git-ignored: recreate with Python 3.11+ and `pip install -r collector/requirements.txt pytest pytest-asyncio ruff mypy`. NOTE: the collector pins numpy 2.3.5 (since 14-10-2026); it needs the VM CPU type `host` or `x86-64-v2-AES`.
 
 ## 7. How to deploy and operate
 
@@ -282,7 +282,7 @@ docs/ARCHITECTURE.md  DATA_DICTIONARY.md  DEFINITIONS.md  CONFIG_MAP.md (every v
 docs/CHART_DEFINITIONS.md  DASHBOARDS_SIMPLIFIED.md
 docs/RUNBOOKS/               deploy-to-vm, restore, feed-outage, stuck-collector, update-reference-files, db-full
 docs/reference/v1_metabase_cards.json   recovered v1 card SQL (118 cards)
-collector/                   Dockerfile, pyproject.toml, requirements.txt (numpy pinned), src/vatpac/, tests/unit/
+collector/                   Dockerfile, pyproject.toml, requirements.txt (all versions pinned), src/vatpac/, tests/unit/
 db/                          migrations/ (dbmate, forward-only, 20261007000001..24; now ..20261008000031), roles.sql
 grafana/                     provisioning/ (datasource, dashboards), dashboards/<folder>/*.json, validate_dashboards.py, check_columns.py
 ops/                         check_env.sh gen_env.sh smoke.sh soak_report.sh/.sql check_panels.py check_config_drift.py check_size_budget.py ruff.toml (check_fixture_pii.py was removed 08-10-2026, TRACKER T29); backup/ migrate/ watchdog/ postgres/
