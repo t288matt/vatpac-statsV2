@@ -44,7 +44,6 @@
     {
       "id": 1,
       "type": "text",
-      "title": "Data since",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -53,7 +52,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+        "content": "**Data since ${go_live}.** There is no earlier data. All times are UTC."
       }
     },
     {
@@ -75,7 +74,7 @@
       "id": 3,
       "type": "timeseries",
       "title": "Australian-based pilots and ATC online each month",
-      "description": "v1 Metabase card 175 (v1 drew a bar chart). Per UTC month: distinct pilots whose name ends in a Y airport (v1 rule), all distinct pilots, and distinct controllers. Pilots are counted in the month of the session logon, controllers in the month the session started. Flights appear here about 8 hours after the flight ends.",
+      "description": "Australian-based pilots, all pilots and controllers online each month (UTC).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -167,7 +166,7 @@
       "id": 4,
       "type": "barchart",
       "title": "Pilot hours per month (names with Y)",
-      "description": "v1 Metabase card 183. Hours online (sum of flight time online) per UTC month of flight completion, for pilots with a Y-suffixed name, from 1 September of the current year (v1 hard-coded this: from January to August the chart is empty). Flights appear here about 8 hours after the flight ends.",
+      "description": "Hours online per month (UTC) by Australian-based pilots, from 1 September of the current year.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
