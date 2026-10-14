@@ -39,7 +39,8 @@ services:
 
   migrate:
     build:
-      context: ./ops/migrate
+      context: .
+      dockerfile: ops/migrate/Dockerfile
     image: vatpac-stats-migrate:local
     restart: "no"
     logging: *logging
