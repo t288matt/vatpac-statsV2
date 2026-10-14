@@ -1,6 +1,6 @@
 # Independent release review: branch `collector-release` (ff89b56)
 
-> **Note 14-10-2026 (issue 173).** This is a dated record. The deploy method it describes (`git archive`, `tar -x`, building on the VM) is being replaced by a read-only git checkout plus commit-tagged registry images; the new procedure is prepared and not yet run. Current method: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md). Do not rewrite the history below.
+> **Note 14-10-2026 (issue 173).** This is a dated record. The deploy method it describes (`git archive`, `tar -x`, building on the VM) was replaced on 14-10-2026 by a read-only git checkout plus commit-tagged registry images. Current method: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md). Do not rewrite the history below.
 
 Reviewer: an independent agent that did not write the code. Date: 08-10-2026 (all times UTC). VM clock at start 17:47, at end 18:30. Review branch: `release-review` (from ff89b56), nothing pushed, nothing deployed, the live stack was only read (SELECT-only, `docker compose ps`).
 

@@ -87,7 +87,7 @@ Do not tell the owner the goal is met before 4 and 5 are done. The owner has bee
 - `poll_log` gets a row for every poll attempt including skipped ones: check the real daily row count after a few days (retention is 400 days).
 - The `flight` view's 8 h span split is an approximation (fixed buckets), documented in the view.
 - The two "online now" definitions differ slightly (core view: within 5 min of now and 2 x the poll interval of the newest snapshot, 60 s at 30 s polling, ADR-024; dashboard views: last two snapshots and a 5-minute wall-clock guard).
-- Deploy by git checkout plus registry images (issue 173, decided 14-10-2026, hybrid). Today (14-10-2026) code is still pushed with `git archive | ssh` and the images are built on the VM. Prepared and merged but NOT yet run on the VM: the release workflow, the compose image variables, the deploy key and checkout (runbook section 2d), the registry login and the first pull (section 2e). Next: the owner's go for each step, the first publish, then the VM steps. Related and not decided: issue 176 (floating major tags for third-party images, parked), issue 164 (Grafana boot race, parked).
+- Deploy by git checkout plus registry images (issue 173, decided 14-10-2026, hybrid; LIVE since 14-10-2026). The VM folder is a read-only git checkout; the release workflow published commit 67c1ca0 (`sha-67c1ca0`); the registry login and the two `.env` lines are in place; the first `pull` and `up -d --no-build` ran and `--verify` passed (marker 67c1ca0, 22:29:46 UTC). NOT yet run: a second registry deploy, a rollback to a previous `sha-` tag (the first rollback can only use the local `:local` images), a token renewal (expires about 12-01-2027, reminder 05-01-2027). Open: package privacy awaits the owner's confirmation; the off-box backup copy needs rsync and ssh, which the published backup image lacks (open decision, see OWNER_BACKUP_COPY.md). Related and not decided: issue 176 (floating major tags for third-party images, parked), issue 164 (Grafana boot race, parked).
 
 ### 4.3 Open owner decisions
 1. ~~Retention or anonymisation of names and CIDs~~ DECIDED 07-10-2026: keep forever, no rule (ADR-019).
@@ -111,7 +111,7 @@ Do not tell the owner the goal is met before 4 and 5 are done. The owner has bee
 - Repo has NO secrets. `.env` is git-ignored. `.env.example` has blank secret values on purpose; `sh ops/gen_env.sh [OUT]` writes a `.env` with random hex passwords (prints variable names only); `sh ops/check_env.sh [FILE]` rejects blank, `change-me*`, under 16 characters, non letter/digit values (passwords go inside URLs) and repeated values.
 - Secrets: `POSTGRES_PASSWORD` (owner role; db, migrate, restore only), `GRAFANA_RO_PASSWORD`, `COLLECTOR_DB_PASSWORD`, `BACKUP_DB_PASSWORD`, `WATCHDOG_DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, optional `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`. Changing a role password later: edit `.env`, `docker compose up -d` (the migrate job runs `ALTER ROLE`); `POSTGRES_PASSWORD` itself and `GRAFANA_ADMIN_PASSWORD` only apply at first initialisation (rotate with `ALTER ROLE` / `grafana cli admin reset-admin-password`).
 - The local PC `.env` and the VM `.env` are different files with different passwords.
-- GitHub: the owner's PC authenticates with an SSH key. The VM has NO GitHub credentials today (14-10-2026). Planned (not yet run): a read-only deploy key on the VM, and a classic GitHub token with only `read:packages` (90 day expiry, calendar reminder) stored by `docker login ghcr.io` in `~/.docker/config.json` on the VM. Neither is ever in the repository or in `.env`.
+- GitHub: the owner's PC authenticates with an SSH key. Since 14-10-2026 the VM holds two read-only credentials: a GitHub deploy key (`~/.ssh/vatpac_deploy`, write access off) and a classic GitHub token with only `read:packages` (90 days, expires about 12-01-2027, calendar reminder 05-01-2027) stored by `docker login ghcr.io` in `~/.docker/config.json`. Neither is ever in the repository or in `.env`.
 
 ## 6. How to verify everything (commands)
 Run from the repo root locally, or on the VM inside `~/vatpac-statsV2`.
@@ -149,17 +149,17 @@ docker rm -f vp-test
 git clone git@github.com:t288matt/vatpac-statsV2.git && cd vatpac-statsV2   # needs a read credential; or copy the tree (7.2, fallback)
 sh ops/gen_env.sh .env && chmod 600 .env
 # LAN access: set GRAFANA_BIND to the host LAN IP (default 127.0.0.1 = this host only) and GRAFANA_ROOT_URL
-sh ops/check_env.sh .env && docker compose up -d --build
+sh ops/check_env.sh .env && docker compose up -d --build   # first install / PC: local builds. On the production VM (registry mode) use pull and --no-build, see 7.2
 ```
 Order: db healthy, then `migrate` (dbmate migrations, then `db/roles.sql` with the three password variables, then creates `watchdog_ro`), then collector, grafana, backup, watchdog. Detailed runbooks: `docs/RUNBOOKS/` (deploy-to-vm, restore, feed-outage, stuck-collector, update-reference-files, db-full).
 
 ### 7.2 Deploying a new commit to the VM
-Planned method (issue 173; prepared 14-10-2026, NOT yet run on the VM; steps and checks in `docs/RUNBOOKS/deploy-to-vm.md` sections 2d to 2f). Publish the commit, then on the VM:
+Method in use since 14-10-2026 (issue 173; the first deploy was run and verified, a second deploy is not yet run; steps and checks in `docs/RUNBOOKS/deploy-to-vm.md` sections 2d to 2f). Publish the commit (Actions > release), then on the VM:
 ```bash
 git fetch origin && git checkout --detach <commit>     # then set VATPAC_IMAGE_TAG=sha-<7> in .env
 docker compose pull && docker compose up -d --no-build
 ```
-Fallback and today's method (the VM has no git credentials until section 2d is run):
+On the VM never use `up -d --build` (it rebuilds locally and replaces the pulled image). Rollback for the first cycle: remove both `VATPAC_IMAGE_*` lines from `.env` and `docker compose up -d --no-build` (the local `:local` images are still on the VM); from the second registry deploy, set the previous `sha-` tag. Fallback, the method used until 14-10-2026 (no git on the VM):
 ```bash
 git archive --format=tar HEAD | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'     # the VM's .env is not in git, so it is preserved
 ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/check_env.sh && docker compose up -d --build'

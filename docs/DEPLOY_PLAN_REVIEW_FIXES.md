@@ -1,6 +1,6 @@
 # Deploy plan: the code-review fixes (issue #80)
 
-> **Note 14-10-2026 (issue 173).** This is a dated record. The deploy method it describes (`git archive`, `tar -x`, building on the VM) is being replaced by a read-only git checkout plus commit-tagged registry images; the new procedure is prepared and not yet run. Current method: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md). Do not rewrite the history below.
+> **Note 14-10-2026 (issue 173).** This is a dated record. The deploy method it describes (`git archive`, `tar -x`, building on the VM) was replaced on 14-10-2026 by a read-only git checkout plus commit-tagged registry images. Current method: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md). Do not rewrite the history below.
 
 **SUPERSEDED and DONE (12-10-2026).** This plan was not followed step by step: everything it covers was deployed together on 11-10-2026 (marks at 12:38 and 16:01 UTC, then b3189ad at 20:35 UTC; see CHANGELOG.md). The commit 520dc3e below was not used. Kept as the record of the checks that were planned.
 
