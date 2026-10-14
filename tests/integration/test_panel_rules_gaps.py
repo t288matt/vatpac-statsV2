@@ -149,7 +149,7 @@ def test_flights_by_joining_cohort(conn) -> None:
     flight(conn, 99999, home="YSSY")                        # CID below 100000: cohort 0 is left out (as in v1)
     flight(conn, 150002, home="YSSY", days_ago=45)          # outside the window
     rows = run(conn, "Flights by joining cohort (CID range, last 30 days)")
-    assert [(r["cohort"], r["flights"], r["pilots"]) for r in rows] == [("100000-", 3, 2), ("1200000-", 1, 1)]  # only the start of the range is shown
+    assert [(r["cohort"], r["flights"], r["pilots"]) for r in rows] == [("10-", 3, 2), ("120-", 1, 1)]  # only the start of the range is shown, in units of 10,000
 
 
 def test_quietest_airports_lists_the_fewest_movements_first(conn) -> None:
