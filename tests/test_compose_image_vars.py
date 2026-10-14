@@ -6,6 +6,8 @@ Set to the release workflow's names, it must be `ghcr.io/t288matt/vatpac-stats-<
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -56,3 +58,26 @@ def test_third_party_images_are_untouched_and_the_variables_are_documented_but_n
     assert not re.search(r"^VATPAC_IMAGE_(PREFIX|TAG)=", example, re.M)
     cfg = (REPO / "docs" / "CONFIG_MAP.md").read_text(encoding="utf-8")
     assert "`VATPAC_IMAGE_PREFIX`" in cfg and "`VATPAC_IMAGE_TAG`" in cfg
+
+
+def _check_env(tmp_path: Path, extra: str) -> "subprocess.CompletedProcess[str]":
+    env = tmp_path / "ci.env"
+    subprocess.run(["sh", str(REPO / "ops" / "gen_env.sh"), str(env)], check=True, capture_output=True)
+    env.write_text(env.read_text(encoding="utf-8") + extra, encoding="utf-8")
+    return subprocess.run(["sh", str(REPO / "ops" / "check_env.sh"), str(env)], capture_output=True, text=True)
+
+
+@pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
+@pytest.mark.parametrize("extra,ok", [
+    ("", True),
+    ("VATPAC_IMAGE_PREFIX=\nVATPAC_IMAGE_TAG=\n", True),
+    ("VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/\nVATPAC_IMAGE_TAG=sha-abc1234\n", True),
+    ("VATPAC_IMAGE_TAG=sha-abc1234\n", False),
+    ("VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/\n", False),
+])
+def test_check_env_wants_both_image_variables_or_neither(tmp_path: Path, extra: str, ok: bool) -> None:
+    r = _check_env(tmp_path, extra)
+    assert (r.returncode == 0) == ok
+    assert "sha-abc1234" not in r.stderr + r.stdout and "ghcr.io" not in r.stderr + r.stdout  # values never printed
+    if not ok:
+        assert "set both or neither" in r.stderr
