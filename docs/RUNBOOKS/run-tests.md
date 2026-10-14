@@ -85,7 +85,7 @@ rm -rf /tmp/vtest
 Notes:
 
 - Do not run this during a soak if the VM is short of CPU or memory: the tests share the host with the live stack for a minute or two. They do not touch live data.
-- Step 4 needs the image `vatpac-stats-collector:local`, which exists after any `docker compose up -d --build` on the VM. The container installs pytest into `/tmp/pt` at run time, so it needs outbound network access to PyPI.
+- Step 4 needs the image `vatpac-stats-collector:local`, which exists after any `docker compose up -d --build` on the VM. In registry mode (deploy-to-vm.md section 2f; prepared 14-10-2026, not yet run) that local image does not exist: use the pulled image instead, whose name `docker compose config --images` prints (`ghcr.io/t288matt/vatpac-stats-collector:sha-<7>`). The `git archive ... | tar -x` in step 1 writes a scratch copy under `/tmp/vtest`, not the live folder, so it stays valid. The container installs pytest into `/tmp/pt` at run time, so it needs outbound network access to PyPI.
 - A database named `vatpac_test` may already exist from earlier work (the restore drill found one). Drop it first (`DROP DATABASE vatpac_test WITH (FORCE)`) if step 1 says it exists, or the tests may fail on leftover data.
 
 ## 3. Integration tests: a throwaway Postgres container on a machine with working Docker

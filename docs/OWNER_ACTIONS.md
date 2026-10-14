@@ -1,6 +1,6 @@
 # Owner actions: what only you can do, and exactly how
 
-Written 09-10-2026, updated 12-10-2026 (cards 9 to 14 are the owner actions left after the public-dashboard deploy of 11-10-2026; the live commit is b3189ad). Each item says what it is for, the least you have to do, and what Emma (Claude) does so you do not have to. Order is by value. Tracker rows are in docs/TRACKER.md.
+Written 09-10-2026, updated 12-10-2026 (cards 9 to 14 are the owner actions left after the public-dashboard deploy of 11-10-2026; the live commit is b3189ad). Updated 14-10-2026: cards 15 to 18 are the owner steps for issue 173 (git checkout and registry images). They are prepared and NOT yet run; do them in order, one at a time, and only after the owner's go. Each item says what it is for, the least you have to do, and what Emma (Claude) does so you do not have to. Order is by value. Tracker rows are in docs/TRACKER.md.
 
 ## 1. Protect the main branch (issue #44, T37). WON'T DO: branch protection is not available on the GitHub plan in use; issue #44 closed 09-10-2026 (19:28 UTC). Kept below as a record only.
 **Why:** `main` is what gets deployed. Nothing stops a mistaken force push or deleting it.
@@ -32,7 +32,7 @@ Postgres 16.15 (db and backup), Grafana 11.6.5 (history: Grafana has run 12.4.12
 **You do:** nothing. Postgres 17 or 18 and Grafana 13 stay ignored. numpy is no longer ignored (14-10-2026): a numpy bump PR needs the VM CPU type to stay `host` or `x86-64-v2-AES`.
 **Emma did:** the deploy (fresh dump first) and the checks (tracker T48).
 
-## 5. Read-only deploy key for the VM (issue #28, T8). WON'T DO: owner decision 09-10-2026, issue closed as not planned. Kept below as a record only. Note 14-10-2026: superseded by issue 173 (deploy-key plan, draft runbook section 2d in deploy-to-vm.md).
+## 5. Read-only deploy key for the VM (issue #28, T8). WON'T DO: owner decision 09-10-2026, issue closed as not planned. Kept below as a record only. Note 14-10-2026: superseded by issue 173; the deploy key is now card 15 below.
 **Why:** today code is copied with `git archive` over ssh, which works. A deploy key would let the VM `git pull` a commit.
 **You do:** on the VM run `ssh-keygen -t ed25519 -f ~/.ssh/vatpac_deploy -N ""`, then `cat ~/.ssh/vatpac_deploy.pub`, paste the output at https://github.com/t288matt/vatpac-statsV2/settings/keys under **Add deploy key** with **Allow write access OFF**.
 **Recommendation:** skip it. The current method works and needs no credentials on the VM, which is safer. Say "skip" and Emma closes #28 as not needed.
@@ -76,5 +76,30 @@ One-time set-up on the Proxmox host and the VM, step by step: [OWNER_BACKUP_COPY
 **You do:** on the VM, FIRST list them and read the list: `ls -ld --time-style=long-iso ~/vatpac-statsV2.rollback-* ~/grafana_data_pre_12.tgz` and `docker volume ls | grep pre_bumps`. On 12-10-2026 the list was these seven folders and one archive: `vatpac-statsV2.rollback-09-10-bumps`, `-09-10-card65`, `-09-10-integrity`, `-09-10-mig150`, `-11-10-all`, `-11-10-all2`, `-11-10-grafana`, and the file `grafana_data_pre_12.tgz` (owned by root, so it needs sudo to delete). Check the names against that list, then remove each with `rm -rf <path>` (never a wildcard). Do not delete the live folder `~/vatpac-statsV2` or any volume whose name does not end in `_pre_bumps`. The volume `vatpac_grafana_data_pre_bumps` also exists on the VM (seen with `docker volume ls` on 12-10-2026); list it and decide separately.
 **Keep them longer if:** you have a Grafana or database problem that started after 11-10-2026; the copies are the quickest way back. **Emma does:** re-run `ops/deploy.sh --status` afterwards and note the freed space.
 
+## 15. Deploy key and git checkout on the VM (issue 173, phase P0; new 14-10-2026, not yet run). About 30 minutes.
+**Why:** the VM is deployed by copying files (`tar -x`), which never deletes anything; the VM already holds 15 stale files, among them old migration-comparison scripts. A read-only git checkout replaces that, so a deploy is a `git checkout <commit>` and stale files cannot survive.
+**You do:** follow the ten numbered steps of section 2d in docs/RUNBOOKS/deploy-to-vm.md. In short: make a key on the VM (`ssh-keygen -t ed25519 -f ~/.ssh/vatpac_deploy -N ""`), paste only the `.pub` line at https://github.com/t288matt/vatpac-statsV2/settings/keys under **Add deploy key** with **Allow write access OFF**, clone beside the live folder, compare, remove the 15 stale files (they are saved in a tar first), and move the `.git` folder into the live folder. Nothing restarts. Not during a soak.
+**Emma does:** reads the VM before and after (read-only), runs `bash ops/deploy.sh --verify` and `--status`, and records the result.
+**Way back:** `rm -rf ~/vatpac-statsV2/.git`; the old method works again (runbook section 2d, Roll back).
+
+## 16. Registry token and its 90 day reminder (issue 173, phase P3; new 14-10-2026, not yet run). About 10 minutes, plus a calendar entry.
+**Why:** the VM needs to read the private images from GHCR. GitHub's container registry only accepts a classic personal access token (GitHub Docs, read 14-10-2026), so a fine-grained token will not work.
+**You do:** on GitHub, Settings > Developer settings > Personal access tokens > Tokens (classic) > Generate new token (classic); expiration **90 days**; tick **only** `read:packages`. Copy it once. Put the expiry date in your calendar with a reminder 10 days earlier. On the VM run `docker login ghcr.io -u t288matt --password-stdin` and paste the token yourself. Never put the token in chat, in the repository or in `.env`; Docker keeps it in `~/.docker/config.json` on the VM (check `ls -l` shows `-rw-------`).
+**Know this:** the token can read every package your account can reach. When it expires, deploys fail with `unauthorized` or `denied`; the running stack is not affected. Renew: make a new token, repeat the login, delete the old token.
+**Emma does:** tells you the exact commands first, never sees the token, and checks `Login Succeeded` from what you report.
+
+## 17. The two `.env` lines for registry mode (issue 173, phase P3; new 14-10-2026, not yet run). About 5 minutes.
+**Why:** these two lines switch the VM from building images to pulling the published ones. Emma must tell you the exact lines before they are added, and never prints your `.env`.
+**The lines** (nothing secret in them; `<7>` is the first 7 characters of the commit being deployed):
+`VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/` and `VATPAC_IMAGE_TAG=sha-<7>`
+**You do:** after card 16, take a fresh dump (`docker compose exec backup backup.sh once`), add the two lines (the command is in runbook section 2e, step 4), then `docker compose config --images`, `docker compose pull`, `docker compose up -d --no-build`. The collector restarts once (about 45 seconds of snapshots).
+**Emma does:** `bash ops/deploy.sh --verify`, the ten public addresses, then `--mark` after commenting on the issues.
+**Way back:** delete the two lines (`sed -i '/^VATPAC_IMAGE_/d' .env`), check out the previous commit and run `docker compose up -d --build` as before.
+
+## 18. Tidy old rollback folders and images (new 14-10-2026, after cards 14 to 17 have been used). About 15 minutes.
+**Why:** with a git checkout the previous code is always one `git checkout` away, so the full tree copies (`vatpac-statsV2.rollback-*`, card 14) are no longer needed. Each registry deploy also leaves the previous four images on the VM, and Docker holds 85 unused anonymous volumes (about 10.6 GB, read 14-10-2026).
+**You do:** card 14 for the folders. For images, list first: `docker images 'ghcr.io/*'`, keep the current and the previous tag, and remove older ones one by one with `docker rmi <image:tag>`. Do NOT run `docker system prune` or `docker volume prune`: named volumes hold the data, the backups and Grafana state. The unused anonymous volumes are a separate decision; list them and ask Emma first.
+**Emma does:** reads the lists and checks `--status` afterwards.
+
 ## Order I suggest
-Items 1, 4, 5 and 7 are decided or done. Still open: 3 (the Proxmox restore test, when convenient), then the new cards 9 to 13 (public links copy, Cloudflare and Traefik copies, admin password rotation, DHCP reservation, SSH hardening and fail2ban), card 14 (delete the old rollback copies, about 18-10-2026), then 6 (the folder rename) last.
+Items 1, 4, 5 and 7 are decided or done. Cards 15, 16 and 17 (issue 173) go in that order and only when you give the go; card 18 comes last. Still open: 3 (the Proxmox restore test, when convenient), then the new cards 9 to 13 (public links copy, Cloudflare and Traefik copies, admin password rotation, DHCP reservation, SSH hardening and fail2ban), card 14 (delete the old rollback copies, about 18-10-2026), then 6 (the folder rename) last.
