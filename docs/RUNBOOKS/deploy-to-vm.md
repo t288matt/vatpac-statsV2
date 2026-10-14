@@ -112,6 +112,10 @@ cd ~/vatpac-statsV2 && git fetch origin && git checkout --detach <commit> && git
 ```
 Then `bash ops/deploy.sh --verify` and `--mark <commit>` from the PC as before. Notes: `git checkout` removes files the new commit deleted, which `tar -x` never did. Like `tar -x`, it replaces the single-file mount `ops/postgres/postgresql.conf` with a new file, so a changed postgresql.conf still needs `docker compose restart db`. A checkout refuses to overwrite an untracked file that the new commit adds, which stops the deploy loudly instead of silently. Untracked files (other than `.env*`, `.deploy`, `.claude`) show in the `git status --short` printed by that line; look at it before the build.
 
+**Registry mode (issue 173, P2; compose side built, not yet used on the VM).** `docker-compose.yml` takes the image of migrate, collector, backup and watchdog from two optional `.env` variables, `VATPAC_IMAGE_PREFIX` and `VATPAC_IMAGE_TAG` (docs/CONFIG_MAP.md). The owner must be told the exact two lines before they are added (they are in `.env.example`, commented out); until then nothing changes.
+- Local-build mode (both unset; today): the deploy line above, unchanged.
+- Registry mode (both set, after P3): `cd ~/vatpac-statsV2 && git fetch origin && git checkout --detach <commit> && docker compose pull && docker compose up -d --no-build`, where the tag in `.env` is `sha-<first 7 characters of <commit>>` and that commit was published by the release workflow. `--no-build` is required: with a `build:` section present, plain `up -d` would build locally when an image is missing. `docker compose pull` in local-build mode would try to pull `vatpac-stats-<name>:local` from Docker Hub and fail, so do not use it there.
+
 **Roll back (to the tar method).** Nothing else changed.
 - VM: `rm -rf ~/vatpac-statsV2/.git`, then use section 2c again.
 - VM, optional, not recommended: `tar -xzf ~/stale-files-14-10-2026.tgz -C ~/vatpac-statsV2` restores the stale files.
