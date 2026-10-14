@@ -19,20 +19,20 @@
     "list": [
       {
         "name": "go_live",
-        "type": "query",
+        "type": "constant",
         "hide": 2,
-        "datasource": {
-          "type": "grafana-postgresql-datasource",
-          "uid": "vatpac"
+        "query": "07-10-2026 21:38 UTC",
+        "current": {
+          "text": "07-10-2026 21:38 UTC",
+          "value": "07-10-2026 21:38 UTC"
         },
-        "definition": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
-        "query": "SELECT COALESCE(to_char(go_live AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') || ' UTC', '(no data yet)') FROM data_since",
-        "refresh": 1,
-        "sort": 0,
-        "includeAll": false,
-        "multi": false,
-        "current": {},
-        "options": []
+        "options": [
+          {
+            "selected": true,
+            "text": "07-10-2026 21:38 UTC",
+            "value": "07-10-2026 21:38 UTC"
+          }
+        ]
       }
     ]
   },
