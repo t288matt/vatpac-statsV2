@@ -60,7 +60,7 @@
       "id": 2,
       "type": "timeseries",
       "title": "Monday event attendance (0700-1200Z)",
-      "description": "v1 card 131. Distinct pilot CIDs and distinct controller CIDs present at any time between 0700 and 1200 UTC on each Monday (sessions overlapping the window). Window changed from v1 (0800-1200) to 0700-1200 per the specification. Flights appear here about 8 hours after the flight ends.",
+      "description": "Pilots and controllers present between 0700 and 1200 UTC on each Monday.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -101,7 +101,7 @@
       "id": 3,
       "type": "timeseries",
       "title": "Share of YMML-YSSY airborne time flown by local pilots (Mondays 0700-1200Z)",
-      "description": "v1 card 134 ('What percentage of MRM traffic were locals?'). Per week, the share of airborne minutes on YMML-YSSY and YSSY-YMML flights ending between 0700 and 1200 UTC on Monday that were flown by pilots whose home airfield is in the home region. Changed from v1: airborne minutes instead of time online, home prefixes from settings rather than a hard-coded Y, and a 0700 start. Flights appear here about 8 hours after the flight ends.",
+      "description": "Weekly share of Melbourne-Sydney airborne time flown by home-region pilots, Mondays 0700 to 1200 UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -145,7 +145,7 @@
       "id": 4,
       "type": "timeseries",
       "title": "Airborne aircraft during the latest Monday event (0700-1200Z, 5-minute slots)",
-      "description": "v1 card 156 ('Number of airborne acft during last Mondays event?', edited 06-10-2025). Distinct pilot sessions with a position above 1000 ft in each 5-minute slot between 0700Z and 1200Z (UTC) on the most recent Monday whose 0700Z start has passed (today from 0700Z if it is Monday, otherwise the Monday before; corrected, issue 94); slots still in the future are not drawn. Changed from v1: v1 counted from its sector-occupancy table; v3 counts the raw 15-second positions directly, so no sector logic is used (ADR-002). A slot counts a session if any sample falls inside the 5 minutes starting at the slot. Positions are kept 90 days, so only recent Mondays can be shown.",
+      "description": "Aircraft airborne in each 5-minute slot, 0700 to 1200 UTC on the latest Monday event.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
