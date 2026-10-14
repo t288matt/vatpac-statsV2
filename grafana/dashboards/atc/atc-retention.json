@@ -44,7 +44,6 @@
     {
       "id": 1,
       "type": "text",
-      "title": "Data since",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -53,7 +52,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Data since ${go_live}.** There is no backfill: charts start empty at go-live and fill as the collector runs. All times are UTC."
+        "content": "**Data since ${go_live}.** There is no earlier data. All times are UTC."
       }
     },
     {
