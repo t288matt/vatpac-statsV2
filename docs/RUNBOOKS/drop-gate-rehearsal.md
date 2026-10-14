@@ -53,7 +53,7 @@ All commands run from `~/vatpac-statsV2` on the VM. No password is typed and no 
 
 ### 4.1 Put the migration and the script on the VM without changing the deployed code
 
-The VM's `~/vatpac-statsV2` is not a git checkout and has no GitHub access, so the two files are sent from the PC. In Git Bash on the PC, in the repository root (use the branch or commit being rehearsed; after phase 4 is on main replace `origin/p4-drop-gate` with `origin/main`):
+Since 14-10-2026 the VM is a read-only git checkout; this rehearsal sends the two files from the PC (so they are not committed on the VM), because it must not move the checkout. In Git Bash on the PC, in the repository root (use the branch or commit being rehearsed; after phase 4 is on main replace `origin/p4-drop-gate` with `origin/main`):
 
 ```sh
 git fetch origin
