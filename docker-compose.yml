@@ -41,7 +41,7 @@ services:
     build:
       context: .
       dockerfile: ops/migrate/Dockerfile
-    image: vatpac-stats-migrate:local
+    image: ${VATPAC_IMAGE_PREFIX:-}vatpac-stats-migrate:${VATPAC_IMAGE_TAG:-local}
     restart: "no"
     logging: *logging
     mem_limit: 256m
@@ -66,7 +66,7 @@ services:
       dockerfile: collector/Dockerfile
       args:
         VERSION: ${VATPAC_VERSION:-dev}
-    image: vatpac-stats-collector:local
+    image: ${VATPAC_IMAGE_PREFIX:-}vatpac-stats-collector:${VATPAC_IMAGE_TAG:-local}
     restart: unless-stopped
     logging: *logging
     mem_limit: 512m
@@ -170,7 +170,7 @@ services:
       context: ./ops/backup
       args:
         EXTRA_APT_PACKAGES: ${BACKUP_EXTRA_APT_PACKAGES:-}
-    image: vatpac-stats-backup:local
+    image: ${VATPAC_IMAGE_PREFIX:-}vatpac-stats-backup:${VATPAC_IMAGE_TAG:-local}
     restart: unless-stopped
     logging: *logging
     mem_limit: 256m
@@ -219,7 +219,7 @@ services:
     build:
       context: ./ops
       dockerfile: watchdog/Dockerfile
-    image: vatpac-stats-watchdog:local
+    image: ${VATPAC_IMAGE_PREFIX:-}vatpac-stats-watchdog:${VATPAC_IMAGE_TAG:-local}
     restart: unless-stopped
     logging: *logging
     mem_limit: 128m
