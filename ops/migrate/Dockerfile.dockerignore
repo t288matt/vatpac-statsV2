@@ -1,0 +1,4 @@
+*
+!db
+!ops/migrate/migrate.sh
+

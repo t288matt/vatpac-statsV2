@@ -32,8 +32,8 @@ Postgres 16.15 (db and backup), Grafana 11.6.5 (history: Grafana has run 12.4.12
 **You do:** nothing. Postgres 17 or 18 and Grafana 13 stay ignored. numpy is no longer ignored (14-10-2026): a numpy bump PR needs the VM CPU type to stay `host` or `x86-64-v2-AES`.
 **Emma did:** the deploy (fresh dump first) and the checks (tracker T48).
 
-## 5. Read-only deploy key for the VM (issue #28, T8). WON'T DO: owner decision 09-10-2026, issue closed as not planned. Kept below as a record only.
-**Why:** today code is copied with `git archive` over ssh, which works. A deploy key would let the VM `git pull` a tag.
+## 5. Read-only deploy key for the VM (issue #28, T8). WON'T DO: owner decision 09-10-2026, issue closed as not planned. Kept below as a record only. Note 14-10-2026: superseded by issue 173 (deploy-key plan, draft runbook section 2d in deploy-to-vm.md).
+**Why:** today code is copied with `git archive` over ssh, which works. A deploy key would let the VM `git pull` a commit.
 **You do:** on the VM run `ssh-keygen -t ed25519 -f ~/.ssh/vatpac_deploy -N ""`, then `cat ~/.ssh/vatpac_deploy.pub`, paste the output at https://github.com/t288matt/vatpac-statsV2/settings/keys under **Add deploy key** with **Allow write access OFF**.
 **Recommendation:** skip it. The current method works and needs no credentials on the VM, which is safer. Say "skip" and Emma closes #28 as not needed.
 
