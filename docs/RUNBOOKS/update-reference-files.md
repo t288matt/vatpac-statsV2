@@ -6,7 +6,7 @@ Files (mounted read-only at `/app/config`): `config/australian_airspace_polygon.
 1. Edit the file in git on your workstation (never on the VM). Keep a copy of the old one.
 2. Validate locally: polygon must be a closed GeoJSON Polygon (lon,lat order, lon -180..180, lat -90..90); whitelist lines are `CALLSIGN, FREQ` or `CALLSIGN`, `#` comments allowed, case-sensitive.
 3. Commit and push to main (there are no version tags; deployments are identified by commit, issue 173).
-4. Put the new files on the VM. `config/` is mounted into the container, so no rebuild or image is needed, only the files. With the VM as a git checkout (deploy-to-vm.md section 2d; prepared 14-10-2026, not yet run): on the VM `cd ~/vatpac-statsV2 && git fetch origin && git checkout --detach <commit>`. Until then (the production VM is not a git checkout today: the folder has no `.git` and the VM holds no GitHub credentials), from the PC: `git archive --format=tar HEAD | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'` (the fallback; it never deletes files, see [deploy-to-vm.md](deploy-to-vm.md) section 2c). On a host with git, `git pull`.
+4. Put the new files on the VM. `config/` is mounted into the container, so no rebuild or image is needed, only the files. The production VM is a git checkout since 14-10-2026 (deploy-to-vm.md section 2d): on the VM `cd ~/vatpac-statsV2 && git fetch origin && git checkout --detach <commit>`. Only if the checkout is unusable (the fallback), from the PC: `git archive --format=tar HEAD | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'` (the fallback; it never deletes files, see [deploy-to-vm.md](deploy-to-vm.md) section 2c). On a host with git, `git pull`.
 5. Reload without restart:
    ```sh
    docker compose kill -s HUP collector

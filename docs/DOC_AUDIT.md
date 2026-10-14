@@ -1,6 +1,6 @@
 # Documentation audit (08-10-2026)
 
-> **Note 14-10-2026 (issue 173).** This is a dated record. The deploy method it describes (`git archive`, `tar -x`, building on the VM) is being replaced by a read-only git checkout plus commit-tagged registry images; the new procedure is prepared and not yet run. Current method: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md). Do not rewrite the history below.
+> **Note 14-10-2026 (issue 173).** This is a dated record. The deploy method it describes (`git archive`, `tar -x`, building on the VM) was replaced on 14-10-2026 by a read-only git checkout plus commit-tagged registry images. Current method: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md). Do not rewrite the history below.
 
 > **Note, issue 89 phase 5 (LIVE since 13-10-2026, marker 7a71d30 at 10:05:56 UTC).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 (live) dropped the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renamed `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) and ADR-030.
 

@@ -26,7 +26,7 @@ It finds Grafana at `GRAFANA_BIND` and `GRAFANA_PORT` from `.env` (on this VM th
 
 The links live in Grafana's own database (the `grafana_data` volume): they survive restarts and deploys. After a wiped volume, run the script again: the tokens are stable, so the same links come back. 
 
-**Rebuilding the public links after the VM is rebuilt (issue 173; prepared 14-10-2026, not yet run).** Get the code as a git checkout (deploy-to-vm.md section 2d, or restore.md "Rebuilding a whole VM"), start the stack in either mode (local build, or registry images after `docker login ghcr.io`), wait for Grafana to be healthy, then run the script above from the checkout. The script is part of the tree, not of an image, so a checkout of the live commit is enough. A registry deploy does not touch the `grafana_data` volume or the links.
+**Rebuilding the public links after the VM is rebuilt (issue 173; the checkout and registry steps were run on 14-10-2026, a whole-VM rebuild has not been).** Get the code as a git checkout (deploy-to-vm.md section 2d, or restore.md "Rebuilding a whole VM"), start the stack in either mode (local build, or registry images after `docker login ghcr.io`), wait for Grafana to be healthy, then run the script above from the checkout. The script is part of the tree, not of an image, so a checkout of the live commit is enough. A registry deploy does not touch the `grafana_data` volume or the links.
 
 ### Short addresses
 | Short address | Dashboard |
