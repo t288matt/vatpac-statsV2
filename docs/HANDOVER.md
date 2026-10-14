@@ -140,7 +140,7 @@ cd collector && ./.venv/Scripts/python.exe -m ruff check src && ./.venv/Scripts/
 python ops/check_size_budget.py collector/src/vatpac; python ops/check_config_drift.py; python grafana/validate_dashboards.py
 docker rm -f vp-test
 ```
-`collector/.venv` is git-ignored: recreate with Python 3.11+ and `pip install -r collector/requirements.txt pytest pytest-asyncio ruff mypy`. NOTE: the venv now has numpy 1.26.4 (pinned for baseline CPUs).
+`collector/.venv` is git-ignored: recreate with Python 3.11+ and `pip install -r collector/requirements.txt pytest pytest-asyncio ruff mypy`. NOTE: the collector pins numpy 2.3.5 (since 14-10-2026); it needs the VM CPU type `host` or `x86-64-v2-AES`.
 
 ## 7. How to deploy and operate
 
@@ -239,7 +239,7 @@ v1's good ideas that v3 kept: session identity `(cid, callsign, logon_time)`, re
 - Smoke test looked for "permission denied" but the role is read-only by default (error text differs). Fixed: switch the default off and prove the privilege denial.
 - PII checker flagged the feed's compact timestamp (`general.update`) as a phone number. Fixed.
 - dbmate sends a file as ONE command: two `CREATE INDEX CONCURRENTLY` in one migration failed. Fixed (one per file, `-- migrate:up transaction:false`).
-- **VM crash loop (07-10-2026):** `NumPy was built with baseline optimizations: (X86_V2) but your machine doesn't support: (X86_V2)`. The Proxmox VM's default virtual CPU (QEMU/kvm64) lacks the x86-64-v2 baseline numpy 2.x needs, so shapely could not import and the collector restarted forever. Fixed by pinning `numpy==1.26.4` in `collector/requirements.txt` (commit `d5de461`). The alternative is to set the VM's CPU type to `host` or `x86-64-v2-AES` in Proxmox (needs a VM restart); either is fine, but any new x86 VM or image may hit this again. Watch for it if you add other scientific wheels.
+- **VM crash loop (07-10-2026):** `NumPy was built with baseline optimizations: (X86_V2) but your machine doesn't support: (X86_V2)`. The Proxmox VM's default virtual CPU (QEMU/kvm64) lacks the x86-64-v2 baseline numpy 2.x needs, so shapely could not import and the collector restarted forever. Fixed by pinning `numpy==1.26.4` in `collector/requirements.txt` (commit `d5de461`). The alternative is to set the VM's CPU type to `host` or `x86-64-v2-AES` in Proxmox (needs a VM restart); either is fine, but any new x86 VM or image may hit this again. Watch for it if you add other scientific wheels. **Update 14-10-2026:** the owner set the VM CPU type to `host` in Proxmox (i5-6500, SSE4.2 present), and the collector moved to `numpy==2.3.5` (issue 174); the 1.26.4 pin and the Dependabot numpy ignore are gone. Keep the CPU type `host` or `x86-64-v2-AES` on any rebuilt VM.
 
 ### 13.2 Independent code review: all findings and status (reviewer agent, read-only, plus fixes by three agents)
 HIGH: H1 `flight` view could not scale (14 s at 8.9M rows): FIXED (`flight_summary`, ADR-016). H2 collector could hang on a DB lock: FIXED (statement/lock/idle timeouts, 25 s apply timeout). H3 one poisoned feed record (lone surrogate) could block all ingest: FIXED (sanitising and bisect-in-savepoint). H4 default install reachable with trivial credentials: FIXED (blank secrets, `check_env`, Grafana bound to 127.0.0.1 by default).
@@ -282,7 +282,7 @@ docs/ARCHITECTURE.md  DATA_DICTIONARY.md  DEFINITIONS.md  CONFIG_MAP.md (every v
 docs/CHART_DEFINITIONS.md  DASHBOARDS_SIMPLIFIED.md
 docs/RUNBOOKS/               deploy-to-vm, restore, feed-outage, stuck-collector, update-reference-files, db-full
 docs/reference/v1_metabase_cards.json   recovered v1 card SQL (118 cards)
-collector/                   Dockerfile, pyproject.toml, requirements.txt (numpy pinned), src/vatpac/, tests/unit/
+collector/                   Dockerfile, pyproject.toml, requirements.txt (all versions pinned), src/vatpac/, tests/unit/
 db/                          migrations/ (dbmate, forward-only, 20261007000001..24; now ..20261008000031), roles.sql
 grafana/                     provisioning/ (datasource, dashboards), dashboards/<folder>/*.json, validate_dashboards.py, check_columns.py
 ops/                         check_env.sh gen_env.sh smoke.sh soak_report.sh/.sql check_panels.py check_config_drift.py check_size_budget.py ruff.toml (check_fixture_pii.py was removed 08-10-2026, TRACKER T29); backup/ migrate/ watchdog/ postgres/
