@@ -6,6 +6,10 @@
 #   bash ops/deploy.sh --mark <commit> [--allow-silent-issues]  after a VERIFIED deploy: write ~/vatpac-statsV2/.deploy/release (the ONLY write)
 #       Refuses first if an issue named in the commits since the previous marker has no comment newer than its newest commit
 #       (ops/stale_issues.sh), or if that cannot be checked; --allow-silent-issues marks anyway and prints a warning.
+#       Warns if the VM checkout is not at the commit being marked; the .deploy/release.log entry also records images=<tag or local>.
+# Registry mode (VATPAC_IMAGE_PREFIX and VATPAC_IMAGE_TAG both set in the VM's .env, issue 173): --preflight checks the four images
+# exist for the commit and that the .env tag matches it; --verify checks each container's image revision label against the VM
+# checkout; --status prints the images. Local mode (neither set) skips these checks. Only the two key names are read from .env.
 # It never starts, stops, builds or restarts anything and never prints .env values. The owner's explicit go for each
 # deploy is unchanged; this script only replaces remembering the checks. Exit 0 means no FAIL (WARN is allowed).
 # Settings (environment): DEPLOY_SSH (default vatpac-v3), DEPLOY_DIR (default ~/vatpac-statsV2), DEPLOY_GH (path to gh),
@@ -37,6 +41,22 @@ PASSES=0; WARNS=0; FAILS=0
 
 # mem_ok <MemAvailable in MB>: succeeds when it is a number at least the minimum.
 mem_ok() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge "$MIN_MEM_MB" ]; }
+
+# registry_mode <prefix> <tag> -> local (neither set) | registry (both) | partial (exactly one; check_env.sh refuses this)
+registry_mode() {
+  if [ -n "$1" ] && [ -n "$2" ]; then echo registry
+  elif [ -z "$1" ] && [ -z "$2" ]; then echo local
+  else echo partial; fi
+}
+
+# short_tag <commit> -> sha-<first 7 characters>, the tag the release workflow gives an image
+short_tag() { printf 'sha-%s' "${1:0:7}"; }
+
+# valid_prefix <prefix>: a registry path ending in a slash (it is placed in a remote command, so only safe characters)
+valid_prefix() { [[ "$1" =~ ^[a-z0-9][a-z0-9._:/-]*/$ ]]; }
+
+# head_matches <checkout HEAD> <image revision label>: the label (7 to 40 hex) is a prefix of HEAD
+head_matches() { [[ "$2" =~ ^[0-9a-f]{7,40}$ ]] && [ "${1#"$2"}" != "$1" ]; }
 
 # in_backup_window <epoch> [HH:MM backup time, default 02:00]: succeeds from 10 minutes before to 30 minutes after it (UTC).
 in_backup_window() {
@@ -125,8 +145,9 @@ gh_bin() {
 
 # psql inside the db container, read-only, SQL on stdin. The single quotes keep $POSTGRES_* for the container's shell.
 PSQL='docker compose exec -T db sh -c '\''psql -X -q -tA -F"|" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'\'''
-# One line per container: name|started|restarts|health-or-state
-INSPECT='docker inspect -f "{{.Name}}|{{.State.StartedAt}}|{{.RestartCount}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}" $(docker compose ps -aq)'
+# One line per container: name|started|restarts|health-or-state|image|revision label. The last two were appended for registry
+# mode: fields 1 to 4 keep their positions, and an image without the label gives an empty 6th field.
+INSPECT='docker inspect -f "{{.Name}}|{{.State.StartedAt}}|{{.RestartCount}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}|{{.Config.Image}}|{{index .Config.Labels \"org.opencontainers.image.revision\"}}" $(docker compose ps -aq)'
 # Newest dump: epoch size name (validity checked with pg_restore -l in the backup container, which only reads)
 NEWEST_DUMP='docker compose exec -T backup sh -c '\''f=$(find /backups -maxdepth 1 -name "*.dump" -printf "%T@ %s %f\n" | sort -n | tail -n 1); echo "$f"; n=${f##* }; [ -n "$n" ] && pg_restore -l "/backups/$n" >/dev/null 2>&1 && echo valid || echo invalid'\'''
 
@@ -137,6 +158,9 @@ iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null; }
 
 CONTAINERS=""
 load_containers() { CONTAINERS="$(vm "$INSPECT" 2>/dev/null | tr -d '\r' | grep '|')"; }
+
+# vm_env_key <NAME>: the value of one key from the VM's .env; nothing else of the file is read (used for the two image keys only)
+vm_env_key() { vm "sed -n 's/^$1=//p' .env 2>/dev/null | tail -n 1" 2>/dev/null | tr -d '\r \t'; }
 
 # svc_line <service>: the inspect line of the service's container
 svc_line() { printf '%s\n' "$CONTAINERS" | grep -E "^/vatpac-$1-[0-9]+\|" | head -n 1; }
@@ -149,6 +173,39 @@ check_healthy() {
     [ "$h" = healthy ] || bad="$bad $svc=${h:-missing}"
   done
   if [ -z "$bad" ]; then emit PASS containers_healthy "all of: $SERVICES"; else emit FAIL containers_healthy "not healthy:$bad"; fi
+}
+
+REGISTRY_SERVICES="collector watchdog backup migrate"
+
+# image_problems <checkout HEAD> <.env tag>: prints what is wrong, empty when every registry-image container (from $CONTAINERS) runs
+# the .env tag and carries a revision label that HEAD starts with. Catches tag A with checkout B: the migrations come from the
+# checkout's ./db mount while the code comes from the image.
+image_problems() {
+  local head="$1" tag="$2" out="" svc l img rev
+  [ "$tag" = "$(short_tag "$head")" ] || out="$out .env tag is $tag but the checkout is $(short_tag "$head");"
+  for svc in $REGISTRY_SERVICES; do
+    l="$(svc_line "$svc")"
+    if [ -z "$l" ]; then out="$out $svc: no container;"; continue; fi
+    img="$(printf '%s' "$l" | cut -d'|' -f5)"; rev="$(printf '%s' "$l" | cut -d'|' -f6)"
+    if [ "${img##*:}" != "$tag" ]; then out="$out $svc runs image tag '${img##*:}' not $tag;"
+    elif ! head_matches "$head" "$rev"; then out="$out $svc revision label '${rev:0:12}' is not the checkout ${head:0:12};"; fi
+  done
+  printf '%s' "$out"
+}
+
+check_images() {
+  local pfx tag mode head probs
+  [ "$VM_DOWN" = 1 ] && { emit FAIL image_revisions "VM unreachable"; return; }
+  pfx="$(vm_env_key VATPAC_IMAGE_PREFIX)"; tag="$(vm_env_key VATPAC_IMAGE_TAG)"; mode="$(registry_mode "$pfx" "$tag")"
+  case "$mode" in
+    local) emit PASS image_revisions "local build mode" ;;
+    partial) emit FAIL image_revisions "exactly one of VATPAC_IMAGE_PREFIX and VATPAC_IMAGE_TAG is set in the VM's .env" ;;
+    *) head="$(vm 'git rev-parse HEAD' 2>/dev/null | tr -d '\r' | head -n 1)"
+       if [ -z "$CONTAINERS" ] || ! [[ "$head" =~ ^[0-9a-f]{40}$ ]]; then emit FAIL image_revisions "could not read the containers or the checkout HEAD"; return; fi
+       probs="$(image_problems "$head" "$tag")"
+       if [ -z "$probs" ]; then emit PASS image_revisions "registry mode: $REGISTRY_SERVICES run $tag, built from the checkout ${head:0:10}"
+       else emit FAIL image_revisions "registry mode:$probs"; fi ;;
+  esac
 }
 
 check_restarts() {
@@ -267,7 +324,32 @@ preflight() {
     fi
   fi
 
+  check_registry_preflight "${full:-$want}"
+
   summary preflight
+}
+
+# registry checks of --preflight; $1 is the commit being deployed
+check_registry_preflight() {
+  local c7 pfx tag mode n bad=""
+  c7="$(short_tag "$1")"
+  [ "$VM_DOWN" = 1 ] && { emit FAIL registry_mode "VM unreachable, registry checks skipped"; return; }
+  pfx="$(vm_env_key VATPAC_IMAGE_PREFIX)"; tag="$(vm_env_key VATPAC_IMAGE_TAG)"; mode="$(registry_mode "$pfx" "$tag")"
+  case "$mode" in
+    local) emit PASS registry_mode "local build mode"; return ;;
+    partial) emit FAIL registry_mode "exactly one of VATPAC_IMAGE_PREFIX and VATPAC_IMAGE_TAG is set in the VM's .env; set both or neither"; return ;;
+  esac
+  emit PASS registry_mode "registry mode (both image variables are set in the VM's .env)"
+  if ! valid_prefix "$pfx"; then emit FAIL registry_images "VATPAC_IMAGE_PREFIX in the VM's .env is not a registry path ending in a slash"
+  else
+    for n in $REGISTRY_SERVICES; do
+      TMO=120 vm "docker manifest inspect ${pfx}vatpac-stats-$n:$c7 >/dev/null 2>&1" || bad="$bad $n"
+    done
+    if [ -z "$bad" ]; then emit PASS registry_images "$REGISTRY_SERVICES are published as $c7"
+    else emit FAIL registry_images "not readable as $c7:$bad; check the release workflow published this commit, or the token expired: docker login ghcr.io"; fi
+  fi
+  if [ "$tag" = "$c7" ]; then emit PASS image_tag_env ".env VATPAC_IMAGE_TAG is $c7"
+  else emit WARN image_tag_env "owner to set this line first: VATPAC_IMAGE_TAG=$c7 (the VM's .env has ${tag:-nothing})"; fi
 }
 
 # ---------------------------------------------------------------- --verify
@@ -295,6 +377,7 @@ verify() {
 
   load_containers
   check_restarts
+  check_images
   line="$(svc_line collector)"
   if [ -n "$line" ]; then emit PASS collector_started "$(printf '%s' "$line" | cut -d'|' -f2 | cut -c1-19) UTC (health: $(printf '%s' "$line" | cut -d'|' -f4))"
   else emit FAIL collector_started "collector container not found"; fi
@@ -368,7 +451,10 @@ status() {
   printf '%s\n' "${out:-could not read the VM tree}"
   echo "== containers (name | started | restarts | health)"
   load_containers
-  if [ -z "$CONTAINERS" ]; then echo "could not read the container list"; else printf '%s\n' "$CONTAINERS"; fi
+  if [ -z "$CONTAINERS" ]; then echo "could not read the container list"; else printf '%s\n' "$CONTAINERS" | cut -d'|' -f1-4; fi
+  echo "== images (name | image | revision label)"
+  if [ -n "$CONTAINERS" ]; then printf '%s\n' "$CONTAINERS" | awk -F'|' '{printf "%s | %s | %s\n", $1, ($5 == "" ? "?" : $5), ($6 == "" ? "(no label)" : substr($6, 1, 12))}'; fi
+  echo "image mode: $(registry_mode "$(vm_env_key VATPAC_IMAGE_PREFIX)" "$(vm_env_key VATPAC_IMAGE_TAG)") (only the two image keys of the VM's .env are read); checkout HEAD: $(vm 'git rev-parse HEAD' 2>/dev/null | tr -d '\r' | head -n 1 | cut -c1-12)"
   echo "== newest dump"
   now="$(vm_now)"
   if dump_facts && [ -n "$now" ]; then echo "$D_NAME, $(( (now - D_EPOCH) / 3600 )) h old, $D_SIZE bytes, pg_restore -l: $D_VALID"
@@ -378,7 +464,7 @@ status() {
 # ---------------------------------------------------------------- --mark (the only write)
 
 mark() {
-  local want="$1" allow="${2:-}" full now stamp who prev rc
+  local want="$1" allow="${2:-}" full now stamp who prev rc vmhead pfx tag imgs
   [ -z "$allow" ] || [ "$allow" = --allow-silent-issues ] || { echo "usage: deploy.sh --mark <commit> [--allow-silent-issues]" >&2; return 2; }
   [[ "$want" =~ ^[0-9a-fA-F]{7,40}$ ]] || { echo "usage: deploy.sh --mark <commit (7 to 40 hex characters)>" >&2; return 2; }
   full="$(g rev-parse --verify -q "${want}^{commit}" 2>/dev/null)"
@@ -398,10 +484,21 @@ mark() {
       return 1
     fi
   fi
+  vmhead="$(vm 'git rev-parse HEAD' 2>/dev/null | tr -d '\r' | head -n 1)"
+  if [ "$vmhead" != "$full" ]; then
+    echo "WARN  the VM checkout HEAD (${vmhead:-unreadable}) is not the commit being marked (${full:0:10}); mark only a commit that is really deployed" >&2
+  fi
+  pfx="$(vm_env_key VATPAC_IMAGE_PREFIX)"; tag="$(vm_env_key VATPAC_IMAGE_TAG)"
+  case "$(registry_mode "$pfx" "$tag")" in
+    registry) imgs="$(printf '%s' "$tag" | tr -cd 'A-Za-z0-9._-')" ;;
+    local) imgs=local ;;
+    *) imgs=partial ;;
+  esac
   stamp="$(iso "$now")"; who="$(printf '%s' "${USER:-${USERNAME:-unknown}}" | tr -cd 'A-Za-z0-9._-')"
-  # the log line goes first and the marker is replaced last, so a failed log append leaves the old marker in place
+  # the log line goes first and the marker is replaced last, so a failed log append leaves the old marker in place.
+  # The release file keeps exactly three lines (other tools read it); only the log entry gets the extra images= line.
   printf 'commit=%s\nmarked_utc=%s\nmarked_by=%s\n' "$full" "$stamp" "$who" \
-    | vm_in 'mkdir -p .deploy && cat > .deploy/release.new && { cat .deploy/release.new; echo ---; } >> .deploy/release.log && mv .deploy/release.new .deploy/release' \
+    | vm_in "mkdir -p .deploy && cat > .deploy/release.new && { cat .deploy/release.new; echo images=$imgs; echo ---; } >> .deploy/release.log && mv .deploy/release.new .deploy/release" \
     || { echo "FAIL  could not write the marker or its log; the previous marker (if any) is unchanged" >&2; return 1; }
   echo "PASS  marked ${full:0:10} at $stamp by $who (~/vatpac-statsV2/.deploy/release on the VM)"
 }

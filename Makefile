@@ -1,11 +1,35 @@
-.PHONY: soak up down dev logs ps config test lint smoke size backup backup-test restore gen-env check-env drift
+.PHONY: soak up deploy down dev logs ps config test lint smoke size backup backup-test restore gen-env check-env drift
 
-# Refuses to start with blank/weak secrets (ops/check_env.sh). No .env yet? run: make gen-env
+# Local builds. Refuses to start with blank/weak secrets (ops/check_env.sh). No .env yet? run: make gen-env
+# Refuses when VATPAC_IMAGE_TAG or VATPAC_IMAGE_PREFIX is set (environment or .env): compose would build locally and tag the
+# build with the registry name, which defeats the pull. In registry mode use: make deploy
 up: check-env
+	@mode="$$(sh ops/image_mode.sh .env)"; \
+	if [ "$$mode" != local ]; then \
+	  echo "make up: VATPAC_IMAGE_PREFIX and/or VATPAC_IMAGE_TAG is set (environment or .env), so this is registry mode." >&2; \
+	  echo "make up would build locally and retag the build with the registry name. Use 'make deploy' to pull and start," >&2; \
+	  echo "or unset both variables to build locally." >&2; exit 1; \
+	fi
 	docker compose up -d --build
 
-# db published on 127.0.0.1:55432 (dev overlay)
+# Registry mode (images pulled, never built): both VATPAC_IMAGE_PREFIX and VATPAC_IMAGE_TAG must be set.
+deploy: check-env
+	@mode="$$(sh ops/image_mode.sh .env)"; \
+	if [ "$$mode" != registry ]; then \
+	  echo "make deploy: VATPAC_IMAGE_PREFIX and VATPAC_IMAGE_TAG must both be set (environment or .env); mode is: $$mode." >&2; \
+	  echo "Use 'make up' for local builds." >&2; exit 1; \
+	fi
+	docker compose config --images
+	docker compose pull
+	docker compose up -d --no-build
+
+# db published on 127.0.0.1:55432 (dev overlay). Builds locally, so it refuses in registry mode too.
 dev: check-env
+	@mode="$$(sh ops/image_mode.sh .env)"; \
+	if [ "$$mode" != local ]; then \
+	  echo "make dev: VATPAC_IMAGE_PREFIX and/or VATPAC_IMAGE_TAG is set (environment or .env); the dev overlay builds locally." >&2; \
+	  echo "Unset both variables to use make dev." >&2; exit 1; \
+	fi
 	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
 down:
