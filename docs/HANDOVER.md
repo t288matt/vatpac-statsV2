@@ -87,7 +87,7 @@ Do not tell the owner the goal is met before 4 and 5 are done. The owner has bee
 - `poll_log` gets a row for every poll attempt including skipped ones: check the real daily row count after a few days (retention is 400 days).
 - The `flight` view's 8 h span split is an approximation (fixed buckets), documented in the view.
 - The two "online now" definitions differ slightly (core view: within 5 min of now and 2 x the poll interval of the newest snapshot, 60 s at 30 s polling, ADR-024; dashboard views: last two snapshots and a 5-minute wall-clock guard).
-- Deploy by git checkout plus registry images (issue 173, decided 14-10-2026, hybrid; LIVE since 14-10-2026). The VM folder is a read-only git checkout; the release workflow published commit 67c1ca0 (`sha-67c1ca0`); the registry login and the two `.env` lines are in place; the first `pull` and `up -d --no-build` ran and `--verify` passed (marker 67c1ca0, 22:29:46 UTC). NOT yet run: a second registry deploy, a rollback to a previous `sha-` tag (the first rollback can only use the local `:local` images), a token renewal (expires about 12-01-2027, reminder 05-01-2027). Open: package privacy awaits the owner's confirmation; the off-box backup copy needs rsync and ssh, which the published backup image lacks (open decision, see OWNER_BACKUP_COPY.md). Related and not decided: issue 176 (floating major tags for third-party images, parked), issue 164 (Grafana boot race, parked).
+- Deploy by git checkout plus registry images (issue 173, decided 14-10-2026, hybrid; LIVE since 14-10-2026). The VM folder is a read-only git checkout; the release workflow published commit 67c1ca0 (`sha-67c1ca0`); the registry login and the two `.env` lines are in place; the first `pull` and `up -d --no-build` ran and `--verify` passed (marker 67c1ca0, 22:29:46 UTC). NOT yet run: a second registry deploy, a rollback to a previous `sha-` tag (the first rollback can only use the local `:local` images), a token renewal (expires about 12-01-2027, reminder 05-01-2027). Package privacy: confirmed private by the owner on 14-10-2026. Open: the off-box backup copy needs rsync and ssh, which the published backup image lacks (open decision, see OWNER_BACKUP_COPY.md). Related and not decided: issue 176 (floating major tags for third-party images, parked), issue 164 (Grafana boot race, parked).
 
 ### 4.3 Open owner decisions
 1. ~~Retention or anonymisation of names and CIDs~~ DECIDED 07-10-2026: keep forever, no rule (ADR-019).
@@ -156,7 +156,7 @@ Order: db healthy, then `migrate` (dbmate migrations, then `db/roles.sql` with t
 ### 7.2 Deploying a new commit to the VM
 Method in use since 14-10-2026 (issue 173; the first deploy was run and verified, a second deploy is not yet run; steps and checks in `docs/RUNBOOKS/deploy-to-vm.md` sections 2d to 2f). Publish the commit (Actions > release), then on the VM:
 ```bash
-git fetch origin && git checkout --detach <commit>     # then set VATPAC_IMAGE_TAG=sha-<7> in .env
+cd ~/vatpac-statsV2 && git fetch origin && git checkout --detach <commit>     # then set VATPAC_IMAGE_TAG=sha-<7> in .env
 docker compose pull && docker compose up -d --no-build
 ```
 On the VM never use `up -d --build` (it rebuilds locally and replaces the pulled image). Rollback for the first cycle: remove both `VATPAC_IMAGE_*` lines from `.env` and `docker compose up -d --no-build` (the local `:local` images are still on the VM); from the second registry deploy, set the previous `sha-` tag. Fallback, the method used until 14-10-2026 (no git on the VM):

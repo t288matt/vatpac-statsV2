@@ -84,10 +84,10 @@ One-time set-up on the Proxmox host and the VM, step by step: [OWNER_BACKUP_COPY
 
 ## 16. Registry token and its 90 day reminder (issue 173, phase P3). DONE 14-10-2026 (token expires about 12-01-2027, reminder set for 05-01-2027). Renew by the same steps.
 **Why:** the VM needs to read the private images from GHCR. GitHub's container registry only accepts a classic personal access token (GitHub Docs, read 14-10-2026), so a fine-grained token will not work.
-**You do:** on GitHub, Settings > Developer settings > Personal access tokens > Tokens (classic) > Generate new token (classic); expiration **90 days**; tick **only** `read:packages`. Copy it once. Put the expiry date in your calendar with a reminder 10 days earlier. On the VM run `docker login ghcr.io -u t288matt --password-stdin` and paste the token yourself. Never put the token in chat, in the repository or in `.env`; Docker keeps it in `~/.docker/config.json` on the VM (check `ls -l` shows `-rw-------`).
+**You do:** on GitHub, Settings > Developer settings > Personal access tokens > Tokens (classic) > Generate new token (classic); expiration **90 days**; tick **only** `read:packages`. Copy it once. Put the expiry date in your calendar with a reminder 10 days earlier. On the VM run `docker login ghcr.io -u t288matt` and paste the token at the hidden `Password:` prompt (nothing is shown), then press Enter. Never put the token in chat, in the repository or in `.env`; Docker keeps it in `~/.docker/config.json` on the VM (check `ls -l` shows `-rw-------`).
 **Know this:** the token can read every package your account can reach. When it expires, deploys fail with `unauthorized` or `denied`; the running stack is not affected. Renew: make a new token, repeat the login, delete the old token.
 **Emma does:** tells you the exact commands first, never sees the token, and checks `Login Succeeded` from what you report.
-**Open for you:** confirm on the repository's Packages page that each of the four packages says Private (an anonymous request got 403 on 14-10-2026, which fits private but is not proof).
+**Checked:** you confirmed on the GitHub Packages page on 14-10-2026 that the packages are Private.
 
 ## 17. The two `.env` lines for registry mode (issue 173, phase P3). DONE 14-10-2026 (`VATPAC_IMAGE_TAG=sha-67c1ca0`; marker 67c1ca0 at 22:29:46 UTC).
 **Why:** these two lines switch the VM from building images to pulling the published ones. Emma must tell you the exact lines before they are added, and never prints your `.env`.
