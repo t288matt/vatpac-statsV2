@@ -87,7 +87,7 @@ Do not tell the owner the goal is met before 4 and 5 are done. The owner has bee
 - `poll_log` gets a row for every poll attempt including skipped ones: check the real daily row count after a few days (retention is 400 days).
 - The `flight` view's 8 h span split is an approximation (fixed buckets), documented in the view.
 - The two "online now" definitions differ slightly (core view: within 5 min of now and 2 x the poll interval of the newest snapshot, 60 s at 30 s polling, ADR-024; dashboard views: last two snapshots and a 5-minute wall-clock guard).
-- A deploy key for the VM so it can `git pull` (today code is pushed with `git archive | ssh`).
+- A deploy key for the VM so it can `git pull` (today code is pushed with `git archive | ssh`). Planned 14-10-2026 in issue 173 (draft runbook section 2d).
 
 ### 4.3 Open owner decisions
 1. ~~Retention or anonymisation of names and CIDs~~ DECIDED 07-10-2026: keep forever, no rule (ADR-019).
@@ -288,7 +288,7 @@ grafana/                     provisioning/ (datasource, dashboards), dashboards/
 ops/                         check_env.sh gen_env.sh smoke.sh soak_report.sh/.sql check_panels.py check_config_drift.py check_size_budget.py ruff.toml (check_fixture_pii.py was removed 08-10-2026, TRACKER T29); backup/ migrate/ watchdog/ postgres/
 tests/                       integration/ (needs Postgres), fixtures/ (anonymised feed snapshot + expected.json), tools/make_fixture.py, README.md
 config/                      australian_airspace_polygon.json, controller_callsigns_list.txt, australian_airspace_sectors.geojson (unused by v3)
-.github/workflows/           ci.yml, release.yml (tags vX.Y.Z, gated on CI), dependabot.yml
+.github/workflows/           ci.yml, release.yml (manual `publish <commit>`: checks the commit's main CI run, builds and pushes sha-tagged images, issue 173), dependabot.yml
 .claude/agents/              role definitions: data-engineer, analytics, sre, qa, reviewer, docs-writer
 Makefile                     up, down, logs, ps, config, lint, test, smoke, soak (HOURS=24), backup, backup-test, restore, size, pii (removed 08-10-2026 with the fixture check, TRACKER T29), dev (now also gen-env, check-env, drift)
 ```

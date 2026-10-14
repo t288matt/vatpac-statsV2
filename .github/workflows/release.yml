@@ -39,9 +39,9 @@ jobs:
           case "$INPUT" in *[!0-9a-fA-F]*|"") echo "::error::commit must be a hex SHA, got '$INPUT'"; exit 1;; esac
           [ "${#INPUT}" -ge 7 ] || { echo "::error::commit must be at least 7 characters"; exit 1; }
           sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/$INPUT" --jq .sha)"
-          # `behind` or `identical` means the commit is an ancestor of (or is) the tip of main
+          # compare/<sha>...main: `ahead` (main is ahead of the commit) or `identical` means the commit is on main; `diverged` or `behind` means it is not
           rel="$(gh api "repos/$GITHUB_REPOSITORY/compare/$sha...main" --jq .status)"
-          case "$rel" in behind|identical) ;; *) echo "::error::$sha is not on main (compare status: $rel)"; exit 1;; esac
+          case "$rel" in ahead|identical) ;; *) echo "::error::$sha is not on main (compare status: $rel)"; exit 1;; esac
           ok="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$sha" --branch main --event push \
                   --json conclusion --jq '[.[] | select(.conclusion == "success")] | length')"
           if [ "$ok" -lt 1 ]; then
