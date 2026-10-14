@@ -14,7 +14,7 @@ Last reviewed: 11-10-2026. Dashboards are code: JSON files in git, loaded by Gra
 `python grafana/validate_dashboards.py` enforces these (it fails CI):
 
 - Valid JSON with a unique dashboard `uid` (convention `vatpac-<name>`), a title and `"timezone": "utc"`.
-- A text panel containing `${go_live}` ("Data since ..."), fed by the hidden `go_live` variable (`SELECT ... FROM data_since`). There is no backfill, so every chart starts empty at go-live.
+- A text panel containing `${go_live}` ("Data since ..."), fed by the hidden `go_live` constant variable (the value of `data_since.go_live`, 07-10-2026 21:38 UTC; it is a constant because public dashboards cannot run variable queries; if the data start date ever changes, update it in all ten dashboards). There is no backfill, so every chart starts empty at go-live.
 - Unique panel ids; every non-text panel uses the data source with uid `vatpac` and has a non-empty `rawSql`; give every panel a description (a warning otherwise). Say which v1 card it reproduces.
 - Queries read only allow-listed relations: the views created in `db/migrations/` and the six lookup tables (`controller_rating`, `facility`, `pilot_rating`, `airline`, `aircraft_type`, `region_map`). Base tables such as `pilot_session` or `poll_log` are refused, and `grafana_ro` has no access to them anyway. The list of views is in [../DATA_DICTIONARY.md](../DATA_DICTIONARY.md).
 - No hard-coded dates, no `DISTINCT ON`, and every query must parse as PostgreSQL (needs `pip install sqlglot`; without it the SQL is not parsed and the script says so).
