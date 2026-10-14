@@ -60,7 +60,7 @@
       "id": 2,
       "type": "stat",
       "title": "Newest snapshot age",
-      "description": "Seconds since the newest stored snapshot (network_snapshot). Replaces v1 card 118 (flights table freshness). Amber from 60 s, red from 300 s (watchdog thresholds).",
+      "description": "Seconds since the newest network snapshot was stored. Amber from 60 s, red from 300 s.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -125,7 +125,7 @@
       "id": 3,
       "type": "stat",
       "title": "Last successful poll age",
-      "description": "Seconds since the newest poll_log row with status ok.",
+      "description": "Seconds since the last successful poll of the network feed.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -190,7 +190,7 @@
       "id": 4,
       "type": "stat",
       "title": "Newest pilot sighting age",
-      "description": "Seconds since any pilot session was last seen. Can be large in a quiet period; compare with the snapshot age.",
+      "description": "Seconds since any pilot was last seen online.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -255,7 +255,7 @@
       "id": 5,
       "type": "stat",
       "title": "Newest controller sighting age",
-      "description": "Seconds since any whitelisted controller was last seen. Replaces v1 card 120 (controller table freshness). Large values are normal when no one is controlling.",
+      "description": "Seconds since any VATPAC controller was last seen online.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -320,7 +320,7 @@
       "id": 6,
       "type": "stat",
       "title": "Snapshots missed (last 24 hours)",
-      "description": "Percentage of the expected snapshots (one every POLL_INTERVAL_SECONDS since go-live, at most 24 hours; for 24 hours after a change of the interval the figure is off because the window mixes both) that are not in network_snapshot. Acceptance target: under 1%.",
+      "description": "Percentage of expected snapshots missing over the last 24 hours. Target: under 1%.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -386,7 +386,7 @@
       "id": 7,
       "type": "stat",
       "title": "Unchanged polls (last 24 hours)",
-      "description": "Share of polls that found the feed unchanged and were skipped (status skipped_unchanged). Expected to be fairly high because the poller retries within a feed interval; informational only.",
+      "description": "Share of polls in the last 24 hours that found the feed unchanged and were skipped.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -507,7 +507,7 @@
       "id": 9,
       "type": "stat",
       "title": "Rejected values (last 24 hours)",
-      "description": "Values the feed sent that the collector dropped or cut (poll_log.rejected_values): groundspeed or altitude outside the plausibility caps (stored as NULL), numbers that cannot be parsed or are out of range, malformed entries that were skipped, and text cut to its length cap. A persistent condition counts on every poll (one over-length name is about 2,880 a day at 30 s polling), so a steady non-zero figure usually means one bad feed entry, not many. Orange at 5,000 in 24 hours.",
+      "description": "Feed values dropped or cut in the last 24 hours: implausible speeds or altitudes, unreadable numbers, malformed entries and over-long text. Orange at 5,000.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -567,7 +567,7 @@
       "id": 10,
       "type": "stat",
       "title": "Near-miss controllers",
-      "description": "Callsigns that are not whitelisted but share a prefix with a whitelisted callsign (controller_unlisted_sighting). Any value above zero needs the whitelist reviewing.",
+      "description": "Callsigns that are not on the controller list but resemble a listed callsign.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -822,7 +822,7 @@
       "id": 16,
       "type": "table",
       "title": "Data freshness (data engineer view)",
-      "description": "Everything in the data_freshness view supplied by the data engineer, shown as is.",
+      "description": "Latest data timestamps for each data source.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"

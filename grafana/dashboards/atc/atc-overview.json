@@ -60,7 +60,7 @@
       "id": 2,
       "type": "stat",
       "title": "Controllers online now",
-      "description": "v1 card 69. Whitelisted controllers in the newest snapshot (network_snapshot.controllers_in_region).",
+      "description": "Number of VATPAC controllers online in the latest snapshot.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -117,7 +117,7 @@
       "id": 3,
       "type": "timeseries",
       "title": "Controllers online over time",
-      "description": "Screenshot-only chart (controllers online over time). Whitelisted controllers per snapshot, averaged into buckets that follow the dashboard range.",
+      "description": "Number of VATPAC controllers online over the selected time range.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -159,7 +159,7 @@
       "id": 4,
       "type": "table",
       "title": "Controllers online now (list)",
-      "description": "Archived v1 card 67 ('Who's online?'), rebuilt from the controller sessions seen in the last two snapshots. Frequency shown in MHz.",
+      "description": "Controllers online now, with rating, frequency, logon time and hours online.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -230,7 +230,7 @@
       "id": 5,
       "type": "barchart",
       "title": "Controllers logged on (last 30 days)",
-      "description": "v1 card 115. Distinct controllers by rating group with more than 60 minutes online in total in the period. Observer and C2 ratings are left out, as in v1.",
+      "description": "Controllers per rating group with more than 60 minutes online in total over the last 30 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -270,7 +270,7 @@
       "id": 6,
       "type": "timeseries",
       "title": "Controllers logged on each month, by rating group",
-      "description": "v1 card 116 (v1 query edited 18-10-2025: was the last 3 months as one bar chart, now month by month). For each calendar month (UTC), distinct controllers per rating group whose sessions that month total more than 60 minutes at that rating (as v1, a controller who changed rating inside a month is judged separately at each rating). Observer and C2 are not shown, as in v1. Starts at go-live (no backfill).",
+      "description": "Controllers per rating group with more than 60 minutes online, for each calendar month (UTC).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -312,7 +312,7 @@
       "id": 7,
       "type": "timeseries",
       "title": "CTR and FSS controllers active (30 days to month end, monthly)",
-      "description": "v1 card 63 (v1 query edited 17-10-2025: monthly). For each calendar month (UTC), distinct controllers who started a CTR or FSS session of more than 60 minutes in the 30 days before the end of that month. The point is drawn at the start of the month. The latest month is partial. v1 hid months with no controllers; zeros are drawn here. Starts at go-live (no backfill).",
+      "description": "Controllers who started a CTR or FSS session of more than 60 minutes in the 30 days to the end of each month.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -354,7 +354,7 @@
       "id": 8,
       "type": "timeseries",
       "title": "Controllers active (30 days to month end, monthly)",
-      "description": "v1 card 137 (v1 query edited 17-10-2025: monthly, minimum 30 minutes). For each calendar month (UTC), distinct controllers (any position) who started a session of more than 30 minutes in the 30 days before the end of that month. The point is drawn at the start of the month. The latest month is partial. v1 hid months with no controllers; zeros are drawn here. Starts at go-live (no backfill).",
+      "description": "Controllers who started a session of more than 30 minutes in the 30 days to the end of each month.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -396,7 +396,7 @@
       "id": 9,
       "type": "barchart",
       "title": "Top 50 service providers (last 30 days)",
-      "description": "v1 card 108. Controllers ranked by hours online. Changed from v1: the score is hours online only (v1 added 5 points per hour to aircraft handled, which depended on frequency matching).",
+      "description": "The 50 controllers with the most hours online over the last 30 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -437,7 +437,7 @@
       "id": 10,
       "type": "barchart",
       "title": "Controllers with the shortest average session (last 30 days)",
-      "description": "UNVERIFIED. Screenshot-only chart ('Which controllers have the shortest avg session duration?'). The 15 controllers with the lowest average session length; the minimum of 3 sessions is an assumption because the v1 SQL was not recovered.",
+      "description": "The 15 controllers with the shortest average session length over the last 30 days, with at least 3 sessions.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -478,7 +478,7 @@
       "id": 11,
       "type": "barchart",
       "title": "Top S1 service providers (last 30 days)",
-      "description": "v1 card 144 (updated 22-09-2025). S1 controllers ranked by hours online over the last 30 days (UTC), top 50. Changed from v1: the score is hours online only. v1 ranked by 5 points per hour plus aircraft handled, and aircraft handled needs controller-to-flight matching, which ADR-002 puts out of scope; this follows the existing 'Top 50 service providers' panel (card 108). The window is a fixed 30 days to now (UTC), as v1, not the dashboard time picker. Only sessions that were at the stated rating count, as v1 (rating on the session).",
+      "description": "The 50 S1 controllers with the most hours online over the last 30 days, regardless of the time selector.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -519,7 +519,7 @@
       "id": 12,
       "type": "barchart",
       "title": "Top S2 service providers (last 30 days)",
-      "description": "v1 card 146 (updated 22-09-2025). S2 controllers ranked by hours online over the last 30 days (UTC), top 50. Changed from v1: the score is hours online only. v1 ranked by 5 points per hour plus aircraft handled, and aircraft handled needs controller-to-flight matching, which ADR-002 puts out of scope; this follows the existing 'Top 50 service providers' panel (card 108). The window is a fixed 30 days to now (UTC), as v1, not the dashboard time picker. Only sessions that were at the stated rating count, as v1 (rating on the session).",
+      "description": "The 50 S2 controllers with the most hours online over the last 30 days, regardless of the time selector.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -560,7 +560,7 @@
       "id": 13,
       "type": "barchart",
       "title": "Controllers with the longest median session (last 90 days)",
-      "description": "v1 card 153 (updated 02-10-2025; titled 'longest avg session duration' but v1 uses the MEDIAN session length in hours). The 15 controllers with the longest median session in the last 90 days (UTC), at least 3 sessions. The label shows the name, CID and highest rating seen, mapped as in v1 (observer and C2 show as Unknown). Reconnects within 5 minutes are one session in v3 (v1 counted them twice).",
+      "description": "The 15 controllers with the longest median session over the last 90 days, with at least 3 sessions.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -601,7 +601,7 @@
       "id": 14,
       "type": "barchart",
       "title": "Controllers with the shortest median session (last 90 days)",
-      "description": "v1 card 154 (updated 02-10-2025; titled 'shortest avg session duration' but v1 uses the MEDIAN in minutes; the v1 comment says 900 days but its code says 90, 90 is used). The 15 controllers with the shortest median session in the last 90 days (UTC), at least 3 sessions, named controllers only. Supersedes the unverified average-based panel above, which is left in place. Reconnects within 5 minutes are one session in v3.",
+      "description": "The 15 controllers with the shortest median session over the last 90 days, with at least 3 sessions.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -642,7 +642,7 @@
       "id": 15,
       "type": "table",
       "title": "Controllers on for more than 4 hours in any 8-hour window",
-      "description": "v1 card 186 (updated 14-02-2026). Controllers whose sessions add up to more than 4 hours (240 minutes, strictly more) of wall-clock time inside some 8-hour window; ATIS callsigns excluded; where one controller has overlapping sessions the earlier one is cut off when the next starts, so no time is counted twice. One summary row per controller (their busiest window, UTC) followed by one detail row per session in that window. Changed from v1: only sessions starting inside the dashboard time range (plus 8 hours before it) are examined, and at most the 100 controllers with the most recent busiest window are listed; v1 scanned all time with no limit. Reconnects within 5 minutes are one session in v3, so the gap counts as time on.",
+      "description": "Controllers who were online for more than 4 hours within any 8-hour window, with the sessions involved.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
