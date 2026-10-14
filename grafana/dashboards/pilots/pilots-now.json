@@ -59,7 +59,7 @@
       "id": 2,
       "type": "stat",
       "title": "Pilots online now (in region)",
-      "description": "v1 card 68. Pilots inside the Australian boundary polygon in the newest snapshot (network_snapshot.pilots_in_region).",
+      "description": "Pilots in Australian airspace in the latest snapshot.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -116,7 +116,7 @@
       "id": 3,
       "type": "stat",
       "title": "Pilots online now (network-wide)",
-      "description": "All pilots on the VATSIM network in the newest snapshot (network_snapshot.pilots_global). New panel; context for the in-region figure.",
+      "description": "All pilots on the VATSIM network in the latest snapshot.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -173,7 +173,7 @@
       "id": 4,
       "type": "timeseries",
       "title": "Pilots online over time",
-      "description": "Screenshot-only chart (pilots online over time). Pilots in region and network-wide per snapshot, averaged into buckets that follow the dashboard range.",
+      "description": "Pilots in Australian airspace and network-wide over the selected time range.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -215,7 +215,7 @@
       "id": 5,
       "type": "trend",
       "title": "When are people online on weekdays (last 30 days)",
-      "description": "v1 card 94. For each UTC clock hour, the number of distinct callsigns online at some point in that hour, over the last 30 days: pilots (flights with airborne time) and ATC (sessions of at least 20 minutes). Monday to Friday (v1 used Sunday, Monday and Saturday as a data workaround). Flights and sessions that cross midnight wrap into the early hours. This is a count over the whole period, not an average of concurrent users. Flights appear here about 8 hours after the flight ends.",
+      "description": "Callsigns online in each UTC hour on weekdays over the last 30 days, regardless of the time selector.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -256,7 +256,7 @@
       "id": 6,
       "type": "trend",
       "title": "When are people online on weekends (last 30 days)",
-      "description": "v1 card 95. For each UTC clock hour, the number of distinct callsigns online at some point in that hour, over the last 30 days: pilots (flights with airborne time) and ATC (sessions of at least 30 minutes). Saturday and Sunday. As in v1, a flight or session that crosses midnight is not counted for the hours after midnight (v1 quirk kept). This is a count over the whole period, not an average of concurrent users. Flights appear here about 8 hours after the flight ends.",
+      "description": "Callsigns online in each UTC hour at weekends over the last 30 days, regardless of the time selector.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -297,7 +297,7 @@
       "id": 7,
       "type": "table",
       "title": "Departure board",
-      "description": "v1 card 138. Pilots whose flight plan departs Sydney (YSSY) and who were seen in the last 3 hours, newest first within status. Changed from v1: no invented gate or 'ON TIME' columns; status is derived from ground speed (60 kt or more = airborne, the same threshold as airborne minutes).",
+      "description": "Pilots with a flight plan from Sydney (YSSY) seen in the last 3 hours, with status.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"

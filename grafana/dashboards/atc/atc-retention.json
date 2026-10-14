@@ -74,7 +74,7 @@
       "id": 3,
       "type": "stat",
       "title": "Active controllers",
-      "description": "v1 Metabase card 165. Distinct controllers with a session that started in the last 30 days.",
+      "description": "Controllers with a session that started in the last 30 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -130,7 +130,7 @@
       "id": 4,
       "type": "stat",
       "title": "Lapsed 30 days",
-      "description": "v1 Metabase card 166. Last session 30 to 60 days ago.",
+      "description": "Controllers whose last session was 30 to 60 days ago.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -186,7 +186,7 @@
       "id": 5,
       "type": "stat",
       "title": "Lapsed 60 days",
-      "description": "v1 Metabase card 168. Last session 60 to 90 days ago.",
+      "description": "Controllers whose last session was 60 to 90 days ago.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -242,7 +242,7 @@
       "id": 6,
       "type": "stat",
       "title": "Lapsed 90+ days",
-      "description": "v1 Metabase card 169. Last session more than 90 days ago.",
+      "description": "Controllers whose last session was more than 90 days ago.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -298,7 +298,7 @@
       "id": 7,
       "type": "stat",
       "title": "Reactivated in the last 30 days after 60+ days lapsed",
-      "description": "v1 Metabase card 171, corrected (issue 93). A session in the last 30 days, none 30 to 90 days ago, and at least one session before 90 days ago, so a brand-new controller does not count. v1 did not require the earlier session.",
+      "description": "Controllers active in the last 30 days after being away for more than 60 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -354,7 +354,7 @@
       "id": 8,
       "type": "gauge",
       "title": "Controller retention rate",
-      "description": "v1 Metabase card 163. Active (30 days, sessions over 60 minutes) divided by active plus lapsed (a session 30 to 90 days ago and none in the last 30 days).",
+      "description": "Active controllers as a percentage of active plus lapsed controllers.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -418,7 +418,7 @@
       "id": 9,
       "type": "piechart",
       "title": "Activity levels of controllers",
-      "description": "v1 Metabase card 164. Current stage: Active Regular (4+ sessions in 30 days), Active Casual (1 to 3), Lapsing (last session 30 to 60 days ago), At Risk (60 to 90), Lost (90+).",
+      "description": "Controllers by current activity stage, from Active Regular to Lost.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -470,7 +470,7 @@
       "id": 10,
       "type": "table",
       "title": "S1 new controller retention by cohort",
-      "description": "v1 Metabase card 173. Controllers first seen in the last 12 months whose first session was S1 (rating 2), by first-session month: share with a session 25 to 35, 55 to 65 and 85 to 95 days later. v1 drew a line chart; this is a table of the same figures.",
+      "description": "Share of new S1 controllers, by first-session month, who controlled again about 30, 60 and 90 days later.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -504,7 +504,7 @@
       "id": 11,
       "type": "table",
       "title": "Who might need help reactivating?",
-      "description": "v1 Metabase card 177, corrected (issue 93). Reactivated controllers (see the reactivated count) whose sessions in the last 30 days were all under 18 minutes.",
+      "description": "Returning controllers whose sessions in the last 30 days were all under 18 minutes.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -538,7 +538,7 @@
       "id": 12,
       "type": "table",
       "title": "Who reactivated after being away for more than 60 days?",
-      "description": "v1 Metabase card 172, corrected (issue 93). The controllers behind the reactivated count.",
+      "description": "The controllers who returned in the last 30 days after being away for more than 60 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -572,7 +572,7 @@
       "id": 13,
       "type": "table",
       "title": "Lapsing controllers (30+ days inactive)",
-      "description": "v1 Metabase card 167. Controllers with no session for 30 or more days, most lapsed first.",
+      "description": "Controllers with no session for 30 days or more, longest absent first.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -606,7 +606,7 @@
       "id": 14,
       "type": "table",
       "title": "Controller engagement index (last 90 days)",
-      "description": "v1 Metabase card 174. Sessions and average session length per controller over 90 days, with quadrant and lapse risk. v1 drew a scatter plot; this is a table of the same figures.",
+      "description": "Sessions and average session length per controller over the last 90 days, with engagement group and lapse risk.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -640,7 +640,7 @@
       "id": 15,
       "type": "timeseries",
       "title": "Controller activity trends",
-      "description": "v1 Metabase card 176. By month: controllers active, reactivations (active this month but not the month before; as in v1 this includes controllers seen for the first time) and lapsed (active last month, not this month). v1 drew a combo chart; here bars for the first two and a line for lapsed.",
+      "description": "Controllers active, reactivated and lapsed in each month.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
