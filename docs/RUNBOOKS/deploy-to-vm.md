@@ -26,9 +26,9 @@ GIT_SSH_COMMAND="ssh -i ~/.ssh/vatpac_deploy -o IdentitiesOnly=yes" \
 ```
 Alternative: HTTPS with a fine-grained personal access token (Contents: read-only, this repo only). Do not store the token in the remote URL; use a credential helper.
 
-## 2b. Pin a release
+## 2b. Pin a release (by commit)
 ```sh
-git fetch --tags && git checkout v1.0.0   # deploy tags, not a moving branch
+git fetch origin && git checkout --detach <commit>   # deploy a commit (sha), not a moving branch; there are no semver tags (issue 173)
 ```
 
 ## 2c. Copy the code without git (the method in use on the production VM)
@@ -37,6 +37,91 @@ Run from the repository root on the PC, with the commit you want to deploy check
 git archive --format=tar HEAD | ssh vatpac-v3 'cd ~/vatpac-statsV2 && tar -x'
 ```
 The VM's `.env` is not in git, so it is kept. `tar -x` overwrites files but never deletes: if a file was removed or renamed in git, delete it on the VM too (a stale module under `collector/src` would still be baked into the image, and a stale migration file would still be applied). For a first install, create the folder first (`ssh vatpac-v3 'mkdir -p ~/vatpac-statsV2'`), copy, then continue at section 3.
+
+## 2d. Git checkout on the VM (read-only deploy key)
+DRAFT (issue 173, phase P0; prepared 14-10-2026, not yet run): 2d is a draft until run, and until then the VM is still not a git checkout. Replaces the tar copy of section 2c with a git checkout of the live folder, so a deploy is `git fetch && git checkout <commit>` and stale files cannot survive. The owner runs every VM command. Each step says where it runs (PC or VM), with a check after it.
+
+**What was read on the VM on 14-10-2026 (read-only).** git 2.43.0; 161 GB free; `~/vatpac-statsV2` has no `.git`; no deploy key yet (only the backup key); `ssh -T git@github.com` from the VM reaches GitHub and answers "Permission denied (publickey)", which only means no key is installed. The compose project name is already fixed by `name: vatpac` (docker-compose.yml line 8) and `.env` has no `COMPOSE_PROJECT_NAME`, so the folder name does not affect container, network or volume names. `config/`, `grafana/`, `db/`, `ops/postgres/` and `docker-compose.yml` on the VM are byte-identical to main (git blob hashes compared). Files on the VM that main does not have (15, all stale): `docs/NEXT_SESSION_PROMPT.md`, `docs/RESUME.md`, `ops/audit/logon_precision_impact.py`, `ops/audit/panel_recompute.py`, `ops/audit/throwaway/retention_drill.sql`, `ops/audit/throwaway/synthetic_flights.sql`, `ops/backfill_flight_record.sh`, `ops/compare_flights_89.sql`, `ops/compare_views_89_phase3.sql`, `tests/integration/test_compare_flights.py`, `tests/integration/test_exclude_in_progress.py`, `tests/integration/test_flight_in_progress.py`, `tests/integration/test_flight_summary.py`, `tests/integration/test_flight_writer_equivalence.py`, `tests/test_in_progress_panels.py`. Files that must survive: `.env`, `.env.bak-pre-30s`, `.env.bak-pre-telegram`, `.deploy/` (release marker and log) and `.claude/`.
+
+**Order matters:** step 4 (it accepts GitHub's host key) must run before step 5.
+
+**Method: adopt the live folder in place; do not swap folders.** Renaming the folder is the risky route. The running `db`, `collector`, `grafana` and `watchdog` containers have `./config`, `./db`, `./grafana/...` and `./ops/postgres/postgresql.conf` bind-mounted, and a bind mount follows the folder you renamed, not a new one at the old path. `docker compose up -d` would not recreate them (their configuration is unchanged), so they would keep reading the renamed old folder until a `--force-recreate`, which restarts the database and costs about 45 seconds of snapshots. Moving only `.git` into the live folder changes no file, so nothing restarts. Do it when no soak is running (see [daily-checks.md](daily-checks.md)).
+
+1. **VM: check the starting point.**
+```sh
+cd ~/vatpac-statsV2 && git --version && df -h / | tail -1 && ls -d .git 2>&1 | head -1 && head -3 .deploy/release
+```
+Check: git 2.43 or newer, over 20 GB free, `.git` reported missing, and a `commit=` line (the deployed commit; called `<deployed>` below).
+
+2. **VM: make the read-only deploy key.**
+```sh
+ssh-keygen -t ed25519 -f ~/.ssh/vatpac_deploy -N "" -C "vatpac-vm-deploy-readonly" && cat ~/.ssh/vatpac_deploy.pub
+```
+Check: one line starting `ssh-ed25519`. Copy only that public line (the file without `.pub` never leaves the VM).
+
+3. **PC (browser): add it to GitHub.** Repository t288matt/vatpac-statsV2, Settings > Deploy keys > Add deploy key; title `vatpac-vm 14-10-2026`; paste the line; leave **Allow write access OFF**; Add key. Check: the list shows the key as read-only.
+
+4. **VM: test the key.**
+```sh
+GIT_SSH_COMMAND="ssh -i ~/.ssh/vatpac_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" git ls-remote git@github.com:t288matt/vatpac-statsV2.git HEAD
+```
+Check: prints one commit hash and `HEAD`. "Permission denied" means step 3 was not saved.
+
+5. **VM: clone beside the live folder (the live folder is not touched) and check out the deployed commit.**
+```sh
+GIT_SSH_COMMAND="ssh -i ~/.ssh/vatpac_deploy -o IdentitiesOnly=yes" git clone git@github.com:t288matt/vatpac-statsV2.git ~/vatpac-statsV2-git
+git -C ~/vatpac-statsV2-git checkout --detach <deployed>
+```
+Check: `git -C ~/vatpac-statsV2-git log --oneline -1` shows `<deployed>`.
+
+6. **VM: compare the clone with the live folder.**
+```sh
+diff -rq ~/vatpac-statsV2-git ~/vatpac-statsV2 -x .git -x '.env*' -x .deploy -x .claude -x __pycache__ -x '*.pyc'
+```
+Check: the only lines are `Only in /home/matt/vatpac-statsV2/...` for the 15 stale files above. Any `Files ... differ`, or an `Only in` for a file not in that list, means stop and report it: it is a hand edit on the VM that the next step would lose.
+
+7. **VM: save, then remove, the stale files.** A stale migration file would be applied by `migrate`; removing them is the point of this change.
+```sh
+cd ~/vatpac-statsV2
+git -C ~/vatpac-statsV2-git ls-files -z | sort -z > ~/main-files.txt
+find . -type f -not -path './.git/*' -not -path './.deploy/*' -not -path './.claude/*' -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.env*' -print0 | sed -z 's#^\./##' | sort -z > ~/live-files.txt
+comm -z -13 ~/main-files.txt ~/live-files.txt > ~/stale-files-14-10-2026.txt
+tr -cd ' ' < ~/stale-files-14-10-2026.txt | wc -c
+tar -czf ~/stale-files-14-10-2026.tgz --null -T ~/stale-files-14-10-2026.txt && xargs -0 rm -f < ~/stale-files-14-10-2026.txt
+rm -f ~/main-files.txt ~/live-files.txt
+```
+Check: the count says 15 (stop if it does not, and send the list). The 15 was counted against main; the clone is at the deployed commit, so the count can differ if a file was deleted on main after the deployed commit: compare against the checked-out commit, not main. Then the step 6 diff prints nothing.
+
+8. **VM: move the git data into the live folder.**
+```sh
+mv ~/vatpac-statsV2-git/.git ~/vatpac-statsV2/.git && rm -rf ~/vatpac-statsV2-git
+cd ~/vatpac-statsV2 && printf '.deploy/\n.claude/\n' >> .git/info/exclude
+git config core.sshCommand "ssh -i ~/.ssh/vatpac_deploy -o IdentitiesOnly=yes"
+git status --short
+```
+Check: `git status --short` prints nothing (`.env*` is in `.gitignore`). If it lists modified files, stop (line endings or a hand edit); do not run `git reset --hard`.
+
+9. **VM: confirm the stack did not change.**
+```sh
+cd ~/vatpac-statsV2 && docker compose config -q && docker compose ps --format '{{.Name}} {{.Status}}'
+```
+Check: no error; the same five services with their old uptimes (nothing restarted).
+
+10. **PC: verify.** `bash ops/deploy.sh --verify`, then `bash ops/deploy.sh --status`. Check: all PASS and the marker unchanged. `--preflight`, `--mark` and `ops/stale_issues.sh` need no change: they `cd ~/vatpac-statsV2` over ssh and read `.deploy/release`, and that folder, its name and the marker are untouched.
+
+**New deploy line (from the next deploy).** On the VM, with the commit chosen on the PC:
+```sh
+cd ~/vatpac-statsV2 && git fetch origin && git checkout --detach <commit> && git status --short && sh ops/check_env.sh && docker compose up -d --build
+```
+Then `bash ops/deploy.sh --verify` and `--mark <commit>` from the PC as before. Notes: `git checkout` removes files the new commit deleted, which `tar -x` never did. Like `tar -x`, it replaces the single-file mount `ops/postgres/postgresql.conf` with a new file, so a changed postgresql.conf still needs `docker compose restart db`. A checkout refuses to overwrite an untracked file that the new commit adds, which stops the deploy loudly instead of silently. Untracked files (other than `.env*`, `.deploy`, `.claude`) show in the `git status --short` printed by that line; look at it before the build.
+
+**Roll back (to the tar method).** Nothing else changed.
+- VM: `rm -rf ~/vatpac-statsV2/.git`, then use section 2c again.
+- VM, optional, not recommended: `tar -xzf ~/stale-files-14-10-2026.tgz -C ~/vatpac-statsV2` restores the stale files.
+- VM, to drop the key: `rm ~/.ssh/vatpac_deploy*`. PC (browser): delete the key under Deploy keys in GitHub.
+- VM, check the stack is untouched: `cd ~/vatpac-statsV2 && git status` says "not a git repository", and `docker compose ps --format '{{.Name}} {{.Status}}'` shows the same five services with their old uptimes.
+
+**If you prefer swapping folders anyway** (not recommended): copy `.env*`, `.deploy/` and `.claude/` into the clone, run `docker compose config -q` there, rename the live folder to `~/vatpac-statsV2-old` and the clone to `~/vatpac-statsV2`, then `docker compose up -d --force-recreate` (restarts every service including the database; about 45 seconds of snapshots) and `bash ops/deploy.sh --verify`. Way back: rename the folders back and force-recreate again.
 
 ## 3. Configure
 `.env.example` has **blank secrets on purpose**: the stack will not start with trivial credentials.
@@ -135,7 +220,7 @@ Before deploying read [daily-checks.md](daily-checks.md): **a redeploy restarts 
 
 With git on the host:
 ```sh
-git fetch --tags && git checkout <new tag>
+git fetch origin && git checkout --detach <new commit>   # a commit (sha); no semver tags
 sh ops/check_env.sh                # new releases may add secrets (see .env.example); add any blank ones
 docker compose up -d --build     # migrate runs first; collector waits for it
 make smoke
@@ -175,7 +260,10 @@ Code, dashboards and configuration go back by deploying the previous commit; the
 3. Migrations are forward-only. A migration that already ran stays applied after a code rollback; additive migrations (a new view, an index) are harmless to older code. If a migration must be undone, add a new corrective numbered migration, or restore from backup (`restore.md`); never edit an applied migration.
 4. Verify with `sh ops/smoke.sh` and `python3 ops/check_panels.py`.
 
-With git on the host, check out the previous tag instead and run `docker compose up -d --build`.
+With git on the host, check out the previous commit (sha) instead and run `docker compose up -d --build`.
 
 ## Image pinning
 Third-party images (`postgres`, `grafana`, `dbmate`, `python`) are pinned by exact version tag. Digest pinning (`image:tag@sha256:...`) is the stricter policy; add digests when you can resolve them with `docker buildx imagetools inspect <image>:<tag>`. Dependabot (docker and docker-compose ecosystems) proposes bumps.
+
+## Publishing commit-tagged images (issue 173, P1; built, not yet run)
+The `release` workflow (`.github/workflows/release.yml`) is started by hand: Actions > release > Run workflow, or `gh workflow run release.yml -f commit=<sha>`. The commit must be on main and its `ci` run on main must have passed (a docs-only commit skips CI, so pick the last code commit). The workflow checks that, does not repeat CI, and pushes `ghcr.io/t288matt/vatpac-stats-{collector,watchdog,backup,migrate}:sha-<7 characters>` (the full SHA is in the `org.opencontainers.image.revision` label). There is no `latest` and no semver tag. The packages are created private (the repository is private); leave them private. The `migrate` image now contains `db/`, so its migrations always match the code it was built from. Nothing pulls these images yet: the stack still builds on the VM (`docker-compose.yml` keeps the `:local` names and the `./db` mount) until phase P2.
