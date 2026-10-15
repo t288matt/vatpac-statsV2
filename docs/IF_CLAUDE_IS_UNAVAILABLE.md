@@ -15,7 +15,7 @@ VATPAC Stats v3 polls the public VATSIM feed every 30 seconds, stores the pilots
 | `watchdog` | checks everything every minute and sends Telegram messages; it only alerts, it restarts nothing |
 | `migrate` | a one-off job that applies database changes at start-up; `exited (0)` is normal |
 
-Reach the VM from your PC with `ssh vatpac-v3` (user matt, no sudo). The project folder on the VM is `~/vatpac-statsV2`; run every `docker compose` command from there. The VM holds a copy of the code but is not a git checkout. The Grafana login is the admin user and the password in the `.env` file in that folder: never paste or print the contents of `.env`.
+Reach the VM from your PC with `ssh vatpac-v3` (user matt, no sudo). The project folder on the VM is `~/vatpac-statsV2`; run every `docker compose` command from there. Since 14-10-2026 the folder is a read-only git checkout that runs registry images (section 7b); before that it was a plain copy of the code. The Grafana login is the admin user and the password in the `.env` file in that folder: never paste or print the contents of `.env`.
 
 The old v1 system is still running on a different VM (alias `vatpac`). Leave it alone.
 
@@ -47,14 +47,10 @@ Then read the logs of the service the alert names: `docker compose logs --tail=1
 Check first: `docker compose ps -a`. Docker restarts a crashed container by itself (`restart: unless-stopped`), so a container that is still down has usually been stopped on purpose or is failing to start; read its log before touching it.
 
 - **Any service other than the collector** (`grafana`, `watchdog`, `backup`, `db`): `docker compose up -d <service>`. Do not restart `db` while a restore is running.
-- **The collector.** The safe sequence is the one the deploy runbook insists on: stop it, then bring it up with a build.
-  ```sh
-  docker compose stop collector
-  docker compose up -d --build
-  ```
-  Not run here (it would interrupt live polling). Traps:
-  - **Never use `docker compose restart collector` to pick up a code change**, and never plain `docker compose up -d` without `--build` to bring back the collector after a code change. The deploy runbook ([RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md), section 4c) records an incident where an old or cached image left the archive volume unwritable and nothing looked wrong. With no code change the sequence above rebuilds from cache and is harmless.
-  - [RUNBOOKS/stuck-collector.md](RUNBOOKS/stuck-collector.md) still lists `docker compose restart collector` as step 1 for a stuck collector. Owner decision 10-10-2026: a plain `docker compose restart collector` is fine for a stuck collector when there is no code change; for any code change use stop, then `up -d --build collector`.
+- **The collector.** Since 14-10-2026 the VM runs published images (registry mode). The safe sequence for a new image is: `docker compose pull`, then `docker compose stop collector`, then `docker compose up -d --no-build`. Not run here (it would interrupt live polling). Traps:
+  - **Never use `up -d --build` on the VM.** In registry mode it rebuilds from source and gives the result the registry name, replacing the image you pulled. After a `pull`, `docker compose up -d --no-build` is correct. Local builds with `--build` are for a PC and first installs only.
+  - **Never use `docker compose restart collector` to pick up a code change**: a restart keeps the old image. The old incident in [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md) section 4c (a cached image left the archive volume unwritable) was a local-build problem; with a pulled image the equivalent mistake is forgetting `pull`, so check `docker compose config --images` shows the tag you mean.
+  - [RUNBOOKS/stuck-collector.md](RUNBOOKS/stuck-collector.md) still lists `docker compose restart collector` as step 1 for a stuck collector. Owner decision 10-10-2026: a plain `docker compose restart collector` is fine for a stuck collector when there is no code change; for a code change pull the new image and use `up -d --no-build`.
   - Every collector restart costs about 45 seconds of snapshots. That is fine; just do not repeat it in a loop.
   - Before a planned restart of the whole VM, pause the outside heartbeat: `Disable-ScheduledTask -TaskName VatpacV3Heartbeat` in PowerShell on your PC, and `Enable-ScheduledTask -TaskName VatpacV3Heartbeat` afterwards.
 - After any restart: `docker compose ps` (all healthy, restart counts 0) and `sh ops/smoke.sh`.
@@ -110,10 +106,20 @@ Restores were drilled on 08-10-2026 ([RESTORE_DRILL.md](RESTORE_DRILL.md)); the 
 - **Never run test suites, scratch databases or throwaway containers on the VM** without memory caps. An uncapped test container took 6.9 GB of the 7.9 GB on 08-10-2026 and cost the collector a gap (tracker T39).
 - **Never print or paste `.env`**, the Telegram token or the Grafana password anywhere, including into a chat with an AI.
 - **Do not expose Grafana itself to the internet.** Only the 10 published read-only dashboards are public (ADR-029, `https://vpac.mpengor.com`, through Cloudflare and Traefik). Never forward the Grafana port on the router, never bind it to `0.0.0.0`, never let visitors run their own queries, and keep anonymous access OFF (`GF_AUTH_ANONYMOUS_ENABLED=false`). To take the public address down in an emergency, see [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md) (Roll back).
-- **Do not edit files on the VM by hand** (the next deploy overwrites them, and `.env` is the only file meant to differ). Do not `git pull` there; it is not a git checkout.
+- **Do not edit files on the VM by hand** (the next deploy overwrites them, and `.env` is the only file meant to differ). Do not `git pull` or `git reset --hard` there; deploys use `git checkout --detach <commit>` (section 7b). The checkout is read-only (deploy key) and must stay clean: `git status --short` prints nothing.
 - **Do not touch or stop the old v1 VM** (alias `vatpac`) or the folder `VATPAC-Stats V2` on your PC.
 - **Do not drop partitions or delete rows by hand** to free space; ask first (db-full runbook).
 - **Do not deploy** anything while Claude is unavailable.
+
+## 7b. Deploying by hand, and the registry token (steps run once on 14-10-2026; a second deploy and a rollback to a previous tag are not yet run)
+
+This card still says: do not deploy while Claude is unavailable. If you decide to anyway, or you must roll back, use the numbered steps in [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md) sections 2e and 2f (deploy) and "Roll back". The short version, from `~/vatpac-statsV2` on the VM, with a fresh dump first (`docker compose exec backup backup.sh once`):
+
+- Update to a commit that has been published: `git fetch origin`, `git checkout --detach <commit>`, change the one line `VATPAC_IMAGE_TAG=sha-<first 7 characters>` in `.env`, then `docker compose config --images`, `docker compose pull`, `docker compose up -d --no-build`, then `bash ops/deploy.sh --verify` from the PC.
+- Roll back, first cycle (14-10-2026): no earlier registry tag exists, so use the locally built images still on the VM. Remove BOTH `VATPAC_IMAGE_*` lines from `.env` (`sed -i '/^VATPAC_IMAGE_/d' .env`; with only one the stack refuses to start), then `docker compose up -d --no-build`. After a second registry deploy, roll back by checking out the previous commit and setting the previous `sha-` tag, then `pull` and `up -d --no-build`. Images cannot undo a database migration: if a migration caused the problem, restore the dump ([RUNBOOKS/restore.md](RUNBOOKS/restore.md)).
+- Publishing a commit (needed before it can be pulled) is done on GitHub: Actions > release > Run workflow. Only commits on main with a green CI run can be published.
+- **If `docker compose pull` says `unauthorized` or `denied`**, the registry token has expired (it lasts 90 days). The stack keeps running; only deploys are blocked. Create a new classic token with only `read:packages` and run `docker login ghcr.io -u t288matt` on the VM and paste the token at the hidden `Password:` prompt (nothing is shown), then press Enter. Never paste the token into a chat. Details: section 2e of the deploy runbook.
+- Never use `--build` on the VM in registry mode, and never delete just one of the two `VATPAC_IMAGE_*` lines: with only one set the stack refuses to start (`sh ops/check_env.sh`). The token expires about 12-01-2027 (reminder 05-01-2027).
 
 ## 8. Where things stand that you might trip over (10-10-2026)
 

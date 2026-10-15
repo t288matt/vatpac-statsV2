@@ -8,7 +8,7 @@ Live pilot and controller statistics for the VATPAC region, built from the publi
 
 One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist. PostgreSQL 16 stores the data and Grafana 12.4 shows it as ten dashboards, which can also be shared read-only on the internet (see "Public read-only access" below). Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
 
-**Current state (10-10-2026).** The goal is met and the system runs on an always-on VM. The rule: every deploy to the VM needs the owner's explicit go. What changed and when: [CHANGELOG.md](CHANGELOG.md).
+**Current state (14-10-2026).** The goal is met and the system runs on an always-on VM. The collector runs numpy 2.3.5 (since 14-10-2026, so the VM CPU type must stay `host` or `x86-64-v2-AES`). The VM folder is a read-only git checkout and runs commit-tagged registry images (`ghcr.io/t288matt/vatpac-stats-*:sha-<7>`; first registry deploy 14-10-2026, commit 67c1ca0). The dashboards are also public and read-only at https://vpac.mpengor.com (Grafana public dashboards behind Cloudflare). The rule: every deploy to the VM needs the owner's explicit go. What changed and when: [CHANGELOG.md](CHANGELOG.md).
 
 v3 replaces the original v1 system (a FastAPI service with Metabase). The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
 
@@ -25,13 +25,15 @@ A complete step-by-step install for a new instance on a clean Linux machine is i
 ```
 sh ops/gen_env.sh            # writes .env with random passwords (Git Bash or Linux); or: make gen-env
 sh ops/check_env.sh          # rejects blank, weak or repeated secrets (make up runs this for you)
-docker compose up -d --build
+docker compose up -d --build   # PC and first install: builds the images locally (on the production VM use pull and --no-build, below)
 docker compose ps            # wait until db, collector, grafana, backup and watchdog are healthy
 ```
 
 `.env.example` has blank secrets on purpose: the stack will not start until they are set. Without `sh`, copy `.env.example` to `.env` and fill every blank secret yourself (letters and digits only, at least 16 characters, a different value for each, because the passwords sit inside connection URLs). Never commit `.env`.
 
 On every start the `migrate` container applies new SQL migrations and re-applies the database roles, then exits. `migrate` showing `exited (0)` is expected.
+
+**How production is deployed (issue 173; live since 14-10-2026).** The commands above build the images on the machine (local-build mode, the default for a PC, CI and a first install). The production VM is different: it is a read-only git checkout, GitHub Actions publishes four commit-tagged images (collector, watchdog, backup, migrate) to a private registry (GHCR) on request, and the VM runs `git checkout <commit>`, `docker compose pull` and `docker compose up -d --no-build`. On the VM never use `up -d --build` or `make up`: they rebuild locally and replace the pulled image. Two `.env` lines choose the mode (`VATPAC_IMAGE_PREFIX`, `VATPAC_IMAGE_TAG`; [docs/CONFIG_MAP.md](docs/CONFIG_MAP.md)). Only the first registry deploy has been done; a second deploy and a rollback to a previous tag are not yet run (the first rollback uses the local images). The procedure, the rollback and the old method kept as a fallback are in [docs/RUNBOOKS/deploy-to-vm.md](docs/RUNBOOKS/deploy-to-vm.md).
 
 **Check that it works:**
 
@@ -129,7 +131,8 @@ On Windows without `make`, run the underlying commands.
 | `make smoke` | Health checks on a running stack |
 | `make config` | Validate the compose files with a throwaway env |
 | `make soak` | Soak report from `poll_log`: was a snapshot stored every poll interval over the last `HOURS` (default 24) |
-| `make up` / `make dev` / `make down` | Start (optionally with the dev overlay) or stop the stack; volumes are kept |
+| `make up` / `make dev` / `make down` | Start (optionally with the dev overlay) or stop the stack; volumes are kept. `make up` builds the images locally; it is not the registry deploy, and it refuses to run in registry mode (added by pull request 180; see the deploy runbook) |
+| `make deploy` | Registry mode only: `docker compose pull`, then `docker compose up -d --no-build` (added by pull request 180; it does not run `--preflight`, so run that first) |
 | `make logs` / `make ps` | Follow logs; container status |
 | `make backup` / `make backup-test` | Take a backup now; restore the newest into a scratch database and check it |
 | `make restore FILE=... CONFIRM=...` | Restore a dump ([docs/RUNBOOKS/restore.md](docs/RUNBOOKS/restore.md)) |

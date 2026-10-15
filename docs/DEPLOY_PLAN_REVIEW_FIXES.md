@@ -1,5 +1,7 @@
 # Deploy plan: the code-review fixes (issue #80)
 
+> **Note 14-10-2026 (issue 173).** This is a dated record. The deploy method it describes (`git archive`, `tar -x`, building on the VM) was replaced on 14-10-2026 by a read-only git checkout plus commit-tagged registry images. Current method: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md). Do not rewrite the history below.
+
 **SUPERSEDED and DONE (12-10-2026).** This plan was not followed step by step: everything it covers was deployed together on 11-10-2026 (marks at 12:38 and 16:01 UTC, then b3189ad at 20:35 UTC; see CHANGELOG.md). The commit 520dc3e below was not used. Kept as the record of the checks that were planned.
 
 Agreed with the owner 10-10-2026: deploy the fixes one branch at a time, each followed by about 24 hours of watching, so any problem can be traced to a single change. This plan is not a go: each deploy needs the owner's explicit yes (working agreement section 5, until the scripted deploy of issue #104 exists). Merged to main and CI-green: fix-ops (d0ceaaa, review record docs/reviews/10-10-2026-fix-ops.md) and fix-collector (acc55db, docs/reviews/10-10-2026-fix-collector.md). fix-sql is still being built and reviewed; it gets its own deploy later.
