@@ -1,8 +1,7 @@
 # Backup sidecar: pg_dump client (same major/minor as the server) plus a small scheduler loop.
 # Tag must match the db service image in docker-compose.yml.
-# Pinned by tag; digest pinning (FROM image:tag@sha256:...) is the stricter policy once digests can be
-# resolved (docker buildx imagetools inspect). Dependabot's docker ecosystem tracks this file.
-FROM postgres:16.15-bookworm
+# Floating major tag (ADR-032): small updates arrive with `docker compose build --pull`; a new major is a deliberate edit.
+FROM postgres:16-bookworm
 
 # Optional extra tools for the BACKUP_REMOTE hook, e.g. EXTRA_APT_PACKAGES="rclone" (empty = none).
 ARG EXTRA_APT_PACKAGES=""

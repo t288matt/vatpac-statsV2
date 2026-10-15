@@ -42,6 +42,8 @@ Owner cards: [../OWNER_ACTIONS.md](../OWNER_ACTIONS.md) cards 15 to 18. Decision
 
 **The old method is kept as a fallback:** section 2c (`git archive | tar -x`) and the "Fallback" notes under Updating and Roll back. It never deletes files, so stale files on the VM survive it; read the warning in 2c before using it.
 
+**A deploy can pull third-party updates (ADR-032).** `docker compose pull` also fetches the newest Postgres 16, Grafana 12 and dbmate 2 images, and they are not reviewed first. After the deploy run `bash ops/deploy.sh --verify` and open Grafana (`/api/health` must answer ok and the dashboards must load); if Grafana moved to a newer minor version, its data volume cannot go back, so keep the copy of the volume taken before the deploy.
+
 **Dependabot and base images.** A merged Dockerfile or base-image bump (Dependabot) only changes main. The VM keeps running the old images until someone publishes the new commit, sets the tag in `.env` and pulls (section 2f).
 
 **Deploy script checks for registry mode (added by pull request 180; merge that pull request first, otherwise these checks do not exist in `ops/deploy.sh`).** `--preflight` in registry mode checks over ssh that the four registry images for the commit exist (`docker manifest inspect`, which also detects an expired token) and that the VM `.env` tag equals `sha-<7>` of the commit being deployed (WARN: the owner sets it first). `--verify` and `--status` show the running image tags and FAIL in registry mode if the VM checkout HEAD does not match the images' revision label or the `.env` tag. `--mark` warns if the VM HEAD differs from the commit and records the image tag in `release.log` (the release file format is unchanged). Exact behaviour is in the usage text of `ops/deploy.sh` once that pull request is merged.
@@ -231,7 +233,7 @@ Checks: `git log -1` shows the commit with this change (and `git status --short`
 
 1. **PC: publish the commit.** The commit is on main and its CI run on main passed. Start the release workflow: Actions > release > Run workflow with the commit, or `gh workflow run release.yml -f commit=<sha>`. A docs-only commit skips CI and cannot be published; deploy the last code commit instead. It pushes `sha-<7>` for the four images, then, only if all four built, moves `latest` to them. Check: four green `images` jobs and a green `promote` job. This click is the approval gate.
 2. **PC: preflight.** `bash ops/deploy.sh --preflight <commit>` (reads only; PASS, or a WARN you understand).
-3. **VM: fresh dump.** `cd ~/vatpac-statsV2 && docker compose exec backup backup.sh once`, then check the new file in `/backups`. The dump is what matters, because an image cannot undo a migration.
+3. **VM: fresh dump.** `cd ~/vatpac-statsV2 && docker compose exec backup backup.sh once`, then check the new file in `/backups`. The dump is what matters, because an image cannot undo a migration. Also copy the Grafana data volume now, because `make deploy` pulls and a newer Grafana 12.x cannot be undone by an older image (ADR-032): `docker run --rm -v vatpac_grafana_data:/from:ro -v $HOME:/to alpine tar czf /to/grafana_data_pre_deploy.tgz -C /from .` (the file lands in your home folder, not in the git checkout, so `git status --short` stays empty; confirm the volume name with `docker volume ls`; same command as RUNBOOKS/public-access.md, "Roll back").
 4. **VM: deploy.**
 ```sh
 cd ~/vatpac-statsV2 && git status --short && make deploy
