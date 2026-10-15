@@ -2,6 +2,8 @@
 
 Last reviewed 13-10-2026 (issue 89 phases 1b, 3, 4 and 5 marked live, marker 7a71d30; the `flight_quiet_hours` row checked) against `docker-compose.yml`, `.env.example` and the code (`python ops/check_config_drift.py` enforces the collector part). Part A lists every environment variable v3 reads. Part B maps every variable in v1's `docker-compose.yml` to KEPT, CHANGED or DROPPED.
 
+Third-party images are not configured in `.env`: they are fixed in `docker-compose.yml` and the Dockerfiles as floating major tags (`postgres:16-bookworm`, `grafana/grafana:12`, `amacneil/dbmate:2`, ADR-032).
+
 Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker-compose.yml`, `.env.example`. Secrets live only in `.env` (git-ignored). `.env.example` has blank secrets on purpose: run `sh ops/gen_env.sh` to write a `.env` with random values, then `sh ops/check_env.sh` to check it (blank, `change-me*`, under 16 characters, repeated, or non letter/digit values are rejected). Passwords are placed inside connection URLs, so they must be letters and digits only (for example `openssl rand -hex 24`).
 
 ## Part A: v3 variables

@@ -6,7 +6,7 @@ Live pilot and controller statistics for the VATPAC region, built from the publi
 
 ## About
 
-One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist. PostgreSQL 16 stores the data and Grafana 12.4 shows it as ten dashboards, which can also be shared read-only on the internet (see "Public read-only access" below). Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
+One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist. PostgreSQL 16 stores the data and Grafana 12 shows it as ten dashboards, which can also be shared read-only on the internet (see "Public read-only access" below). Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
 
 **Current state (14-10-2026).** The goal is met and the system runs on an always-on VM. The collector runs numpy 2.3.5 (since 14-10-2026, so the VM CPU type must stay `host` or `x86-64-v2-AES`). The VM folder is a read-only git checkout and runs commit-tagged registry images (`ghcr.io/t288matt/vatpac-stats-*:sha-<7>`; first registry deploy 14-10-2026, commit 67c1ca0). The dashboards are also public and read-only at https://vpac.mpengor.com (Grafana public dashboards behind Cloudflare). The rule: every deploy to the VM needs the owner's explicit go. What changed and when: [CHANGELOG.md](CHANGELOG.md).
 

@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16.15
+        image: postgres:16
         env:
           POSTGRES_PASSWORD: ci-superuser-pw
         ports: ["5432:5432"]
