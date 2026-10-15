@@ -2,25 +2,23 @@
 
 [![CI](https://github.com/t288matt/vatpac-statsV2/actions/workflows/ci.yml/badge.svg)](https://github.com/t288matt/vatpac-statsV2/actions/workflows/ci.yml)
 
-Live pilot and controller statistics for the VATPAC region, built from the public VATSIM data feed, running 24/7 in Docker.
+Live pilot and controller statistics for the VATPAC region, built from VATSIM's public live data and running around the clock.
 
 ## About
 
-One collector polls the VATSIM feed every 30 seconds and keeps the pilots inside the Australian airspace polygon and the controllers on a callsign whitelist. PostgreSQL 16 stores the data and Grafana 12.4 shows it as ten dashboards, which can also be shared read-only on the internet (see "Public read-only access" below). Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
+VATPAC Stats shows live and historical statistics for pilots and air traffic controllers in the VATPAC region on VATSIM. The numbers are updated every 30 seconds and shown as ten dashboards. Anyone can view them on the internet without logging in, and nobody can change them (see "Public read-only access" below).
 
-**Current state (14-10-2026).** The goal is met and the system runs on an always-on VM. The collector runs numpy 2.3.5 (since 14-10-2026, so the VM CPU type must stay `host` or `x86-64-v2-AES`). The VM folder is a read-only git checkout and runs commit-tagged registry images (`ghcr.io/t288matt/vatpac-stats-*:sha-<7>`; first registry deploy 14-10-2026, commit 67c1ca0). The dashboards are also public and read-only at https://vpac.mpengor.com (Grafana public dashboards behind Cloudflare). The rule: every deploy to the VM needs the owner's explicit go. What changed and when: [CHANGELOG.md](CHANGELOG.md).
+This version replaces the original system. The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
 
-v3 replaces the original v1 system (a FastAPI service with Metabase). The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
-
-- Flights are built from sessions: reconnects with the same callsign and airports within 120 minutes are one flight, and a flight is counted only once it is finished, about 8 hours after its last position (see [docs/DEFINITIONS.md](docs/DEFINITIONS.md)).
-- Charts start empty at go-live (07-10-2026, 21:38 UTC) and fill as data arrives. There is no backfill. The 30 to 90 day charts need that much history before they say anything useful.
-- Names and CIDs are stored and shown, as in v1.
+- A flight is counted once it has finished, about 8 hours after the pilot's last position. If a pilot disconnects and reconnects on the same flight within two hours, it counts as one flight (details in [docs/DEFINITIONS.md](docs/DEFINITIONS.md)).
+- The charts started empty on 07-10-2026 and fill as data arrives. Nothing earlier was loaded, so the 30 to 90 day charts need that much history before they say anything useful.
+- Pilot and controller names and VATSIM IDs are shown, as in the original system.
 
 ## Getting started
 
 A complete step-by-step install for a new instance on a clean Linux machine is in [docs/INSTALL.md](docs/INSTALL.md). The short version:
 
-**Requirements:** Docker Desktop (Windows or macOS), or Docker Engine with the Compose plugin (Linux). Nothing else is needed to run the stack.
+**Requirements:** Docker Desktop (Windows or macOS), or Docker Engine with the Compose plugin (Linux). Nothing else is needed to run the stack. If it runs in a virtual machine, set the CPU type to `host` or `x86-64-v2-AES` (the collector uses numpy 2, which needs it).
 
 ```
 sh ops/gen_env.sh            # writes .env with random passwords (Git Bash or Linux); or: make gen-env
