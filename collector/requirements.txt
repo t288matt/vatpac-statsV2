@@ -8,4 +8,4 @@ shapely==2.2.0
 # baseline optimizations', as on 07-10-2026). 2.3.x is the first line with Python 3.14 wheels.
 numpy==2.3.5
 pydantic-settings==2.15.0
-aiohttp==3.14.4
+aiohttp==3.14.5
