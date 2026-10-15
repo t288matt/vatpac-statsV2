@@ -73,7 +73,7 @@ export VATPAC_TEST_DSN="postgresql://${PGU}:${PGP}@db:5432/vatpac_test"
 
 # 4. run the tests in a short-lived container on the stack's network
 docker run --rm --network vatpac --entrypoint sh -v /tmp/vtest:/work:ro -w /work \
-  -e VATPAC_TEST_DSN -e PYTHONPATH=/work/collector/src:/tmp/pt vatpac-stats-collector:local \
+  -e VATPAC_TEST_DSN -e PYTHONPATH=/work/collector/src:/tmp/pt vatpac-stats-collector:latest \
   -c 'pip install -q --target /tmp/pt pytest pytest-asyncio && python -m pytest -q -p no:cacheprovider -m integration tests/integration --ignore=tests/integration/test_roles.py --ignore=tests/integration/test_grafana_ro.py'
 
 # 5. clean up: drop the database and delete the copy
@@ -85,7 +85,7 @@ rm -rf /tmp/vtest
 Notes:
 
 - Do not run this during a soak if the VM is short of CPU or memory: the tests share the host with the live stack for a minute or two. They do not touch live data.
-- Step 4 needs the image `vatpac-stats-collector:local`, which exists after any `docker compose up -d --build` on the VM. On the production VM (registry mode since 14-10-2026) the `:local` image may still exist from before the switch (kept as the rollback; do not remove it), but a new `up -d` does not rebuild it. If it is gone: use the pulled image instead, whose name `docker compose config --images` prints (`ghcr.io/t288matt/vatpac-stats-collector:sha-<7>`). The `git archive ... | tar -x` in step 1 writes a scratch copy under `/tmp/vtest`, not the live folder, so it stays valid. The container installs pytest into `/tmp/pt` at run time, so it needs outbound network access to PyPI.
+- Step 4 needs the collector image. In local-build mode that is `vatpac-stats-collector:latest`, which exists after any `docker compose up -d --build`. On the production VM (registry mode) it is the pulled image: use the name `docker compose config --images` prints for the collector (`ghcr.io/t288matt/vatpac-stats-collector:latest`) in place of `vatpac-stats-collector:latest` in that command. The `git archive ... | tar -x` in step 1 writes a scratch copy under `/tmp/vtest`, not the live folder, so it stays valid. The container installs pytest into `/tmp/pt` at run time, so it needs outbound network access to PyPI.
 - A database named `vatpac_test` may already exist from earlier work (the restore drill found one). Drop it first (`DROP DATABASE vatpac_test WITH (FORCE)`) if step 1 says it exists, or the tests may fail on leftover data.
 
 ## 3. Integration tests: a throwaway Postgres container on a machine with working Docker
