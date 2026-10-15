@@ -1,24 +1,24 @@
 #!/bin/sh
-# Prints the image mode the Makefile and compose would use (issue 173): local | registry | partial
+# Prints the image mode the Makefile and compose would use (issue 173): local | registry
 #   sh ops/image_mode.sh [ENV_FILE]      (default: .env)
-# VATPAC_IMAGE_PREFIX and VATPAC_IMAGE_TAG count as set when non-empty in the environment or (last assignment wins, as in
-# compose) in ENV_FILE. local = neither, registry = both, partial = exactly one. Only the words above are printed, never a value.
+# registry = VATPAC_IMAGE_PREFIX is non-empty in the environment or (last assignment wins, as in compose) in ENV_FILE; local =
+# it is not. VATPAC_IMAGE_TAG is an optional override: unset, the tag is `latest`. In registry mode, a tag that is a sha-<7> pin
+# prints a loud WARNING on stderr (the pin stops `make deploy` following new releases). Only the words above are printed, never a value.
 set -u
 
 ENV_FILE="${1:-.env}"
 
-is_set() {  # is_set <NAME>
+val() {  # val <NAME>: the value from the environment, else from ENV_FILE
   eval "v=\${$1:-}"
   if [ -z "$v" ] && [ -f "$ENV_FILE" ]; then
     # tolerate a leading "export " and single or double quotes around the value
     v="$(sed -n -e 's/^export[[:space:]][[:space:]]*//' -e "s/^$1=//p" "$ENV_FILE" | tail -n 1 | tr -d '\r' | tr -d "\"'")"
   fi
-  [ -n "$v" ]
+  printf '%s' "$v"
 }
 
-p=0; t=0
-is_set VATPAC_IMAGE_PREFIX && p=1
-is_set VATPAC_IMAGE_TAG && t=1
-if [ "$p$t" = 11 ]; then echo registry
-elif [ "$p$t" = 00 ]; then echo local
-else echo partial; fi
+if [ -z "$(val VATPAC_IMAGE_PREFIX)" ]; then echo local; exit 0; fi
+case "$(val VATPAC_IMAGE_TAG)" in
+  sha-*) echo "WARNING: VATPAC_IMAGE_TAG is a sha- pin, so the images do not follow new releases. Delete that line unless this is a deliberate rollback." >&2 ;;
+esac
+echo registry
