@@ -83,7 +83,7 @@ Neither Cloudflare nor the Traefik machine can be checked from this repository o
 
 ## 4. Collector internals
 
-Package `collector/src/vatpac/` (Python 3.12, asyncio):
+Package `collector/src/vatpac/` (Python 3.14, asyncio):
 
 | Module | Responsibility |
 |---|---|
