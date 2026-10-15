@@ -2,17 +2,17 @@
 
 [![CI](https://github.com/t288matt/vatpac-statsV2/actions/workflows/ci.yml/badge.svg)](https://github.com/t288matt/vatpac-statsV2/actions/workflows/ci.yml)
 
-Live pilot and controller statistics for the VATPAC region, built from the public VATSIM data feed, running 24/7 in Docker.
+Live pilot and controller statistics for the VATPAC region, built from VATSIM's public live data and running around the clock.
 
 ## About
 
-A collector program checks the live VATSIM data every 30 seconds. It keeps only the pilots who are flying in Australian airspace, and only the air traffic controllers whose callsigns are on our approved list. PostgreSQL 16 stores the data and Grafana 12.4 shows it as ten dashboards, which can also be shared read-only on the internet (see "Public read-only access" below). Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
+VATPAC Stats shows live and historical statistics for pilots and air traffic controllers in the VATPAC region on VATSIM. The numbers are updated every 30 seconds and shown as ten dashboards. Anyone can view them on the internet without logging in, and nobody can change them (see "Public read-only access" below).
 
-v3 replaces the original v1 system (a FastAPI service with Metabase). The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
+This version replaces the original system. The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
 
-- Flights are built from sessions: reconnects with the same callsign and airports within 120 minutes are one flight, and a flight is counted only once it is finished, about 8 hours after its last position (see [docs/DEFINITIONS.md](docs/DEFINITIONS.md)).
-- Charts start empty at go-live (07-10-2026, 21:38 UTC) and fill as data arrives. There is no backfill. The 30 to 90 day charts need that much history before they say anything useful.
-- Names and CIDs are stored and shown, as in v1.
+- A flight is counted once it has finished, about 8 hours after the pilot's last position. If a pilot disconnects and reconnects on the same flight within two hours, it counts as one flight (details in [docs/DEFINITIONS.md](docs/DEFINITIONS.md)).
+- The charts started empty on 07-10-2026 and fill as data arrives. Nothing earlier was loaded, so the 30 to 90 day charts need that much history before they say anything useful.
+- Pilot and controller names and VATSIM IDs are shown, as in the original system.
 
 ## Getting started
 
