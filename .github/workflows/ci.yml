@@ -198,13 +198,16 @@ jobs:
           docker compose --env-file "$RUNNER_TEMP/ci.env" config -q
           docker compose --env-file "$RUNNER_TEMP/ci.env" -f docker-compose.yml -f docker-compose.dev.yml config -q
       - name: Image names resolve in local and registry mode (issue 173)
-        # The four built services must resolve to vatpac-stats-<name>:local with both variables unset, and to
-        # <prefix>vatpac-stats-<name>:<tag> with both set (the names the release workflow publishes).
+        # The four built services must resolve to vatpac-stats-<name>:latest with both variables unset, to
+        # <prefix>vatpac-stats-<name>:latest with the prefix alone, and to <prefix>...:<tag> with a tag override (the names the release workflow publishes).
         run: |
           want="collector watchdog backup migrate"
           got="$(env -u VATPAC_IMAGE_PREFIX -u VATPAC_IMAGE_TAG docker compose --env-file "$RUNNER_TEMP/ci.env" config --images | grep 'vatpac-stats-' | sort)"
-          exp="$(for n in $want; do echo "vatpac-stats-$n:local"; done | sort)"
+          exp="$(for n in $want; do echo "vatpac-stats-$n:latest"; done | sort)"
           [ "$got" = "$exp" ] || { echo "local mode images differ"; echo "$got"; exit 1; }
+          got="$(env -u VATPAC_IMAGE_TAG VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/ docker compose --env-file "$RUNNER_TEMP/ci.env" config --images | grep 'vatpac-stats-' | sort)"
+          exp="$(for n in $want; do echo "ghcr.io/t288matt/vatpac-stats-$n:latest"; done | sort)"
+          [ "$got" = "$exp" ] || { echo "registry default images differ"; echo "$got"; exit 1; }
           got="$(VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/ VATPAC_IMAGE_TAG=sha-abc1234 docker compose --env-file "$RUNNER_TEMP/ci.env" config --images | grep 'vatpac-stats-' | sort)"
           exp="$(for n in $want; do echo "ghcr.io/t288matt/vatpac-stats-$n:sha-abc1234"; done | sort)"
           [ "$got" = "$exp" ] || { echo "registry mode images differ"; echo "$got"; exit 1; }
