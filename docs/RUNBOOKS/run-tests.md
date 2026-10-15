@@ -27,12 +27,12 @@ mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/int
 
 ## 1b. Integration tests on the PC with Docker Desktop (works since 13-10-2026; the same database as CI)
 
-Docker Desktop on the owner's PC works again (13-10-2026; the older note in section 2 about T25 no longer applies when `docker version` shows a server). This builds the SAME database CI builds: the PostgreSQL 16.15 image plus the production migrate image (dbmate, then `db/roles.sql` and `watchdog_ro`), in a throwaway container on the PC. It never touches the VM or the live database. Run in Git Bash from the repository root (or a worktree). Use one database per person or agent: the tests `TRUNCATE` every data table, and the name must end in `_test`.
+Docker Desktop on the owner's PC works again (13-10-2026; the older note in section 2 about T25 no longer applies when `docker version` shows a server). This builds the SAME database CI builds: the PostgreSQL 16 image plus the production migrate image (dbmate, then `db/roles.sql` and `watchdog_ro`), in a throwaway container on the PC. It never touches the VM or the live database. Run in Git Bash from the repository root (or a worktree). Use one database per person or agent: the tests `TRUNCATE` every data table, and the name must end in `_test`.
 
 ```sh
 # once: a network and a database container (the alias `db` is what migrate.sh connects to)
 docker network create vatpac-pgtest
-docker run -d --name vatpac-pgtest-db --network vatpac-pgtest --network-alias db -p 54329:5432   -e POSTGRES_PASSWORD=ci-superuser-pw -e POSTGRES_DB=vatpac_test postgres:16.15
+docker run -d --name vatpac-pgtest-db --network vatpac-pgtest --network-alias db -p 54329:5432   -e POSTGRES_PASSWORD=ci-superuser-pw -e POSTGRES_DB=vatpac_test postgres:16
 # every time migrations change (and the first time): apply them with the production migrate image
 docker build -q -t vatpac-migrate-ci -f ops/migrate/Dockerfile .
 MSYS_NO_PATHCONV=1 docker run --rm --network vatpac-pgtest   -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=ci-superuser-pw -e POSTGRES_DB=vatpac_test   -e GRAFANA_RO_PASSWORD=ci-grafana-ro-pw -e COLLECTOR_DB_PASSWORD=ci-collector-pw -e BACKUP_DB_PASSWORD=ci-backup-pw   -e WATCHDOG_DB_PASSWORD=ci-watchdog-pw -v "$(pwd -W)/db:/db:ro" vatpac-migrate-ci
@@ -95,7 +95,7 @@ CI builds its database with the production `ops/migrate` image (dbmate, then `db
 This also runs the role tests, because the throwaway container has its own cluster.
 
 ```sh
-docker run -d --name vp-test -p 127.0.0.1:55436:5432 -e POSTGRES_PASSWORD=x postgres:16.15-bookworm
+docker run -d --name vp-test -p 127.0.0.1:55436:5432 -e POSTGRES_PASSWORD=x postgres:16-bookworm
 docker exec vp-test psql -U postgres -c "CREATE DATABASE vatpac_test"
 for f in db/migrations/*.sql; do sed '/^-- migrate:down/,$d' "$f" | docker exec -i vp-test psql -U postgres -d vatpac_test -v ON_ERROR_STOP=1 -q; done
 docker exec -i vp-test psql -U postgres -d vatpac_test -v ON_ERROR_STOP=1 -v grafana_ro_password=testpw -v collector_password=cpw -v backup_password=bpw -q < db/roles.sql

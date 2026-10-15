@@ -94,3 +94,46 @@ def test_release_matrix_names_equal_the_compose_services_using_vatpac_stats_imag
     pattern = re.compile(r"^\$\{VATPAC_IMAGE_PREFIX:-\}vatpac-stats-([a-z]+):")
     compose = {m.group(1) for svc in _services().values() if (m := pattern.match(svc.get("image", "")))}
     assert matrix == compose == set(BUILT)
+
+
+# Third-party images float on the major version (ADR-032, issue 176): never `latest`, never an exact patch.
+EXPECTED_THIRD_PARTY = {"db": "postgres:16-bookworm", "grafana": "grafana/grafana:12"}
+
+
+def _from_lines(dockerfile: str) -> list[str]:
+    text = (REPO / dockerfile).read_text(encoding="utf-8")
+    return [m.group(1) for m in re.finditer(r"^FROM\s+(\S+)", text, re.MULTILINE)]
+
+
+def test_compose_third_party_images_float_on_the_major() -> None:
+    svcs = _services()
+    third = {n: s["image"] for n, s in svcs.items() if n not in BUILT}
+    assert third == EXPECTED_THIRD_PARTY
+
+
+def test_dockerfile_third_party_bases_float_on_the_major() -> None:
+    assert _from_lines("ops/backup/Dockerfile") == ["postgres:16-bookworm"]
+    assert _from_lines("ops/migrate/Dockerfile") == ["amacneil/dbmate:2"]
+
+
+def test_db_and_backup_use_the_same_postgres_tag() -> None:
+    assert _services()["db"]["image"] == _from_lines("ops/backup/Dockerfile")[0]
+
+
+def test_no_third_party_image_is_latest_or_an_exact_patch() -> None:
+    images = [s["image"] for n, s in _services().items() if n not in BUILT]
+    images += _from_lines("ops/backup/Dockerfile") + _from_lines("ops/migrate/Dockerfile")
+    ci = yaml.safe_load((REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+    for job in ci["jobs"].values():
+        images += [s["image"] for s in (job.get("services") or {}).values()]
+    assert "postgres:16" in images  # the CI service container
+    for image in images:
+        tag = image.rsplit(":", 1)[-1]
+        assert tag != "latest", image
+        assert not re.match(r"^\d+\.\d+", tag), image  # 16.15, 12.4.12, 2.36.0 and so on
+
+
+def test_ci_postgres_service_matches_production_major() -> None:
+    ci = yaml.safe_load((REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+    imgs = [s["image"] for j in ci["jobs"].values() for s in (j.get("services") or {}).values() if s["image"].startswith("postgres")]
+    assert imgs and all(i == "postgres:16" for i in imgs)

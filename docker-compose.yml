@@ -1,10 +1,10 @@
 # VATPAC Stats v3 stack. SPEC.md section 9 is authoritative.
 # Secrets come only from .env (git-ignored). Generate it with `sh ops/gen_env.sh`; the secret
 # values in .env.example are blank on purpose, so compose fails until they are set.
-# Image policy: third-party images are pinned by exact version tag. Pinning by digest
-# (image: name:tag@sha256:...) is the stricter policy and is recommended once the deploy host can
-# resolve digests (`docker buildx imagetools inspect <image>:<tag>`); Dependabot (docker
-# ecosystem) proposes tag and digest bumps. Digests cannot be resolved offline, so tags are kept.
+# Image policy (ADR-032): third-party images use a floating MAJOR tag (postgres:16-bookworm, grafana/grafana:12,
+# amacneil/dbmate:2), never `latest` and never an exact patch. Patch and minor updates arrive with each
+# `docker compose pull`; a new major version is a deliberate change made by editing the tag. The db and
+# backup images must stay on the same Postgres major (pg_dump version).
 name: vatpac
 
 x-logging: &logging
@@ -15,7 +15,7 @@ x-logging: &logging
 
 services:
   db:
-    image: postgres:16.15-bookworm
+    image: postgres:16-bookworm
     restart: unless-stopped
     logging: *logging
     mem_limit: 2g
@@ -119,7 +119,7 @@ services:
     networks: [vatpac]
 
   grafana:
-    image: grafana/grafana:12.4.12  # the OSS edition; the grafana-oss image stops at 11.6.5 (11.6.15, 03-06-2026, is only published as grafana/grafana)
+    image: grafana/grafana:12  # the OSS edition; the grafana-oss image stops at 11.6.5 (11.6.15, 03-06-2026, is only published as grafana/grafana)
     restart: unless-stopped
     logging: *logging
     mem_limit: 512m

@@ -76,6 +76,7 @@ case "$*" in
   "compose ps -aq") echo c1; echo c2 ;;
   "manifest inspect"*) echo "$*" >> "$FAKE_DIR/manifest.log"; brk manifest && exit 1
     [ -n "${FAKE_MANIFEST_MISSING:-}" ] && case "$*" in *"$FAKE_MANIFEST_MISSING"*) exit 1 ;; esac; exit 0 ;;
+  inspect*RepoDigests*) brk digest && exit 1; for a; do last="$a"; done; case "$last" in *nodigest*) exit 1 ;; esac; echo "${last%%:*}@sha256:fake-${last##*:}" ;;
   inspect*) brk inspect && exit 1; cat "$FAKE_DIR/inspect.txt" ;;
   "ps -a --format"*) brk dockerps && exit 1; cat "$FAKE_DIR/psa.txt" ;;
   *"exec -T db"*) in="$(cat)"
@@ -599,6 +600,25 @@ def test_status_shows_images(tmp_path: Path) -> None:
     assert "image mode: local" in f.run("--status")[1]
 
 
+_UNKNOWN_TP = "db=unknown grafana=unknown migrate_base=unknown"
+
+
+def test_mark_records_third_party_digests_and_never_blocks(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    vm = f.home / "vatpac-statsV2"
+    (vm / "ops" / "migrate").mkdir(parents=True)
+    (vm / "docker-compose.yml").write_text("services:\n  db:\n    image: postgres:16-bookworm\n  grafana:\n    image: grafana/grafana:12  # the OSS edition\n", newline="\n")
+    (vm / "ops" / "migrate" / "Dockerfile").write_text("# x\nFROM amacneil/dbmate:2\n", newline="\n")
+    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
+    log = (vm / ".deploy" / "release.log").read_text()
+    assert rc == 0, out
+    assert "thirdparty=db=postgres@sha256:fake-16-bookworm grafana=grafana/grafana@sha256:fake-12 migrate_base=amacneil/dbmate@sha256:fake-2\n" in log
+    assert (vm / ".deploy" / "release").read_text() == f"commit={FULL}\nmarked_utc=2026-10-10T15:00:00Z\nmarked_by=tester\n"
+    f.brk("digest")  # docker cannot answer: the mark still succeeds and records unknown
+    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
+    assert rc == 0 and (vm / ".deploy" / "release.log").read_text().endswith(f"thirdparty={_UNKNOWN_TP}\n---\n")
+
+
 def test_mark_records_images_in_the_log_only(tmp_path: Path) -> None:
     for sub, setup, want in (("reg", lambda f: f.registry(), FULL[:12]), ("loc", lambda f: None, "local"),
                              ("tagonly", lambda f: f.dotenv("VATPAC_IMAGE_TAG=sha-1\n"), "local")):
@@ -608,7 +628,7 @@ def test_mark_records_images_in_the_log_only(tmp_path: Path) -> None:
         d = f.home / "vatpac-statsV2" / ".deploy"
         assert rc == 0 and "not the commit being marked" not in out, out
         assert (d / "release").read_text() == f"commit={FULL}\nmarked_utc=2026-10-10T15:00:00Z\nmarked_by=tester\n"  # format unchanged
-        assert (d / "release.log").read_text() == (d / "release").read_text() + f"images={want}\n---\n"
+        assert (d / "release.log").read_text() == (d / "release").read_text() + f"images={want}\nthirdparty={_UNKNOWN_TP}\n---\n"  # no compose file on this fake VM
     f = Fake(tmp_path / "head")  # the VM checkout is not at the commit being marked
     f.set(FAKE_VM_HEAD="b" * 40)
     rc, out = f.run("--mark", "f893585", "--allow-silent-issues")

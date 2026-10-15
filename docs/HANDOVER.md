@@ -179,10 +179,10 @@ The owner asked: "VM 100 (LAN address omitted here) has been created as a Proxmo
 ### 8.1 Components (docker-compose.yml, project name `vatpac`)
 | Service | Image / build | Role |
 |---|---|---|
-| `db` | `postgres:16.15-bookworm` (16.4 until 09-10-2026), named volume `pgdata`, `--data-checksums`, `ops/postgres/postgresql.conf` mounted, port NOT published | the database (small box tuning) |
-| `migrate` | built from `ops/migrate` (dbmate 2.36.0 + psql; 2.21.0 until 09-10-2026), `restart: "no"` | applies `db/migrations/*.sql`, then `db/roles.sql`, creates `watchdog_ro` |
+| `db` | `postgres:16-bookworm` (a floating major tag since 15-10-2026, ADR-032; 16.15 before), named volume `pgdata`, `--data-checksums`, `ops/postgres/postgresql.conf` mounted, port NOT published | the database (small box tuning) |
+| `migrate` | built from `ops/migrate` (dbmate 2 + psql, a floating major tag since 15-10-2026), `restart: "no"` | applies `db/migrations/*.sql`, then `db/roles.sql`, creates `watchdog_ro` |
 | `collector` | built from `collector/Dockerfile` (python:3.12-slim, non-root, read-only root, no capabilities) | polls and stores; `/health` and `/metrics` on port 8080 inside the container |
-| `grafana` | `grafana/grafana:12.4.12` since 11-10-2026 (ADR-029; this row said `grafana/grafana-oss:11.6.5` from 09-10-2026 and 11.2.2 before), provisioning mounted read-only from `grafana/`, login required, port `${GRAFANA_BIND:-127.0.0.1}:${GRAFANA_PORT:-3300}` | dashboards |
+| `grafana` | `grafana/grafana:12` (12.4.12 on 11-10-2026, a floating major tag since 15-10-2026) (ADR-029; this row said `grafana/grafana-oss:11.6.5` from 09-10-2026 and 11.2.2 before), provisioning mounted read-only from `grafana/`, login required, port `${GRAFANA_BIND:-127.0.0.1}:${GRAFANA_PORT:-3300}` | dashboards |
 | `backup` | built from `ops/backup` (postgres client) | nightly dump, rotation, restore scripts, weekly restore test, optional `BACKUP_REMOTE` hook |
 | `watchdog` | built from `ops/watchdog` (python, psycopg, httpx) | health and DB checks, Telegram alerts, writes `/var/watchdog/watchdog_status.json`; alert-only |
 All have `restart: unless-stopped` (except migrate), json-file log rotation (10 MB x 5), memory limits, one internal network `vatpac`. No socket proxy and no Cloudflare service by owner decision.
@@ -276,7 +276,7 @@ LOW: L1 duplicate SQL files deleted. L2 `pilot_session` bloat: fillfactor 70 and
 - Grafana's `GF_SECURITY_ADMIN_PASSWORD` applies only on first start.
 - A cloned VM shares host keys, cron, Tailscale identity and monitor pushes with the original (section 7.4).
 - SSH to the VM: `known_hosts` for that IP was reset once (the original had stale entries from an earlier machine).
-- v1's Postgres container image cannot be reused for v3; v3 uses `postgres:16.15-bookworm` (16.4 until 09-10-2026; CI still tests on 16.4 until updated).
+- v1's Postgres container image cannot be reused for v3; v3 uses `postgres:16-bookworm` (CI tests on `postgres:16`).
 - Docker Desktop on the owner's PC sometimes needs a manual start; `docker info` failing with a pipe error means it is not running.
 
 ## 16. Repo map and where other material lives
