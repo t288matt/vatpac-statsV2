@@ -131,8 +131,8 @@ On Windows without `make`, run the underlying commands.
 | `make smoke` | Health checks on a running stack |
 | `make config` | Validate the compose files with a throwaway env |
 | `make soak` | Soak report from `poll_log`: was a snapshot stored every poll interval over the last `HOURS` (default 24) |
-| `make up` / `make dev` / `make down` | Start (optionally with the dev overlay) or stop the stack; volumes are kept. `make up` builds the images locally; it is not the registry deploy, and it refuses to run in registry mode (added by the deploy tooling pull request, a separate draft; see the deploy runbook) |
-| `make deploy` | Registry mode only: `docker compose pull`, then `docker compose up -d --no-build` (added by the deploy tooling pull request, a separate draft, merged only after review) |
+| `make up` / `make dev` / `make down` | Start (optionally with the dev overlay) or stop the stack; volumes are kept. `make up` builds the images locally; it is not the registry deploy, and it refuses to run in registry mode (added by pull request 180; see the deploy runbook) |
+| `make deploy` | Registry mode only: `docker compose pull`, then `docker compose up -d --no-build` (added by pull request 180; it does not run `--preflight`, so run that first) |
 | `make logs` / `make ps` | Follow logs; container status |
 | `make backup` / `make backup-test` | Take a backup now; restore the newest into a scratch database and check it |
 | `make restore FILE=... CONFIRM=...` | Restore a dump ([docs/RUNBOOKS/restore.md](docs/RUNBOOKS/restore.md)) |
