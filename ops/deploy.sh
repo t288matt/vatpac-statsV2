@@ -160,7 +160,8 @@ CONTAINERS=""
 load_containers() { CONTAINERS="$(vm "$INSPECT" 2>/dev/null | tr -d '\r' | grep '|')"; }
 
 # vm_env_key <NAME>: the value of one key from the VM's .env; nothing else of the file is read (used for the two image keys only)
-vm_env_key() { vm "sed -n 's/^$1=//p' .env 2>/dev/null | tail -n 1" 2>/dev/null | tr -d '\r \t'; }
+# (tolerates a leading "export " and single or double quotes around the value)
+vm_env_key() { vm "sed -n -e 's/^export[[:space:]][[:space:]]*//' -e 's/^$1=//p' .env 2>/dev/null | tail -n 1" 2>/dev/null | tr -d '\r \t' | tr -d "\"'"; }
 
 # svc_line <service>: the inspect line of the service's container
 svc_line() { printf '%s\n' "$CONTAINERS" | grep -E "^/vatpac-$1-[0-9]+\|" | head -n 1; }
@@ -246,19 +247,18 @@ preflight() {
     emit PASS commit_on_main "${full:0:10} is on origin/main (${behind:-?} newer commit(s) after it)"
   fi
 
-  # CI green for that exact sha: every run for it completed/success, and at least one
+  # CI green for that exact sha: the newest run of the ci workflow on it must be completed/success. Other workflows on the
+  # same commit (release, docs-secret-scan, ci-failure-issue) are not CI and must not turn this red.
   if [ -z "$full" ]; then
     emit FAIL ci_green "no commit to look up"
   else
-    ci_lines="$("$(gh_bin)" run list --repo "$DEPLOY_REPO" --commit "$full" \
-      --json workflowName,status,conclusion \
-      --jq '.[] | .workflowName + " " + .status + " " + (.conclusion // "")' 2>/dev/null | tr -d '\r')"
-    if [ -z "$ci_lines" ]; then
-      emit FAIL ci_green "no CI run found for ${full:0:10} (gh missing, not logged in, or no run)"
+    ci_line="$("$(gh_bin)" run list --repo "$DEPLOY_REPO" --workflow ci --commit "$full" --limit 1 --json status,conclusion --jq '.[] | .status + " " + (.conclusion // "")' 2>/dev/null | tr -d '' | head -n 1)"
+    if [ -z "$ci_line" ]; then
+      emit FAIL ci_green "no ci run found for ${full:0:10} (gh missing, not logged in, or no run)"
+    elif [ "$ci_line" = "completed success" ]; then
+      emit PASS ci_green "ci run completed success for ${full:0:10}"
     else
-      ci_bad="$(printf '%s\n' "$ci_lines" | grep -vE ' completed success$')"
-      if [ -z "$ci_bad" ]; then emit PASS ci_green "$(printf '%s\n' "$ci_lines" | wc -l | tr -d ' ') run(s) completed success for ${full:0:10}"
-      else emit FAIL ci_green "$(printf '%s' "$ci_bad" | head -n 1)"; fi
+      emit FAIL ci_green "ci run: $ci_line"
     fi
   fi
 
