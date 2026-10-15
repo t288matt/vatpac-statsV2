@@ -21,17 +21,18 @@ rule treats `ens18` as online once it is routable, and the router's IPv6 address
 3. Reload systemd: `sudo systemctl daemon-reload`
 4. Check the unit now has three checks, ours last:
    `systemctl cat systemd-networkd-wait-online | grep ExecStart`
-   Expected: `ExecStart=`, then `-i ens18:degraded`, then `--any -o routable -i ens18`, then `--interface=ens18 --ipv4 --timeout=120`.
-5. Check the new rule passes now (the VM has its address): `sudo systemctl restart systemd-networkd-wait-online; echo $?`
-   Expected: `0`. Restarting this service does not touch the network or Docker.
+   Expected, in order: the base unit's own `ExecStart=/usr/lib/systemd/systemd-networkd-wait-online`, then `ExecStart=` (netplan's reset), `-i ens18:degraded`, `--any -o routable -i ens18`, and last `--interface=ens18 --ipv4 --timeout=100`.
+5. Check the new rule passes now (the VM has its address), without restarting anything:
+   `sudo /usr/lib/systemd/systemd-networkd-wait-online --interface=ens18 --ipv4 --timeout=10; echo $?`
+   Expected: `0`. This only reads the link state.
 
 ## Prove it (planned reboot, owner runs it, after a quiet period)
 
-1. Take a fresh dump first (`bash ops/deploy.sh --status` shows the newest dump age).
+1. Take a fresh dump first (on the PC, in Git Bash at the repo: `bash ops/deploy.sh --status` shows the newest dump age).
 2. `sudo reboot`. Wait about three minutes.
 3. Within a few minutes, with nobody running a command: `docker ps` shows six containers healthy, and
    `curl -s http://192.168.1.222:3300/api/health` answers.
-4. `docker inspect vatpac-grafana-1` shows the `vatpac` network and port 3300 published, not just `healthy`.
+4. `docker inspect -f '{{json .NetworkSettings.Ports}}' vatpac-grafana-1` shows port 3300 published, and `docker inspect -f '{{json .NetworkSettings.Networks}}' vatpac-grafana-1` names the `vatpac` network. Not just `healthy`.
 5. `journalctl -b -u docker --no-pager | grep -c "bind host port"` prints `0`.
 6. Public dashboards load from outside (Cloudflare address).
 7. Timeline check: `journalctl -b --no-pager -o short-precise | grep -E "DHCPv4 address|Reached target network-online|Starting docker.service"`.
@@ -40,7 +41,7 @@ rule treats `ens18` as online once it is routable, and the router's IPv6 address
 ## If Grafana is still down after a boot
 
 `cd ~/vatpac-statsV2 && docker compose up -d --no-build grafana` (never `make up`: in registry mode it would build locally).
-Then check `docker inspect` as in step 4 above. The failed-start state can leave Grafana "healthy" with no network; recreate it:
+Then check with the two `docker inspect` commands in step 4 above. The failed-start state can leave Grafana "healthy" with no network; recreate it:
 `docker compose up -d --no-build --force-recreate grafana`.
 
 ## Undo
