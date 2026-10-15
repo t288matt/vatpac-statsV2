@@ -11,6 +11,8 @@ RUN apk add --no-cache postgresql-client
 COPY ops/migrate/migrate.sh /usr/local/bin/migrate.sh
 COPY db /db
 
-# docker-compose.yml still mounts ./db read-only over /db (the mount wins over the baked copy; it is removed in P2, when
-# the stack starts pulling commit-tagged images).
+# docker-compose.yml still mounts ./db read-only over /db, so the checkout's migrations win over the baked copy in both
+# local-build and registry mode (the mount is removed in a later phase of issue 173). The baked copy matters for
+# release images pulled from the registry, which must carry the migrations of the commit they were built from.
+
 ENTRYPOINT ["/bin/sh", "/usr/local/bin/migrate.sh"]
