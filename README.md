@@ -8,8 +8,6 @@ Live pilot and controller statistics for the VATPAC region, built from the publi
 
 A collector program checks the live VATSIM data every 30 seconds. It keeps only the pilots who are flying in Australian airspace, and only the air traffic controllers whose callsigns are on our approved list. PostgreSQL 16 stores the data and Grafana 12.4 shows it as ten dashboards, which can also be shared read-only on the internet (see "Public read-only access" below). Backups, a watchdog that sends Telegram alerts, and a rolling archive of raw feed snapshots keep it running unattended.
 
-**Current state (14-10-2026).** The goal is met and the system runs on an always-on VM. The collector runs numpy 2.3.5 (since 14-10-2026, so the VM CPU type must stay `host` or `x86-64-v2-AES`). The VM folder is a read-only git checkout and runs commit-tagged registry images (`ghcr.io/t288matt/vatpac-stats-*:sha-<7>`; first registry deploy 14-10-2026, commit 67c1ca0). The dashboards are also public and read-only at https://vpac.mpengor.com (Grafana public dashboards behind Cloudflare). The rule: every deploy to the VM needs the owner's explicit go. What changed and when: [CHANGELOG.md](CHANGELOG.md).
-
 v3 replaces the original v1 system (a FastAPI service with Metabase). The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
 
 - Flights are built from sessions: reconnects with the same callsign and airports within 120 minutes are one flight, and a flight is counted only once it is finished, about 8 hours after its last position (see [docs/DEFINITIONS.md](docs/DEFINITIONS.md)).
@@ -20,7 +18,7 @@ v3 replaces the original v1 system (a FastAPI service with Metabase). The two we
 
 A complete step-by-step install for a new instance on a clean Linux machine is in [docs/INSTALL.md](docs/INSTALL.md). The short version:
 
-**Requirements:** Docker Desktop (Windows or macOS), or Docker Engine with the Compose plugin (Linux). Nothing else is needed to run the stack.
+**Requirements:** Docker Desktop (Windows or macOS), or Docker Engine with the Compose plugin (Linux). Nothing else is needed to run the stack. If it runs in a virtual machine, set the CPU type to `host` or `x86-64-v2-AES` (the collector uses numpy 2, which needs it).
 
 ```
 sh ops/gen_env.sh            # writes .env with random passwords (Git Bash or Linux); or: make gen-env
@@ -33,7 +31,7 @@ docker compose ps            # wait until db, collector, grafana, backup and wat
 
 On every start the `migrate` container applies new SQL migrations and re-applies the database roles, then exits. `migrate` showing `exited (0)` is expected.
 
-**How production is deployed (issue 173; live since 14-10-2026).** The commands above build the images on the machine (local-build mode, the default for a PC, CI and a first install). The production VM is different: it is a read-only git checkout, GitHub Actions publishes four commit-tagged images (collector, watchdog, backup, migrate) to a private registry (GHCR) on request, and the VM runs `git checkout <commit>`, `docker compose pull` and `docker compose up -d --no-build`. On the VM never use `up -d --build` or `make up`: they rebuild locally and replace the pulled image. Two `.env` lines choose the mode (`VATPAC_IMAGE_PREFIX`, `VATPAC_IMAGE_TAG`; [docs/CONFIG_MAP.md](docs/CONFIG_MAP.md)). Only the first registry deploy has been done; a second deploy and a rollback to a previous tag are not yet run (the first rollback uses the local images). The procedure, the rollback and the old method kept as a fallback are in [docs/RUNBOOKS/deploy-to-vm.md](docs/RUNBOOKS/deploy-to-vm.md).
+**How production is deployed.** The commands above build the images on the machine (local-build mode, the default for a PC, CI and a first install). The production VM is different: it is a read-only git checkout, GitHub Actions publishes four commit-tagged images (collector, watchdog, backup, migrate) to a private registry (GHCR) on request, and the VM runs `git checkout <commit>`, `docker compose pull` and `docker compose up -d --no-build`. On the VM never use `up -d --build` or `make up`: they rebuild locally and replace the pulled image. Two `.env` lines choose the mode (`VATPAC_IMAGE_PREFIX`, `VATPAC_IMAGE_TAG`; [docs/CONFIG_MAP.md](docs/CONFIG_MAP.md)). The procedure, the rollback and the old method kept as a fallback are in [docs/RUNBOOKS/deploy-to-vm.md](docs/RUNBOOKS/deploy-to-vm.md).
 
 **Check that it works:**
 
