@@ -27,7 +27,7 @@ mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/int
 
 ## 1b. Integration tests on the PC with Docker Desktop (works since 13-10-2026; the same database as CI)
 
-Docker Desktop on the owner's PC works again (13-10-2026; the older note in section 2 about T25 no longer applies when `docker version` shows a server). This builds the SAME database CI builds: the PostgreSQL 16.15 image plus the production migrate image (dbmate, then `db/roles.sql` and `watchdog_ro`), in a throwaway container on the PC. It never touches the VM or the live database. Run in Git Bash from the repository root (or a worktree). Use one database per person or agent: the tests `TRUNCATE` every data table, and the name must end in `_test`.
+Docker Desktop on the owner's PC works again (13-10-2026; the older note in section 2 about T25 no longer applies when `docker version` shows a server). This builds the SAME database CI builds: the PostgreSQL 16 image plus the production migrate image (dbmate, then `db/roles.sql` and `watchdog_ro`), in a throwaway container on the PC. It never touches the VM or the live database. Run in Git Bash from the repository root (or a worktree). Use one database per person or agent: the tests `TRUNCATE` every data table, and the name must end in `_test`.
 
 ```sh
 # once: a network and a database container (the alias `db` is what migrate.sh connects to)

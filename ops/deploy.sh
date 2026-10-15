@@ -6,7 +6,7 @@
 #   bash ops/deploy.sh --mark <commit> [--allow-silent-issues]  after a VERIFIED deploy: write ~/vatpac-statsV2/.deploy/release (the ONLY write)
 #       Refuses first if an issue named in the commits since the previous marker has no comment newer than its newest commit
 #       (ops/stale_issues.sh), or if that cannot be checked; --allow-silent-issues marks anyway and prints a warning.
-#       Warns if the VM checkout is not at the commit being marked; the .deploy/release.log entry also records images=<revision of the
+#       Warns if the VM checkout is not at the commit being marked; the .deploy/release.log entry also records thirdparty=<digests of db, grafana and the dbmate base; unknown on any failure> and images=<revision of the
 #       running collector image (first 12 characters), or local, or unknown>. The release file itself keeps its three lines.
 # Registry mode (VATPAC_IMAGE_PREFIX set in the VM's .env, issue 173): the tag defaults to `latest`, which the release workflow
 # moves to the newest published commit (no .env edit per deploy; a VATPAC_IMAGE_TAG=sha-<7> line is only a deliberate rollback pin).
@@ -462,6 +462,21 @@ status() {
   else echo "could not read the backup volume"; fi
 }
 
+# third_party_digests: "db=<digest> grafana=<digest> migrate_base=<digest>" for the running third-party images (ADR-032), read from the
+# VM's docker with `docker inspect` on the tag that docker-compose.yml / ops/migrate/Dockerfile names. Nothing from .env. Any failure
+# (no docker, image not present, no digest) records `unknown` for that image and never blocks the mark.
+third_party_digests() {
+  local out="" spec name file rx ref d
+  for spec in "db|docker-compose.yml|postgres" "grafana|docker-compose.yml|grafana/grafana" "migrate_base|ops/migrate/Dockerfile|amacneil/dbmate"; do
+    name="${spec%%|*}"; file="$(printf '%s' "$spec" | cut -d'|' -f2)"; rx="${spec##*|}"
+    ref="$(vm "sed -n 's#^[ ]*\(image:[ ]*\|FROM[ ]*\)\($rx:[A-Za-z0-9._-]*\).*#\2#p' $file | head -n 1" 2>/dev/null | tr -cd 'A-Za-z0-9._:/-')"
+    d=""
+    [ -z "$ref" ] || d="$(vm "docker inspect -f '{{index .RepoDigests 0}}' $ref" 2>/dev/null | tr -cd 'A-Za-z0-9._:@/-')"
+    out="$out$name=${d:-unknown} "
+  done
+  printf '%s' "${out% }"
+}
+
 # ---------------------------------------------------------------- --mark (the only write)
 
 mark() {
@@ -496,11 +511,12 @@ mark() {
               imgs="${crev:0:12}"; [ -n "$imgs" ] || imgs=unknown ;;
     local) imgs=local ;;
   esac
+  tp="$(third_party_digests)"; [ -n "$tp" ] || tp="db=unknown grafana=unknown migrate_base=unknown"; tpq="'$tp'"
   stamp="$(iso "$now")"; who="$(printf '%s' "${USER:-${USERNAME:-unknown}}" | tr -cd 'A-Za-z0-9._-')"
   # the log line goes first and the marker is replaced last, so a failed log append leaves the old marker in place.
   # The release file keeps exactly three lines (other tools read it); only the log entry gets the extra images= line.
   printf 'commit=%s\nmarked_utc=%s\nmarked_by=%s\n' "$full" "$stamp" "$who" \
-    | vm_in "mkdir -p .deploy && cat > .deploy/release.new && { cat .deploy/release.new; echo images=$imgs; echo ---; } >> .deploy/release.log && mv .deploy/release.new .deploy/release" \
+    | vm_in "mkdir -p .deploy && cat > .deploy/release.new && { cat .deploy/release.new; echo images=$imgs; echo thirdparty=$tpq; echo ---; } >> .deploy/release.log && mv .deploy/release.new .deploy/release" \
     || { echo "FAIL  could not write the marker or its log; the previous marker (if any) is unchanged" >&2; return 1; }
   echo "PASS  marked ${full:0:10} at $stamp by $who (~/vatpac-statsV2/.deploy/release on the VM)"
 }
