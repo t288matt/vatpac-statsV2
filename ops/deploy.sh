@@ -6,9 +6,12 @@
 #   bash ops/deploy.sh --mark <commit> [--allow-silent-issues]  after a VERIFIED deploy: write ~/vatpac-statsV2/.deploy/release (the ONLY write)
 #       Refuses first if an issue named in the commits since the previous marker has no comment newer than its newest commit
 #       (ops/stale_issues.sh), or if that cannot be checked; --allow-silent-issues marks anyway and prints a warning.
-#       Warns if the VM checkout is not at the commit being marked; the .deploy/release.log entry also records images=<tag or local>.
-# Registry mode (VATPAC_IMAGE_PREFIX and VATPAC_IMAGE_TAG both set in the VM's .env, issue 173): --preflight checks the four images
-# exist for the commit and that the .env tag matches it; --verify checks each container's image revision label against the VM
+#       Warns if the VM checkout is not at the commit being marked; the .deploy/release.log entry also records images=<revision of the
+#       running collector image (first 12 characters), or local, or unknown>. The release file itself keeps its three lines.
+# Registry mode (VATPAC_IMAGE_PREFIX set in the VM's .env, issue 173): the tag defaults to `latest`, which the release workflow
+# moves to the newest published commit (no .env edit per deploy; a VATPAC_IMAGE_TAG=sha-<7> line is only a deliberate rollback pin).
+# --preflight checks the four images exist for the commit and WARNs loudly about a sha pin;
+# --verify checks each container's image revision label against the VM
 # checkout; --status prints the images. Local mode (neither set) skips these checks. Only the two key names are read from .env.
 # It never starts, stops, builds or restarts anything and never prints .env values. The owner's explicit go for each
 # deploy is unchanged; this script only replaces remembering the checks. Exit 0 means no FAIL (WARN is allowed).
@@ -42,12 +45,8 @@ PASSES=0; WARNS=0; FAILS=0
 # mem_ok <MemAvailable in MB>: succeeds when it is a number at least the minimum.
 mem_ok() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge "$MIN_MEM_MB" ]; }
 
-# registry_mode <prefix> <tag> -> local (neither set) | registry (both) | partial (exactly one; check_env.sh refuses this)
-registry_mode() {
-  if [ -n "$1" ] && [ -n "$2" ]; then echo registry
-  elif [ -z "$1" ] && [ -z "$2" ]; then echo local
-  else echo partial; fi
-}
+# registry_mode <prefix> [<tag, ignored>] -> local (no prefix) | registry (prefix set; the tag defaults to latest)
+registry_mode() { if [ -n "$1" ]; then echo registry; else echo local; fi; }
 
 # short_tag <commit> -> sha-<first 7 characters>, the tag the release workflow gives an image
 short_tag() { printf 'sha-%s' "${1:0:7}"; }
@@ -178,12 +177,13 @@ check_healthy() {
 
 REGISTRY_SERVICES="collector watchdog backup migrate"
 
-# image_problems <checkout HEAD> <.env tag>: prints what is wrong, empty when every registry-image container (from $CONTAINERS) runs
-# the .env tag and carries a revision label that HEAD starts with. Catches tag A with checkout B: the migrations come from the
-# checkout's ./db mount while the code comes from the image.
+# image_problems <checkout HEAD> <.env tag, empty = latest>: prints what is wrong, empty when every registry-image container (from $CONTAINERS) runs
+# the .env tag and carries a revision label that HEAD starts with. Catches image A with checkout B: the migrations come from the
+# checkout's ./db mount while the code comes from the image. A latest tag is checked by the label alone; a `sha-` pin must also
+# name the checkout's commit.
 image_problems() {
-  local head="$1" tag="$2" out="" svc l img rev
-  [ "$tag" = "$(short_tag "$head")" ] || out="$out .env tag is $tag but the checkout is $(short_tag "$head");"
+  local head="$1" tag="${2:-latest}" out="" svc l img rev
+  case "$tag" in sha-*) [ "$tag" = "$(short_tag "$head")" ] || out="$out .env tag is the pin $tag but the checkout is $(short_tag "$head");" ;; esac
   for svc in $REGISTRY_SERVICES; do
     l="$(svc_line "$svc")"
     if [ -z "$l" ]; then out="$out $svc: no container;"; continue; fi
@@ -200,11 +200,10 @@ check_images() {
   pfx="$(vm_env_key VATPAC_IMAGE_PREFIX)"; tag="$(vm_env_key VATPAC_IMAGE_TAG)"; mode="$(registry_mode "$pfx" "$tag")"
   case "$mode" in
     local) emit PASS image_revisions "local build mode" ;;
-    partial) emit FAIL image_revisions "exactly one of VATPAC_IMAGE_PREFIX and VATPAC_IMAGE_TAG is set in the VM's .env" ;;
     *) head="$(vm 'git rev-parse HEAD' 2>/dev/null | tr -d '\r' | head -n 1)"
        if [ -z "$CONTAINERS" ] || ! [[ "$head" =~ ^[0-9a-f]{40}$ ]]; then emit FAIL image_revisions "could not read the containers or the checkout HEAD"; return; fi
        probs="$(image_problems "$head" "$tag")"
-       if [ -z "$probs" ]; then emit PASS image_revisions "registry mode: $REGISTRY_SERVICES run $tag, built from the checkout ${head:0:10}"
+       if [ -z "$probs" ]; then emit PASS image_revisions "registry mode: $REGISTRY_SERVICES run ${tag:-latest}, built from the checkout ${head:0:10}"
        else emit FAIL image_revisions "registry mode:$probs"; fi ;;
   esac
 }
@@ -337,9 +336,8 @@ check_registry_preflight() {
   pfx="$(vm_env_key VATPAC_IMAGE_PREFIX)"; tag="$(vm_env_key VATPAC_IMAGE_TAG)"; mode="$(registry_mode "$pfx" "$tag")"
   case "$mode" in
     local) emit PASS registry_mode "local build mode"; return ;;
-    partial) emit FAIL registry_mode "exactly one of VATPAC_IMAGE_PREFIX and VATPAC_IMAGE_TAG is set in the VM's .env; set both or neither"; return ;;
   esac
-  emit PASS registry_mode "registry mode (both image variables are set in the VM's .env)"
+  emit PASS registry_mode "registry mode (VATPAC_IMAGE_PREFIX is set in the VM's .env)"
   if ! valid_prefix "$pfx"; then emit FAIL registry_images "VATPAC_IMAGE_PREFIX in the VM's .env is not a registry path ending in a slash"
   else
     for n in $REGISTRY_SERVICES; do
@@ -348,8 +346,11 @@ check_registry_preflight() {
     if [ -z "$bad" ]; then emit PASS registry_images "$REGISTRY_SERVICES are published as $c7"
     else emit FAIL registry_images "not readable as $c7:$bad; check the release workflow published this commit, or the token expired: docker login ghcr.io"; fi
   fi
-  if [ "$tag" = "$c7" ]; then emit PASS image_tag_env ".env VATPAC_IMAGE_TAG is $c7"
-  else emit WARN image_tag_env "owner to set this line first: VATPAC_IMAGE_TAG=$c7 (the VM's .env has ${tag:-nothing})"; fi
+  case "$tag" in
+    sha-*) emit WARN image_tag_env "WARNING: the VM's .env pins VATPAC_IMAGE_TAG=$tag, so make deploy will NOT move to the new images. Delete that line unless this is a deliberate rollback" ;;
+    '') emit PASS image_tag_env "no VATPAC_IMAGE_TAG line: images follow latest" ;;
+    *) emit PASS image_tag_env "VATPAC_IMAGE_TAG override is set (not a sha- pin)" ;;
+  esac
 }
 
 # ---------------------------------------------------------------- --verify
@@ -464,7 +465,7 @@ status() {
 # ---------------------------------------------------------------- --mark (the only write)
 
 mark() {
-  local want="$1" allow="${2:-}" full now stamp who prev rc vmhead pfx tag imgs
+  local want="$1" allow="${2:-}" full now stamp who prev rc vmhead pfx tag imgs crev
   [ -z "$allow" ] || [ "$allow" = --allow-silent-issues ] || { echo "usage: deploy.sh --mark <commit> [--allow-silent-issues]" >&2; return 2; }
   [[ "$want" =~ ^[0-9a-fA-F]{7,40}$ ]] || { echo "usage: deploy.sh --mark <commit (7 to 40 hex characters)>" >&2; return 2; }
   full="$(g rev-parse --verify -q "${want}^{commit}" 2>/dev/null)"
@@ -490,9 +491,10 @@ mark() {
   fi
   pfx="$(vm_env_key VATPAC_IMAGE_PREFIX)"; tag="$(vm_env_key VATPAC_IMAGE_TAG)"
   case "$(registry_mode "$pfx" "$tag")" in
-    registry) imgs="$(printf '%s' "$tag" | tr -cd 'A-Za-z0-9._-')" ;;
+    registry) load_containers   # record the revision actually running (the tag is the moving name latest), not the tag
+              crev="$(svc_line collector | cut -d'|' -f6 | tr -cd '0-9a-f')"
+              imgs="${crev:0:12}"; [ -n "$imgs" ] || imgs=unknown ;;
     local) imgs=local ;;
-    *) imgs=partial ;;
   esac
   stamp="$(iso "$now")"; who="$(printf '%s' "${USER:-${USERNAME:-unknown}}" | tr -cd 'A-Za-z0-9._-')"
   # the log line goes first and the marker is replaced last, so a failed log append leaves the old marker in place.

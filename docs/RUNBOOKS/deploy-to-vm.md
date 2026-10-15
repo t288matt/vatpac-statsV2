@@ -213,27 +213,23 @@ docker compose pull && docker compose up -d --no-build
 
 **When the token expires.** After the expiry date `docker compose pull` fails with `unauthorized` or `denied`. The stack keeps running on the images it already has; only deploys stop. Fix: create a new classic token (`read:packages` only, 90 days), run the `docker login` line of step 2 again, set a new calendar reminder, and delete the old token on GitHub. A deploy that fails at `pull` has changed nothing, because `up -d --no-build` runs only after `pull` succeeds (the two are joined with `&&`). Renewing an expired token has not been done yet (not yet run).
 
-## 2f. Deploy a commit in registry mode (issue 173; the first registry deploy was run on 14-10-2026 as section 2e; a second deploy from one tag to another is not yet run)
+## 2f. Deploy a commit in registry mode (issue 173; amended 15-10-2026: no `.env` edit per deploy, images follow `latest`)
 Use after section 2e has been done once. Before deploying read [daily-checks.md](daily-checks.md): a redeploy restarts the collector (about 45 seconds of snapshots) and breaks a 24 hour soak in progress. Every deploy needs the owner's explicit go.
 
-1. **PC: choose the commit and publish it.** The commit is on main and its CI run on main passed. Start the release workflow: Actions > release > Run workflow with the commit, or `gh workflow run release.yml -f commit=<sha>`. A docs-only commit skips CI and cannot be published; deploy the last code commit instead. Check: the run shows four green `images` jobs.
+**One-time `.env` change (owner, once, announced first): DELETE the `VATPAC_IMAGE_TAG` line.** Registry mode is now switched by one line, `VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/`; the tag defaults to `latest`, which the release workflow moves to each published commit. The VM's `.env` currently has `VATPAC_IMAGE_TAG=sha-2f04731` (a pin), and while it stays, `make deploy` keeps running that old build. Delete it once: `sed -i '/^VATPAC_IMAGE_TAG=/d' .env && grep '^VATPAC_IMAGE' .env && sh ops/check_env.sh`. After that `.env` is never edited per deploy. `make deploy`, `check_env.sh` and the preflight warn loudly if a `sha-` pin is present.
+
+**Order: release first, then deploy.** The release workflow publishes the images and moves `latest` to them; only then does the VM pull. `make deploy` refuses to start anything if the pulled images were not built from the checked-out commit.
+
+1. **PC: publish the commit.** The commit is on main and its CI run on main passed. Start the release workflow: Actions > release > Run workflow with the commit, or `gh workflow run release.yml -f commit=<sha>`. A docs-only commit skips CI and cannot be published; deploy the last code commit instead. It pushes `sha-<7>` for the four images, then, only if all four built, moves `latest` to them. Check: four green `images` jobs and a green `promote` job. This click is the approval gate.
 2. **PC: preflight.** `bash ops/deploy.sh --preflight <commit>` (reads only; PASS, or a WARN you understand).
-3. **VM: fresh dump.** `cd ~/vatpac-statsV2 && docker compose exec backup backup.sh once`, then check the new file in `/backups`. The git checkout is the rollback copy of the code; the dump is what matters, because an image cannot undo a migration.
-4. **VM: check out the commit and set the tag.**
+3. **VM: fresh dump.** `cd ~/vatpac-statsV2 && docker compose exec backup backup.sh once`, then check the new file in `/backups`. The dump is what matters, because an image cannot undo a migration.
+4. **VM: deploy.**
 ```sh
-cd ~/vatpac-statsV2 && git fetch origin && git checkout --detach <commit> && git status --short
-sed -i 's/^VATPAC_IMAGE_TAG=.*/VATPAC_IMAGE_TAG=sha-<7>/' .env && grep '^VATPAC_IMAGE' .env && sh ops/check_env.sh
+cd ~/vatpac-statsV2 && git status --short && make deploy
 ```
-Check: `git status --short` prints nothing (anything listed is an edited or untracked file: look before going on); `grep` shows the prefix and the new tag. New releases may add settings to `.env.example`: add any new blank secrets before the next step.
-5. **VM: look, pull, start.**
-```sh
-docker compose config --images
-docker compose pull
-docker compose up -d --no-build
-```
-`config --images` shows the resolved names first. `pull` fetches only what the VM does not have yet. `--no-build` guarantees nothing is built locally. `migrate` runs first and applies any new numbered file in `db/migrations` from the tree (the `./db` mount is kept), then the services whose image changed are recreated. Confirm: `docker compose ps -a migrate` shows `exited (0)` and `docker compose logs --tail=20 migrate` ends with `migrate: done`. A changed `ops/postgres/postgresql.conf` still needs `docker compose restart db`.
-6. **PC: verify.** `bash ops/deploy.sh --verify` (all PASS), then open the ten public addresses ([public-access.md](public-access.md)).
-7. **PC: mark.** `bash ops/deploy.sh --mark <commit>` after commenting on the issues in the commits (the guard refuses otherwise). The tag in the VM's `.env` must name the same 7 characters as the marker: compare `bash ops/deploy.sh --status` with `grep '^VATPAC_IMAGE_TAG' .env` on the VM.
+`git status --short` must print nothing. `make deploy` runs `git pull --ff-only`, `docker compose pull`, a check that the pulled images' revision label equals the checkout commit, then `docker compose up -d --no-build`. If the check fails it stops with "the images for this commit are not published yet: run the release workflow for <commit>, then run make deploy again" and nothing running is changed. It never builds. After a rollback the checkout is detached: run `git checkout main` first. New releases may add settings to `.env.example`: add any new blank secrets before this step. Confirm: `docker compose ps -a migrate` shows `exited (0)` and its logs end with `migrate: done`. A changed `ops/postgres/postgresql.conf` still needs `docker compose restart db`. (The Makefile is from PR 180. Without `make`, run the same commands by hand, with `sh ops/check_pulled_images.sh` before the last one.)
+5. **PC: verify.** `bash ops/deploy.sh --verify` (all PASS), then open the ten public addresses ([public-access.md](public-access.md)).
+6. **PC: mark.** `bash ops/deploy.sh --mark <commit>` after commenting on the issues in the commits. The release file is unchanged; `release.log` now records the running collector image's revision in its `images=` line.
 
 **What a change needs in registry mode.** The table "What a change needs" below still applies, with one change: wherever it says `docker compose up -d --build` for collector, watchdog, backup or migrate code, read "publish the commit, set the tag, `docker compose pull`, `docker compose up -d --no-build`". The build arguments `BACKUP_EXTRA_APT_PACKAGES` and `VATPAC_VERSION` are ignored in registry mode: the published backup image has no `rsync`, `ssh` or `rclone`, so an off-box copy hook that needs them ([restore.md](restore.md), [../OWNER_BACKUP_COPY.md](../OWNER_BACKUP_COPY.md)) works only in local-build mode until the tools are added to the published image. Dashboards, provisioning, `config/` and migrations are mounts: a checkout is enough, as before.
 
@@ -381,21 +377,18 @@ ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/smoke.sh && python3 ops/check_panel
 ## Roll back
 Code, dashboards and configuration go back by deploying the previous commit; the database does not go back by itself. Migrations are forward-only. A migration that already ran stays applied after a code rollback; additive migrations (a new view, an index) are harmless to older code. If a migration must be undone, add a new corrective numbered migration, or restore from backup ([restore.md](restore.md)); never edit an applied migration. Images cannot undo a migration either, so the dump taken before the deploy is the way back from a bad one.
 
-**Registry mode, first cycle (the situation on 14-10-2026).** Setting "the previous `sha-` tag" does NOT work yet: no earlier registry tag exists, because 67c1ca0 was the first publish. The only rollback is the locally built `:local` images still on the VM:
+**Registry mode, first cycle (history, 14-10-2026).** Setting "the previous `sha-` tag" does NOT work yet: no earlier registry tag exists, because 67c1ca0 was the first publish. The only rollback is the locally built `:local` images still on the VM:
 1. VM: `cd ~/vatpac-statsV2 && sed -i '/^VATPAC_IMAGE_/d' .env` (removes BOTH lines; one alone makes `sh ops/check_env.sh` fail).
 2. VM, optional but advised: `git checkout --detach <the commit the local images were built from>` (the previous marker in `.deploy/release.log`), so the mounted files match those images. A newer migration file that was already applied stays applied.
 3. VM: `docker compose up -d --no-build`.
 4. PC: `bash ops/deploy.sh --verify`, then the ten public addresses. Not yet run as a rollback.
 
-**Registry mode, from the second registry deploy on (not yet run).** The previous `sha-` set stays on the VM (keep it pulled), so the way back is:
-1. Note the commit and tag that were deployed before (`bash ops/deploy.sh --status`, or `.deploy/release.log`). The previous commit must have been published.
-2. VM: check out the previous commit, which also removes any newer migration file you do not want applied, and set the previous tag:
+**Registry mode.** Go back to a previous build by its `sha-<7>` tag, with no `.env` edit:
 ```sh
-cd ~/vatpac-statsV2 && git checkout --detach <previous commit> && sed -i 's/^VATPAC_IMAGE_TAG=.*/VATPAC_IMAGE_TAG=sha-<previous 7>/' .env && grep '^VATPAC_IMAGE' .env
-docker compose config --images && docker compose pull && docker compose up -d --no-build
+cd ~/vatpac-statsV2 && git checkout --detach <previous commit>
+VATPAC_IMAGE_TAG=sha-<previous 7> docker compose up -d --no-build
 ```
-`pull` fetches nothing if the previous images are still on the VM. Do not use `--build`.
-3. Verify with `bash ops/deploy.sh --verify` and the ten public addresses; mark the previous commit with `--mark` if the old marker should be restored.
+Then `bash ops/deploy.sh --verify`. Warning: that override lasts for that one command only. A later plain `docker compose up -d` returns to `latest`, on the newest images with the old checkout. Return with `git checkout main` and `make deploy`.
 
 **Local-build mode with git.** `git checkout --detach <previous commit>`, then `docker compose up -d --build`, then `sh ops/smoke.sh` and `python3 ops/check_panels.py`. The checkout already removes files the newer commit added.
 

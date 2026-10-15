@@ -107,14 +107,14 @@ PFX = "ghcr.io/t288matt/"
 TAG7 = "sha-" + FULL[:7]
 
 
-def _inspect_registry(tag: str = TAG7, rev: str = FULL, only: str = "") -> str:
+def _inspect_registry(tag: str = "latest", rev: str = FULL, only: str = "") -> str:
     """Six-field inspect lines: the four registry-image services carry an image and a revision label (only: the one service that differs)."""
     rows = []
     for s in ("backup", "collector", "db", "grafana", "watchdog", "migrate"):
         base = f"/vatpac-{s}-1|2026-10-09T15:42:07.7Z|0|{'exited' if s == 'migrate' else 'healthy'}"
         if s in ("backup", "collector", "watchdog", "migrate"):
             odd = only == s
-            base += f"|{PFX}vatpac-stats-{s}:{tag if odd else TAG7}|{rev if odd else FULL}"
+            base += f"|{PFX}vatpac-stats-{s}:{tag if odd else 'latest'}|{rev if odd else FULL}"
         else:
             base += f"|third/party-{s}:1|"
         rows.append(base)
@@ -160,8 +160,9 @@ class Fake:
         o = overrides or {}
         self.write("invariants.txt", "".join(f"{n}|{o.get(n, '0')}|\n" for n in (rows if rows is not None else NAMES)))
 
-    def registry(self, prefix: str = PFX, tag: str = TAG7) -> None:
-        self.dotenv(f"VATPAC_IMAGE_PREFIX={prefix}\nVATPAC_IMAGE_TAG={tag}\n")
+    def registry(self, prefix: str = PFX, tag: str = "") -> None:
+        """Registry mode as production runs it: the prefix alone (images follow latest); a tag line is only a pin."""
+        self.dotenv(f"VATPAC_IMAGE_PREFIX={prefix}" + chr(10) + (f"VATPAC_IMAGE_TAG={tag}" + chr(10) if tag else ""))
         self.write("inspect.txt", _inspect_registry())
 
     def dotenv(self, text: str) -> None:
@@ -517,7 +518,7 @@ def test_registry_pure_logic() -> None:
              f"head_matches {FULL} abcdef0 || echo no1", f"head_matches {FULL} {FULL[:6]} || echo short", f"head_matches {FULL} '' || echo empty2"]
     e = dict(os.environ, DEPLOY_SOURCE_ONLY="1")
     p = subprocess.run([str(BASH), "-c", f'. "{SCRIPT.as_posix()}"; ' + "; ".join(calls)], capture_output=True, text=True, env=e, timeout=60)
-    assert p.stdout.split() == ["local", "registry", "partial", "partial", TAG7, "v", "noslash", "unsafe", "empty",
+    assert p.stdout.split() == ["local", "registry", "registry", "local", TAG7, "v", "noslash", "unsafe", "empty",
                                 "m1", "m2", "no1", "short", "empty2"], p.stdout + p.stderr
 
 
@@ -540,14 +541,14 @@ def test_preflight_registry_failures(tmp_path: Path) -> None:
     rc, out = f.run("--preflight", "f893585")
     ln = line_for(out, "registry_images")
     assert rc == 1 and ln.startswith("FAIL") and ln.split("as " + TAG7 + ":")[1].split(";")[0].split() == ["migrate"], out
-    f = Fake(tmp_path / "wrongtag")  # the .env tag is not the commit being deployed: WARN (the owner sets it first), not FAIL
+    f = Fake(tmp_path / "pinned")  # a sha- pin in the .env stops deploys following latest: a loud WARN, not FAIL
     f.registry(tag="sha-1234567")
     rc, out = f.run("--preflight", "f893585")
-    assert rc == 0 and line_for(out, "image_tag_env").startswith("WARN") and f"VATPAC_IMAGE_TAG={TAG7}" in out
-    f = Fake(tmp_path / "partial")
+    assert rc == 0 and line_for(out, "image_tag_env").startswith("WARN") and "WARNING" in out and "Delete that line" in out
+    f = Fake(tmp_path / "tagonly")  # a tag without a prefix is not registry mode: local build, no manifest calls
     f.dotenv(f"VATPAC_IMAGE_TAG={TAG7}\n")
     rc, out = f.run("--preflight", "f893585")
-    assert rc == 1 and line_for(out, "registry_mode").startswith("FAIL") and not (f.dir / "manifest.log").exists()
+    assert rc == 0 and "local build mode" in line_for(out, "registry_mode") and not (f.dir / "manifest.log").exists()
     f = Fake(tmp_path / "badprefix")
     f.registry(prefix="x;rm -rf /")
     rc, out = f.run("--preflight", "f893585")
@@ -583,9 +584,6 @@ def test_verify_checks_image_revisions(tmp_path: Path) -> None:
     f.registry(tag="sha-1234567")
     rc, out = f.run("--verify")
     assert rc == 1 and ".env tag is" in line_for(out, "image_revisions")
-    f = Fake(tmp_path / "partial")
-    f.dotenv("VATPAC_IMAGE_PREFIX=ghcr.io/x/\n")
-    assert line_for(f.run("--verify")[1], "image_revisions").startswith("FAIL")
 
 
 def test_status_shows_images(tmp_path: Path) -> None:
@@ -593,7 +591,7 @@ def test_status_shows_images(tmp_path: Path) -> None:
     f.registry()
     rc, out = f.run("--status")
     assert rc == 0 and "== images" in out, out
-    assert f"/vatpac-collector-1 | {PFX}vatpac-stats-collector:{TAG7} | {FULL[:12]}" in out
+    assert f"/vatpac-collector-1 | {PFX}vatpac-stats-collector:latest | {FULL[:12]}" in out
     assert "image mode: registry" in out and f"checkout HEAD: {FULL[:12]}" in out
     containers = out.split("== containers")[1].split("== images")[0]
     assert all(ln.count("|") == 3 for ln in containers.splitlines()[1:] if ln.startswith("/")), containers  # the old four fields
@@ -602,8 +600,8 @@ def test_status_shows_images(tmp_path: Path) -> None:
 
 
 def test_mark_records_images_in_the_log_only(tmp_path: Path) -> None:
-    for sub, setup, want in (("reg", lambda f: f.registry(), TAG7), ("loc", lambda f: None, "local"),
-                             ("part", lambda f: f.dotenv("VATPAC_IMAGE_TAG=sha-1\n"), "partial")):
+    for sub, setup, want in (("reg", lambda f: f.registry(), FULL[:12]), ("loc", lambda f: None, "local"),
+                             ("tagonly", lambda f: f.dotenv("VATPAC_IMAGE_TAG=sha-1\n"), "local")):
         f = Fake(tmp_path / sub)
         setup(f)
         rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
@@ -631,16 +629,48 @@ def test_image_mode_script_is_both_or_neither(tmp_path: Path) -> None:
         return p.stdout.strip()
 
     assert mode("OTHER=1\n") == "local"
+    assert mode("VATPAC_IMAGE_PREFIX=ghcr.io/x/\n") == "registry"  # the prefix alone is registry mode
     assert mode("VATPAC_IMAGE_PREFIX=ghcr.io/x/\nVATPAC_IMAGE_TAG=sha-1\n") == "registry"
-    assert mode("VATPAC_IMAGE_PREFIX=ghcr.io/x/\n") == "partial"
-    assert mode("VATPAC_IMAGE_TAG=sha-1\n") == "partial"
+    assert mode("VATPAC_IMAGE_TAG=sha-1\n") == "local"  # a tag alone does not switch mode
     assert mode("VATPAC_IMAGE_PREFIX=\nVATPAC_IMAGE_TAG=\n") == "local"  # blank counts as unset
-    assert mode("VATPAC_IMAGE_PREFIX=a/\nVATPAC_IMAGE_TAG=x\nVATPAC_IMAGE_TAG=\n") == "partial"  # last assignment wins
+    assert mode("VATPAC_IMAGE_PREFIX=a/\nVATPAC_IMAGE_PREFIX=\n") == "local"  # last assignment wins
     assert mode("VATPAC_IMAGE_TAG=sha-1\r\nVATPAC_IMAGE_PREFIX=a/\r\n") == "registry"
     assert mode(None) == "local"  # no file, no variables
-    assert mode('VATPAC_IMAGE_PREFIX="ghcr.io/x/"\nVATPAC_IMAGE_TAG=\'sha-1\'\n') == "registry"  # quoted values
-    assert mode('VATPAC_IMAGE_PREFIX=""\nVATPAC_IMAGE_TAG=\'\'\n') == "local"  # empty quotes are unset
-    assert mode("export VATPAC_IMAGE_PREFIX=a/\nexport  VATPAC_IMAGE_TAG='t'\n") == "registry"  # export form
-    assert mode('export VATPAC_IMAGE_TAG="t"\n') == "partial"
-    assert mode("", VATPAC_IMAGE_PREFIX="a/", VATPAC_IMAGE_TAG="t") == "registry"  # the environment counts too
-    assert mode("", VATPAC_IMAGE_PREFIX="a/") == "partial"
+    assert mode('VATPAC_IMAGE_PREFIX="ghcr.io/x/"\n') == "registry"  # quoted value
+    assert mode('VATPAC_IMAGE_PREFIX=""\n') == "local"  # empty quotes are unset
+    assert mode("export VATPAC_IMAGE_PREFIX=a/\n") == "registry"  # export form
+    assert mode("", VATPAC_IMAGE_PREFIX="a/") == "registry"  # the environment counts too
+    assert mode("", VATPAC_IMAGE_TAG="t") == "local"
+    env_file.write_bytes(b"VATPAC_IMAGE_PREFIX=a/\nVATPAC_IMAGE_TAG=sha-1\n")
+    p = subprocess.run([str(BASH), "-c", f'sh "{script}" "{env_file.as_posix()}"'], capture_output=True, text=True, env=base, timeout=30)
+    assert p.stdout.strip() == "registry" and "WARNING" in p.stderr and "sha-1" not in p.stderr + p.stdout  # a pin warns loudly, value not printed
+
+
+def _pulled_images_run(tmp_path: Path, labels: dict[str, str], head: str = FULL) -> "subprocess.CompletedProcess[str]":
+    """ops/check_pulled_images.sh against a stub git and docker: labels maps a service name to its image's revision label."""
+    b = tmp_path / "bin"
+    b.mkdir(parents=True)
+    (b / "git").write_text(f"#!/bin/sh\necho {head}\n", newline="\n")
+    (b / "docker").write_text(
+        '#!/bin/sh\ncase "$1 $2" in\n'
+        '  "compose config") for n in collector watchdog backup migrate; do echo "ghcr.io/x/vatpac-stats-$n:latest"; done ;;\n'
+        '  "image inspect") for l in $(cat "$FAKE_LABELS"); do n="${l%%=*}"; case "$*" in *"vatpac-stats-$n:"*) echo "${l#*=}" ;; esac; done ;;\n'
+        "esac\n", newline="\n")
+    for n in ("git", "docker"):
+        (b / n).chmod(0o755)
+    (tmp_path / "labels").write_text("\n".join(f"{k}={v}" for k, v in labels.items()), newline="\n")
+    env = dict(os.environ, PATH=f"{b}{os.pathsep}{os.environ['PATH']}", FAKE_LABELS=str(tmp_path / "labels"))
+    return subprocess.run([str(BASH), str(REPO / "ops" / "check_pulled_images.sh")], capture_output=True, text=True, env=env, timeout=60)
+
+
+def test_make_deploy_stops_when_pulled_images_do_not_match_the_checkout(tmp_path: Path) -> None:
+    ok = {n: FULL for n in ("collector", "watchdog", "backup", "migrate")}
+    r = _pulled_images_run(tmp_path / "ok", ok)
+    assert r.returncode == 0, r.stderr
+    r = _pulled_images_run(tmp_path / "old", dict(ok, collector="a" * 40))  # latest has not been moved to this commit yet
+    assert r.returncode == 1 and "images for this commit are not published yet: run the release workflow for" in r.stderr
+    assert _pulled_images_run(tmp_path / "nolabel2", dict(ok, migrate="")).returncode == 1
+    mk = (REPO / "Makefile").read_text(encoding="utf-8")
+    body = mk.split("\ndeploy:")[1].split("\n\n")[0]
+    order = [body.index(x) for x in ("git pull --ff-only", "docker compose pull", "check_pulled_images.sh", "docker compose up -d --no-build")]
+    assert order == sorted(order) and "--build" not in body.replace("--no-build", "")  # never up before the check, never builds
