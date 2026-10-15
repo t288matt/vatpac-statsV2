@@ -1,7 +1,7 @@
 """docker-compose.yml: the four built services take their image from two optional variables (issue 173, P2).
 
-Unset, the result must be the local image `vatpac-stats-<name>:local` (what `make up` and `up -d --build` build).
-Set to the release workflow's names, it must be `ghcr.io/t288matt/vatpac-stats-<name>:sha-<7>`. No Docker needed.
+Unset, the result must be the local image `vatpac-stats-<name>:latest` (what `make up` and `up -d --build` build).
+With the prefix alone it is `ghcr.io/t288matt/vatpac-stats-<name>:latest`; with a tag override, `...:sha-<7>`. No Docker needed.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 BUILT = ("migrate", "collector", "backup", "watchdog")
-VAR_RE = re.compile(r"^\$\{VATPAC_IMAGE_PREFIX:-\}(vatpac-stats-[a-z]+):\$\{VATPAC_IMAGE_TAG:-local\}$")
+VAR_RE = re.compile(r"^\$\{VATPAC_IMAGE_PREFIX:-\}(vatpac-stats-[a-z]+):\$\{VATPAC_IMAGE_TAG:-latest\}$")
 
 
 def _services() -> dict:
@@ -23,7 +23,7 @@ def _services() -> dict:
 
 
 def _resolve(image: str, prefix: str, tag: str) -> str:
-    return image.replace("${VATPAC_IMAGE_PREFIX:-}", prefix).replace("${VATPAC_IMAGE_TAG:-local}", tag or "local")
+    return image.replace("${VATPAC_IMAGE_PREFIX:-}", prefix).replace("${VATPAC_IMAGE_TAG:-latest}", tag or "latest")
 
 
 @pytest.mark.parametrize("name", BUILT)
@@ -37,7 +37,7 @@ def test_built_service_uses_the_variable_form_and_keeps_its_build(name: str) -> 
 
 @pytest.mark.parametrize("name", BUILT)
 def test_unset_falls_back_to_the_local_image(name: str) -> None:
-    assert _resolve(_services()[name]["image"], "", "") == f"vatpac-stats-{name}:local"
+    assert _resolve(_services()[name]["image"], "", "") == f"vatpac-stats-{name}:latest"
 
 
 @pytest.mark.parametrize("name", BUILT)
@@ -45,6 +45,12 @@ def test_registry_names_match_the_release_workflow(name: str) -> None:
     release = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert re.search(rf"name: {name}\b", release)
     assert "ghcr.io/t288matt/vatpac-stats-${{ matrix.name }}" in release and "sha-${{ needs.check.outputs.short }}" in release
+    assert "type=raw,value=latest" not in release  # latest is moved by the promote job, after all four images are pushed
+    promote = yaml.safe_load(release)["jobs"]["promote"]
+    assert set(promote["needs"]) == {"check", "images"}
+    run = " ".join(str(st.get("run", "")) for st in promote["steps"])
+    assert "for n in collector watchdog backup migrate" in run and '--tag "$img:latest" "$img:sha-$SHORT"' in run
+    assert _resolve(_services()[name]["image"], "ghcr.io/t288matt/", "") == f"ghcr.io/t288matt/vatpac-stats-{name}:latest"
     assert _resolve(_services()[name]["image"], "ghcr.io/t288matt/", "sha-abc1234") == f"ghcr.io/t288matt/vatpac-stats-{name}:sha-abc1234"
 
 
@@ -54,7 +60,7 @@ def test_third_party_images_are_untouched_and_the_variables_are_documented_but_n
             assert "VATPAC_IMAGE" not in svc["image"]
     example = (REPO / ".env.example").read_text(encoding="utf-8")
     assert re.search(r"^#VATPAC_IMAGE_PREFIX=ghcr\.io/t288matt/$", example, re.M)
-    assert re.search(r"^#VATPAC_IMAGE_TAG=sha-", example, re.M)
+    assert re.search(r"^#VATPAC_IMAGE_TAG=$", example, re.M)
     assert not re.search(r"^VATPAC_IMAGE_(PREFIX|TAG)=", example, re.M)
     cfg = (REPO / "docs" / "CONFIG_MAP.md").read_text(encoding="utf-8")
     assert "`VATPAC_IMAGE_PREFIX`" in cfg and "`VATPAC_IMAGE_TAG`" in cfg
@@ -68,19 +74,18 @@ def _check_env(tmp_path: Path, extra: str) -> "subprocess.CompletedProcess[str]"
 
 
 @pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
-@pytest.mark.parametrize("extra,ok", [
-    ("", True),
-    ("VATPAC_IMAGE_PREFIX=\nVATPAC_IMAGE_TAG=\n", True),
-    ("VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/\nVATPAC_IMAGE_TAG=sha-abc1234\n", True),
-    ("VATPAC_IMAGE_TAG=sha-abc1234\n", False),
-    ("VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/\n", False),
+@pytest.mark.parametrize("extra,ok,warns", [
+    ("", True, False),
+    ("VATPAC_IMAGE_PREFIX=\nVATPAC_IMAGE_TAG=\n", True, False),
+    ("VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/\n", True, False),  # the prefix alone is registry mode
+    ("VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/\nVATPAC_IMAGE_TAG=sha-abc1234\n", True, True),  # a pin passes but warns loudly
+    ("VATPAC_IMAGE_TAG=sha-abc1234\n", True, True),
 ])
-def test_check_env_wants_both_image_variables_or_neither(tmp_path: Path, extra: str, ok: bool) -> None:
+def test_check_env_accepts_the_prefix_alone_and_warns_about_a_pin(tmp_path: Path, extra: str, ok: bool, warns: bool) -> None:
     r = _check_env(tmp_path, extra)
     assert (r.returncode == 0) == ok
-    assert "sha-abc1234" not in r.stderr + r.stdout and "ghcr.io" not in r.stderr + r.stdout  # values never printed
-    if not ok:
-        assert "set both or neither" in r.stderr
+    assert "ghcr.io" not in r.stderr + r.stdout and "abc1234" not in r.stderr + r.stdout  # values never printed
+    assert ("WARNING" in r.stderr) == warns
 
 
 def test_release_matrix_names_equal_the_compose_services_using_vatpac_stats_images() -> None:

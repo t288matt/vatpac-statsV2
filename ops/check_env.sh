@@ -38,15 +38,11 @@ for name in $SECRETS; do
   seen="$seen $val"
 done
 
-# Registry image variables (issue 173): both or neither. One alone is a trap (a tag alone builds locally and tags it
-# sha-...; a prefix alone pulls a :local image that does not exist). Empty counts as unset; values are never printed.
-img_prefix="$(sed -n "s/^VATPAC_IMAGE_PREFIX=//p" "$ENV_FILE" | tail -n 1 | tr -d '')"
-img_tag="$(sed -n "s/^VATPAC_IMAGE_TAG=//p" "$ENV_FILE" | tail -n 1 | tr -d '')"
-if [ -n "$img_prefix" ] && [ -z "$img_tag" ]; then
-  echo "check_env: VATPAC_IMAGE_PREFIX is set but VATPAC_IMAGE_TAG is not; set both or neither" >&2; bad=1
-elif [ -z "$img_prefix" ] && [ -n "$img_tag" ]; then
-  echo "check_env: VATPAC_IMAGE_TAG is set but VATPAC_IMAGE_PREFIX is not; set both or neither" >&2; bad=1
-fi
+# Registry mode is switched by VATPAC_IMAGE_PREFIX alone (issue 173); VATPAC_IMAGE_TAG is an optional override that pins an
+# older build. A sha- pin gets a loud warning (values other than the pin's kind are never printed).
+case "$(sed -n "s/^VATPAC_IMAGE_TAG=//p" "$ENV_FILE" | tail -n 1 | tr -d '\r"'"'"' ')" in
+  sha-*) echo "check_env: WARNING VATPAC_IMAGE_TAG is a sha- pin: images will not follow new releases. Delete that line unless this is a deliberate rollback." >&2 ;;
+esac
 
 if [ "$bad" -ne 0 ]; then
   echo "check_env: FAILED. Generate strong values with: sh ops/gen_env.sh   (or edit $ENV_FILE)" >&2

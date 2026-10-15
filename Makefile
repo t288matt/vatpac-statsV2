@@ -1,34 +1,39 @@
 .PHONY: soak up deploy down dev logs ps config test lint smoke size backup backup-test restore gen-env check-env drift
 
 # Local builds. Refuses to start with blank/weak secrets (ops/check_env.sh). No .env yet? run: make gen-env
-# Refuses when VATPAC_IMAGE_TAG or VATPAC_IMAGE_PREFIX is set (environment or .env): compose would build locally and tag the
+# Refuses when VATPAC_IMAGE_PREFIX is set (environment or .env): compose would build locally and tag the
 # build with the registry name, which defeats the pull. In registry mode use: make deploy
 up: check-env
 	@mode="$$(sh ops/image_mode.sh .env)"; \
 	if [ "$$mode" != local ]; then \
-	  echo "make up: VATPAC_IMAGE_PREFIX and/or VATPAC_IMAGE_TAG is set (environment or .env), so this is registry mode." >&2; \
+	  echo "make up: VATPAC_IMAGE_PREFIX is set (environment or .env), so this is registry mode." >&2; \
 	  echo "make up would build locally and retag the build with the registry name. Use 'make deploy' to pull and start," >&2; \
-	  echo "or unset both variables to build locally." >&2; exit 1; \
+	  echo "or unset VATPAC_IMAGE_PREFIX to build locally." >&2; exit 1; \
 	fi
 	docker compose up -d --build
 
-# Registry mode (images pulled, never built): both VATPAC_IMAGE_PREFIX and VATPAC_IMAGE_TAG must be set.
+# Registry mode (images pulled, never built): VATPAC_IMAGE_PREFIX is set once in .env; the tag defaults to latest, so no .env
+# edit per deploy. Order: fast-forward the checkout, pull, check the pulled images were built from this checkout, only then up.
+# Run the release workflow for the commit first; if its images are not published yet this stops before touching anything running.
+# On a detached checkout (after a rollback) run `git checkout main` first.
 deploy: check-env
 	@mode="$$(sh ops/image_mode.sh .env)"; \
 	if [ "$$mode" != registry ]; then \
-	  echo "make deploy: VATPAC_IMAGE_PREFIX and VATPAC_IMAGE_TAG must both be set (environment or .env); mode is: $$mode." >&2; \
+	  echo "make deploy: VATPAC_IMAGE_PREFIX is not set (environment or .env); mode is: $$mode." >&2; \
 	  echo "Use 'make up' for local builds." >&2; exit 1; \
 	fi
 	docker compose config --images
+	git pull --ff-only
 	docker compose pull
+	sh ops/check_pulled_images.sh
 	docker compose up -d --no-build
 
 # db published on 127.0.0.1:55432 (dev overlay). Builds locally, so it refuses in registry mode too.
 dev: check-env
 	@mode="$$(sh ops/image_mode.sh .env)"; \
 	if [ "$$mode" != local ]; then \
-	  echo "make dev: VATPAC_IMAGE_PREFIX and/or VATPAC_IMAGE_TAG is set (environment or .env); the dev overlay builds locally." >&2; \
-	  echo "Unset both variables to use make dev." >&2; exit 1; \
+	  echo "make dev: VATPAC_IMAGE_PREFIX is set (environment or .env); the dev overlay builds locally." >&2; \
+	  echo "Unset it to use make dev." >&2; exit 1; \
 	fi
 	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
