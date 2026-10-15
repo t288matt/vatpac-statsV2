@@ -81,3 +81,11 @@ def test_check_env_wants_both_image_variables_or_neither(tmp_path: Path, extra: 
     assert "sha-abc1234" not in r.stderr + r.stdout and "ghcr.io" not in r.stderr + r.stdout  # values never printed
     if not ok:
         assert "set both or neither" in r.stderr
+
+
+def test_release_matrix_names_equal_the_compose_services_using_vatpac_stats_images() -> None:
+    release = yaml.safe_load((REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8"))
+    matrix = {row["name"] for row in release["jobs"]["images"]["strategy"]["matrix"]["include"]}
+    pattern = re.compile(r"^\$\{VATPAC_IMAGE_PREFIX:-\}vatpac-stats-([a-z]+):")
+    compose = {m.group(1) for svc in _services().values() if (m := pattern.match(svc.get("image", "")))}
+    assert matrix == compose == set(BUILT)
