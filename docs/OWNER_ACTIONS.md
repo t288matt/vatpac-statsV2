@@ -64,7 +64,7 @@ One-time set-up on the Proxmox host and the VM, step by step: [OWNER_BACKUP_COPY
 **You do:** on the VM run `docker compose exec grafana grafana cli admin reset-admin-password '<new password>'`, then edit `GRAFANA_ADMIN_PASSWORD` in the VM's `.env` to match (letters and digits only, long). Tell Emma first so the checks that use it are not left failing (deploy-to-vm.md section 3). **Emma does:** re-run `python3 ops/check_panels.py` afterwards.
 
 ## 12. DHCP reservation for the Grafana address (new 11-10-2026). About 5 minutes, in the router.
-**Why:** Grafana binds to the VM's LAN address (192.168.1.222) and the Traefik proxy points at it. If the router gives that address to another device, or the VM a new one, the public dashboards and the LAN login stop.
+**Why:** Grafana listens on all addresses of the VM (`GRAFANA_BIND=0.0.0.0`) and the Traefik proxy points at the VM's LAN address (192.168.1.222). If the router gives that address to another device, or the VM a new one, the public dashboards and the LAN login stop.
 **You do:** in the router's DHCP settings reserve 192.168.1.222 for the VM's network card (its MAC address is under the VM's Hardware in Proxmox). **Emma does:** nothing.
 
 ## 13. Harden SSH on the VM and install fail2ban (new 11-10-2026). About 20 minutes, needs sudo on the VM.
