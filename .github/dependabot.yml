@@ -1,8 +1,9 @@
-# Keeps third-party GitHub Actions and base images current. The workflow actions are pinned to full
+# Keeps GitHub Actions, Python packages and the Python base images current. The workflow actions are pinned to full
 # commit SHAs with a tag comment (T10); Dependabot updates both the SHA and the tag comment.
-# Major version bumps are ignored for postgres (a Postgres major upgrade cannot open the existing 16 data
-# directory and needs a dump/restore plan), grafana/grafana (the OSS edition image) and amacneil/dbmate; patch and minor updates
-# still arrive. Owner decision 08-10-2026.
+# Third-party images (postgres, grafana/grafana, amacneil/dbmate) use floating major tags (ADR-032, issue 176), so
+# small updates arrive with `docker compose pull` and Dependabot has nothing to bump. The docker and docker-compose
+# entries for them are kept only to refuse a major jump (Postgres 17 cannot open the version 16 data directory;
+# a Grafana major migrates its data one way): a major is a deliberate edit, never an automatic pull request.
 version: 2
 updates:
   - package-ecosystem: github-actions
