@@ -63,7 +63,7 @@ Each line of the message is an invariant name and its count. The watchdog log ha
 
 `feed_crosscheck` messages name the snapshot time (`dd-mm-yyyy hh:mm:ss UTC`), the count that differs (`independent` is the audit rule, `stored` is the database) or the pilots that differ. A difference means the collector kept or dropped something the independent rules would not: a polygon or whitelist regression, a changed gate, a cap, or a feed field that changed meaning. Replay the file offline through the collector's own parser ([feed-archive.md](feed-archive.md), "Replay one through the collector's own parser") and compare. "Nothing to compare" means the archive is empty or disabled, or every sample predates a reference-file change: check [feed-archive.md](feed-archive.md).
 
-If a message says `could not run (InsufficientPrivilege)`, the `watchdog_ro` grants are missing: the migrate job must run (`docker compose up -d --build migrate`, see [deploy-to-vm.md](deploy-to-vm.md), section 4e). Never run `db/roles.sql` by hand against the live database.
+If a message says `could not run (InsufficientPrivilege)`, the `watchdog_ro` grants are missing: the migrate job must run (on the VM in registry mode `docker compose pull migrate` then `docker compose up -d --no-build migrate`, never `--build` there; in local-build mode `docker compose up -d --build migrate`; see [deploy-to-vm.md](deploy-to-vm.md), sections 2f and 4e). Never run `db/roles.sql` by hand against the live database.
 
 ## Deliberately not automated (owner decision 09-10-2026)
 
