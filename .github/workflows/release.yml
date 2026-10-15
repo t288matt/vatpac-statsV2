@@ -2,8 +2,10 @@ name: release
 
 # Manual publish of commit-tagged images to GHCR (issue 173, P1). Run it from the Actions tab (or `gh workflow run release.yml
 # -f commit=<sha>`) with a commit that is on main and whose CI run on main already passed. It does NOT re-run CI: it checks
-# that run, then only builds and pushes. Images are tagged `sha-<first 7 characters>` and carry the full SHA in the
-# org.opencontainers.image.revision label. There is no `latest` and no semver tag. New packages in a private repository
+# that run, then only builds and pushes. Images are tagged `sha-<first 7 characters>` (kept for history and rollback) and carry
+# the full SHA in the org.opencontainers.image.revision label. A final job then moves the tag `latest` to those same images, but only
+# after all four are pushed, so latest never mixes two commits. The VM's .env names latest once and is never edited per deploy
+# (ADR-031, amended 15-10-2026). There is no semver tag. New packages in a private repository
 # are private by default; do not make them public.
 on:
   workflow_dispatch:
@@ -101,3 +103,28 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=sha-${{ needs.check.outputs.short }}
+
+  promote:
+    # Moves `latest` to the four sha-<7> images just pushed (a re-tag of the same image, no rebuild). Runs only when every image job
+    # succeeded, so a failed build leaves latest where it was.
+    needs: [check, images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - env:
+          SHORT: ${{ needs.check.outputs.short }}
+        run: |
+          set -eu
+          for n in collector watchdog backup migrate; do
+            img="ghcr.io/t288matt/vatpac-stats-$n"
+            docker buildx imagetools create --tag "$img:latest" "$img:sha-$SHORT"
+            echo "latest -> sha-$SHORT for $n"
+          done

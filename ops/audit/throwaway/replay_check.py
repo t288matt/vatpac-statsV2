@@ -5,7 +5,7 @@ ends in "t30b" or "_test".
 
 Run inside a short-lived container from the collector image (the code under test), with the host network, e.g.
   docker run --rm --network host -e PGPASSWORD=... -v /tmp/vp-t30b:/work:ro --entrypoint python \
-     vatpac-stats-collector:local /work/audit/throwaway/replay_check.py --port 32769 --db t30b --samples /work/samples --config /work/config
+     vatpac-stats-collector:latest /work/audit/throwaway/replay_check.py --port 32769 --db t30b --samples /work/samples --config /work/config
 """
 
 # ruff: noqa: E501, E731  (long literal SQL and short lambdas are clearer in a one-off audit script)
