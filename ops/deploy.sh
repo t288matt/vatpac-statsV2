@@ -252,7 +252,7 @@ preflight() {
   if [ -z "$full" ]; then
     emit FAIL ci_green "no commit to look up"
   else
-    ci_line="$("$(gh_bin)" run list --repo "$DEPLOY_REPO" --workflow ci --commit "$full" --limit 1 --json status,conclusion --jq '.[] | .status + " " + (.conclusion // "")' 2>/dev/null | tr -d '' | head -n 1)"
+    ci_line="$("$(gh_bin)" run list --repo "$DEPLOY_REPO" --workflow ci --commit "$full" --limit 1 --json status,conclusion --jq '.[] | .status + " " + (.conclusion // "")' 2>/dev/null | tr -d '\r' | head -n 1)"
     if [ -z "$ci_line" ]; then
       emit FAIL ci_green "no ci run found for ${full:0:10} (gh missing, not logged in, or no run)"
     elif [ "$ci_line" = "completed success" ]; then
