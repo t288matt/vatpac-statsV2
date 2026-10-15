@@ -38,7 +38,7 @@ HOME="$FAKE_HOME" exec sh -c "$1"
 case "$1" in
   fetch) exit 0 ;;
   rev-parse) for a; do last="$a"; done
-    case "$last" in 0000000*) exit 1 ;; origin/main) echo "$FAKE_GIT_TIP"; exit 0 ;; *) echo "$FAKE_GIT_FULL"; exit 0 ;; esac ;;
+    case "$last" in HEAD) echo "${FAKE_VM_HEAD:-$FAKE_GIT_FULL}"; exit 0 ;; 0000000*) exit 1 ;; origin/main) echo "$FAKE_GIT_TIP"; exit 0 ;; *) echo "$FAKE_GIT_FULL"; exit 0 ;; esac ;;
   merge-base) exit "${FAKE_ANCESTOR_RC:-0}" ;;
   rev-list) echo 3 ;;
   log) echo "$*" >> "$FAKE_DIR/gitlog.args"; [ -f "$FAKE_DIR/gitlog.txt" ] && cat "$FAKE_DIR/gitlog.txt" ;;
@@ -48,7 +48,10 @@ esac
 echo "$*" >> "$FAKE_DIR/gh.log"
 case ",$FAKE_BREAK," in *,gh,*) exit 1 ;; esac
 [ "$1" = issue ] && { case ",$FAKE_BREAK," in *,ghissues,*) exit 1 ;; esac; cat "$FAKE_DIR/issues.tsv"; exit 0; }
-cat "$FAKE_DIR/ci.txt"
+# the real call asks for --workflow ci --limit 1, so serve only the newest "ci" line of the fixture (status and conclusion);
+# lines for other workflows (release, ...) are never returned to such a call
+grep '^ci ' "$FAKE_DIR/ci.txt" | head -n 1 | cut -d' ' -f2-
+exit 0
 """,
     "date": r"""#!/bin/sh
 if [ "$*" = "-u +%s" ] && [ -n "$FAKE_NOW" ]; then echo "$FAKE_NOW"; exit 0; fi
@@ -71,6 +74,8 @@ echo "docker $*" >> "$FAKE_DIR/docker.log"
 brk() { case ",$FAKE_BREAK," in *,"$1",*) return 0 ;; esac; return 1; }
 case "$*" in
   "compose ps -aq") echo c1; echo c2 ;;
+  "manifest inspect"*) echo "$*" >> "$FAKE_DIR/manifest.log"; brk manifest && exit 1
+    [ -n "${FAKE_MANIFEST_MISSING:-}" ] && case "$*" in *"$FAKE_MANIFEST_MISSING"*) exit 1 ;; esac; exit 0 ;;
   inspect*) brk inspect && exit 1; cat "$FAKE_DIR/inspect.txt" ;;
   "ps -a --format"*) brk dockerps && exit 1; cat "$FAKE_DIR/psa.txt" ;;
   *"exec -T db"*) in="$(cat)"
@@ -95,6 +100,24 @@ def _inspect(restarts: str = "0", health: str = "healthy") -> str:
     rows = [f"/vatpac-{s}-1|2026-10-09T15:42:07.7Z|{restarts if s == 'collector' else '0'}|{health if s == 'db' else 'healthy'}"
             for s in ("backup", "collector", "db", "grafana", "watchdog")]
     rows.append("/vatpac-migrate-1|2026-10-09T19:13:22.4Z|0|exited")
+    return "\n".join(rows) + "\n"
+
+
+PFX = "ghcr.io/t288matt/"
+TAG7 = "sha-" + FULL[:7]
+
+
+def _inspect_registry(tag: str = TAG7, rev: str = FULL, only: str = "") -> str:
+    """Six-field inspect lines: the four registry-image services carry an image and a revision label (only: the one service that differs)."""
+    rows = []
+    for s in ("backup", "collector", "db", "grafana", "watchdog", "migrate"):
+        base = f"/vatpac-{s}-1|2026-10-09T15:42:07.7Z|0|{'exited' if s == 'migrate' else 'healthy'}"
+        if s in ("backup", "collector", "watchdog", "migrate"):
+            odd = only == s
+            base += f"|{PFX}vatpac-stats-{s}:{tag if odd else TAG7}|{rev if odd else FULL}"
+        else:
+            base += f"|third/party-{s}:1|"
+        rows.append(base)
     return "\n".join(rows) + "\n"
 
 
@@ -137,6 +160,13 @@ class Fake:
         o = overrides or {}
         self.write("invariants.txt", "".join(f"{n}|{o.get(n, '0')}|\n" for n in (rows if rows is not None else NAMES)))
 
+    def registry(self, prefix: str = PFX, tag: str = TAG7) -> None:
+        self.dotenv(f"VATPAC_IMAGE_PREFIX={prefix}\nVATPAC_IMAGE_TAG={tag}\n")
+        self.write("inspect.txt", _inspect_registry())
+
+    def dotenv(self, text: str) -> None:
+        (self.home / "vatpac-statsV2" / ".env").write_text(text, newline="\n")
+
     def write(self, name: str, text: str) -> None:
         (self.dir / name).write_text(text, newline="\n")
 
@@ -174,7 +204,10 @@ def _expected(f: Fake, line: str) -> None:
 # (mode, check, expected status, mutation); every check fails alone, once
 SCENARIOS = [
     ("pre", "commit_on_main", "FAIL", lambda f: f.set(FAKE_ANCESTOR_RC="1")),
-    ("pre", "ci_green", "FAIL", lambda f: f.write("ci.txt", "ci completed success\nother completed failure\n")),
+    ("pre", "ci_green", "FAIL", lambda f: f.write("ci.txt", "ci completed failure\n")),
+    ("pre", "ci_green", "FAIL", lambda f: f.write("ci.txt", "ci in_progress \n")),
+    ("pre", "ci_green", "FAIL", lambda f: f.write("ci.txt", "")),
+    ("pre", "ci_green", "PASS", lambda f: f.write("ci.txt", "release completed failure\nci completed success\n")),  # a red release is not red CI
     ("pre", "ci_green", "FAIL", lambda f: f.brk("gh")),
     ("pre", "vm_reachable", "FAIL", lambda f: f.set(FAKE_SSH_DOWN="1")),
     ("pre", "vm_clock", "FAIL", lambda f: f.write("timedatectl.txt", "System clock synchronized: no\n              NTP service: active\n")),
@@ -362,6 +395,12 @@ def test_read_only_modes_write_nothing_and_run_nothing_forbidden(tmp_path: Path)
     one_read = "sed -n 's/^BACKUP_TIME_UTC=//p' .env"  # the one deliberate read of .env: a single key
     assert one_read in log
     log = log.replace(one_read, "")
+    # Registry mode (issue 173) reads two more keys the same way, by name, to learn the image mode. The key names are not
+    # secrets and the values are never printed; any other .env access still trips FORBIDDEN below.
+    for key in ("VATPAC_IMAGE_PREFIX", "VATPAC_IMAGE_TAG"):
+        read = f"sed -n -e 's/^export[[:space:]][[:space:]]*//' -e 's/^{key}=//p' .env"
+        assert read in log
+        log = log.replace(read, "")
     assert not FORBIDDEN.search(log), FORBIDDEN.search(log)
     assert "ServerAliveInterval=10" in log and "--commit" in (f.dir / "gh.log").read_text()
     code = "\n".join(ln for ln in SCRIPT.read_text(encoding="utf-8").splitlines() if not ln.lstrip().startswith("#"))
@@ -466,3 +505,142 @@ def test_stale_issues_script_table_and_exit_codes(tmp_path: Path) -> None:
     f.brk()
     f.write("gitlog.txt", "")
     assert run("--since", "2026-10-01") == (0, "no issue numbers in the commits checked\n")
+
+
+# ------------------------------------------------------------------ registry mode (issue 173)
+
+def test_registry_pure_logic() -> None:
+    calls = ["registry_mode '' ''", "registry_mode ghcr.io/x/ sha-1", "registry_mode ghcr.io/x/ ''", "registry_mode '' sha-1",
+             "short_tag " + FULL + "; echo", "valid_prefix ghcr.io/t288matt/ && echo v", "valid_prefix 'ghcr.io/x' || echo noslash",
+             "valid_prefix 'a/b/;rm -rf /' || echo unsafe", "valid_prefix '' || echo empty",
+             f"head_matches {FULL} {FULL[:7]} && echo m1", f"head_matches {FULL} {FULL} && echo m2",
+             f"head_matches {FULL} abcdef0 || echo no1", f"head_matches {FULL} {FULL[:6]} || echo short", f"head_matches {FULL} '' || echo empty2"]
+    e = dict(os.environ, DEPLOY_SOURCE_ONLY="1")
+    p = subprocess.run([str(BASH), "-c", f'. "{SCRIPT.as_posix()}"; ' + "; ".join(calls)], capture_output=True, text=True, env=e, timeout=60)
+    assert p.stdout.split() == ["local", "registry", "partial", "partial", TAG7, "v", "noslash", "unsafe", "empty",
+                                "m1", "m2", "no1", "short", "empty2"], p.stdout + p.stderr
+
+
+def test_preflight_registry_checks(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    f.registry()
+    rc, out = f.run("--preflight", "f893585")
+    assert rc == 0, out
+    assert line_for(out, "registry_mode").startswith("PASS") and line_for(out, "registry_images").startswith("PASS")
+    assert line_for(out, "image_tag_env").startswith("PASS")
+    manifests = (f.dir / "manifest.log").read_text()
+    for n in ("collector", "watchdog", "backup", "migrate"):
+        assert f"manifest inspect {PFX}vatpac-stats-{n}:{TAG7}" in manifests
+
+
+def test_preflight_registry_failures(tmp_path: Path) -> None:
+    f = Fake(tmp_path / "missing")
+    f.registry()
+    f.set(FAKE_MANIFEST_MISSING="vatpac-stats-migrate")
+    rc, out = f.run("--preflight", "f893585")
+    ln = line_for(out, "registry_images")
+    assert rc == 1 and ln.startswith("FAIL") and ln.split("as " + TAG7 + ":")[1].split(";")[0].split() == ["migrate"], out
+    f = Fake(tmp_path / "wrongtag")  # the .env tag is not the commit being deployed: WARN (the owner sets it first), not FAIL
+    f.registry(tag="sha-1234567")
+    rc, out = f.run("--preflight", "f893585")
+    assert rc == 0 and line_for(out, "image_tag_env").startswith("WARN") and f"VATPAC_IMAGE_TAG={TAG7}" in out
+    f = Fake(tmp_path / "partial")
+    f.dotenv(f"VATPAC_IMAGE_TAG={TAG7}\n")
+    rc, out = f.run("--preflight", "f893585")
+    assert rc == 1 and line_for(out, "registry_mode").startswith("FAIL") and not (f.dir / "manifest.log").exists()
+    f = Fake(tmp_path / "badprefix")
+    f.registry(prefix="x;rm -rf /")
+    rc, out = f.run("--preflight", "f893585")
+    assert rc == 1 and line_for(out, "registry_images").startswith("FAIL") and not (f.dir / "manifest.log").exists()
+    f = Fake(tmp_path / "local")  # neither variable: local mode, no manifest calls
+    rc, out = f.run("--preflight", "f893585")
+    assert rc == 0 and "local build mode" in line_for(out, "registry_mode") and not (f.dir / "manifest.log").exists()
+    f = Fake(tmp_path / "down")
+    f.set(FAKE_SSH_DOWN="1")
+    assert line_for(f.run("--preflight", "f893585")[1], "registry_mode").startswith("FAIL")
+
+
+def test_verify_checks_image_revisions(tmp_path: Path) -> None:
+    f = Fake(tmp_path / "ok")
+    f.registry()
+    rc, out = f.run("--verify")
+    assert rc == 0 and line_for(out, "image_revisions").startswith("PASS"), out
+    f = Fake(tmp_path / "local")
+    assert "local build mode" in line_for(f.run("--verify")[1], "image_revisions")
+    cases = {
+        "revision": ({"rev": "a" * 40, "only": "backup"}, "revision label"),  # image built from commit A, checkout at B
+        "nolabel": ({"rev": "", "only": "watchdog"}, "revision label"),
+        "tag": ({"tag": "sha-1234567", "only": "collector"}, "image tag"),
+    }
+    for name, (kw, needle) in cases.items():
+        f = Fake(tmp_path / name)
+        f.registry()
+        f.write("inspect.txt", _inspect_registry(**kw))
+        rc, out = f.run("--verify")
+        ln = line_for(out, "image_revisions")
+        assert rc == 1 and ln.startswith("FAIL") and needle in ln and kw["only"] in ln, out
+    f = Fake(tmp_path / "envtag")  # the checkout is at f893585 but the .env names another tag
+    f.registry(tag="sha-1234567")
+    rc, out = f.run("--verify")
+    assert rc == 1 and ".env tag is" in line_for(out, "image_revisions")
+    f = Fake(tmp_path / "partial")
+    f.dotenv("VATPAC_IMAGE_PREFIX=ghcr.io/x/\n")
+    assert line_for(f.run("--verify")[1], "image_revisions").startswith("FAIL")
+
+
+def test_status_shows_images(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    f.registry()
+    rc, out = f.run("--status")
+    assert rc == 0 and "== images" in out, out
+    assert f"/vatpac-collector-1 | {PFX}vatpac-stats-collector:{TAG7} | {FULL[:12]}" in out
+    assert "image mode: registry" in out and f"checkout HEAD: {FULL[:12]}" in out
+    containers = out.split("== containers")[1].split("== images")[0]
+    assert all(ln.count("|") == 3 for ln in containers.splitlines()[1:] if ln.startswith("/")), containers  # the old four fields
+    f = Fake(tmp_path / "local")
+    assert "image mode: local" in f.run("--status")[1]
+
+
+def test_mark_records_images_in_the_log_only(tmp_path: Path) -> None:
+    for sub, setup, want in (("reg", lambda f: f.registry(), TAG7), ("loc", lambda f: None, "local"),
+                             ("part", lambda f: f.dotenv("VATPAC_IMAGE_TAG=sha-1\n"), "partial")):
+        f = Fake(tmp_path / sub)
+        setup(f)
+        rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
+        d = f.home / "vatpac-statsV2" / ".deploy"
+        assert rc == 0 and "not the commit being marked" not in out, out
+        assert (d / "release").read_text() == f"commit={FULL}\nmarked_utc=2026-10-10T15:00:00Z\nmarked_by=tester\n"  # format unchanged
+        assert (d / "release.log").read_text() == (d / "release").read_text() + f"images={want}\n---\n"
+    f = Fake(tmp_path / "head")  # the VM checkout is not at the commit being marked
+    f.set(FAKE_VM_HEAD="b" * 40)
+    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
+    assert rc == 0 and "WARN" in out and "not the commit being marked" in out
+
+
+def test_image_mode_script_is_both_or_neither(tmp_path: Path) -> None:
+    env_file = tmp_path / "e.env"
+    base = {k: v for k, v in os.environ.items() if not k.startswith("VATPAC_IMAGE")}
+    script = (REPO / "ops" / "image_mode.sh").as_posix()
+
+    def mode(text: str | None, **extra: str) -> str:
+        if text is not None:
+            env_file.write_bytes(text.encode())
+        target = env_file.as_posix() if text is not None else (tmp_path / "missing.env").as_posix()
+        p = subprocess.run([str(BASH), "-c", f'sh "{script}" "{target}"'], capture_output=True, text=True, env={**base, **extra}, timeout=30)
+        assert p.returncode == 0, p.stderr
+        return p.stdout.strip()
+
+    assert mode("OTHER=1\n") == "local"
+    assert mode("VATPAC_IMAGE_PREFIX=ghcr.io/x/\nVATPAC_IMAGE_TAG=sha-1\n") == "registry"
+    assert mode("VATPAC_IMAGE_PREFIX=ghcr.io/x/\n") == "partial"
+    assert mode("VATPAC_IMAGE_TAG=sha-1\n") == "partial"
+    assert mode("VATPAC_IMAGE_PREFIX=\nVATPAC_IMAGE_TAG=\n") == "local"  # blank counts as unset
+    assert mode("VATPAC_IMAGE_PREFIX=a/\nVATPAC_IMAGE_TAG=x\nVATPAC_IMAGE_TAG=\n") == "partial"  # last assignment wins
+    assert mode("VATPAC_IMAGE_TAG=sha-1\r\nVATPAC_IMAGE_PREFIX=a/\r\n") == "registry"
+    assert mode(None) == "local"  # no file, no variables
+    assert mode('VATPAC_IMAGE_PREFIX="ghcr.io/x/"\nVATPAC_IMAGE_TAG=\'sha-1\'\n') == "registry"  # quoted values
+    assert mode('VATPAC_IMAGE_PREFIX=""\nVATPAC_IMAGE_TAG=\'\'\n') == "local"  # empty quotes are unset
+    assert mode("export VATPAC_IMAGE_PREFIX=a/\nexport  VATPAC_IMAGE_TAG='t'\n") == "registry"  # export form
+    assert mode('export VATPAC_IMAGE_TAG="t"\n') == "partial"
+    assert mode("", VATPAC_IMAGE_PREFIX="a/", VATPAC_IMAGE_TAG="t") == "registry"  # the environment counts too
+    assert mode("", VATPAC_IMAGE_PREFIX="a/") == "partial"
