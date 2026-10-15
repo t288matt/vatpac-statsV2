@@ -79,7 +79,7 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | Variable | Value | Meaning |
 |---|---|---|
 | `DATABASE_URL` (collector) | built from `COLLECTOR_DB_PASSWORD` and `POSTGRES_DB`, role `collector`, host `db` | Overrides the five `POSTGRES_*` connection settings inside the collector. |
-| `GF_*` (grafana) | anonymous access off, sign-up off, analytics and update checks off, default timezone UTC | Grafana hardening. Public dashboards are on (Grafana default) and are the only way pages are seen without a login; anonymous access must stay off (ADR-029). Image `grafana/grafana:12.4.12`. |
+| `GF_*` (grafana) | anonymous access off, sign-up off, analytics and update checks off, default timezone UTC | Grafana hardening. Public dashboards are on (Grafana default) and are the only way pages are seen without a login; anonymous access must stay off (ADR-029). Image `grafana/grafana:12`. |
 | `GRAFANA_RO_DB_PASSWORD` (grafana) | `${GRAFANA_RO_PASSWORD}` | Referenced by the provisioned datasource. |
 | `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` (backup) | `db`, `5432`, `backup_ro`, `BACKUP_DB_PASSWORD`, `POSTGRES_DB` | Connection for `pg_dump`. |
 | `RESTORE_PGUSER`, `RESTORE_PGPASSWORD` (backup) | `POSTGRES_USER`, `POSTGRES_PASSWORD` | Owner login used only by `restore.sh` and `restore-test.sh`, which need to create, drop and rename databases (ADR-017). |
