@@ -20,7 +20,7 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `GRAFANA_ADMIN_USER` | `admin` | grafana | Admin login. |
 | `GRAFANA_ADMIN_PASSWORD` | none, **required** | grafana | Admin password. |
 | `GRAFANA_PORT` | `3300` | grafana | Host port mapped to Grafana's 3000. |
-| `GRAFANA_BIND` | `127.0.0.1` | grafana | Interface Grafana is published on. Loopback by default; set the VM's LAN address (preferred) or `0.0.0.0` for LAN access, then firewall it. |
+| `GRAFANA_BIND` | `127.0.0.1` | grafana | Interface Grafana is published on. Loopback by default. For LAN access use `0.0.0.0` (production, since 15-10-2026) or the machine's LAN address, then firewall it. On a machine whose address comes from DHCP use `0.0.0.0`: a specific address fails to bind if Docker starts before DHCP has given it, and the container then stays down (issue 164). |
 | `GRAFANA_COOKIE_SECURE` | `false` | grafana | Set `true` only when users reach Grafana over https; with plain http a secure cookie stops logins working. |
 | `GRAFANA_ROOT_URL` | `http://localhost:3300/` | grafana | External URL; set it when served through a proxy or tunnel. Production on 11-10-2026: `http://192.168.1.222:3300/` (see RUNBOOKS/public-access.md). It is still the LAN http address because it only matters for links that Grafana builds itself (the admin login, redirects, shared links). The public dashboard pages are served by path (`/public-dashboards/<token>`) through the proxy and do not need it. Set it to `https://vpac.mpengor.com/` (with `GRAFANA_COOKIE_SECURE=true`) only if the admin should log in through the public name. |
 | `VATSIM_FEED_URL` | `https://data.vatsim.net/v3/vatsim-data.json` | collector | Fallback feed URL, used if discovery fails. |
