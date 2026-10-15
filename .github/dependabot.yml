@@ -3,6 +3,8 @@
 # Major version bumps are ignored for postgres (a Postgres major upgrade cannot open the existing 16 data
 # directory and needs a dump/restore plan), grafana/grafana (the OSS edition image) and amacneil/dbmate; patch and minor updates
 # still arrive. Owner decision 08-10-2026.
+# Python stays on 3.12 for the collector and the watchdog (owner decision 15-10-2026): minor and major Python base image
+# bumps are ignored; patch updates still arrive. Revisit by deleting the two python ignore blocks below.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -13,6 +15,9 @@ updates:
     directory: /collector
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: python
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
   - package-ecosystem: docker
     directory: /ops/backup
     schedule:
@@ -31,6 +36,9 @@ updates:
     directory: /ops/watchdog
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: python
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
   - package-ecosystem: pip
     directory: /collector
     schedule:
