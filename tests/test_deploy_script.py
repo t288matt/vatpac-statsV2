@@ -615,7 +615,7 @@ def test_mark_records_images_in_the_log_only(tmp_path: Path) -> None:
     assert rc == 0 and "WARN" in out and "not the commit being marked" in out
 
 
-def test_image_mode_script_is_both_or_neither(tmp_path: Path) -> None:
+def test_image_mode_script_prefix_alone_is_registry_mode(tmp_path: Path) -> None:
     env_file = tmp_path / "e.env"
     base = {k: v for k, v in os.environ.items() if not k.startswith("VATPAC_IMAGE")}
     script = (REPO / "ops" / "image_mode.sh").as_posix()
@@ -646,30 +646,76 @@ def test_image_mode_script_is_both_or_neither(tmp_path: Path) -> None:
     assert p.stdout.strip() == "registry" and "WARNING" in p.stderr and "sha-1" not in p.stderr + p.stdout  # a pin warns loudly, value not printed
 
 
-def _pulled_images_run(tmp_path: Path, labels: dict[str, str], head: str = FULL) -> "subprocess.CompletedProcess[str]":
-    """ops/check_pulled_images.sh against a stub git and docker: labels maps a service name to its image's revision label."""
+def _git(repo: Path, *args: str) -> str:
+    env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, check=True, env=env).stdout.strip()
+
+
+def _mkcommit(repo: Path, rel: str, text: str) -> str:
+    f = repo / rel
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(text, newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", f"change {rel}")
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def _pulled_images_run(tmp_path: Path, repo: Path, labels: dict[str, str], tag: str = "latest", docker_ok: bool = True) -> "subprocess.CompletedProcess[str]":
+    """ops/check_pulled_images.sh in a real throwaway git repo with a stub docker: labels maps a service to its image's revision label."""
     b = tmp_path / "bin"
     b.mkdir(parents=True)
-    (b / "git").write_text(f"#!/bin/sh\necho {head}\n", newline="\n")
     (b / "docker").write_text(
-        '#!/bin/sh\ncase "$1 $2" in\n'
-        '  "compose config") for n in collector watchdog backup migrate; do echo "ghcr.io/x/vatpac-stats-$n:latest"; done ;;\n'
+        '#!/bin/sh\n[ -n "$FAKE_DOCKER_DOWN" ] && exit 1\ncase "$1 $2" in\n'
+        f'  "compose config") for n in collector watchdog backup migrate; do echo "ghcr.io/x/vatpac-stats-$n:{tag}"; done ;;\n'
         '  "image inspect") for l in $(cat "$FAKE_LABELS"); do n="${l%%=*}"; case "$*" in *"vatpac-stats-$n:"*) echo "${l#*=}" ;; esac; done ;;\n'
         "esac\n", newline="\n")
-    for n in ("git", "docker"):
-        (b / n).chmod(0o755)
+    (b / "docker").chmod(0o755)
     (tmp_path / "labels").write_text("\n".join(f"{k}={v}" for k, v in labels.items()), newline="\n")
     env = dict(os.environ, PATH=f"{b}{os.pathsep}{os.environ['PATH']}", FAKE_LABELS=str(tmp_path / "labels"))
-    return subprocess.run([str(BASH), str(REPO / "ops" / "check_pulled_images.sh")], capture_output=True, text=True, env=env, timeout=60)
+    if not docker_ok:
+        env["FAKE_DOCKER_DOWN"] = "1"
+    return subprocess.run([str(BASH), str(REPO / "ops" / "check_pulled_images.sh")], capture_output=True, text=True, env=env, cwd=repo, timeout=60)
+
+
+def _all(rev: str, **odd: str) -> dict[str, str]:
+    return {n: odd.get(n, rev) for n in ("collector", "watchdog", "backup", "migrate")}
 
 
 def test_make_deploy_stops_when_pulled_images_do_not_match_the_checkout(tmp_path: Path) -> None:
-    ok = {n: FULL for n in ("collector", "watchdog", "backup", "migrate")}
-    r = _pulled_images_run(tmp_path / "ok", ok)
-    assert r.returncode == 0, r.stderr
-    r = _pulled_images_run(tmp_path / "old", dict(ok, collector="a" * 40))  # latest has not been moved to this commit yet
-    assert r.returncode == 1 and "images for this commit are not published yet: run the release workflow for" in r.stderr
-    assert _pulled_images_run(tmp_path / "nolabel2", dict(ok, migrate="")).returncode == 1
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    released = _mkcommit(repo, "collector/src/app.py", "v1\n")
+    r = _pulled_images_run(tmp_path / "t1", repo, _all(released))
+    assert r.returncode == 0, r.stderr  # label equals HEAD
+    r = _pulled_images_run(tmp_path / "t1s", repo, _all(released[:7]))
+    assert r.returncode == 0, r.stderr  # a short label is a prefix of HEAD
+    docs_head = _mkcommit(repo, "docs/note.md", "docs only\n")
+    r = _pulled_images_run(tmp_path / "t2", repo, _all(released))
+    assert r.returncode == 0, r.stderr  # a docs-only commit after the release is accepted
+    _mkcommit(repo, "collector/src/app.py", "v2\n")
+    r = _pulled_images_run(tmp_path / "t3", repo, _all(released))
+    assert r.returncode == 1 and "images for this commit are not published yet: run the release workflow for" in r.stderr  # code changed since
+    assert docs_head not in r.stderr
+    r = _pulled_images_run(tmp_path / "t4", repo, _all("a" * 40))
+    assert r.returncode == 1 and "not published yet" in r.stderr  # label is not an ancestor of HEAD
+    r = _pulled_images_run(tmp_path / "t5", repo, _all(released, collector="a" * 40))
+    assert r.returncode == 1  # one image odd is enough
+
+
+def test_pulled_images_check_distinct_messages(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    head = _mkcommit(repo, "collector/src/app.py", "v1\n")
+    for sub, labels in (("empty", _all(head, migrate="")), ("short", _all(head, backup=head[:6])), ("nonhex", _all(head, watchdog="zzzzzzzz"))):
+        r = _pulled_images_run(tmp_path / sub, repo, labels)
+        assert r.returncode == 1 and "could not read a usable revision label" in r.stderr and "not published yet" not in r.stderr, (sub, r.stderr)
+    r = _pulled_images_run(tmp_path / "down", repo, _all(head), docker_ok=False)
+    assert r.returncode == 1 and "could not read a usable revision label" in r.stderr
+    _mkcommit(repo, "collector/src/app.py", "v2\n")
+    r = _pulled_images_run(tmp_path / "pin", repo, _all(head), tag="sha-" + head[:7])
+    assert r.returncode == 1 and "pins a sha- tag" in r.stderr and "Delete that line" in r.stderr
     mk = (REPO / "Makefile").read_text(encoding="utf-8")
     body = mk.split("\ndeploy:")[1].split("\n\n")[0]
     order = [body.index(x) for x in ("git pull --ff-only", "docker compose pull", "check_pulled_images.sh", "docker compose up -d --no-build")]

@@ -216,7 +216,16 @@ docker compose pull && docker compose up -d --no-build
 ## 2f. Deploy a commit in registry mode (issue 173; amended 15-10-2026: no `.env` edit per deploy, images follow `latest`)
 Use after section 2e has been done once. Before deploying read [daily-checks.md](daily-checks.md): a redeploy restarts the collector (about 45 seconds of snapshots) and breaks a 24 hour soak in progress. Every deploy needs the owner's explicit go.
 
-**One-time `.env` change (owner, once, announced first): DELETE the `VATPAC_IMAGE_TAG` line.** Registry mode is now switched by one line, `VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/`; the tag defaults to `latest`, which the release workflow moves to each published commit. The VM's `.env` currently has `VATPAC_IMAGE_TAG=sha-2f04731` (a pin), and while it stays, `make deploy` keeps running that old build. Delete it once: `sed -i '/^VATPAC_IMAGE_TAG=/d' .env && grep '^VATPAC_IMAGE' .env && sh ops/check_env.sh`. After that `.env` is never edited per deploy. `make deploy`, `check_env.sh` and the preflight warn loudly if a `sha-` pin is present.
+**One-time change on the VM (owner, once, announced first, after the release that moved `latest` has run).** Registry mode is switched by one `.env` line, `VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/`; the tag defaults to `latest`, which the release workflow moves to each published commit. The VM's `.env` currently has `VATPAC_IMAGE_TAG=sha-2f04731` (a pin); while it stays, `make deploy` keeps running that old build. Do the steps in this order, each with its check (the old checkout's `check_env.sh` fails on a prefix-only `.env`, so the checkout moves first):
+```sh
+cd ~/vatpac-statsV2
+git fetch origin && git checkout main && git pull --ff-only
+git log -1 --oneline
+sed -i '/^VATPAC_IMAGE_TAG=/d' .env
+grep '^VATPAC_IMAGE' .env
+sh ops/check_env.sh
+```
+Checks: `git log -1` shows the commit with this change (and `git status --short` is empty); `grep` prints only the `VATPAC_IMAGE_PREFIX` line; `check_env.sh` ends with `check_env: OK`. After that `.env` is never edited per deploy. `make deploy`, `check_env.sh` and the preflight warn loudly if a `sha-` pin is present.
 
 **Order: release first, then deploy.** The release workflow publishes the images and moves `latest` to them; only then does the VM pull. `make deploy` refuses to start anything if the pulled images were not built from the checked-out commit.
 
@@ -227,7 +236,7 @@ Use after section 2e has been done once. Before deploying read [daily-checks.md]
 ```sh
 cd ~/vatpac-statsV2 && git status --short && make deploy
 ```
-`git status --short` must print nothing. `make deploy` runs `git pull --ff-only`, `docker compose pull`, a check that the pulled images' revision label equals the checkout commit, then `docker compose up -d --no-build`. If the check fails it stops with "the images for this commit are not published yet: run the release workflow for <commit>, then run make deploy again" and nothing running is changed. It never builds. After a rollback the checkout is detached: run `git checkout main` first. New releases may add settings to `.env.example`: add any new blank secrets before this step. Confirm: `docker compose ps -a migrate` shows `exited (0)` and its logs end with `migrate: done`. A changed `ops/postgres/postgresql.conf` still needs `docker compose restart db`. (The Makefile is from PR 180. Without `make`, run the same commands by hand, with `sh ops/check_pulled_images.sh` before the last one.)
+`git status --short` must print nothing. `make deploy` runs `git pull --ff-only`, `docker compose pull`, a check that the pulled images' revision label is the checkout commit (or an older one with no change to the code baked into the images, so a docs-only commit is fine), then `docker compose up -d --no-build`. If the check fails it stops with "the images for this commit are not published yet: run the release workflow for <commit>, then run make deploy again" and nothing running is changed. It never builds. After a rollback the checkout is detached: run `git checkout main` first. New releases may add settings to `.env.example`: add any new blank secrets before this step. Confirm: `docker compose ps -a migrate` shows `exited (0)` and its logs end with `migrate: done`. A changed `ops/postgres/postgresql.conf` still needs `docker compose restart db`. Without `make`, run the same commands by hand, with `sh ops/check_pulled_images.sh` before the last one.
 5. **PC: verify.** `bash ops/deploy.sh --verify` (all PASS), then open the ten public addresses ([public-access.md](public-access.md)).
 6. **PC: mark.** `bash ops/deploy.sh --mark <commit>` after commenting on the issues in the commits. The release file is unchanged; `release.log` now records the running collector image's revision in its `images=` line.
 
@@ -376,12 +385,6 @@ ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/smoke.sh && python3 ops/check_panel
 
 ## Roll back
 Code, dashboards and configuration go back by deploying the previous commit; the database does not go back by itself. Migrations are forward-only. A migration that already ran stays applied after a code rollback; additive migrations (a new view, an index) are harmless to older code. If a migration must be undone, add a new corrective numbered migration, or restore from backup ([restore.md](restore.md)); never edit an applied migration. Images cannot undo a migration either, so the dump taken before the deploy is the way back from a bad one.
-
-**Registry mode, first cycle (history, 14-10-2026).** Setting "the previous `sha-` tag" does NOT work yet: no earlier registry tag exists, because 67c1ca0 was the first publish. The only rollback is the locally built `:local` images still on the VM:
-1. VM: `cd ~/vatpac-statsV2 && sed -i '/^VATPAC_IMAGE_/d' .env` (removes BOTH lines; one alone makes `sh ops/check_env.sh` fail).
-2. VM, optional but advised: `git checkout --detach <the commit the local images were built from>` (the previous marker in `.deploy/release.log`), so the mounted files match those images. A newer migration file that was already applied stays applied.
-3. VM: `docker compose up -d --no-build`.
-4. PC: `bash ops/deploy.sh --verify`, then the ten public addresses. Not yet run as a rollback.
 
 **Registry mode.** Go back to a previous build by its `sha-<7>` tag, with no `.env` edit:
 ```sh
