@@ -10,7 +10,8 @@ ENV_FILE="${1:-.env}"
 is_set() {  # is_set <NAME>
   eval "v=\${$1:-}"
   if [ -z "$v" ] && [ -f "$ENV_FILE" ]; then
-    v="$(sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1 | tr -d '\r')"
+    # tolerate a leading "export " and single or double quotes around the value
+    v="$(sed -n -e 's/^export[[:space:]][[:space:]]*//' -e "s/^$1=//p" "$ENV_FILE" | tail -n 1 | tr -d '\r' | tr -d "\"'")"
   fi
   [ -n "$v" ]
 }

@@ -48,7 +48,10 @@ esac
 echo "$*" >> "$FAKE_DIR/gh.log"
 case ",$FAKE_BREAK," in *,gh,*) exit 1 ;; esac
 [ "$1" = issue ] && { case ",$FAKE_BREAK," in *,ghissues,*) exit 1 ;; esac; cat "$FAKE_DIR/issues.tsv"; exit 0; }
-cat "$FAKE_DIR/ci.txt"
+# the real call asks for --workflow ci --limit 1, so serve only the newest "ci" line of the fixture (status and conclusion);
+# lines for other workflows (release, ...) are never returned to such a call
+grep '^ci ' "$FAKE_DIR/ci.txt" | head -n 1 | cut -d' ' -f2-
+exit 0
 """,
     "date": r"""#!/bin/sh
 if [ "$*" = "-u +%s" ] && [ -n "$FAKE_NOW" ]; then echo "$FAKE_NOW"; exit 0; fi
@@ -201,7 +204,10 @@ def _expected(f: Fake, line: str) -> None:
 # (mode, check, expected status, mutation); every check fails alone, once
 SCENARIOS = [
     ("pre", "commit_on_main", "FAIL", lambda f: f.set(FAKE_ANCESTOR_RC="1")),
-    ("pre", "ci_green", "FAIL", lambda f: f.write("ci.txt", "ci completed success\nother completed failure\n")),
+    ("pre", "ci_green", "FAIL", lambda f: f.write("ci.txt", "ci completed failure\n")),
+    ("pre", "ci_green", "FAIL", lambda f: f.write("ci.txt", "ci in_progress \n")),
+    ("pre", "ci_green", "FAIL", lambda f: f.write("ci.txt", "")),
+    ("pre", "ci_green", "PASS", lambda f: f.write("ci.txt", "release completed failure\nci completed success\n")),  # a red release is not red CI
     ("pre", "ci_green", "FAIL", lambda f: f.brk("gh")),
     ("pre", "vm_reachable", "FAIL", lambda f: f.set(FAKE_SSH_DOWN="1")),
     ("pre", "vm_clock", "FAIL", lambda f: f.write("timedatectl.txt", "System clock synchronized: no\n              NTP service: active\n")),
@@ -392,7 +398,7 @@ def test_read_only_modes_write_nothing_and_run_nothing_forbidden(tmp_path: Path)
     # Registry mode (issue 173) reads two more keys the same way, by name, to learn the image mode. The key names are not
     # secrets and the values are never printed; any other .env access still trips FORBIDDEN below.
     for key in ("VATPAC_IMAGE_PREFIX", "VATPAC_IMAGE_TAG"):
-        read = f"sed -n 's/^{key}=//p' .env"
+        read = f"sed -n -e 's/^export[[:space:]][[:space:]]*//' -e 's/^{key}=//p' .env"
         assert read in log
         log = log.replace(read, "")
     assert not FORBIDDEN.search(log), FORBIDDEN.search(log)
@@ -632,5 +638,9 @@ def test_image_mode_script_is_both_or_neither(tmp_path: Path) -> None:
     assert mode("VATPAC_IMAGE_PREFIX=a/\nVATPAC_IMAGE_TAG=x\nVATPAC_IMAGE_TAG=\n") == "partial"  # last assignment wins
     assert mode("VATPAC_IMAGE_TAG=sha-1\r\nVATPAC_IMAGE_PREFIX=a/\r\n") == "registry"
     assert mode(None) == "local"  # no file, no variables
+    assert mode('VATPAC_IMAGE_PREFIX="ghcr.io/x/"\nVATPAC_IMAGE_TAG=\'sha-1\'\n') == "registry"  # quoted values
+    assert mode('VATPAC_IMAGE_PREFIX=""\nVATPAC_IMAGE_TAG=\'\'\n') == "local"  # empty quotes are unset
+    assert mode("export VATPAC_IMAGE_PREFIX=a/\nexport  VATPAC_IMAGE_TAG='t'\n") == "registry"  # export form
+    assert mode('export VATPAC_IMAGE_TAG="t"\n') == "partial"
     assert mode("", VATPAC_IMAGE_PREFIX="a/", VATPAC_IMAGE_TAG="t") == "registry"  # the environment counts too
     assert mode("", VATPAC_IMAGE_PREFIX="a/") == "partial"
