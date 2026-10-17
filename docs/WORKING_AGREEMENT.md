@@ -96,8 +96,17 @@ Weekly: agent tokens per merged change (from the agents' own usage reports; the 
 - New work gets a GitHub issue first, then a tracker row. Closing an issue is ask-first (the owner closes, or says so). In pull requests write `Refs #N`, never `Fixes #N`, so GitHub does not close an issue by accident.
 - Designs are tested against the real problem and sized against the pain they remove (the #104 lesson); ask for the smallest version first.
 - No new test infrastructure: the restore-test extension, weekly replay, a test VM and staging were dropped.
-- Opus 5.5 only as a second pass for complex database and code changes (owner told first), never for alerting or docs; Sonnet 5.5 for everything else.
+- Opus 5.5 only as a second pass for complex database and code changes (owner told first), never for alerting or docs; Sonnet 5.5 for code, reviews and deploys; Haiku 4.5 for mechanical work (token economy, rule 5 below).
 - Agent reports stay under 300 words, with detail in files. One agent run fits in one session; split bigger work before briefing.
+- **Token economy (owner decision 17-10-2026).** The 7-day usage report showed 96% of use from agent-heavy sessions, 78% above 150k context and 68% from sessions active for 8 hours or more. Rules:
+  1. One session per task. When a task is merged or deployed, the next one starts in a fresh session from the handover memory; a session is not kept open for a whole day.
+  2. The manager makes small edits directly (document wording, a one-line config change, a rename, tracker or ADR text). An agent is for code, or for work of more than about ten lines.
+  3. Reviewers review the diff only. They do not re-run the whole test suite when CI on that commit is green, and they stop after reporting. A documentation-only follow-up commit is not re-reviewed (CI is the check); code, deploy-script and runbook-procedure changes still get an independent review.
+  4. Agents never wait for or poll CI and send one report only; the manager checks CI.
+  5. Model by task: Haiku 4.5 for mechanical work (documents, README, renames, log reading, status checks); Sonnet 5.5 for code, reviews and deploys; Opus only as in the line above.
+  6. Fewer, larger pull requests: related changes are batched (documents together, deploy tooling together) instead of one pull request per tweak.
+  7. Decide before building. For a design with a trade-off the manager gives the owner a recommendation first and starts a builder only after the owner's yes (the `live` to `latest` and 3.12 to 3.14 reversals of 15-10-2026 each cost an extra builder run).
+  8. At most two agents running at once, to stay under the session limit.
 - Incidents: [INCIDENTS.md](INCIDENTS.md).
 - Documents describe what is deployed and running, and are updated after each deploy is verified live (docs/PENDING_DOC_CHANGES.md holds the prepared changes).
 - British English, dates DD-MM-YYYY, times UTC, no emoji.
