@@ -181,7 +181,7 @@ The owner asked: "VM 100 (LAN address omitted here) has been created as a Proxmo
 |---|---|---|
 | `db` | `postgres:16-bookworm` (a floating major tag since 15-10-2026, ADR-032; 16.15 before), named volume `pgdata`, `--data-checksums`, `ops/postgres/postgresql.conf` mounted, port NOT published | the database (small box tuning) |
 | `migrate` | built from `ops/migrate` (dbmate 2 + psql, a floating major tag since 15-10-2026), `restart: "no"` | applies `db/migrations/*.sql`, then `db/roles.sql`, creates `watchdog_ro` |
-| `collector` | built from `collector/Dockerfile` (python:3.12-slim, non-root, read-only root, no capabilities) | polls and stores; `/health` and `/metrics` on port 8080 inside the container |
+| `collector` | built from `collector/Dockerfile` (python:3.14-slim, non-root, read-only root, no capabilities) | polls and stores; `/health` and `/metrics` on port 8080 inside the container |
 | `grafana` | `grafana/grafana:12` (12.4.12 on 11-10-2026, a floating major tag since 15-10-2026) (ADR-029; this row said `grafana/grafana-oss:11.6.5` from 09-10-2026 and 11.2.2 before), provisioning mounted read-only from `grafana/`, login required, port `${GRAFANA_BIND:-127.0.0.1}:${GRAFANA_PORT:-3300}` | dashboards |
 | `backup` | built from `ops/backup` (postgres client) | nightly dump, rotation, restore scripts, weekly restore test, optional `BACKUP_REMOTE` hook |
 | `watchdog` | built from `ops/watchdog` (python, psycopg, httpx) | health and DB checks, Telegram alerts, writes `/var/watchdog/watchdog_status.json`; alert-only |
@@ -269,7 +269,7 @@ LOW: L1 duplicate SQL files deleted. L2 `pilot_session` bloat: fillfactor 70 and
 - `sleep N && ...` as a foreground command can be blocked; use polling loops with short sleeps, or run in the background.
 - The auto-mode classifier sometimes returns "no verdict" (transient): retry once, then do other work. It once blocked a live-database read until the owner confirmed.
 - Git Bash on Windows: use `/c/Users/...` paths; `make` and `gh` are not installed.
-- Python in the venv is 3.11; the Docker image is 3.12: write code for 3.11+.
+- Python in the venv is 3.11; the Docker image and CI are 3.14 (ADR-033): write code that runs on 3.11 and 3.14.
 - `docker kill` counts as a manual stop (no restart); `docker compose up -d` after killing. An OOM or crash is restarted.
 - Postgres `trim()` strips spaces only. Postgres `ALTER ROLE ... SET default_transaction_read_only` can be overridden by the session; rely on privileges.
 - Passwords are put in URLs: letters and digits only.
