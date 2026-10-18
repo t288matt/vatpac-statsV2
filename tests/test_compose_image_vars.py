@@ -96,8 +96,10 @@ def test_release_matrix_names_equal_the_compose_services_using_vatpac_stats_imag
     assert matrix == compose == set(BUILT)
 
 
-# Third-party images float on the major version (ADR-032, issue 176): never `latest`, never an exact patch.
-EXPECTED_THIRD_PARTY = {"db": "postgres:16-bookworm", "grafana": "grafana/grafana:12"}
+# Third-party images float on the loosest tag their registry actually publishes (ADR-032, issue 176; amended
+# 18-10-2026): never `latest`, never an exact patch. Postgres floats on the bare major; Grafana has no such tag on
+# Docker Hub (confirmed 18-10-2026: "manifest unknown" for grafana/grafana:12), so it floats on MAJOR.MINOR instead.
+EXPECTED_THIRD_PARTY = {"db": "postgres:16-bookworm", "grafana": "grafana/grafana:12.4"}
 
 
 def _from_lines(dockerfile: str) -> list[str]:
@@ -105,7 +107,7 @@ def _from_lines(dockerfile: str) -> list[str]:
     return [m.group(1) for m in re.finditer(r"^FROM\s+(\S+)", text, re.MULTILINE)]
 
 
-def test_compose_third_party_images_float_on_the_major() -> None:
+def test_compose_third_party_images_match_the_expected_tags() -> None:
     svcs = _services()
     third = {n: s["image"] for n, s in svcs.items() if n not in BUILT}
     assert third == EXPECTED_THIRD_PARTY
@@ -120,7 +122,9 @@ def test_db_and_backup_use_the_same_postgres_tag() -> None:
     assert _services()["db"]["image"] == _from_lines("ops/backup/Dockerfile")[0]
 
 
-def test_no_third_party_image_is_latest_or_an_exact_patch() -> None:
+def test_no_third_party_image_is_latest_or_more_precise_than_it_should_be() -> None:
+    """Postgres and dbmate float on the bare major version; Grafana has no bare-major tag on Docker Hub (confirmed
+    18-10-2026), so it floats on MAJOR.MINOR instead. Nothing floats past that: no exact patch, never `latest`."""
     images = [s["image"] for n, s in _services().items() if n not in BUILT]
     images += _from_lines("ops/backup/Dockerfile") + _from_lines("ops/migrate/Dockerfile")
     ci = yaml.safe_load((REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
@@ -130,7 +134,10 @@ def test_no_third_party_image_is_latest_or_an_exact_patch() -> None:
     for image in images:
         tag = image.rsplit(":", 1)[-1]
         assert tag != "latest", image
-        assert not re.match(r"^\d+\.\d+", tag), image  # 16.15, 12.4.12, 2.36.0 and so on
+        if image.startswith("grafana/grafana:"):
+            assert re.fullmatch(r"\d+\.\d+", tag), image  # MAJOR.MINOR only, e.g. 12.4
+        else:
+            assert not re.match(r"^\d+\.\d+", tag), image  # 16.15, 12.4.12, 2.36.0 and so on
 
 
 def test_ci_postgres_service_matches_production_major() -> None:

@@ -114,7 +114,7 @@ Start it with `docker compose up -d` in that folder. Check it on the docker mach
 
 ## Things to watch
 - Dashboard queries run on the production database for anyone who loads a page. The `grafana_ro` limits and the Cloudflare rate limit bound the load, but a crowd can slow the dashboards (never the collector). Check `docker stats` and `docker compose logs db` if the dashboards feel slow.
-- Keep Grafana up to date: it is exposed to the internet. The image is `grafana/grafana:12` in `docker-compose.yml`, a floating major tag (ADR-032): minor and patch updates arrive with each `docker compose pull`, and a new major version is a manual, tested step (Dependabot refuses major versions of `grafana/grafana`). The 11.6 line ended with 11.6.15 (03-06-2026); check Grafana's release notes for security fixes at least monthly.
+- Keep Grafana up to date: it is exposed to the internet. The image is `grafana/grafana:12.4` in `docker-compose.yml`, a floating minor tag (ADR-032; Docker Hub has no bare-major tag for this image, so it floats on minor rather than major as Postgres and dbmate do): patch updates arrive with each `docker compose pull`, and a new minor or major version is a manual, tested step (Dependabot refuses major versions of `grafana/grafana`). The 11.6 line ended with 11.6.15 (03-06-2026); check Grafana's release notes for security fixes at least monthly.
 
 ## Appendix: README for `~/vatpac-proxy` on the Traefik machine
 Copy this text to `~/vatpac-proxy/README.md` there (the compose file there holds 81 labels: 11 base lines plus 7 labels and a comment per dashboard) (this repository holds the source of truth).
