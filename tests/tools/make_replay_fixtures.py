@@ -5,7 +5,7 @@ docs/RUNBOOKS/feed-archive.md "Read a file"):
 
     python tests/tools/make_replay_fixtures.py --full full/20261010/150012.json.gz --compact compact/20261010/151527.json.gz
 
-Selection (deterministic, seeded): every pilot inside the region, every whitelisted controller, a seeded
+Selection (deterministic, seeded): every pilot inside the region, every whitelisted or near-miss controller, a seeded
 sample of other pilots (all of them are real entries, including ones with a null flight_plan) and of other controllers.
 The compact file is cut to the same pilot keys, so the two snapshots overlap and the replay sees real continuity
 (same sessions, moved positions). Names and CIDs are public data (ADR-019), so they are kept as received.
@@ -25,7 +25,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "collector" / "src"))
 
-from vatpac.filters import inside_polygon, load_reference  # noqa: E402
+from vatpac.filters import inside_polygon, is_near_miss, load_reference  # noqa: E402
 
 OUT = ROOT / "tests" / "fixtures" / "replay"
 SEED = 20261010
@@ -73,7 +73,8 @@ def main() -> None:
     picked += rng.sample(rest, OTHER_PILOTS - len(picked))
     keep = inside_keys | {_key(p) for p in picked}
 
-    listed = [c for c in full["controllers"] if c["callsign"] in ref.whitelist]
+    listed = [c for c in full["controllers"] if c["callsign"] in ref.whitelist
+              or is_near_miss(c["callsign"], ref.whitelist, ref.prefixes)]
     listed_keys = {_key(c) for c in listed}
     rest_c = [c for c in full["controllers"] if _key(c) not in listed_keys]
     ckeys = listed_keys | {_key(c) for c in rng.sample(rest_c, OTHER_CONTROLLERS)}
