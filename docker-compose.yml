@@ -1,10 +1,11 @@
 # VATPAC Stats v3 stack. SPEC.md section 9 is authoritative.
 # Secrets come only from .env (git-ignored). Generate it with `sh ops/gen_env.sh`; the secret
 # values in .env.example are blank on purpose, so compose fails until they are set.
-# Image policy (ADR-032): third-party images use a floating MAJOR tag (postgres:16-bookworm, grafana/grafana:12,
-# amacneil/dbmate:2), never `latest` and never an exact patch. Patch and minor updates arrive with each
-# `docker compose pull`; a new major version is a deliberate change made by editing the tag. The db and
-# backup images must stay on the same Postgres major (pg_dump version).
+# Image policy (ADR-032): third-party images use the most floating tag their registry actually publishes, never
+# `latest` and never an exact patch: a floating MAJOR tag where one exists (postgres:16-bookworm, amacneil/dbmate:2),
+# else the closest thing to it (grafana/grafana has no bare-major tag, only MAJOR.MINOR, so grafana:12.4). Patch
+# (and, for Grafana, minor) updates arrive with each `docker compose pull`; a new major version is a deliberate
+# change made by editing the tag. The db and backup images must stay on the same Postgres major (pg_dump version).
 name: vatpac
 
 x-logging: &logging
@@ -119,7 +120,7 @@ services:
     networks: [vatpac]
 
   grafana:
-    image: grafana/grafana:12  # the OSS edition; the grafana-oss image stops at 11.6.5 (11.6.15, 03-06-2026, is only published as grafana/grafana)
+    image: grafana/grafana:12.4  # the OSS edition; the grafana-oss image stops at 11.6.5 (11.6.15, 03-06-2026, is only published as grafana/grafana). Docker Hub has no bare-major "12" tag for this image (confirmed 18-10-2026: "manifest unknown"), only MAJOR.MINOR and more specific, so this floats on minor instead of major
     restart: unless-stopped
     logging: *logging
     mem_limit: 512m
