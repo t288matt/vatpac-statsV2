@@ -47,3 +47,9 @@ docs/TEAM_ROLES.md
 docs/RESUME.md
 docs/NEXT_SESSION_PROMPT.md
 docs/WRITER_HANDOVER.md
+
+# team and working-agreement files: owner's working files, kept outside the repository (decision 18-10-2026)
+docs/WORKING_AGREEMENT.md
+docs/TEAM_ROLES.md
+docs/TEAM_BRIEFS.md
+docs/reviews/*team-roles*

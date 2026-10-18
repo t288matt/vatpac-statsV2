@@ -53,7 +53,6 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | [CHART_DEFINITIONS.md](CHART_DEFINITIONS.md) | Every v1 chart and what replaced it, with the rule and the test | Owner, analyst | CURRENT |
 | [DASHBOARDS_SIMPLIFIED.md](DASHBOARDS_SIMPLIFIED.md) | What was dropped or simplified from v1 and why | Owner | CURRENT |
 | [V1_COMPARISON.md](V1_COMPARISON.md) | The v1 against v3 comparison, its method, results and the owner's decisions (section 11) | Owner, analyst | HISTORICAL record (complete 09-10-2026; a short re-comparison is planned) |
-| [WORKING_AGREEMENT.md](WORKING_AGREEMENT.md) | How the team works: roles, flow, change tiers, approvals, limits | Owner, manager, agents | CURRENT (approved 09-10-2026) |
 | [INCIDENTS.md](INCIDENTS.md) | Who acts first in an incident, when to tell the owner, the ten-line blameless write-up | Manager, owner | DRAFT for owner approval (10-10-2026) |
 | [reference/v1_metabase_cards.json](reference/v1_metabase_cards.json) | The exported v1 Metabase card definitions (source data) | Engineer | CURRENT as reference data |
 

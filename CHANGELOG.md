@@ -112,7 +112,7 @@ Tests only; nothing to deploy. Two real raw-feed snapshots are kept as fixtures,
 ### Also on main, no effect on the running system
 - Collector size budget raised from 1700 to 1800 lines (ADR-027, 10-10-2026).
 - Retention rules decided (ADR-026, 09-10-2026): raw positions kept 180 days, sessions, flights and controller data kept forever, and more. Decided but not built yet (issue #21).
-- Working agreement and team briefs ([docs/WORKING_AGREEMENT.md](docs/WORKING_AGREEMENT.md), [docs/TEAM_BRIEFS.md](docs/TEAM_BRIEFS.md)), the deploy plan and the cold-start prompt.
+- Working agreement and team briefs (since 18-10-2026 these team files live outside the repository, in the owner's Claude working folder), the deploy plan and the cold-start prompt.
 - CI and release workflow fixes (a line-length error had kept CI red for four commits on 10-10-2026).
 
 ### Collector fixes for oversized and odd feed values (10-10-2026, c89e544, PR 117; issues #111 and #114)
