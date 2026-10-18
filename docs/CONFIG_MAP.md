@@ -2,7 +2,7 @@
 
 Last reviewed 13-10-2026 (issue 89 phases 1b, 3, 4 and 5 marked live, marker 7a71d30; the `flight_quiet_hours` row checked) against `docker-compose.yml`, `.env.example` and the code (`python ops/check_config_drift.py` enforces the collector part). Part A lists every environment variable v3 reads. Part B maps every variable in v1's `docker-compose.yml` to KEPT, CHANGED or DROPPED.
 
-Third-party images are not configured in `.env`: they are fixed in `docker-compose.yml` and the Dockerfiles as floating major tags (`postgres:16-bookworm`, `grafana/grafana:12`, `amacneil/dbmate:2`, ADR-032).
+Third-party images are not configured in `.env`: they are fixed in `docker-compose.yml` and the Dockerfiles as the loosest tag their registry publishes (`postgres:16-bookworm` and `amacneil/dbmate:2` float on the bare major; `grafana/grafana:12.4` floats on the minor, since Docker Hub has no bare-major tag for that image; ADR-032).
 
 Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker-compose.yml`, `.env.example`. Secrets live only in `.env` (git-ignored). `.env.example` has blank secrets on purpose: run `sh ops/gen_env.sh` to write a `.env` with random values, then `sh ops/check_env.sh` to check it (blank, `change-me*`, under 16 characters, repeated, or non letter/digit values are rejected). Passwords are placed inside connection URLs, so they must be letters and digits only (for example `openssl rand -hex 24`).
 
@@ -79,7 +79,7 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | Variable | Value | Meaning |
 |---|---|---|
 | `DATABASE_URL` (collector) | built from `COLLECTOR_DB_PASSWORD` and `POSTGRES_DB`, role `collector`, host `db` | Overrides the five `POSTGRES_*` connection settings inside the collector. |
-| `GF_*` (grafana) | anonymous access off, sign-up off, analytics and update checks off, default timezone UTC | Grafana hardening. Public dashboards are on (Grafana default) and are the only way pages are seen without a login; anonymous access must stay off (ADR-029). Image `grafana/grafana:12`. |
+| `GF_*` (grafana) | anonymous access off, sign-up off, analytics and update checks off, default timezone UTC | Grafana hardening. Public dashboards are on (Grafana default) and are the only way pages are seen without a login; anonymous access must stay off (ADR-029). Image `grafana/grafana:12.4`. |
 | `GRAFANA_RO_DB_PASSWORD` (grafana) | `${GRAFANA_RO_PASSWORD}` | Referenced by the provisioned datasource. |
 | `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` (backup) | `db`, `5432`, `backup_ro`, `BACKUP_DB_PASSWORD`, `POSTGRES_DB` | Connection for `pg_dump`. |
 | `RESTORE_PGUSER`, `RESTORE_PGPASSWORD` (backup) | `POSTGRES_USER`, `POSTGRES_PASSWORD` | Owner login used only by `restore.sh` and `restore-test.sh`, which need to create, drop and rename databases (ADR-017). |
