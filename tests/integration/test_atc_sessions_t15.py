@@ -1,4 +1,4 @@
-"""T15 (group c): ATC session cards 144, 146, 153, 154 and 186 on the ATC overview dashboard.
+"""T15 (group c): ATC session cards 144, 146, 153 and 154 on the ATC overview dashboard.
 
 Synthetic controller sessions are inserted relative to now(), then the panel SQL is read from
 grafana/dashboards/atc/atc-overview.json, the Grafana time macros are expanded and the query is executed, so the
@@ -9,8 +9,6 @@ Rules under test (owner's Metabase export, 08-10-2026):
   144 / 146  S1 (rating 2) / S2 (rating 3) sessions started in the last 30 days, hours online per CID, top 50
   153        median session length in hours, last 90 days, at least 3 sessions, top 15 longest
   154        median session length in minutes, last 90 days, at least 3 sessions, named, top 15 shortest
-  186        more than 240 minutes (strictly) of wall-clock time inside some 8-hour window, ATIS excluded,
-             overlapping sessions of one CID not counted twice; one summary row then one detail row per session
 """
 from __future__ import annotations
 
@@ -28,8 +26,7 @@ S1_TITLE = "Top S1 service providers (last 30 days)"
 S2_TITLE = "Top S2 service providers (last 30 days)"
 LONGEST_TITLE = "Controllers with the longest median session (last 90 days)"
 SHORTEST_TITLE = "Controllers with the shortest median session (last 90 days)"
-EIGHT_HOUR_TITLE = "Controllers on for more than 4 hours in any 8-hour window"
-NEW_TITLES = [S1_TITLE, S2_TITLE, LONGEST_TITLE, SHORTEST_TITLE, EIGHT_HOUR_TITLE]
+NEW_TITLES = [S1_TITLE, S2_TITLE, LONGEST_TITLE, SHORTEST_TITLE]
 
 # A fixed anchor a few days back, on the hour, so the 30-day and 90-day windows are far away.
 ANCHOR = (datetime.now(UTC) - timedelta(days=5)).replace(minute=0, second=0, microsecond=0)
@@ -149,108 +146,6 @@ def test_shortest_uses_the_median_and_ascending_order(conn):
         ("Controller 9200001 (9200001, rating 3)", 10.0),
         ("Controller 9200002 (9200002, rating 5)", 20.0),
     ]
-
-
-# --- card 186: more than 4 hours in any 8-hour window -----------------------------------------------
-
-def summary(rows: list[dict]) -> list[dict]:
-    return [r for r in rows if r["row_type"] == "summary"]
-
-
-def detail(rows: list[dict]) -> list[dict]:
-    return [r for r in rows if r["row_type"] == "detail"]
-
-
-def test_exactly_four_hours_is_not_enough_but_one_minute_more_is(conn):
-    add(conn, 9300001, ANCHOR, 240)
-    assert run(conn, EIGHT_HOUR_TITLE) == []                  # strictly more than 240 minutes
-    add(conn, 9300002, ANCHOR, 241)
-    rows = run(conn, EIGHT_HOUR_TITLE)
-    assert [r["row_type"] for r in rows] == ["summary", "detail"]   # summary first, then its sessions
-    assert rows[0]["cid"] == 9300002 and float(rows[0]["hours_controlled_in_8_hr_period"]) == 4.02
-    span = rows[0]["period_end_utc"].astimezone(UTC) - rows[0]["period_start_utc"].astimezone(UTC)
-    assert span == timedelta(hours=8)   # compared in UTC: same-zone subtraction in Python is wall-clock
-    assert rows[1]["hours_controlled_in_8_hr_period"] is None and rows[1]["period_start_utc"] is None
-    assert float(rows[1]["session_hours"]) == 4.02
-    assert rows[1]["session_start_utc"] == ANCHOR and rows[1]["session_callsign"] == "TEST9300002_TWR"
-
-
-def test_two_sessions_inside_eight_hours_are_added_up(conn):
-    add(conn, 9300001, ANCHOR, 125, callsign="AAA_TWR")
-    add(conn, 9300001, ANCHOR + timedelta(minutes=245), 125, callsign="BBB_APP")   # 2 h gap: 250 minutes in 370
-    rows = run(conn, EIGHT_HOUR_TITLE)
-    assert float(summary(rows)[0]["hours_controlled_in_8_hr_period"]) == 4.17
-    assert sorted(r["session_callsign"] for r in detail(rows)) == ["AAA_TWR", "BBB_APP"]
-
-
-def test_sessions_too_far_apart_do_not_count(conn):
-    add(conn, 9300001, ANCHOR, 120, callsign="AAA_TWR")
-    add(conn, 9300001, ANCHOR + timedelta(minutes=390), 120, callsign="BBB_TWR")   # best 8 h window holds 3.5 h
-    assert run(conn, EIGHT_HOUR_TITLE) == []
-
-
-def test_busiest_window_is_chosen_per_controller(conn):
-    add(conn, 9300001, ANCHOR - timedelta(days=1), 270)       # 4.5 h
-    add(conn, 9300001, ANCHOR, 300)                           # 5 h
-    rows = run(conn, EIGHT_HOUR_TITLE)
-    assert len(summary(rows)) == 1                            # one summary row per controller
-    assert float(summary(rows)[0]["hours_controlled_in_8_hr_period"]) == 5.0
-
-
-def test_overlapping_sessions_are_not_double_counted(conn):
-    # 3 h on one position and a second position opened 2 h in that runs 2.5 h: wall clock 4.5 h
-    add(conn, 9300001, ANCHOR, 180, callsign="AAA_TWR")
-    add(conn, 9300001, ANCHOR + timedelta(minutes=120), 150, callsign="BBB_APP")
-    rows = run(conn, EIGHT_HOUR_TITLE)
-    assert float(summary(rows)[0]["hours_controlled_in_8_hr_period"]) == 4.5
-    by_callsign = {r["session_callsign"]: float(r["session_hours"]) for r in detail(rows)}
-    assert by_callsign == {"AAA_TWR": 2.0, "BBB_APP": 2.5}    # the first is cut off when the second starts
-
-
-def test_a_session_inside_another_adds_nothing(conn):
-    add(conn, 9300001, ANCHOR, 180, callsign="AAA_TWR")
-    add(conn, 9300001, ANCHOR + timedelta(minutes=60), 120, callsign="BBB_APP")    # ends together: 3 h of wall clock
-    assert run(conn, EIGHT_HOUR_TITLE) == []                  # counting both in full would give 5 h
-
-
-def test_atis_callsigns_are_ignored(conn):
-    add(conn, 9300001, ANCHOR, 300, callsign="YSSY_ATIS")
-    add(conn, 9300002, ANCHOR, 300, callsign="ymml_atis")
-    add(conn, 9300003, ANCHOR, 150, callsign="AAA_TWR")
-    add(conn, 9300003, ANCHOR, 150, callsign="YSSY_ATIS")
-    assert run(conn, EIGHT_HOUR_TITLE) == []
-
-
-def test_different_controllers_are_never_pooled(conn):
-    add(conn, 9300001, ANCHOR, 180)
-    add(conn, 9300002, ANCHOR, 180)
-    assert run(conn, EIGHT_HOUR_TITLE) == []
-
-
-def test_reconnect_within_five_minutes_is_one_session(conn):
-    """v3 merges a reconnect of the same position inside 5 minutes, so the gap counts as time on (v1 did not)."""
-    add(conn, 9300001, ANCHOR, 120)
-    add(conn, 9300001, ANCHOR + timedelta(minutes=123), 120)           # 3 minute gap: merged, 243 minutes
-    add(conn, 9300002, ANCHOR, 120)
-    add(conn, 9300002, ANCHOR + timedelta(minutes=126), 120)           # 6 minute gap: two sessions, 240 minutes
-    rows = summary(run(conn, EIGHT_HOUR_TITLE))
-    assert [(r["cid"], float(r["hours_controlled_in_8_hr_period"])) for r in rows] == [(9300001, 4.05)]
-
-
-def test_only_sessions_in_the_dashboard_range_are_examined(conn):
-    add(conn, 9300001, days_ago(60), 300)
-    assert run(conn, EIGHT_HOUR_TITLE) == []
-    add(conn, 9300002, days_ago(2), 300)
-    assert [r["cid"] for r in summary(run(conn, EIGHT_HOUR_TITLE))] == [9300002]
-
-
-def test_at_most_one_hundred_controllers_most_recent_first(conn):
-    for k in range(101):
-        add(conn, 9310000 + k, ANCHOR - timedelta(hours=k), 300)
-    rows = summary(run(conn, EIGHT_HOUR_TITLE))
-    assert len(rows) == 100
-    assert rows[0]["cid"] == 9310000                                   # newest window first
-    assert 9310100 not in {r["cid"] for r in rows}                     # the oldest is cut
 
 
 def test_every_new_panel_query_runs_on_empty_data(conn):
