@@ -150,7 +150,6 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 |---|---|
 | [docs/INSTALL.md](docs/INSTALL.md) | Install a new instance from the source code |
 | [docs/README.md](docs/README.md) | Index of every document, with its status |
-| [docs/WORKING_AGREEMENT.md](docs/WORKING_AGREEMENT.md) | How the team works |
 | [docs/IF_CLAUDE_IS_UNAVAILABLE.md](docs/IF_CLAUDE_IS_UNAVAILABLE.md) | One-page card for the owner when Claude is not available |
 | [docs/TRACKER.md](docs/TRACKER.md) | The live task list; the single source of truth for status |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log (ADRs) |
