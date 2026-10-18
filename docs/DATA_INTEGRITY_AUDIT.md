@@ -29,7 +29,7 @@ All access to the live database was SELECT only (psql inside the `db` container,
 
 | Script (`ops/audit/`) | What it proves |
 |---|---|
-| `independent.py` | The independent rules (exact rational point-in-polygon, whitelist, near miss, frequency, caps). Imports nothing from `collector/`, does not use shapely. |
+| `independent.py` | The independent rules (exact rational point-in-polygon, whitelist, frequency, caps). Imports nothing from `collector/`, does not use shapely. |
 | `feed_sampler.py`, `compare_samples.py` | Part A: raw feed payload against the stored rows of the same `update_timestamp`. |
 | `polygon_edge_test.py` | Part A: polygon edge cases against shapely. |
 | `throwaway/replay_check.py` | Part A: real payloads, poison records, stale and future timestamps through the collector's own code (this one does run the collector's code, by design, since it tests behaviour). |
@@ -68,7 +68,6 @@ All access to the live database was SELECT only (psql inside the `db` container,
 | F5 | An unparsable latitude or longitude (string `"abc"`) is treated as "no position": the pilot passes the filter and is stored with NULL lat/lon. NaN is excluded correctly. | `throwaway/replay_check.py` (INFO line). Real feed: 0 pilots without a position in 44 live snapshots. |
 | F6 | A flight still in progress counts as a completed flight and, at its latest sample, as an arrival movement. | 18 of 382 flights were still connected at the capture; 12 of 297 home arrivals belonged to them. Fades with the 30-day windows. |
 | F7 | `pilot-origins.json` panel 7 (active people by rating) labels rating 11 "Administrator" and 12 "Unknown"; the feed and the `controller_rating` lookup say 11 = SUP, 12 = ADM. | Feed `ratings` array against the SQL `CASE`. No 11 or 12 in the data yet, so latent. |
-| F8 | The near-miss rule flags supervisors (`AS_SUP`: 317 polls, `EN_SUP`: 15 polls at the time) as possible new positions. Both rows in `controller_unlisted_sighting` are SUP. | `SELECT * FROM controller_unlisted_sighting`. Alert noise, not a data error. |
 | F9 | Replay and ordering behaviour: after a collector restart the first poll re-applies the current snapshot and logs it `ok` (3,618 ok rows for 3,617 distinct snapshots at the time; the extra row is at 12:37:24 UTC, 3 s after the deploy). Applying an older snapshot after a newer one overwrites plan fields with the older values and changes the event tables (not reachable through the poll loop, which skips older timestamps). Idempotence itself holds: replaying real payloads again inserts 0 positions and changes no table. | `throwaway/replay_check.py`; `poll_log` ids 3682 and 3683. |
 | F10 | About 0.4 % of 15-second ticks are never stored: 15 gaps of exactly 30 s, one of 38 s (the F1 event), one of 45 s (reboot test): 18 to 19 missing ticks, matching the "Snapshots missed" panel (3,821 of 3,839 expected, 0.47 %). The 30 s gaps are a poll-phase effect: `polled_at - snapshot_ts` ranges between about 8 s and about 25 s and drops by exactly 15.0 s at the next stored snapshot (13 of the 15 30 s gaps; the other two, at 03:12:49 and 04:05:49 UTC, show changes of +0.4 s and -13.1 s), once every 65 to 76 minutes, because the loop polls at the feed's own period and the CDN serves an object up to 15 s old. Harmless to airborne minutes (the 40 s cap exceeds 30 s) but the 38 s and 45 s holes lose a few seconds. | `ops/audit/poll_phase.py` on a capture; `poll_log` ids 3047 and 3048 (10:02:06 and 10:02:21 UTC, lag 24.0 s then 9.0 s). Setting `POLL_INTERVAL_SECONDS` to 10 would remove nearly all of them at the cost of two extra conditional requests a minute. |
 | F11 | Text fields have no length cap: a 100,000-character name is stored as is. | `throwaway/replay_check.py`. |
@@ -79,17 +78,17 @@ All access to the live database was SELECT only (psql inside the `db` container,
 - `controllers_global` counts every entry of the feed's `controllers` array including observers and supervisors (about 117 against about 100 real positions); `atis` is a separate array and never enters, as the SPEC says.
 - `home_icao` (trailing four capital letters of the name) gave 31 distinct values starting with Y in the data, all plausible airports; no surname false positives were seen.
 - Mappings: `controller_rating`, `facility` and `pilot_rating` equal the lookup arrays published inside the live feed row for row; facility numbers agree with the callsign suffix for all 45 controller sessions (TWR 4, GND 3, APP 5, CTR 6).
-- The whitelist file is well formed: 254 unique callsigns, no duplicates, no skipped lines. The unlisted callsigns seen in the live samples are summarised in section 3.1: none is a Y-prefixed Australian position and only `EN_SUP` is a near miss.
+- The whitelist file is well formed: 254 unique callsigns, no duplicates, no skipped lines. The unlisted callsigns seen in the live samples are summarised in section 3.1: none is a Y-prefixed Australian position.
 
 ## 3. Part A: is incoming data filtered correctly?
 
 ### 3.1 Live feed against stored rows (44 snapshots)
 
-For each sampled payload the independent code produced the in-region pilot set (cid, callsign, logon_time), the kept controller set, `pilots_global`, `controllers_global`, `pilots_with_plan`, `rejected_values`, the capped groundspeed and altitude, the frequency in Hz and the near-miss list. `compare_samples.py` then read, for the same `update_timestamp`, `network_snapshot`, the `ok` `poll_log` row, every `pilot_position` row at that instant (with its session), every controller session spanning it with its rating and frequency event as at that instant, and the near-miss table.
+For each sampled payload the independent code produced the in-region pilot set (cid, callsign, logon_time), the kept controller set, `pilots_global`, `controllers_global`, `pilots_with_plan`, `rejected_values`, the capped groundspeed and altitude, and the frequency in Hz. `compare_samples.py` then read, for the same `update_timestamp`, `network_snapshot`, the `ok` `poll_log` row, every `pilot_position` row at that instant (with its session), and every controller session spanning it with its rating and frequency event as at that instant.
 
-Result: **44 snapshots compared, 44 with identical counts and identical entity sets, 0 unexplained differences.** 32 snapshots carry a `pilot_attr_changed_later` note (see below); no other difference type occurred. Across the samples the independent code kept 19 to 25 in-region pilots of 1197 to 1321 in the feed, and 3 to 5 whitelisted controllers of 100 to 120; every kept pilot was stored with identical latitude, longitude, groundspeed, altitude and heading, every kept controller with identical rating and frequency, and the near-miss callsign seen (`EN_SUP`) was recorded.
+Result: **44 snapshots compared, 44 with identical counts and identical entity sets, 0 unexplained differences.** 32 snapshots carry a `pilot_attr_changed_later` note (see below); no other difference type occurred. Across the samples the independent code kept 19 to 25 in-region pilots of 1197 to 1321 in the feed, and 3 to 5 whitelisted controllers of 100 to 120; every kept pilot was stored with identical latitude, longitude, groundspeed, altitude and heading, every kept controller with identical rating and frequency.
 
-Feed hygiene across the 44 payloads (55,891 pilot records): 0 duplicate pilot keys, 0 pilots without a position, 2076 without a flight plan; 168 distinct unlisted controller callsigns, none Y-prefixed, and the only near miss is `EN_SUP`.
+Feed hygiene across the 44 payloads (55,891 pilot records): 0 duplicate pilot keys, 0 pilots without a position, 2076 without a flight plan; 168 distinct unlisted controller callsigns, none Y-prefixed.
 
 | Difference type | Count | Explanation |
 |---|---|---|
@@ -105,7 +104,6 @@ Feed hygiene across the 44 payloads (55,891 pilot records): 0 duplicate pilot ke
 | `controller_extra_in_db` | 0 | |
 | `controller_rating` | 0 | |
 | `controller_frequency` | 0 | |
-| `near_miss_missing` | 0 | |
 
 `pilot_attr_changed_later` is not an ingest difference: the stored plan field (route, departure time) is "latest non-null wins", and the pilot amended the plan after the sampled snapshot (for example VOZ919 `deptime` 1315 in the feed at 12:43 and 1253 stored). The 117 lines across 32 snapshots are 11 plan amendments by 8 pilots (8 routes, 3 departure times); for all 11 the raw feed value itself changed during the sampling window and the stored value follows the later feed value.
 
@@ -178,8 +176,7 @@ Feed hygiene across the 44 payloads (55,891 pilot records): 0 duplicate pilot ke
 | No flight plan; blank departure and arrival | Stored with NULL plan, fails the flight gate |
 | Controller frequency 199.998, "abc", empty | Stored with NULL frequency |
 | Controller callsign with trailing space | Matched after stripping |
-| `SY_OBS`, lower-case `sy_twr`, unknown prefix `ZZ_NEW` | Not stored, not a near miss |
-| `SY_NEW`, `SY_ATIS` | Not stored, recorded as near misses |
+| `SY_OBS`, lower-case `sy_twr`, unknown prefix `ZZ_NEW`, `SY_NEW`, `SY_ATIS` | Not stored |
 | Controller with null `cid` or empty callsign | Skipped |
 | Replay of the same snapshots | 0 positions inserted, all tables identical |
 | Real payloads applied in reverse order | Sessions and positions identical; only the event tables differ (F9) |
@@ -305,7 +302,7 @@ Deferred (no overlap, T21). Noted only: v1 identified sessions by `(cid, callsig
 |---|---|---|---|---|
 | 1 | Invariant pack (17 SQL checks: poll_log against network_snapshot, positions against `pilots_in_region`, duplicates, caps, gaps, orphans, partitions, reference hashes) | `ops/check_data_integrity.py` wrapping `invariants.sql`; integration test on the `_test` database with seeded violations | daily and after every deploy | `ops/audit/invariants.sql` |
 | 2 | Identity-flap detector: sessions of one `cid` + `callsign` with `logon_time` within 2 s, or a snapshot that creates sessions for more than half the in-region pilots | same pack; alert through the watchdog | every 5 minutes (cheap query on the last hour) | `invariants.sql` |
-| 3 | Feed cross-check: independent recompute of a fresh feed snapshot against the stored rows (counts, exact pilot and controller sets, positions, frequency, rating, near misses) | read-only sidecar or cron, not CI (T16 item c) | every 5 minutes, results to a status file the watchdog reads | `independent.py` + `compare_samples.compare()` |
+| 3 | Feed cross-check: independent recompute of a fresh feed snapshot against the stored rows (counts, exact pilot and controller sets, positions, frequency, rating) | read-only sidecar or cron, not CI (T16 item c) | every 5 minutes, results to a status file the watchdog reads | `independent.py` + `compare_samples.compare()` |
 | 4 | Timestamp guard test and code guard (F2) | unit test: future timestamp, equal, older, garbled | CI | new |
 | 5 | Panel recompute regression: the 26 panels of this audit | run from a workstation or the VM | after each deploy and monthly | `capture.py` + `panel_recompute.py` |
 | 6 | Flight recompute: `flight_summary` against raw positions for finished sessions | same | daily sample of 50 sessions, full weekly while data is under 90 days | `recompute_flights.py` |
@@ -360,7 +357,6 @@ About 0.5 GB in total on a volume with 174 GB free. Names and CIDs are public (A
 | F5 | Treat unparsable latitude/longitude as malformed, not as no position | A string latitude passes the polygon filter and is stored with NULL position. |
 | F6 | Flag open flights in flight views | Flights still connected count as completed flights and arrivals (18 of 382 now). |
 | F7 | Fix rating labels 11/12 in pilot-origins panel 7 | 11 is SUP and 12 is ADM in the feed; the panel says Administrator for 11 and Unknown for 12. |
-| F8 | Exclude _SUP callsigns from near-miss alerts | AS_SUP and EN_SUP are supervisors, not new positions. |
 | F9 | Log a replayed snapshot after restart as skipped, and guard plan fields against older snapshots | First poll after restart writes a second ok poll_log row; older-after-newer apply overwrites plan fields. |
 | F10 | Lower POLL_INTERVAL_SECONDS to 10 to stop periodic missed ticks | Poll phase wraps against the feed about hourly, losing one 15 s tick (about 0.4 %). |
 | F11 | Cap text field lengths at ingest | A 100,000 character name is stored unchanged. |

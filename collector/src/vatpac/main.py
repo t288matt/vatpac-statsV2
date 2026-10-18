@@ -70,7 +70,7 @@ class Collector:
         try:
             with self.pool.connection() as conn:
                 return apply_snapshot(conn, snapshot, ref.polygon, ref.whitelist, polygon_sha=ref.polygon_sha,
-                                      whitelist_sha=ref.whitelist_sha, prefixes=ref.prefixes,
+                                      whitelist_sha=ref.whitelist_sha,
                                       deadline=time.monotonic() + APPLY_DEADLINE_S)
         finally:
             self._apply_lock.release()

@@ -67,7 +67,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Definitions are copied from the v1 Metabase cards 175 and 183 (exported 08-10-2026). Months are UTC calendar months. 'Pilots with Y' uses the v1 name rule (the fourth character from the end of the pilot's name is 'Y'). Pilots are those who filed a flight plan (the v3 flight gate). Pilot hours are time online per flight, from the first to the last stored position inside the Australian airspace polygon. There is no backfill, so the charts start at go-live."
+        "content": "Months are UTC calendar months. 'Pilots with Y' means the fourth character from the end of the pilot's name is 'Y' (a home airport code starting with Y). Pilots are those who filed a flight plan. Pilot hours are time online per flight, from the first to the last stored position inside the Australian airspace polygon. There is no backfill, so the charts start at go-live."
       }
     },
     {

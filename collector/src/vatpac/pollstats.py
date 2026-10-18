@@ -29,11 +29,8 @@ def update_stats(st: Stats, s: Settings, status: str, result: ApplyResult | None
         st.last_snapshot_ts = snap_ts
         st.positions_written += result.positions_inserted
         st.rejected_values += result.rejected_values
-        st.near_misses += len(result.new_near_misses)
         for name in ("pilots_seen", "pilots_inside", "pilots_kept", "controllers_seen", "controllers_kept"):
             setattr(st, name, getattr(result, name))
-        for callsign in result.new_near_misses:
-            log.warning("near-miss controller callsign not on whitelist", extra={"callsign": callsign})
     was_open = st.breaker_open
     st.breaker_open = st.consecutive_failures >= s.circuit_failure_threshold
     if st.breaker_open != was_open:

@@ -1,4 +1,4 @@
-"""The ingest filters (pilot polygon, controller whitelist), reference loading and near-misses."""
+"""The ingest filters (pilot polygon, controller whitelist) and reference loading."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import hashlib
 import json
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import shapely
@@ -84,27 +84,12 @@ def load_whitelist(path: str | Path, raw: bytes | None = None) -> frozenset[str]
     return frozenset(seen)
 
 
-def listed_prefixes(whitelist: frozenset[str]) -> frozenset[str]:
-    return frozenset(c.split("_", 1)[0] for c in whitelist if "_" in c)
-
-
-def is_near_miss(callsign: str, whitelist: frozenset[str], prefixes: frozenset[str] | None = None) -> bool:
-    """Unlisted controller whose prefix (text before the first `_`) matches a listed prefix (`prefixes` precomputed)."""
-    if callsign in whitelist or callsign.endswith(("_OBS", "_SUP")) or "_" not in callsign:
-        return False
-    return callsign.split("_", 1)[0] in (listed_prefixes(whitelist) if prefixes is None else prefixes)
-
-
 @dataclass(frozen=True, slots=True)
 class ReferenceData:
     polygon: Polygon
     whitelist: frozenset[str]
     polygon_sha: str
     whitelist_sha: str
-    prefixes: frozenset[str] = field(init=False)  # derived once per load, so no per-controller rebuild
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "prefixes", listed_prefixes(self.whitelist))
 
 
 def load_reference(polygon_path: str | Path, whitelist_path: str | Path) -> ReferenceData:

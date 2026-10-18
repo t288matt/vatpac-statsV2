@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -40,7 +39,7 @@ def test_an_empty_database_warns_that_nothing_has_arrived_yet(conn, cfg) -> None
     assert got["database"] == (wd.OK, "reachable")
     assert got["poll_log_ok_age"] == (wd.WARN, "no newest ok poll yet")
     assert got["network_snapshot_age"] == (wd.WARN, "no newest snapshot yet")
-    assert got["_near_miss"] == (wd.OK, "") and got["identity_flap"][0] == wd.OK
+    assert got["identity_flap"][0] == wd.OK
 
 
 @pytest.mark.parametrize("age,level", [(5, wd.OK), (90, wd.WARN), (400, wd.CRIT)])
@@ -63,14 +62,6 @@ def test_database_size_limit(conn, cfg) -> None:
     cfg.db_max_gb = 0.0001                                    # about 100 KB: the schema alone is bigger
     level, detail = wd.check_db(cfg)["db_size"]
     assert level == wd.WARN and "limit 0.0001" in detail
-
-
-def test_near_miss_callsigns_are_listed_oldest_first(conn, cfg) -> None:
-    t = datetime(2026, 10, 7, 16, 0, tzinfo=UTC)
-    for i, cs in enumerate(["ML_XYZ_CTR", "AD_XYZ_TWR"]):
-        conn.execute("INSERT INTO controller_unlisted_sighting (callsign, cid, first_seen, last_seen) VALUES (%s,1,%s,%s)",
-                     (cs, t + timedelta(minutes=i), t + timedelta(minutes=i)))
-    assert wd.check_db(cfg)["_near_miss"] == (wd.OK, "ML_XYZ_CTR,AD_XYZ_TWR")
 
 
 def test_an_unreachable_database_is_critical(cfg) -> None:

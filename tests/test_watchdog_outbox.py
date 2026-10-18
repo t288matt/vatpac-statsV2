@@ -311,7 +311,6 @@ def test_a_fixed_run_of_check_results_sends_exactly_the_golden_messages(clock: C
     for n, lv, d in seq:
         clock.now += 60
         a.update(n, lv, d)
-    a.send("NEAR-MISS controller callsign(s) not on whitelist: X_TWR")
     a.send("RESTARTED collector (1/3 this hour, ok=True): stuck")
     got = [re.sub(r"\(\d\d:\d\d UTC\)", "(HH:MM UTC)", t) for t in tg.delivered]
     assert got == json.loads((REPO / "tests" / "fixtures" / "alerter_replay_golden.json").read_text())

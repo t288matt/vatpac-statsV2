@@ -23,7 +23,6 @@ Files (mounted read-only at `/app/config`): `config/australian_airspace_polygon.
    The newest `poll_log` SHAs must equal the new `reference_data_change` rows.
 
 ## Notes
-- Near-miss controllers (a similar prefix but not listed) are in `controller_unlisted_sighting`; the watchdog alerts on the first sighting of each. To accept one, add it to the whitelist as above.
 - A polygon change affects only new snapshots; stored history is not re-filtered.
 - The SHA-256 is of the raw file bytes, so the same text with Windows line endings (CRLF) hashes differently from LF. Git forces LF (`.gitattributes`), so a deployed file is LF; do not hand-edit on Windows and copy across.
 

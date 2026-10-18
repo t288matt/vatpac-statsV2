@@ -1,4 +1,4 @@
-"""Review fixes 87 (health ages follow the poll interval), 99 (prefixes precomputed), 100 (one read per file)."""
+"""Review fixes 87 (health ages follow the poll interval), 100 (one read per file)."""
 from __future__ import annotations
 
 import hashlib
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from vatpac.filters import ReferenceData, is_near_miss, load_reference
+from vatpac.filters import ReferenceData, load_reference
 from vatpac.health import Stats
 
 
@@ -40,25 +40,6 @@ def test_the_collector_gives_stats_the_configured_interval(monkeypatch: pytest.M
     ref = ReferenceData.__new__(ReferenceData)
     object.__setattr__(ref, "polygon_sha", "p"), object.__setattr__(ref, "whitelist_sha", "w")
     assert Collector(s, ref, None, None).stats.poll_interval_s == 90.0  # type: ignore[arg-type]
-
-
-class _NoIterate(frozenset):
-    def __iter__(self):  # type: ignore[no-untyped-def]
-        raise AssertionError("the whitelist must not be walked when the prefixes are given")
-
-
-def test_near_miss_uses_the_given_prefixes_without_walking_the_whitelist() -> None:
-    wl = _NoIterate({"ML_APP", "AD_TWR"})
-    assert is_near_miss("ML_XYZ", wl, frozenset({"ML", "AD"})) is True
-    assert is_near_miss("PH_TWR", wl, frozenset({"ML", "AD"})) is False
-    assert is_near_miss("ML_APP", wl, frozenset({"ML"})) is False  # listed
-
-
-def test_reference_prefixes_match_the_default_path(polygon_path: Path, whitelist_path: Path) -> None:
-    ref = load_reference(polygon_path, whitelist_path)
-    assert ref.prefixes == {c.split("_", 1)[0] for c in ref.whitelist if "_" in c}
-    for cs in ("ML_FOO_CTR", "AD_XYZ_TWR", "PH_TWR", "SY_OBS", "UAE3", "ML_APP"):
-        assert is_near_miss(cs, ref.whitelist, ref.prefixes) == is_near_miss(cs, ref.whitelist)
 
 
 def test_load_reference_reads_each_file_once_and_hashes_what_it_parsed(

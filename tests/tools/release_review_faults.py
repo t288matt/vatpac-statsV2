@@ -104,7 +104,7 @@ def settings(**kw: object) -> Settings:
 def reset() -> None:
     with psycopg.connect(DSN, autocommit=True) as c:
         c.execute("TRUNCATE pilot_position, pilot_session, controller_rating_event, controller_frequency_event, "
-                  "controller_session, network_snapshot, poll_log, controller_unlisted_sighting, reference_data_change "
+                  "controller_session, network_snapshot, poll_log, reference_data_change "
                   "RESTART IDENTITY CASCADE")
 
 

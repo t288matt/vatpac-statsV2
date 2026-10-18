@@ -55,16 +55,6 @@ def load_whitelist() -> set[str]:
     return out
 
 
-def prefix(callsign: str) -> str:
-    return callsign.split("_", 1)[0]
-
-
-def is_near_miss(callsign: str, wl: set[str]) -> bool:
-    if callsign in wl or callsign.endswith("_OBS"):
-        return False
-    return prefix(callsign) in {prefix(w) for w in wl}
-
-
 def inside(poly, p) -> bool:
     if p["latitude"] is None or p["longitude"] is None:
         return True  # SPEC: no position passes
@@ -132,9 +122,9 @@ def synthetic_controllers():
         c("SY_TWR", "120.500", facility=4),
         c("ML_APP", "132.000", rating=5, facility=5),
         c("BN_GND", "199.998", facility=3),          # whitelisted, no frequency set
-        c("ML_XYZ_CTR", "132.800", rating=5, facility=6),   # near-miss (prefix ML is whitelisted)
-        c("AD_XYZ_TWR", "120.500", facility=4),             # near-miss (prefix AD)
-        c("SY_OBS", "199.998", rating=1, facility=0),       # _OBS never a near-miss
+        c("ML_XYZ_CTR", "132.800", rating=5, facility=6),   # unlisted, never stored
+        c("AD_XYZ_TWR", "120.500", facility=4),             # unlisted, never stored
+        c("SY_OBS", "199.998", rating=1, facility=0),       # _OBS never stored
     ]
 
 
@@ -167,7 +157,7 @@ def build(raw: dict) -> tuple[dict, dict]:
     obs = [c for c in ctrls if c["callsign"].endswith("_OBS") and c["callsign"][0].isalpha()][:2]
     no_freq = [c for c in ctrls if c["frequency"] == "199.998" and not c["callsign"].endswith("_OBS")][:2]
     others = [c for c in ctrls if c["callsign"] not in wl and not c["callsign"].endswith("_OBS")
-              and c["frequency"] != "199.998" and not is_near_miss(c["callsign"], wl)]
+              and c["frequency"] != "199.998"]
     rng.shuffle(others)
     ctrl_real = real_wl + obs + no_freq + others[:12]
     ctrls_out = [copy.deepcopy(c) for c in ctrl_real] + synthetic_controllers()
@@ -225,7 +215,6 @@ def build(raw: dict) -> tuple[dict, dict]:
     edge_cs = {"TESTEDGE", "TESTVERTEX"}
     assert not (edge_cs & set(kept_p)), "edge pilots must be excluded"
     kept_c = [c["callsign"] for c in ctrls_out if c["callsign"] in wl]
-    near = [c["callsign"] for c in ctrls_out if is_near_miss(c["callsign"], wl)]
     with_plan = [p["callsign"] for p in pilots_out if p["flight_plan"]]
     gate = [
         p["callsign"] for p in pilots_out
@@ -260,7 +249,6 @@ def build(raw: dict) -> tuple[dict, dict]:
         "synthetic_controllers": sorted(synth_ctrl_calls),
         "controllers_obs": sorted(c["callsign"] for c in ctrls_out if c["callsign"].endswith("_OBS")),
         "controllers_no_frequency": sorted(c["callsign"] for c in ctrls_out if c["frequency"] == "199.998"),
-        "controllers_near_miss": sorted(near),
         "atis_callsigns": sorted(a["callsign"] for a in atis),
     }
     return out, expected
@@ -320,7 +308,7 @@ def main() -> None:
         json.dumps(expected, indent=1, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     print(f"pilots={len(out['pilots'])} controllers={len(out['controllers'])} atis={len(out['atis'])}")
     print(f"kept pilots={expected['pilots_kept_by_polygon']} kept controllers="
-          f"{expected['controllers_kept_by_whitelist']} near_miss={expected['controllers_near_miss']}")
+          f"{expected['controllers_kept_by_whitelist']}")
     if args.verify:
         verify(raw, text)
 

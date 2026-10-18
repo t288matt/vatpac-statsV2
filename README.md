@@ -56,20 +56,7 @@ The collector serves `/health` and `/metrics` on port 8080 inside the Docker net
 
 ## For dashboard users
 
-Ten dashboards, all in Grafana (folder: dashboard). Times are UTC. The exact rule behind every chart is in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md); the meaning of "flight", "session", "online now" and "airborne minutes" is in [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
-
-| Dashboard | What it shows |
-|---|---|
-| Pilots: online now | Who is flying in the region at this moment |
-| Pilots: traffic and aircraft | Flights, movements and aircraft types over time |
-| Pilots: onboarding and lapsed pilots | New pilots and those who stopped flying |
-| ATC: controllers | Who is controlling, where and for how long |
-| ATC: retention and reactivation | Controller hours, retention and returning controllers (needs 30 to 90 days of history to be meaningful) |
-| Demographics: pilot origins and cohorts | Where pilots come from and how groups of pilots behave |
-| Military: aircraft and routes | Military aircraft types and routes |
-| Events: Monday event | Traffic during the Monday 0700Z to 1200Z event |
-| Management: people online | Headline counts of people online |
-| Monitoring: collector and data freshness | Whether data is arriving; check this first if a number looks wrong |
+Ten dashboards, all in Grafana (folder: dashboard). Times are UTC. What each one shows is in Grafana itself (dashboard and panel descriptions); the exact rule behind every chart is in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md), and the meaning of "flight", "session", "online now" and "airborne minutes" is in [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
 
 Charts start empty at go-live (07-10-2026) and fill as data arrives; a flight appears in the flight totals about 8 hours after its last position.
 

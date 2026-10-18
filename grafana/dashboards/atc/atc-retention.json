@@ -67,7 +67,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Definitions are copied from the v1 Metabase cards (exported 08-10-2026). Windows are relative to now. Because there is no backfill, the 30 to 90 day measures are not meaningful until about 90 days after go-live. 'Reactivated' needs a session before the 90 day window (v1 did not, so it counted brand-new controllers; corrected, issue 93), so it stays at zero until the database holds more than 90 days of history."
+        "content": "Windows are relative to now. Because there is no backfill, the 30 to 90 day measures are not meaningful until about 90 days after go-live. 'Reactivated' needs a session before the 90 day window, so a brand-new controller does not count, and it stays at zero until the database holds more than 90 days of history."
       }
     },
     {
