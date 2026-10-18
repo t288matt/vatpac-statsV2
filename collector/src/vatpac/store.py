@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Any
 
@@ -14,7 +14,7 @@ from psycopg.rows import tuple_row
 from psycopg.types.json import Jsonb
 from shapely.geometry import Polygon
 
-from .filters import inside_polygon, is_near_miss
+from .filters import inside_polygon
 from .model import Snapshot, clamp_pilot, home_icao, parse_frequency_hz
 
 log = logging.getLogger(__name__)
@@ -103,14 +103,6 @@ WHERE p.sid IS NULL OR p.val IS DISTINCT FROM v.val
 ON CONFLICT DO NOTHING
 """
 
-_NEAR_MISS_SQL = """
-INSERT INTO controller_unlisted_sighting AS u (callsign, cid, first_seen, last_seen, polls_seen)
-SELECT callsign, cid, %(ts)s, %(ts)s, 1 FROM jsonb_to_recordset(%(rows)s) AS r(callsign text, cid bigint)
-ON CONFLICT (callsign) DO UPDATE SET cid = EXCLUDED.cid, last_seen = EXCLUDED.last_seen,
-  polls_seen = u.polls_seen + 1 WHERE EXCLUDED.last_seen > u.last_seen
-RETURNING callsign, (xmax = 0) AS inserted
-"""
-
 _NETWORK_SQL = """
 INSERT INTO network_snapshot (observed_at, pilots_in_region, controllers_in_region, pilots_global, controllers_global)
 VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING
@@ -146,7 +138,6 @@ class ApplyResult:
     rejected_values: int = 0
     positions_inserted: int = 0
     snapshot_inserted: bool = False
-    new_near_misses: list[str] = field(default_factory=list)
 
 
 def _jsonb(rows: list[dict[str, Any]]) -> Jsonb:
@@ -195,7 +186,6 @@ def apply_snapshot(
     *,
     polygon_sha: str,
     whitelist_sha: str,
-    prefixes: frozenset[str] | None = None,
     deadline: float | None = None,
 ) -> ApplyResult:
     """Write one snapshot in a single transaction. Replaying it inserts zero rows."""
@@ -218,14 +208,11 @@ def apply_snapshot(
     res.pilots_inside = len(pilots)
 
     controllers: dict[tuple[int, str, datetime], dict[str, Any]] = {}
-    near_miss: dict[str, int] = {}
     for c in snapshot.controllers:
         if c.callsign in whitelist:
             res.rejected_values += c.rejected
             controllers[(c.cid, c.callsign, c.logon_time)] = {
                 **asdict(c), "frequency_hz": parse_frequency_hz(c.frequency_text)}
-        elif is_near_miss(c.callsign, whitelist, prefixes):
-            near_miss[c.callsign] = c.cid
     res.controllers_kept = len(controllers)
 
     with conn.transaction(), conn.cursor(row_factory=tuple_row) as cur:  # independent of the connection's row factory
@@ -249,11 +236,6 @@ def apply_snapshot(
                     _EVENT_SQL.format(table=table, col=col, typ=typ),
                     {"ts": ts, "ids": [ids[k] for k in keys], "vals": [controllers[k][field_name] for k in keys]},
                 )
-        if near_miss:
-            rows = [{"callsign": cs, "cid": cid} for cs, cid in near_miss.items()]
-            _guard(cur, deadline)
-            cur.execute(_NEAR_MISS_SQL, {"rows": _jsonb(rows), "ts": ts})
-            res.new_near_misses = [r[0] for r in cur.fetchall() if r[1]]
         _guard(cur, deadline)
         cur.execute(
             _NETWORK_SQL,

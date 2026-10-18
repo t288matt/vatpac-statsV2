@@ -68,7 +68,7 @@ def _ingest(conn, ref, payload: dict[str, Any]):
     snap = parse_snapshot(payload)
     rp.ensure_partitions(conn, [snap.observed_at])  # the whole-grid test runs past midnight (30 s per case)
     res = apply_snapshot(conn, snap, ref.polygon, ref.whitelist, polygon_sha=ref.polygon_sha,
-                         whitelist_sha=ref.whitelist_sha, prefixes=ref.prefixes)
+                         whitelist_sha=ref.whitelist_sha)
     write_poll_log(conn, "ok", snapshot_ts=snap.observed_at, result=res, polygon_sha=ref.polygon_sha,
                    whitelist_sha=ref.whitelist_sha)
     return snap, res
@@ -119,7 +119,7 @@ def _check_snapshot(conn, ref, base, payload, bad: dict[str, set[int]], where: s
         assert (row["rating"], row["facility"], row["frequency_hz"]) == (rating, facility, hz), f"{where}: {key}"
     # a second application of the same snapshot changes nothing, even with records the database rejects
     again = apply_snapshot(conn, snap, ref.polygon, ref.whitelist, polygon_sha=ref.polygon_sha,
-                           whitelist_sha=ref.whitelist_sha, prefixes=ref.prefixes)
+                           whitelist_sha=ref.whitelist_sha)
     assert again.positions_inserted == 0 and again.snapshot_inserted is False, where
     return snap, res
 
@@ -193,22 +193,6 @@ def test_an_oversized_or_odd_pilot_callsign_never_loses_the_snapshot(db, ref, ba
     hot = _first_inside(base, ref)
     payload = _shift(fz.replace_entry(base, "pilots", hot, {**base["pilots"][hot], "callsign": dict(fz.BAD_VALUES)[label]}), 903)
     _check_snapshot(db, ref, base, payload, {"pilots": {hot}, "controllers": set()}, f"pilots {label}")
-
-
-@pytest.mark.parametrize("label", [
-    "long_random_cjk", "long_text", "surrogate", "nul"])
-def test_an_oversized_or_odd_unlisted_controller_callsign_never_loses_the_snapshot(db, ref, base, label) -> None:
-    """A near-miss controller (unlisted, but a listed prefix) is written to controller_unlisted_sighting, whose primary
-    key is the callsign: the same index limit applies there."""
-    prefix = sorted(ref.prefixes)[0]
-    extra = {"cid": 8000001, "name": "Fuzz Controller", "callsign": prefix + "_" + dict(fz.BAD_VALUES)[label],
-             "frequency": "199.998", "facility": 4, "rating": 3, "server": "FUZZ", "visual_range": 0,
-             "logon_time": "2026-10-10T14:00:00.1234567Z"}
-    payload = _shift(copy.deepcopy(base), 904)
-    payload["controllers"].append(extra)
-    ts = update_timestamp(payload)
-    _check_snapshot(db, ref, base, payload, {"pilots": set(), "controllers": set()}, f"near-miss {label}")
-    assert db.execute("SELECT count(*) AS n FROM network_snapshot WHERE observed_at = %s", (ts,)).fetchone()["n"] == 1
 
 
 @pytest.mark.slow_fuzz

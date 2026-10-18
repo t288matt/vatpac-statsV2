@@ -161,12 +161,3 @@ def test_no_frequency_stored_as_null(db, payload, refdata) -> None:
     assert db.execute(q, ("ML_APP",)).fetchone()["frequency_hz"] == 132_000_000
 
 
-def test_near_miss_sighting_recorded(db, payload, refdata) -> None:
-    """SPEC s4: near-miss controllers go to controller_unlisted_sighting, never to controller_session."""
-    apply(db, at(payload), refdata)
-    q = "SELECT callsign, polls_seen FROM controller_unlisted_sighting ORDER BY callsign"
-    rows = db.execute(q).fetchall()
-    assert [r["callsign"] for r in rows] == ["AD_XYZ_TWR", "ML_XYZ_CTR"]
-    apply(db, at(payload, 15), refdata)
-    assert [r["polls_seen"] for r in db.execute(q).fetchall()] == [2, 2]
-    assert db.execute("SELECT count(*) AS n FROM controller_session WHERE callsign LIKE '%XYZ%'").fetchone()["n"] == 0

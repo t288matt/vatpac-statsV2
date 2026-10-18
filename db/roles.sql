@@ -94,7 +94,7 @@ GRANT USAGE ON SCHEMA public TO collector;
 -- they need INSERT and UPDATE; no table other than poll_log is ever deleted from by the collector (issue 95).
 GRANT SELECT, INSERT, UPDATE ON
     pilot_session, pilot_position, controller_session, controller_rating_event,
-    controller_frequency_event, network_snapshot, poll_log, controller_unlisted_sighting,
+    controller_frequency_event, network_snapshot, poll_log,
     reference_data_change, app_setting
 TO collector;
 -- The one retention trim the collector runs itself (maintenance.py trim_poll_log). Position partitions are dropped and the

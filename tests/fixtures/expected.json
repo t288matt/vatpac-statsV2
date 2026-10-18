@@ -16,10 +16,6 @@
   "PH_TWR",
   "SY_TWR"
  ],
- "controllers_near_miss": [
-  "AD_XYZ_TWR",
-  "ML_XYZ_CTR"
- ],
  "controllers_no_frequency": [
   "BN_GND",
   "DLH139",

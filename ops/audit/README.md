@@ -8,9 +8,9 @@ the database name ends in `t30b` or `_test`. They were only ever run against a t
 
 | Script | Purpose | Touches |
 |---|---|---|
-| `independent.py` | USED BY THE WATCHDOG (14-day archive cross-check). Own point-in-polygon (exact rational arithmetic, no shapely), whitelist, near-miss, frequency, caps; `analyse(payload)` recomputes everything from one raw feed payload. Imports nothing from `collector/`. | nothing |
+| `independent.py` | USED BY THE WATCHDOG (14-day archive cross-check). Own point-in-polygon (exact rational arithmetic, no shapely), whitelist, frequency, caps; `analyse(payload)` recomputes everything from one raw feed payload. Imports nothing from `collector/`. | nothing |
 | `feed_sampler.py` | Fetches the public feed a modest number of times (default every 75 s, never faster than 15 s), stores gzip payloads and the independent analysis. | public feed (GET) |
-| `compare_samples.py` | Compares each sampled snapshot with the stored rows for the same `update_timestamp` (counts, exact pilot set, positions, plan fields, controller set, frequency and rating events, near misses). | live DB, read only |
+| `compare_samples.py` | Compares each sampled snapshot with the stored rows for the same `update_timestamp` (counts, exact pilot set, positions, plan fields, controller set, frequency and rating events). | live DB, read only |
 | `polygon_edge_test.py` | 700k synthetic points (vertices, edges, one-ulp neighbours, grid, random) through the exact implementation and shapely. | nothing |
 | `capture.py` | One repeatable-read, read-only transaction: raw tables plus the result of each audited panel query (panel SQL with Grafana macros replaced). | live DB, read only |
 | `recompute_flights.py` | Finished flights (v1 join rule, airborne minutes) from raw positions and sessions in plain Python, compared with `flight_summary` row by row. | capture files |

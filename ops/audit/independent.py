@@ -6,8 +6,6 @@ exact-arithmetic ray cast written from the SPEC text. Read-only, no network, no 
 Rules (SPEC sections 4 and 5):
   pilot kept   = no position (lat or lon missing) OR strictly inside the polygon (edge and vertex points are outside)
   controller   = callsign exactly in the whitelist (case-sensitive)
-  near miss    = unlisted callsign with an underscore, not ending _OBS, whose text before the first '_' equals the text
-                 before the first '_' of some whitelisted callsign that has an underscore
   frequency    = integer Hz; 199.998, unparseable or <= 0 means NULL
   caps         = groundspeed 0..700 and altitude -1500..65000, outside -> NULL
 """
@@ -62,13 +60,6 @@ def load_whitelist(path: str | Path) -> set[str]:
         if re.fullmatch(r"[A-Za-z0-9_-]+", cs):
             out.add(cs)
     return out
-
-
-def near_miss(cs: str, wl: set[str]) -> bool:
-    if cs in wl or cs.endswith("_OBS") or "_" not in cs:
-        return False
-    pre = cs.split("_", 1)[0]
-    return any("_" in w and w.split("_", 1)[0] == pre for w in wl)
 
 
 def freq_hz(text) -> int | None:
@@ -141,7 +132,7 @@ def analyse(payload: dict, ring, wl: set[str]) -> dict:
                     "rejected": int(p.get("groundspeed") is not None and gs is None) + int(p.get("altitude") is not None and alt is None),
                 }
             )
-    ck, nm = [], []
+    ck = []
     for c in ctrls:
         cs = c["callsign"]
         if cs in wl:
@@ -156,8 +147,6 @@ def analyse(payload: dict, ring, wl: set[str]) -> dict:
                     "name": clean(c.get("name")),
                 }
             )
-        elif near_miss(cs, wl):
-            nm.append(cs)
     with_plan = sum(1 for k in kept if (k["dep"] or "").strip() and (k["arr"] or "").strip())
     return {
         "update_timestamp": payload["general"]["update_timestamp"],
@@ -169,7 +158,6 @@ def analyse(payload: dict, ring, wl: set[str]) -> dict:
         "pilots_on_edge": edge,
         "pilots_with_plan": with_plan,
         "rejected_values": sum(k["rejected"] for k in kept),
-        "near_miss": sorted(nm),
         "obs_or_atis_in_controllers": sorted(c["callsign"] for c in ctrls if c["callsign"].endswith("_OBS") or "ATIS" in c["callsign"]),
         "kept_pilots": kept,
         "kept_controllers": ck,

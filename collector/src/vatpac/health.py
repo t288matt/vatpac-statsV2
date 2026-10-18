@@ -39,7 +39,6 @@ class Stats:
     controllers_seen: int = 0
     controllers_kept: int = 0
     rejected_values: int = 0
-    near_misses: int = 0
     reload_rejected: int = 0
     last_reload_error: str | None = None
     reference: dict[str, str] = field(default_factory=dict)
@@ -84,7 +83,6 @@ def render_metrics(stats: Stats) -> str:
         ("polls_total", "counter", 'status="skipped_unchanged"', stats.polls_skipped),
         ("positions_written_total", "counter", "", stats.positions_written),
         ("rejected_values_total", "counter", "", stats.rejected_values),
-        ("near_miss_controllers_total", "counter", "", stats.near_misses),
         ("reference_reload_rejected_total", "counter", "", stats.reload_rejected),
         ("circuit_breaker_open", "gauge", "", int(stats.breaker_open)),
         ("last_snapshot_age_seconds", "gauge", "", age if age is not None else -1),

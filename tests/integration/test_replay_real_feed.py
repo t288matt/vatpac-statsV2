@@ -69,7 +69,7 @@ def test_replaying_the_same_payloads_again_changes_nothing(conn, ref, payloads) 
     from vatpac.store import apply_snapshot
     for _, payload in payloads:
         res = apply_snapshot(conn, parse_snapshot(payload), ref.polygon, ref.whitelist, polygon_sha=ref.polygon_sha,
-                             whitelist_sha=ref.whitelist_sha, prefixes=ref.prefixes)
+                             whitelist_sha=ref.whitelist_sha)
         assert res.positions_inserted == 0 and res.snapshot_inserted is False
     assert rp.dump_state(conn) == before
     assert len(outcomes) == 3

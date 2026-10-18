@@ -12,7 +12,6 @@ Checks per snapshot timestamp:
   controllers      : each whitelisted controller present in the feed has a session spanning ts with the right
                      logon_time; rating and frequency taken from the event tables as at ts; no unexpected sessions whose
                      last_seen == ts
-  near misses      : each near-miss callsign seen has a controller_unlisted_sighting row spanning ts
 """
 
 from __future__ import annotations
@@ -60,9 +59,7 @@ SELECT json_build_object(
                            ORDER BY e.observed_at DESC LIMIT 1),
           'freq_at_ts', (SELECT e.frequency_hz FROM controller_frequency_event e WHERE e.session_id = c.id AND e.observed_at <= t
                            ORDER BY e.observed_at DESC LIMIT 1))), '[]')
-          FROM controller_session c WHERE c.first_seen <= t AND c.last_seen >= t),
- 'unlisted', (SELECT coalesce(json_agg(u.callsign), '[]') FROM controller_unlisted_sighting u
-          WHERE u.first_seen <= t AND u.last_seen >= t)
+          FROM controller_session c WHERE c.first_seen <= t AND c.last_seen >= t)
 ) FROM ts ORDER BY t;
 """
 
@@ -159,9 +156,6 @@ def compare(mine: dict, db: dict) -> list[tuple[str, str]]:
             diffs.append(("controller_rating", f"{k[1]}: feed {a['rating']} stored event {b['rating_at_ts']}"))
         if a["freq_hz"] != b["freq_at_ts"]:
             diffs.append(("controller_frequency", f"{k[1]}: independent {a['freq_hz']} stored event {b['freq_at_ts']}"))
-    for cs in mine["near_miss"]:
-        if cs not in db["unlisted"]:
-            diffs.append(("near_miss_missing", f"{cs} not in controller_unlisted_sighting"))
     return diffs
 
 

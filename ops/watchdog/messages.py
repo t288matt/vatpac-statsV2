@@ -387,10 +387,6 @@ def humanise(name: str, level: str, detail: str, previous_level: str | None = No
     (counted from its confirmation, not the true start of the problem) in seconds, or None when unknown (then no duration is claimed). Never raises for an unknown check name."""
     stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%H:%M UTC")
     label = LABELS.get(level, "heads up")
-    if name == "near-miss":
-        plain = (f"a controller logged on with a callsign that is not on the whitelist, so they are not being recorded: {detail}. "
-                 "It looks like a new position; add it to the whitelist if it is real.")
-        return _ascii(f"{PREFIX} {label} ({stamp}). {plain[0].upper() + plain[1:]}\nTechnical: near-miss {_clip(detail)}")
     if name.startswith("restarted:"):
         svc = name.split(":", 1)[1]
         plain = f"The watchdog restarted the {svc} container because it looked stuck. Check that it stays up; no other action."
@@ -451,14 +447,11 @@ _RESTARTED_RE = re.compile(r"^RESTARTED (\S+) \((.*?)\): (.*)$", re.S)
 def from_alert_text(text: str, down_for: float | None = None, previous_level: str | None = None,
                     now: datetime | None = None) -> str:
     """Parse the technical alert text the watchdog logs ('WARN x: d', 'CRIT x: d', 'RECOVERED x (was warn): d',
-    'NEAR-MISS ...', 'RESTARTED svc (...): why') and humanise it. Unrecognised text gets a generic wrapper that keeps it."""
+    'RESTARTED svc (...): why') and humanise it. Unrecognised text gets a generic wrapper that keeps it."""
     if (m := _ALERT_RE.match(text)):
         return humanise(m.group(2), m.group(1).lower(), m.group(3), previous_level, None, now)
     if (m := _RECOVERED_RE.match(text)):
         return humanise(m.group(1), "ok", m.group(3), m.group(2), down_for, now)
-    if text.startswith("NEAR-MISS"):
-        callsigns = text.split(":", 1)[1].strip() if ":" in text else text
-        return humanise("near-miss", "warn", callsigns, None, None, now)
     if (m := _RESTARTED_RE.match(text)):
         return humanise(f"restarted:{m.group(1)}", "warn", f"{m.group(2)}: {m.group(3)}", None, None, now)
     stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%H:%M UTC")
