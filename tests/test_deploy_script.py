@@ -341,7 +341,7 @@ def test_shipped_expected_warnings_file_is_well_formed() -> None:
         assert name and reason and mx.isdigit() and re.fullmatch(r"\d{2}-\d{2}-\d{4} \d{2}:\d{2}", exp), ln
         assert f"'{name}'" in sql, name
         seen += 1
-    assert seen == 2
+    assert seen == 0  # both expired entries were removed; update this when a new one is added
 
 
 # ------------------------------------------------------------------ status, mark, safety
