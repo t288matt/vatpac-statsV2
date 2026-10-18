@@ -50,7 +50,7 @@ def dt(s: str) -> datetime:
 def wipe(conn) -> None:
     conn.execute(
         "TRUNCATE pilot_position, pilot_session, controller_session, controller_rating_event, controller_frequency_event, "
-        "network_snapshot, poll_log RESTART IDENTITY CASCADE"
+        "network_snapshot, controller_unlisted_sighting, poll_log RESTART IDENTITY CASCADE"
     )
 
 
@@ -317,9 +317,12 @@ def main() -> None:
     check("junk and empty frequency stored as NULL", ctl["MK_TWR"]["frequency_hz"] is None and ctl["BN_GND"]["frequency_hz"] is None)
     check("controller with trailing space in callsign is matched after stripping", any(r["cid"] == 9200008 for r in ctl_all))
     check(
-        "_OBS, unlisted, ATIS-style and lower-case callsigns are not stored",
+        "_OBS, near-miss, ATIS-style and lower-case callsigns are not stored",
         not ({"SY_OBS", "SY_NEW", "SY_ATIS", "sy_twr", "ZZ_NEW"} & set(ctl)),
     )
+    nm = {r["callsign"] for r in conn.execute("SELECT callsign FROM controller_unlisted_sighting")}
+    check("SY_NEW and SY_ATIS are recorded as near misses", {"SY_NEW", "SY_ATIS"} <= nm, str(sorted(nm)))
+    check("SY_OBS, lower-case sy_twr and unknown prefix ZZ_NEW are not near misses", not ({"SY_OBS", "sy_twr", "ZZ_NEW"} & nm))
     check("controller with null cid / empty callsign skipped", not any(r["cid"] is None for r in ctl.values()) and "" not in ctl)
     ns = conn.execute("SELECT * FROM network_snapshot WHERE observed_at=%s", (t0,)).fetchone()
     print(

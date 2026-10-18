@@ -559,8 +559,8 @@ def test_load_state(tmp_path: Path) -> None:
     assert wd.load_state(p) == {}
     p.write_text("[1, 2]")
     assert wd.load_state(p) == {}
-    p.write_text(json.dumps({"state": {"restart_counts": {"collector": 1}}}))
-    assert wd.load_state(p) == {"restart_counts": {"collector": 1}}
+    p.write_text(json.dumps({"state": {"known_near_miss": ["X_TWR"]}}))
+    assert wd.load_state(p) == {"known_near_miss": ["X_TWR"]}
 
 
 # ------------------------------------------------------------------ cycle: the restart decisions
@@ -578,7 +578,7 @@ class World:
         self.grafana: httpx.Response | Exception = httpx.Response(200, json={})
         self.kuma_calls = 0
         self.telegram: list[dict] = []
-        self.db_result: dict[str, wd.Result] = {"database": (OK, "reachable")}
+        self.db_result: dict[str, wd.Result] = {"database": (OK, "reachable"), "_near_miss": (OK, "")}
         self.docker = FakeDocker()
         self.docker.data = {s: {**ins(), "Id": f"id-{s}"} for s in ("db", "collector", "grafana", "backup")}
         self.docker.data["migrate"] = {**ins("exited", "none"), "Id": "id-migrate"}
@@ -735,6 +735,16 @@ def test_cycle_docker_proxy_failure_is_reported(world: World, monkeypatch: pytes
     world.docker.containers = boom                                           # type: ignore[method-assign]
     world.cycle(2)
     assert "CRIT docker_proxy: unreachable (ConnectError)" in world.sent
+
+
+def test_cycle_alerts_each_new_near_miss_callsign_once(world: World) -> None:
+    world.db_result["_near_miss"] = (OK, "ML_XYZ_CTR,AD_XYZ_TWR")
+    world.cycle(3)
+    assert world.sent.count("NEAR-MISS controller callsign(s) not on whitelist: ML_XYZ_CTR, AD_XYZ_TWR") == 1
+    world.db_result["_near_miss"] = (OK, "ML_XYZ_CTR,AD_XYZ_TWR,BN_ZZZ_TWR")
+    world.cycle(1)
+    assert world.sent[-1] == "NEAR-MISS controller callsign(s) not on whitelist: BN_ZZZ_TWR"
+    assert world.state["known_near_miss"] == ["AD_XYZ_TWR", "BN_ZZZ_TWR", "ML_XYZ_CTR"]
 
 
 def test_cycle_the_uptime_push_is_skipped_only_when_the_overall_state_is_critical(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

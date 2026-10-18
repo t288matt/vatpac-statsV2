@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import inspect
 import json
 import sys
 from dataclasses import dataclass
@@ -31,7 +32,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_TABLES = ["pilot_position", "pilot_session", "controller_rating_event", "controller_frequency_event",
-               "controller_session", "network_snapshot", "poll_log"]
+               "controller_session", "network_snapshot", "poll_log", "controller_unlisted_sighting"]
 
 
 # ------------------------------------------------------------------------------------------------ loading
@@ -147,11 +148,12 @@ def replay(conn: Any, payloads: list[tuple[str, dict[str, Any]]], ref: Any) -> l
     from vatpac.store import apply_snapshot, write_poll_log
 
     ensure_partitions(conn, [update_timestamp(p) for _, p in payloads])
+    extra = {"prefixes": ref.prefixes} if "prefixes" in inspect.signature(apply_snapshot).parameters else {}
     out: list[Outcome] = []
     for name, payload in payloads:
         snap = parse_snapshot(payload)
         res = apply_snapshot(conn, snap, ref.polygon, ref.whitelist, polygon_sha=ref.polygon_sha,
-                             whitelist_sha=ref.whitelist_sha)
+                             whitelist_sha=ref.whitelist_sha, **extra)
         write_poll_log(conn, "ok", snapshot_ts=snap.observed_at, result=res, polygon_sha=ref.polygon_sha,
                        whitelist_sha=ref.whitelist_sha)
         out.append(Outcome(name, snap.observed_at, res, snap, expected(payload, ref.polygon, ref.whitelist)))
@@ -221,6 +223,7 @@ _DUMP_SQL = {
                                   "s.callsign, 'logon_time', s.logon_time) AS r FROM controller_frequency_event e "
                                   "JOIN controller_session s ON s.id = e.session_id",
     "network_snapshot": "SELECT to_jsonb(n) AS r FROM network_snapshot n",
+    "controller_unlisted_sighting": "SELECT to_jsonb(u) AS r FROM controller_unlisted_sighting u",
     "poll_log": "SELECT to_jsonb(l) - 'id' - 'polled_at' - 'duration_ms' AS r FROM poll_log l",
 }
 

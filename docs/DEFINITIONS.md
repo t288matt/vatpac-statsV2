@@ -88,6 +88,14 @@ Which one a panel uses is recorded in [CHART_DEFINITIONS.md](CHART_DEFINITIONS.m
 
 **Difference from v1.** Not documented in v1 compose. With polling every 30 s (15 s before 09-10-2026), "two snapshots" is about 60 seconds; v1's 92 s poll cadence implies a coarser notion.
 
+## 7. Near-miss controller
+
+**v3.** A callsign that is not whitelisted but whose prefix (the text before the first `_`) equals the prefix of any whitelisted callsign. `_OBS` and `_SUP` (supervisor) callsigns are never near-misses. For example, a hypothetical `XX_NEW_TWR` where other `XX_` callsigns are whitelisted would be flagged, because a new position at a known airport has probably been opened and the whitelist needs updating.
+
+Handling: the callsign is not stored as a session. It is upserted into `controller_unlisted_sighting` (`first_seen`, `last_seen`, `polls_seen`), logged once at WARNING on first sighting, and the watchdog alerts on the first sighting. The fix is to add the callsign to `config/controller_callsigns_list.txt` and reload (see [runbook: update reference files](RUNBOOKS/update-reference-files.md)).
+
+**Difference from v1.** New in v3 (SPEC section 4). v1 had no equivalent that is documented in its compose file.
+
 ## 8. In-region pilot (polygon filter)
 
 **v3.** A pilot is stored from the first snapshot in which they are inside the polygon `config/australian_airspace_polygon.json` (GeoJSON, lon,lat order), tested with shapely `contains`: a point exactly on the edge is outside. A pilot with no position (latitude or longitude absent or null) passes; one whose latitude or longitude is present but unparsable is a malformed record and is skipped and counted. Pilots outside are never stored, so a flight is recorded only from the moment it enters the polygon and stops when it leaves; it can re-enter as the same session.

@@ -152,6 +152,8 @@ def check_db(cfg: Config) -> dict[str, Result]:
             row = cur.fetchone()
             gb = (int(row[0]) if row else 0) / 1024**3
             out["db_size"] = (WARN if gb > cfg.db_max_gb else OK, f"{gb:.2f} GB (limit {cfg.db_max_gb:g})")
+            cur.execute("SELECT callsign FROM controller_unlisted_sighting ORDER BY first_seen")
+            out["_near_miss"] = (OK, ",".join(r[0] for r in cur.fetchall()))
             out["identity_flap"] = check_identity_flap(cur)  # last, so a failure here cannot hide the checks above
         out["database"] = (OK, "reachable")
     except psycopg.Error as exc:
@@ -646,6 +648,7 @@ def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, 
     results["feed_archive"] = check_archive(coll_body, coll[0] == OK)
 
     db = check_db(cfg)
+    near_miss = db.pop("_near_miss", (OK, ""))[1]
     results.update(db)
     sched, notices = integrity.run_due(cfg.integrity, state)  # slow checks, persisted schedule, see integrity.py
     results.update(sched)
@@ -669,6 +672,13 @@ def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, 
 
     for text in notices:  # violations that are new since the previous sweep, while the integrity alert is already active
         alerter.send(text)
+
+    # New near-miss controller callsigns: alert once each, ever (persisted).
+    known = set(state.setdefault("known_near_miss", []))
+    fresh = [c for c in near_miss.split(",") if c and c not in known]
+    if fresh:
+        alerter.send(f"NEAR-MISS controller callsign(s) not on whitelist: {', '.join(fresh[:10])}")
+        state["known_near_miss"] = sorted(known | set(fresh))
 
     # Restart decisions. A target must be bad for restart_after consecutive cycles.
     bad: dict[str, str] = {}
