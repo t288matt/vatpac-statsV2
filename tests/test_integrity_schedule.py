@@ -353,9 +353,8 @@ def test_compose_dockerfile_and_env_example_agree_with_the_code() -> None:
 
     compose = yaml.safe_load((REPO / "docker-compose.yml").read_text(encoding="utf-8"))["services"]["watchdog"]
     env = compose["environment"]
-    assert env["WATCHDOG_INTEGRITY_INTERVAL_HOURS"] == "${WATCHDOG_INTEGRITY_INTERVAL_HOURS:-72}"
-    assert env["WATCHDOG_CROSSCHECK_INTERVAL_DAYS"] == "${WATCHDOG_CROSSCHECK_INTERVAL_DAYS:-14}"
-    assert env["WATCHDOG_CROSSCHECK_SAMPLES"] == "${WATCHDOG_CROSSCHECK_SAMPLES:-24}"
+    assert (env["WATCHDOG_INTEGRITY_INTERVAL_HOURS"], env["WATCHDOG_CROSSCHECK_INTERVAL_DAYS"],
+            env["WATCHDOG_CROSSCHECK_SAMPLES"]) == (72, 14, 24)
     assert "archive:/archive:ro" in compose["volumes"] and "./config:/config:ro" in compose["volumes"]
     assert env["ARCHIVE_DIR"] == "/archive" and env["REFERENCE_CONFIG_DIR"] == "/config"
     assert compose["build"] == {"context": "./ops", "dockerfile": "watchdog/Dockerfile"}
@@ -363,10 +362,8 @@ def test_compose_dockerfile_and_env_example_agree_with_the_code() -> None:
     for f in ("watchdog/watchdog.py", "watchdog/integrity.py", "audit/independent.py", "audit/invariants.sql"):
         assert f in docker
     example = (REPO / ".env.example").read_text(encoding="utf-8")
-    defaults = (("WATCHDOG_INTEGRITY_INTERVAL_HOURS", "72"), ("WATCHDOG_CROSSCHECK_INTERVAL_DAYS", "14"),
-                ("WATCHDOG_CROSSCHECK_SAMPLES", "24"))
-    for k, v in defaults:
-        assert re.search(rf"^{k}={v}$", example, re.M)
+    for k in ("WATCHDOG_INTEGRITY_INTERVAL_HOURS", "WATCHDOG_CROSSCHECK_INTERVAL_DAYS", "WATCHDOG_CROSSCHECK_SAMPLES"):
+        assert not re.search(rf"^{k}=", example, re.M)  # policy values live in docker-compose.yml (ADR-034)
     release = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert re.search(r"name: watchdog\s+context: ops\b", release)
 

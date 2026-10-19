@@ -10,7 +10,7 @@ docker compose exec db psql -U vatpac -d vatpac -c "SELECT pg_size_pretty(pg_dat
 docker compose exec db psql -U vatpac -d vatpac -c \
   "SELECT relname, pg_size_pretty(pg_total_relation_size(c.oid)) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','m') ORDER BY pg_total_relation_size(c.oid) DESC LIMIT 15"
 ```
-Expected steady state: about 2 to 3 GB for 90 days of positions. Much more means partitions are not being dropped.
+Expected steady state: about 2 to 3 GB for 180 days of positions. Much more means partitions are not being dropped.
 
 ## 2. Usual culprits, cheapest first
 | Culprit | Check | Fix |
