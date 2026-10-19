@@ -22,7 +22,16 @@ The rule (ADR-034, 19-10-2026, issue 21): `.env` holds secrets and values that d
 | Fixed names and URLs | `POSTGRES_DB`, `POSTGRES_USER`, `GRAFANA_ADMIN_USER`, `VATSIM_FEED_URL`, `VATSIM_STATUS_URL` | Literals in `docker-compose.yml` | As in A1 | Planned (second pull request) |
 | Blank optional settings | `AIRBORNE_GAP_CAP_SECONDS`, `ARCHIVE_GAP_S` | Removed from `.env.example`; the code default applies | Blank means derived from the poll interval | Planned (second pull request) |
 
-Changing a policy value is therefore a pull request, an independent review and a deploy. In an emergency (for example the disk is filling and retention must shrink at once) edit the literal in `docker-compose.yml` on the VM and commit the same change afterwards; the next deploy would otherwise overwrite it. After a key moves, delete its line from the machine's `.env` (a leftover line is ignored, but it misleads the next reader). `POLL_LOG_RETENTION_DAYS` (400) is a constant in `collector/src/vatpac/maintenance.py`, not a setting.
+Changing a policy value is therefore a pull request, an independent review and a deploy, and the pull request edits the compose literal and the code default together (the drift check fails if they differ). In an emergency (for example the disk is filling and retention must shrink at once) do not edit the tracked `docker-compose.yml` on the VM: its working tree must stay clean for deploys, and the VM's deploy key is read-only. Instead create `docker-compose.override.yml` next to it (git-ignored, loaded automatically by a plain `docker compose up -d`; checked 19-10-2026 that an override beats the literal), for example:
+
+```yaml
+services:
+  backup:
+    environment:
+      BACKUP_RETENTION_DAYS: 7
+```
+
+Run `docker compose up -d backup`, open the pull request that changes the literal, and delete the override file once that change is deployed: a forgotten override silently beats the repository. After a key moves, delete its line from the machine's `.env` (a leftover line is ignored, but it misleads the next reader). `POLL_LOG_RETENTION_DAYS` (400) is a constant in `collector/src/vatpac/maintenance.py`, not a setting.
 
 ## Part A: v3 variables
 
@@ -73,7 +82,7 @@ Changing a policy value is therefore a pull request, an independent review and a
 | `BACKUP_MIN_FIRST_BYTES` | `1048576` | backup | Minimum size of the first-ever dump (no previous dump to compare with). |
 | `BACKUP_MIN_KEEP` | `3` | backup | **Fixed in `docker-compose.yml`, not `.env`.** Rotation never deletes below this many good dumps. |
 | `BACKUP_TIME_UTC` | `02:00` | backup | Nightly backup time (HH:MM, UTC). |
-| `BACKUP_RESTORE_TEST_DAY` | `7` | backup | ISO weekday (1 Monday to 7 Sunday) on which the backup is restore-tested; `0` disables (then set `WATCHDOG_RESTORE_TEST_MAX_DAYS=0` too). |
+| `BACKUP_RESTORE_TEST_DAY` | `7` | backup | ISO weekday (1 Monday to 7 Sunday) on which the backup is restore-tested; `0` disables (then also set `WATCHDOG_RESTORE_TEST_MAX_DAYS` to `0`; that one is a literal in `docker-compose.yml`, so change it there or with the override file, not in `.env`). |
 | `BACKUP_REMOTE` | empty | backup | Optional off-box copy: a shell command run after every successful nightly dump with `$BACKUP_FILE` set. See [restore runbook](RUNBOOKS/restore.md), "Off-box copies". |
 | `BACKUP_EXTRA_APT_PACKAGES` | empty | backup (build argument) | Debian packages added to the backup image for the `BACKUP_REMOTE` command (for example `rclone`); rebuild to apply. |
 | `TELEGRAM_BOT_TOKEN` | empty | watchdog | Optional. If empty, alerts are logged only. Delivery to Telegram from the VM was verified on 07-10-2026 (docs/TRACKER.md, T4). Secret: keep out of git, chat and logs. |
