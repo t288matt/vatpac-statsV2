@@ -353,8 +353,8 @@ def test_compose_dockerfile_and_env_example_agree_with_the_code() -> None:
 
     compose = yaml.safe_load((REPO / "docker-compose.yml").read_text(encoding="utf-8"))["services"]["watchdog"]
     env = compose["environment"]
-    assert (env["WATCHDOG_INTEGRITY_INTERVAL_HOURS"], env["WATCHDOG_CROSSCHECK_INTERVAL_DAYS"],
-            env["WATCHDOG_CROSSCHECK_SAMPLES"]) == (72, 14, 24)
+    assert tuple(str(env[k]) for k in ("WATCHDOG_INTEGRITY_INTERVAL_HOURS", "WATCHDOG_CROSSCHECK_INTERVAL_DAYS",
+                                       "WATCHDOG_CROSSCHECK_SAMPLES")) == ("72", "14", "24")
     assert "archive:/archive:ro" in compose["volumes"] and "./config:/config:ro" in compose["volumes"]
     assert env["ARCHIVE_DIR"] == "/archive" and env["REFERENCE_CONFIG_DIR"] == "/config"
     assert compose["build"] == {"context": "./ops", "dockerfile": "watchdog/Dockerfile"}
