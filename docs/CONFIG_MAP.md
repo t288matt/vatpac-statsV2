@@ -1,6 +1,6 @@
 # Configuration map
 
-Last reviewed 13-10-2026 (issue 89 phases 1b, 3, 4 and 5 marked live, marker 7a71d30; the `flight_quiet_hours` row checked) against `docker-compose.yml`, `.env.example` and the code (`python ops/check_config_drift.py` enforces the collector part). Part A lists every environment variable v3 reads. Part B maps every variable in v1's `docker-compose.yml` to KEPT, CHANGED or DROPPED.
+Last reviewed 19-10-2026 for the retention, backup keep and watchdog keys (issue 21, ADR-034) and 13-10-2026 for the rest (issue 89 phases 1b, 3, 4 and 5 marked live, marker 7a71d30; the `flight_quiet_hours` row checked) against `docker-compose.yml`, `.env.example` and the code (`python ops/check_config_drift.py` enforces the collector part). Part A lists every environment variable v3 reads. Part B maps every variable in v1's `docker-compose.yml` to KEPT, CHANGED or DROPPED.
 
 Third-party images are not configured in `.env`: they are fixed in `docker-compose.yml` and the Dockerfiles as the loosest tag their registry publishes (`postgres:16-bookworm` and `amacneil/dbmate:2` float on the bare major; `grafana/grafana:12.4` floats on the minor, since Docker Hub has no bare-major tag for that image; ADR-032).
 
@@ -22,7 +22,7 @@ The rule (ADR-034, 19-10-2026, issue 21): `.env` holds secrets and values that d
 | Fixed names and URLs | `POSTGRES_DB`, `POSTGRES_USER`, `GRAFANA_ADMIN_USER`, `VATSIM_FEED_URL`, `VATSIM_STATUS_URL` | Literals in `docker-compose.yml` | As in A1 | Planned (second pull request) |
 | Blank optional settings | `AIRBORNE_GAP_CAP_SECONDS`, `ARCHIVE_GAP_S` | Removed from `.env.example`; the code default applies | Blank means derived from the poll interval | Planned (second pull request) |
 
-Changing a policy value is therefore a pull request, an independent review and a deploy, and the pull request edits the compose literal and the code default together (the drift check fails if they differ). In an emergency (for example the disk is filling and retention must shrink at once) do not edit the tracked `docker-compose.yml` on the VM: its working tree must stay clean for deploys, and the VM's deploy key is read-only. Instead create `docker-compose.override.yml` next to it (git-ignored, loaded automatically by a plain `docker compose up -d`; checked 19-10-2026 that an override beats the literal), for example:
+Changing a policy value is therefore a pull request, an independent review and a deploy, and the pull request edits the compose literal and the code default together (the drift check fails if they differ). In an emergency (for example the disk is filling and retention must shrink at once) do not edit the tracked `docker-compose.yml` on the VM: its working tree must stay clean for deploys, and the VM's deploy key is read-only. Instead create `docker-compose.override.yml` next to it (git-ignored, loaded automatically by a plain `docker compose up -d`, but not when `-f` is given, as in the dev Makefile target; checked 19-10-2026 that an override beats the literal), for example:
 
 ```yaml
 services:

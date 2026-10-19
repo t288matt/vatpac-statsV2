@@ -9,7 +9,7 @@ Updated 13-10-2026 (docs flip for phases 4 and 5, issue #89). The production VM 
 ## Policy values moved into docker-compose.yml (19-10-2026, issue 21; not yet deployed)
 
 - The retention periods and the watchdog thresholds are now fixed values in `docker-compose.yml` instead of settings in `.env`, so what the repository says is what runs (ADR-034). The code default for raw positions is 180 days (it was 90) and the watchdog database warning is 5 GB (it was 20), as decided in ADR-026.
-- The production VM already ran 180 days; its `.env` still has the old lines, which are now ignored. Remove `POSITION_RETENTION_DAYS` and `WATCHDOG_DB_MAX_GB` from the VM's `.env` after the deploy. The database warning drops from 20 GB to 5 GB when the new image is deployed; the database is about 160 MB.
+- The production VM already ran 180 days; its `.env` still has the old lines, which are now ignored. After the deploy, delete every moved key from the VM's `.env` (11 are there today: `POSITION_RETENTION_DAYS`, `BACKUP_RETENTION_DAYS` and nine `WATCHDOG_*` keys; `sh ops/check_env.sh .env` lists them). Their values equal the new literals, except `WATCHDOG_DB_MAX_GB`, which goes from 20 to 5. The database warning drops from 20 GB to 5 GB when the new image is deployed; the database is about 160 MB.
 - `ops/check_config_drift.py` now fails when a policy value is read from `.env`, appears in `.env.example`, or differs between compose and the code.
 - A table of where every setting lives is in `docs/CONFIG_MAP.md`.
 

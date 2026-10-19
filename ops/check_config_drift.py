@@ -15,6 +15,7 @@ Checks:
     .env.example, and equal EVERY default the code gives them (settings.py; watchdog.py and integrity.py; all of ops/backup/*.sh)
 
 Usage: python ops/check_config_drift.py        (needs PyYAML)
+       python ops/check_config_drift.py --policy-keys   (print the policy key names, one per line; no PyYAML needed)
 """
 from __future__ import annotations
 
@@ -23,8 +24,6 @@ import re
 import sys
 from pathlib import Path
 from typing import Any
-
-import yaml
 
 # Settings that are intentionally NOT passed through compose, with the reason.
 IGNORE_SETTINGS: dict[str, str] = {
@@ -94,6 +93,8 @@ def literal_default(value: ast.expr | None) -> object:
 
 
 def load_compose(path: Path) -> dict[str, Any]:
+    import yaml  # imported here so `--policy-keys` works without PyYAML (ops/check_env.sh runs it on the VM)
+
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert isinstance(data, dict)
     return data
@@ -109,7 +110,7 @@ def service_env(compose: dict[str, Any], service: str) -> dict[str, str]:
 def env_example_keys(path: Path) -> set[str]:
     keys = set()
     for line in path.read_text(encoding="utf-8").splitlines():
-        m = re.match(r"^([A-Z][A-Z0-9_]*)=", line)
+        m = re.match(r"^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=", line)
         if m:
             keys.add(m.group(1))
     return keys
@@ -156,6 +157,15 @@ def backup_defaults(directory: Path) -> dict[str, list[object]]:
     return out
 
 
+def check_interpolation(errors: list[str], compose_files: list[Path]) -> None:
+    """No compose file may read a policy value from .env, in any service or field (${KEY}, ${KEY:-n} or $KEY)."""
+    for path in compose_files:
+        text = path.read_text(encoding="utf-8")
+        for key in POLICY_KEYS:
+            if re.search(rf"\$\{{?{key}\b", text):
+                errors.append(f"{key}: {path.name} reads it from .env with $ interpolation; policy values must be literals")
+
+
 def check_policy(errors: list[str], example: set[str], fields: dict[str, object], compose: dict[str, Any]) -> None:
     code: dict[str, dict[str, list[object]]] = {
         "collector": {n.upper(): [d] for n, d in fields.items() if d is not NO_DEFAULT},
@@ -193,6 +203,10 @@ def same_default(compose_default: str, settings_default: object) -> bool:
 
 
 def main() -> int:
+    if "--policy-keys" in sys.argv[1:]:
+        print("\n".join(POLICY_KEYS))
+        return 0
+
     fields = settings_fields(ROOT / "collector/src/vatpac/settings.py")
     compose = load_compose(ROOT / "docker-compose.yml")
     env = service_env(compose, "collector")
@@ -217,6 +231,7 @@ def main() -> int:
                 errors.append(f"{key}: reads ${{{var}}} which is missing from .env.example")
 
     check_policy(errors, example, fields, compose)
+    check_interpolation(errors, [p for p in (ROOT / "docker-compose.yml", ROOT / "docker-compose.dev.yml") if p.exists()])
 
     for name in IGNORE_SETTINGS:
         if name not in fields:
