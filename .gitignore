@@ -53,3 +53,6 @@ docs/WORKING_AGREEMENT.md
 docs/TEAM_ROLES.md
 docs/TEAM_BRIEFS.md
 docs/reviews/*team-roles*
+
+# Emergency per-machine override of a policy value (docs/CONFIG_MAP.md, "Where each setting lives"); delete it once the fix is deployed
+docker-compose.override.yml

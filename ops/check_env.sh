@@ -44,6 +44,23 @@ case "$(sed -n "s/^VATPAC_IMAGE_TAG=//p" "$ENV_FILE" | tail -n 1 | tr -d '\r"'"'
   sha-*) echo "check_env: WARNING VATPAC_IMAGE_TAG is a sha- pin: images will not follow new releases. Delete that line unless this is a deliberate rollback." >&2 ;;
 esac
 
+# Policy values (retention periods, alert thresholds) are literals in docker-compose.yml (ADR-034). A leftover line for one in
+# the env file does nothing and misleads, so it is listed (names only, never values). Needs python3 or python; skipped without.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+PY="$(command -v python3 || command -v python || true)"
+if [ -n "$PY" ]; then
+  for key in $("$PY" "$HERE/check_config_drift.py" --policy-keys 2>/dev/null | tr -d '\r'); do
+    if grep -q "^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}${key}[[:space:]]*=" "$ENV_FILE"; then
+      echo "check_env: WARNING $key is in $ENV_FILE but is fixed in docker-compose.yml, so this line has no effect. Delete it (docs/CONFIG_MAP.md, 'Where each setting lives')." >&2
+    fi
+  done
+fi
+
+# An override file beats the compose literals and is invisible to git status (it is git-ignored).
+if [ -f "$(dirname "$ENV_FILE")/docker-compose.override.yml" ]; then
+  echo "check_env: NOTE docker-compose.override.yml is present next to $ENV_FILE and overrides the compose literals. Delete it once the fix it covers is deployed." >&2
+fi
+
 if [ "$bad" -ne 0 ]; then
   echo "check_env: FAILED. Generate strong values with: sh ops/gen_env.sh   (or edit $ENV_FILE)" >&2
   exit 1

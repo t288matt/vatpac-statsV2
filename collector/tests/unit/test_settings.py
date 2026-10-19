@@ -38,7 +38,7 @@ def test_defaults_match_env_example(clean_env: pytest.MonkeyPatch) -> None:
     assert s.vatsim_status_url == "https://status.vatsim.net/status.json"
     assert s.poll_interval_seconds == 30
     assert s.http_timeout_seconds == 10
-    assert s.position_retention_days == 90
+    assert s.position_retention_days == 180
     assert s.airborne_gap_cap_seconds == 75  # 2.5 x the poll interval
     assert str(s.log_level).upper() == "INFO"
     prefixes = s.home_icao_prefixes

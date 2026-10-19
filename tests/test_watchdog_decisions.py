@@ -63,7 +63,7 @@ def client_for(handler) -> httpx.Client:
 def test_defaults() -> None:
     c = wd.Config()
     assert (c.interval, c.warn_s, c.page_s, c.confirm) == (60, 60, 300, 2)
-    assert (c.disk_pct, c.db_max_gb, c.backup_max_h, c.restore_test_max_days) == (80, 20, 26, 9)
+    assert (c.disk_pct, c.db_max_gb, c.backup_max_h, c.restore_test_max_days) == (80, 5, 26, 9)
     assert (c.restart_cap, c.restart_after) == (3, 3)
     assert c.restartable == c.expected == {"db", "collector", "grafana", "backup"}
     assert c.disk_paths == ["/backups", "/"] and c.docker == "" and c.project == "vatpac"
