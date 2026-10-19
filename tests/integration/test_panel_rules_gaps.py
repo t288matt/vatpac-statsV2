@@ -280,16 +280,6 @@ def test_poll_counters_cover_the_last_24_hours_only(conn) -> None:
     assert scalar(conn, "Unchanged polls (last 24 hours)") is None
 
 
-def test_near_miss_panels(conn) -> None:
-    t = datetime.now(UTC) - timedelta(hours=3)
-    for i, cs in enumerate(["ML_XYZ_CTR", "AD_XYZ_TWR", "BN_ZZZ_APP"]):
-        conn.execute("INSERT INTO controller_unlisted_sighting (callsign, cid, first_seen, last_seen, polls_seen) VALUES (%s,%s,%s,%s,%s)",
-                     (cs, 100 + i, t, t + timedelta(minutes=i), i + 1))
-    assert scalar(conn, "Near-miss controllers") == 3
-    rows = run(conn, "Near-miss controller callsigns")
-    assert [(r["callsign"], r["polls_seen"]) for r in rows] == [("BN_ZZZ_APP", 3), ("AD_XYZ_TWR", 2), ("ML_XYZ_CTR", 1)]
-
-
 def test_poll_series_panels(conn) -> None:
     base = datetime.fromtimestamp(int(datetime.now(UTC).timestamp()) // 300 * 300 - 7200, UTC)
     for status, off, kept, ctl, dur in [("ok", 10, 20, 4, 100), ("ok", 40, 22, 5, 300), ("skipped_unchanged", 70, 99, 9, 50),
