@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = Field(10.0, ge=1, le=60)
     text_max_length: int = Field(2000, ge=100, le=100_000)
     feed_max_future_seconds: int = Field(120, ge=15, le=3600)
-    position_retention_days: int = Field(90, ge=2, le=3650)
+    position_retention_days: int = Field(180, ge=2, le=3650)
     airborne_gap_cap_seconds: int | None = Field(None, ge=15, le=600)  # None: 2.5 x poll interval
     home_icao_prefixes: str = "Y"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"

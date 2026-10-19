@@ -55,7 +55,7 @@ class Config:
         self.page_s = env_num("WATCHDOG_PAGE_SECONDS", 300)
         self.confirm = max(1, int(env_num("WATCHDOG_CONFIRM_CYCLES", 2)))
         self.disk_pct = env_num("WATCHDOG_DISK_PCT", 80)
-        self.db_max_gb = env_num("WATCHDOG_DB_MAX_GB", 20)
+        self.db_max_gb = env_num("WATCHDOG_DB_MAX_GB", 5)
         self.backup_max_h = env_num("WATCHDOG_BACKUP_MAX_HOURS", 26)
         self.restore_test_max_days = env_num("WATCHDOG_RESTORE_TEST_MAX_DAYS", 9)
         # On/off flag only (compose sets it to 1 when BACKUP_REMOTE is non-empty); the command itself never reaches the watchdog.

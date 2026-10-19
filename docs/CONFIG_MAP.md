@@ -6,9 +6,27 @@ Third-party images are not configured in `.env`: they are fixed in `docker-compo
 
 Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker-compose.yml`, `.env.example`. Secrets live only in `.env` (git-ignored). `.env.example` has blank secrets on purpose: run `sh ops/gen_env.sh` to write a `.env` with random values, then `sh ops/check_env.sh` to check it (blank, `change-me*`, under 16 characters, repeated, or non letter/digit values are rejected). Passwords are placed inside connection URLs, so they must be letters and digits only (for example `openssl rand -hex 24`).
 
+## Where each setting lives
+
+The rule (ADR-034, 19-10-2026, issue 21): `.env` holds secrets and values that differ between machines. Everything the owner decides as policy (retention periods, alert thresholds, timings) is a literal in `docker-compose.yml`, so it is reviewed in git, applied by every deploy, and cannot differ between the VM and a rebuilt machine. The code default of each policy value equals the compose literal, and `python ops/check_config_drift.py` fails when they differ, when a policy key is back in `.env.example`, or when compose reads one from `.env`.
+
+| Group | Keys | Lives in | Value | Status |
+|---|---|---|---|---|
+| Secrets | `POSTGRES_PASSWORD`, `GRAFANA_RO_PASSWORD`, `COLLECTOR_DB_PASSWORD`, `BACKUP_DB_PASSWORD`, `WATCHDOG_DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, `TELEGRAM_BOT_TOKEN`, `UPTIME_KUMA_PUSH_URL` | `.env` only | Per machine, never in git | Already so |
+| Machine-specific | `GRAFANA_PORT`, `GRAFANA_BIND`, `GRAFANA_ROOT_URL`, `GRAFANA_COOKIE_SECURE`, `BACKUP_REMOTE`, `BACKUP_EXTRA_APT_PACKAGES`, `VATPAC_VERSION`, `VATPAC_IMAGE_PREFIX`, `TELEGRAM_CHAT_ID` | `.env` only | Per machine | Already so |
+| Debug toggle | `LOG_LEVEL` | `.env`, with the default `INFO` in compose | `INFO` | Already so |
+| Retention policy | `POSITION_RETENTION_DAYS`, `BACKUP_RETENTION_DAYS`, `BACKUP_MIN_KEEP`, `ARCHIVE_COMPACT_KEEP_DAYS`, `ARCHIVE_FULL_KEEP_DAYS`, `ARCHIVE_ANOMALY_KEEP_DAYS`, `ARCHIVE_MAX_MB` | Literals in `docker-compose.yml` | 180, 14, 3, 30, 7, 90, 1024 | Moved 19-10-2026 (issue 21) |
+| Watchdog thresholds | `WATCHDOG_DB_MAX_GB`, `WATCHDOG_DISK_PCT`, `WATCHDOG_DISK_PATHS`, `WATCHDOG_BACKUP_MAX_HOURS`, `WATCHDOG_RESTORE_TEST_MAX_DAYS`, `WATCHDOG_INTERVAL_SECONDS`, `WATCHDOG_WARN_SECONDS`, `WATCHDOG_PAGE_SECONDS`, `WATCHDOG_CONFIRM_CYCLES`, `WATCHDOG_INTEGRITY_INTERVAL_HOURS`, `WATCHDOG_CROSSCHECK_INTERVAL_DAYS`, `WATCHDOG_CROSSCHECK_SAMPLES` | Literals in `docker-compose.yml` | 5 GB for the database limit; the rest as listed in A1 | Moved 19-10-2026 (issue 21) |
+| Collector tuning | `POLL_INTERVAL_SECONDS`, `HTTP_TIMEOUT_SECONDS`, `TEXT_MAX_LENGTH`, `FEED_MAX_FUTURE_SECONDS`, `HOME_ICAO_PREFIXES`, `HEALTH_PORT`, `CIRCUIT_FAILURE_THRESHOLD`, `CIRCUIT_SLOW_INTERVAL_SECONDS`, `ARCHIVE_ENABLED`, `ARCHIVE_DIR`, `ARCHIVE_COMPACT_EVERY_S`, `ARCHIVE_FULL_EVERY_S` | Literals in `docker-compose.yml` | 30, 10, 2000, 120, Y, 8080, 5, 60, true, /archive, 300, 3600 | Planned (second pull request); until then `.env` may still override them |
+| Backup tuning | `BACKUP_TIME_UTC`, `BACKUP_RESTORE_TEST_DAY`, `BACKUP_DUMP_TIMEOUT_S`, `BACKUP_VALIDATE_TIMEOUT_S`, `BACKUP_MIN_SIZE_PERCENT`, `BACKUP_MIN_FIRST_BYTES` | Literals in `docker-compose.yml` | 02:00, 7, 1800, 300, 50, 1048576 | Planned (second pull request) |
+| Fixed names and URLs | `POSTGRES_DB`, `POSTGRES_USER`, `GRAFANA_ADMIN_USER`, `VATSIM_FEED_URL`, `VATSIM_STATUS_URL` | Literals in `docker-compose.yml` | As in A1 | Planned (second pull request) |
+| Blank optional settings | `AIRBORNE_GAP_CAP_SECONDS`, `ARCHIVE_GAP_S` | Removed from `.env.example`; the code default applies | Blank means derived from the poll interval | Planned (second pull request) |
+
+Changing a policy value is therefore a pull request, an independent review and a deploy. In an emergency (for example the disk is filling and retention must shrink at once) edit the literal in `docker-compose.yml` on the VM and commit the same change afterwards; the next deploy would otherwise overwrite it. After a key moves, delete its line from the machine's `.env` (a leftover line is ignored, but it misleads the next reader). `POLL_LOG_RETENTION_DAYS` (400) is a constant in `collector/src/vatpac/maintenance.py`, not a setting.
+
 ## Part A: v3 variables
 
-### A1. Set in `.env` (read by `docker-compose.yml`)
+### A1. Every v3 variable ("Where each setting lives" above says which are set in `.env` and which are fixed in `docker-compose.yml`)
 
 | Variable | Default | Used by | Meaning |
 |---|---|---|---|
@@ -31,7 +49,7 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `HTTP_TIMEOUT_SECONDS` | `10` | collector | Request timeout (connect timeout is the lower of 5 s and this). Valid 1 to 60. |
 | `TEXT_MAX_LENGTH` | `2000` | collector | Free-text fields of a pilot or controller (name, route, remarks, server and so on) are cut to this many characters at ingest; each cut field counts once in `poll_log.rejected_values`. Valid 100 to 100000. |
 | `FEED_MAX_FUTURE_SECONDS` | `120` | collector | A feed snapshot whose `update_timestamp` is more than this many seconds ahead of the collector's clock is rejected as a feed error (`error` poll, nothing stored, `last seen` unchanged), so one future-dated snapshot cannot make every later real update look unchanged. Valid 15 to 3600. The collector host's clock must be correct to well within this bound. |
-| `POSITION_RETENTION_DAYS` | `90` | collector | Raw positions kept this long (whole daily partitions). Valid 2 to 3650. |
+| `POSITION_RETENTION_DAYS` | `180` | collector | **Fixed in `docker-compose.yml`, not `.env`.** Raw positions kept this long (whole daily partitions). Valid 2 to 3650. |
 | `AIRBORNE_GAP_CAP_SECONDS` | blank (derived: 2.5 x `POLL_INTERVAL_SECONDS`, 75 s at 30 s) | collector | Cap per sample gap in airborne minutes. Set it only to override. Valid 15 to 600. Published to `app_setting` for the views. |
 | `HOME_ICAO_PREFIXES` | `Y` | collector | Comma-separated letter prefixes defining the home region (for example `Y` or `Y,NZ`). Published to `app_setting`. |
 | `LOG_LEVEL` | `INFO` | collector | `DEBUG`, `INFO`, `WARNING` or `ERROR` (case-insensitive). The watchdog also reads it, but compose does not pass it on, so the watchdog stays at `INFO`. |
@@ -40,20 +58,20 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `ARCHIVE_ENABLED` | `true` | collector | Keep the rolling raw-feed archive (docs/RUNBOOKS/feed-archive.md). A failure of the archive never stops polling. |
 | `ARCHIVE_DIR` | `/archive` | collector | Archive directory inside the container: the named volume `archive` (the root filesystem is read-only). |
 | `ARCHIVE_COMPACT_EVERY_S` | `300` | collector | A compact gzipped record (all pilots and controllers, audit fields) is written when the feed timestamp enters a new slot of this many seconds (1 to 86400). |
-| `ARCHIVE_COMPACT_KEEP_DAYS` | `30` | collector | Days the compact records are kept. |
+| `ARCHIVE_COMPACT_KEEP_DAYS` | `30` | collector | **Fixed in `docker-compose.yml`, not `.env`.** Days the compact records are kept. |
 | `ARCHIVE_FULL_EVERY_S` | `3600` | collector | The full raw payload, gzipped, is written once per slot of this many seconds. |
-| `ARCHIVE_FULL_KEEP_DAYS` | `7` | collector | Days the full payloads are kept. |
-| `ARCHIVE_ANOMALY_KEEP_DAYS` | `90` | collector | Days the anomaly payloads are kept (poll error, timestamp gap, older or future timestamp, `logon_time` precision change). |
+| `ARCHIVE_FULL_KEEP_DAYS` | `7` | collector | **Fixed in `docker-compose.yml`, not `.env`.** Days the full payloads are kept. |
+| `ARCHIVE_ANOMALY_KEEP_DAYS` | `90` | collector | **Fixed in `docker-compose.yml`, not `.env`.** Days the anomaly payloads are kept (poll error, timestamp gap, older or future timestamp, `logon_time` precision change). |
 | `ARCHIVE_GAP_S` | blank (derived: 2 x `POLL_INTERVAL_SECONDS` + 5, 65 s at 30 s) | collector | A gap between two feed timestamps above this is an anomaly. A single missed tick (60 s at 30 s polling) is normal (audit F10), so the derived value sits above it (16 to 3600). |
-| `ARCHIVE_MAX_MB` | `1024` | collector | Hard cap on the archive; the oldest files are deleted first when it is exceeded. |
+| `ARCHIVE_MAX_MB` | `1024` | collector | **Fixed in `docker-compose.yml`, not `.env`.** Hard cap on the archive; the oldest files are deleted first when it is exceeded. |
 | `HEALTH_PORT` | `8080` | collector, watchdog | Port of the collector's `/health` and `/metrics` inside the container. |
 | `VATPAC_VERSION` | `dev` | collector build arg | Version label baked into the image (the release workflow sets it from the git tag). |
 | `VATPAC_IMAGE_PREFIX` | empty (not in `.env`) | migrate, collector, backup, watchdog (`image:`) | Registry prefix put in front of the image name, with a trailing slash: `ghcr.io/t288matt/`. Empty means the local image `vatpac-stats-<name>:latest`, built by `make up` or `up -d --build` (dev, CI, a first install). Set once, only on the production VM, by the owner (told the exact line first): this single line switches registry mode, and a deploy never edits `.env` (amended ADR-031, 15-10-2026). Not a secret. Commented out in `.env.example`. Registry mode ignores the build arguments `BACKUP_EXTRA_APT_PACKAGES` and `VATPAC_VERSION`. |
 | `VATPAC_IMAGE_TAG` | `latest` (not in `.env`) | as above | Optional override, used only to pin a previous build: `sha-<first 7 characters of the commit>`. Leave it out: the default `latest` is moved by `.github/workflows/release.yml` to each published commit (which also keeps the `sha-<7>` tag), so `make deploy` (`git pull --ff-only`, `docker compose pull`, a check that the pulled images were built from the checkout, then `docker compose up -d --no-build`) follows new releases. A `sha-` line left in `.env` stops that: `check_env.sh`, `image_mode.sh` and the preflight warn loudly. Not a secret. |
-| `BACKUP_RETENTION_DAYS` | `14` | backup | Days of dumps kept. |
+| `BACKUP_RETENTION_DAYS` | `14` | backup | **Fixed in `docker-compose.yml`, not `.env`.** Days of dumps kept. |
 | `BACKUP_MIN_SIZE_PERCENT` | `50` | backup | A new dump smaller than this percent of the previous good dump is rejected (moved aside as `*.rejected`). |
 | `BACKUP_MIN_FIRST_BYTES` | `1048576` | backup | Minimum size of the first-ever dump (no previous dump to compare with). |
-| `BACKUP_MIN_KEEP` | `3` | backup | Rotation never deletes below this many good dumps. |
+| `BACKUP_MIN_KEEP` | `3` | backup | **Fixed in `docker-compose.yml`, not `.env`.** Rotation never deletes below this many good dumps. |
 | `BACKUP_TIME_UTC` | `02:00` | backup | Nightly backup time (HH:MM, UTC). |
 | `BACKUP_RESTORE_TEST_DAY` | `7` | backup | ISO weekday (1 Monday to 7 Sunday) on which the backup is restore-tested; `0` disables (then set `WATCHDOG_RESTORE_TEST_MAX_DAYS=0` too). |
 | `BACKUP_REMOTE` | empty | backup | Optional off-box copy: a shell command run after every successful nightly dump with `$BACKUP_FILE` set. See [restore runbook](RUNBOOKS/restore.md), "Off-box copies". |
@@ -61,18 +79,18 @@ Sources: `collector/src/vatpac/settings.py`, `ops/watchdog/watchdog.py`, `docker
 | `TELEGRAM_BOT_TOKEN` | empty | watchdog | Optional. If empty, alerts are logged only. Delivery to Telegram from the VM was verified on 07-10-2026 (docs/TRACKER.md, T4). Secret: keep out of git, chat and logs. |
 | `TELEGRAM_CHAT_ID` | empty | watchdog | Optional, as above. |
 | `UPTIME_KUMA_PUSH_URL` | empty | watchdog | Optional heartbeat push URL. |
-| `WATCHDOG_INTERVAL_SECONDS` | `60` | watchdog | Check cadence. |
-| `WATCHDOG_WARN_SECONDS` | `60` | watchdog | Age of newest ok poll or snapshot that raises a warning. |
-| `WATCHDOG_PAGE_SECONDS` | `300` | watchdog | Age that raises a critical alert. |
-| `WATCHDOG_CONFIRM_CYCLES` | `2` | watchdog | A state change must persist this many cycles before it is alerted. |
-| `WATCHDOG_DISK_PCT` | `80` | watchdog | Disk usage percentage that warns (critical 10 points higher). |
-| `WATCHDOG_DISK_PATHS` | `/backups,/` | watchdog | Comma-separated paths (inside the watchdog container) whose filesystems are checked. |
-| `WATCHDOG_DB_MAX_GB` | `20` | watchdog | Database size that raises a warning. |
-| `WATCHDOG_BACKUP_MAX_HOURS` | `26` | watchdog | Newest-backup age that alerts (critical). |
-| `WATCHDOG_RESTORE_TEST_MAX_DAYS` | `9` | watchdog | Warn if the last successful weekly restore test is older than this many days; `0` disables the age check. |
-| `WATCHDOG_INTEGRITY_INTERVAL_HOURS` | `72` | watchdog | How often the 18-invariant SQL sweep (`ops/audit/invariants.sql`) runs, in hours; `0` disables. A sweep with violations repeats every 6 hours. The last run is kept in the status file, so a restart does not re-run early or skip a due run. Do not raise it above 72 without widening the 3-day windows in the SQL (docs/RUNBOOKS/integrity-checks.md). |
-| `WATCHDOG_CROSSCHECK_INTERVAL_DAYS` | `14` | watchdog | How often the raw-feed archive cross-check runs, in days; `0` disables. |
-| `WATCHDOG_CROSSCHECK_SAMPLES` | `24` | watchdog | Archived snapshots compared per cross-check, evenly spread over the interval (about 1 s of CPU each). |
+| `WATCHDOG_INTERVAL_SECONDS` | `60` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Check cadence. |
+| `WATCHDOG_WARN_SECONDS` | `60` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Age of newest ok poll or snapshot that raises a warning. |
+| `WATCHDOG_PAGE_SECONDS` | `300` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Age that raises a critical alert. |
+| `WATCHDOG_CONFIRM_CYCLES` | `2` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** A state change must persist this many cycles before it is alerted. |
+| `WATCHDOG_DISK_PCT` | `80` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Disk usage percentage that warns (critical 10 points higher). |
+| `WATCHDOG_DISK_PATHS` | `/backups,/` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Comma-separated paths (inside the watchdog container) whose filesystems are checked. |
+| `WATCHDOG_DB_MAX_GB` | `5` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Database size that raises a warning. |
+| `WATCHDOG_BACKUP_MAX_HOURS` | `26` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Newest-backup age that alerts (critical). |
+| `WATCHDOG_RESTORE_TEST_MAX_DAYS` | `9` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Warn if the last successful weekly restore test is older than this many days; `0` disables the age check. |
+| `WATCHDOG_INTEGRITY_INTERVAL_HOURS` | `72` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** How often the 18-invariant SQL sweep (`ops/audit/invariants.sql`) runs, in hours; `0` disables. A sweep with violations repeats every 6 hours. The last run is kept in the status file, so a restart does not re-run early or skip a due run. Do not raise it above 72 without widening the 3-day windows in the SQL (docs/RUNBOOKS/integrity-checks.md). |
+| `WATCHDOG_CROSSCHECK_INTERVAL_DAYS` | `14` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** How often the raw-feed archive cross-check runs, in days; `0` disables. |
+| `WATCHDOG_CROSSCHECK_SAMPLES` | `24` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Archived snapshots compared per cross-check, evenly spread over the interval (about 1 s of CPU each). |
 
 ### A2. Set by `docker-compose.yml` itself (not intended for `.env`)
 
@@ -154,8 +172,8 @@ Source: `C:\Users\mdora\Claude\VATPAC-Stats V2\docker-compose.yml`. Several v1 v
 | `FLIGHT_SUMMARY_ENABLED` | true | CHANGED | v1's summariser jobs are gone. One table, `flight_summary` (the finished flights), is filled every 5 minutes by the database function `write_finished_flights` that the collector calls directly (ADR-030; live since 13-10-2026, marker 7a71d30); the `flight` view reads it. Not configurable. |
 | `FLIGHT_COMPLETION_HOURS` | 8 | CHANGED | A fixed 8-hour span split in the earlier per-piece model (not configurable); removed with that model by phase 5 (live since 13-10-2026). Replaced by `flight_quiet_hours` below. |
 | `FLIGHT_QUIET_HOURS` (new, issue 89 phase 1) | 8 | NEW | Not an environment variable: `app_setting.flight_quiet_hours`, seeded 8 by migration 20261012000190. A FLIGHT is written to `flight_summary` once the flight itself has had no position for this many hours of stored data (measured against the newest snapshot, not the clock; owner decision 12-10-2026: quiet per flight, not per pilot, so a pilot who is flying again does not hold back an earlier finished flight; migration 20261012000200, live since 13-10-2026 08:01:09 UTC, marker 3d4b5b6). A flight is a session or the sessions joined by v1's rule: same pilot, callsign, departure and arrival, new connection logged on within 120 minutes of the last position. See DEFINITIONS.md section 1b. Change with `UPDATE app_setting SET value = '6' WHERE key = 'flight_quiet_hours';` as the owner role; minimum 2.5 (the writer refuses less); the watchdog check "flights quiet longer than the quiet period plus 1 hour" assumes 8 (9 hours literal) and must follow. Replaces v1's `FLIGHT_COMPLETION_HOURS`; the charts have read it since phase 3 went live on 13-10-2026. |
-| `FLIGHT_RETENTION_HOURS` | 168000000 | DROPPED | Effectively unlimited in v1. v3: raw positions 90 days (`POSITION_RETENTION_DAYS`), sessions kept forever (ADR-008). |
-| `FLIGHT_DAYS_BEFORE_ARCHIVE` | 90 | CHANGED | No archive tables; replaced by dropping daily partitions after `POSITION_RETENTION_DAYS` (90). |
+| `FLIGHT_RETENTION_HOURS` | 168000000 | DROPPED | Effectively unlimited in v1. v3: raw positions 180 days (`POSITION_RETENTION_DAYS`, ADR-026), sessions kept forever (ADR-008). |
+| `FLIGHT_DAYS_BEFORE_ARCHIVE` | 90 | CHANGED | No archive tables; replaced by dropping daily partitions after `POSITION_RETENTION_DAYS` (180). |
 | `FLIGHT_SUMMARY_POLL_INTERVAL_SHORT`, `FLIGHT_SUMMARY_POLL_INTERVAL_LONG` | 60 / 900 | DROPPED | Replaced by one fixed 5-minute refresh loop in the collector. |
 | `CONTROLLER_SUMMARY_ENABLED` | true | DROPPED | No summariser; controller sessions are written directly and merged in a view. |
 | `CONTROLLER_COMPLETION_MINUTES` | 15 | DROPPED | "Closed" is derived at query time (`is_open`). |

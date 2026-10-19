@@ -11,6 +11,8 @@ Checks:
   - every ${VAR} a collector environment value reads is a key in .env.example (or in ENV_ONLY_OK)
   - where compose uses ${VAR:-default} and the settings default is a literal, the two defaults agree
   - every collector environment key is a settings field (typos/dead keys), unless in COMPOSE_ONLY_OK
+  - policy keys (POLICY_KEYS: retention periods and watchdog thresholds) are literals in docker-compose.yml, are absent from
+    .env.example, and equal the default in the code that reads them (settings.py, watchdog.py, ops/backup/*.sh)
 
 Usage: python ops/check_config_drift.py        (needs PyYAML)
 """
@@ -37,6 +39,30 @@ IGNORE_SETTINGS: dict[str, str] = {
 COMPOSE_ONLY_OK: set[str] = set()
 # Variables compose reads that need not appear in .env.example.
 ENV_ONLY_OK: set[str] = set()
+
+# Policy values: decided in an ADR, so they live in docker-compose.yml as literals (reviewed in git), never in .env.
+# Add a key here when it moves; see docs/CONFIG_MAP.md, section "Where each setting lives".
+POLICY_KEYS: dict[str, str] = {
+    "POSITION_RETENTION_DAYS": "collector",
+    "ARCHIVE_COMPACT_KEEP_DAYS": "collector",
+    "ARCHIVE_FULL_KEEP_DAYS": "collector",
+    "ARCHIVE_ANOMALY_KEEP_DAYS": "collector",
+    "ARCHIVE_MAX_MB": "collector",
+    "BACKUP_RETENTION_DAYS": "backup",
+    "BACKUP_MIN_KEEP": "backup",
+    "WATCHDOG_INTERVAL_SECONDS": "watchdog",
+    "WATCHDOG_WARN_SECONDS": "watchdog",
+    "WATCHDOG_PAGE_SECONDS": "watchdog",
+    "WATCHDOG_CONFIRM_CYCLES": "watchdog",
+    "WATCHDOG_DISK_PCT": "watchdog",
+    "WATCHDOG_DISK_PATHS": "watchdog",
+    "WATCHDOG_DB_MAX_GB": "watchdog",
+    "WATCHDOG_BACKUP_MAX_HOURS": "watchdog",
+    "WATCHDOG_RESTORE_TEST_MAX_DAYS": "watchdog",
+    "WATCHDOG_INTEGRITY_INTERVAL_HOURS": "watchdog",
+    "WATCHDOG_CROSSCHECK_INTERVAL_DAYS": "watchdog",
+    "WATCHDOG_CROSSCHECK_SAMPLES": "watchdog",
+}
 
 ROOT = Path(__file__).resolve().parent.parent
 VAR_RE = re.compile(r"\$\{([A-Z0-9_]+)(?::?[-?][^}]*)?\}")
@@ -83,6 +109,55 @@ def env_example_keys(path: Path) -> set[str]:
     return keys
 
 
+def service_env(path: Path, service: str) -> dict[str, str]:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    env = data["services"][service]["environment"]
+    if isinstance(env, list):
+        env = dict(item.split("=", 1) for item in env)
+    return {str(k): "" if v is None else str(v) for k, v in env.items()}
+
+
+def watchdog_defaults(path: Path) -> dict[str, object]:
+    """Defaults passed to env()/env_num() for a literal name in watchdog.py."""
+    out: dict[str, object] = {}
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("env", "env_num")
+                and len(node.args) >= 2 and isinstance(node.args[0], ast.Constant) and isinstance(node.args[1], ast.Constant)):
+            out[str(node.args[0].value)] = node.args[1].value
+    return out
+
+
+def backup_defaults(directory: Path) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for script in sorted(directory.glob("*.sh")):
+        for name, value in re.findall(r"\$\{(BACKUP_[A-Z0-9_]+):-([^}]*)\}", script.read_text(encoding="utf-8")):
+            out.setdefault(name, value)
+    return out
+
+
+def check_policy(errors: list[str], example: set[str], fields: dict[str, object]) -> None:
+    code = {
+        "collector": {n.upper(): d for n, d in fields.items()},
+        "watchdog": watchdog_defaults(ROOT / "ops/watchdog/watchdog.py"),
+        "backup": backup_defaults(ROOT / "ops/backup"),
+    }
+    for key, service in POLICY_KEYS.items():
+        if key in example:
+            errors.append(f"{key}: policy value must not be in .env.example (it is a literal in docker-compose.yml)")
+        value = service_env(ROOT / "docker-compose.yml", service).get(key)
+        if value is None:
+            errors.append(f"{key}: not set in the {service} environment in docker-compose.yml")
+            continue
+        if "${" in value:
+            errors.append(f"{key}: must be a literal in docker-compose.yml, not '{value}'")
+            continue
+        default = code[service].get(key)
+        if default is None or default is NO_DEFAULT:
+            errors.append(f"{key}: no literal default found in the {service} code to compare with")
+        elif not same_default(value, default):
+            errors.append(f"{key}: compose value '{value}' differs from the {service} code default '{default}'")
+
+
 def same_default(compose_default: str, settings_default: object) -> bool:
     if isinstance(settings_default, bool):
         return compose_default.lower() == str(settings_default).lower()
@@ -116,6 +191,8 @@ def main() -> int:
         for var in VAR_RE.findall(value):
             if var not in example and var not in ENV_ONLY_OK:
                 errors.append(f"{key}: reads ${{{var}}} which is missing from .env.example")
+
+    check_policy(errors, example, fields)
 
     for name in IGNORE_SETTINGS:
         if name not in fields:
