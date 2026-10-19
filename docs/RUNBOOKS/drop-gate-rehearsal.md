@@ -158,7 +158,7 @@ Paste the three summary blocks (part A summary, `partitions_dropped`, the part C
    - `flight sample_count differs from its stored positions`: a position was added to, or removed from, a day that a flight lies in, after the flight was written. Raise it on issue #89 / #140.
    - `session row missing`: a position without a session row. Should be impossible (foreign key). Raise it.
 3. To see the full list for a day: `SELECT * FROM unreconciled_partition_sessions('<day> 00:00+00', '<day+1> 00:00+00')` as the owner role.
-4. A day that stays refused costs only disk. If many days are refused and cannot be cleared quickly, raise `POSITION_RETENTION_DAYS` to 365 (design section 6; the lever and its steps are there).
+4. A day that stays refused costs only disk. If many days are refused and cannot be cleared quickly, raise `POSITION_RETENTION_DAYS` to 365 (design section 6; the lever and its steps are there). The value is fixed in `docker-compose.yml` (ADR-034): for an immediate change use the override file in [CONFIG_MAP](../CONFIG_MAP.md), "Where each setting lives"; the permanent change is a pull request that edits the compose literal and the `settings.py` default together (the drift check fails if they differ).
 
 The table `drop_gate_refusal` (one row per refused day, with `first_refused`) feeds the integrity check `raw-position days kept by the deletion check for more than 3 days`, which works at any age of the day. Look at it with `SELECT * FROM drop_gate_refusal`.
 

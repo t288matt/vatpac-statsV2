@@ -179,3 +179,11 @@ Consequences: a future package that lacks a 3.14 wheel blocks its own bump until
 - Data retention: DECIDED 09-10-2026, see ADR-026 (implementation pending, docs/TRACKER.md T12).
 - Monday attendance: it counts people present and reads `flight_summary`, so ADR-025 does not filter it (docs/TRACKER.md, T47).
 - Decided since this list was first written: backfill of v1 history is NO (T22; ADR-011 stands); the chart questions of 08-10-2026 were answered "keep all" (T14, T15, ADR-020); the v1 comparison differences were decided one by one (docs/V1_COMPARISON.md section 11).
+
+## ADR-034 Policy values live in docker-compose.yml, not .env (19-10-2026, issue 21, owner decision)
+Context: ADR-026 set raw positions to 180 days and the watchdog database warning to 5 GB, but 180 existed only in the VM's `.env` and 5 GB nowhere; the code, `.env.example`, compose defaults and the docs still said 90 and 20. A policy held only in one machine's untracked file can drift from what the repository says, and a rebuilt VM would silently run 90 days.
+Decision (owner): `.env` holds secrets and per-machine values only. Policy and tuning values (retention periods, alert thresholds, timings) are literals in `docker-compose.yml`, changed by pull request with an independent review and applied by every deploy. The code default of each equals the compose literal. The full table of where each setting lives is in `docs/CONFIG_MAP.md`, section "Where each setting lives".
+Enforcement: `ops/check_config_drift.py` (run in CI) lists the moved keys in `POLICY_KEYS` and fails when one is missing from compose, is not a literal, appears in `.env.example`, or differs from the default in `settings.py`, `ops/watchdog/watchdog.py` or `ops/backup/*.sh`.
+Scope: the retention and watchdog keys moved first (issue 21); the collector tuning, backup tuning and fixed names follow in a second pull request.
+Trade-off: changing a policy value needs a pull request and a deploy, not an edit of `.env`; for an emergency the VM uses a git-ignored `docker-compose.override.yml` (it keeps the working tree clean for deploys), removed once the pull request is deployed.
+Amends ADR-026 items 1 and 6 only in where the values live (values unchanged: 180 days, 5 GB).
