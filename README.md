@@ -62,15 +62,15 @@ Charts start empty at go-live (07-10-2026) and fill as data arrives; a flight ap
 
 ## Configuration
 
-Everything is set through `.env` (names and defaults in `.env.example`; every variable is listed in [docs/CONFIG_MAP.md](docs/CONFIG_MAP.md)). The ones you are most likely to touch:
+Secrets and per-machine values are set in `.env` (names in `.env.example`). Policy values (retention periods and alert thresholds) are fixed in `docker-compose.yml` and changed by pull request (ADR-034). Every variable, and which file holds it, is listed in [docs/CONFIG_MAP.md](docs/CONFIG_MAP.md) ("Where each setting lives"). The ones you are most likely to touch:
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `POLL_INTERVAL_SECONDS` | 30 | How often the collector reads the feed. The airborne gap cap, the archive gap and the "online now" windows are all derived from it |
-| `POSITION_RETENTION_DAYS` | 90 | How long raw positions are kept (sessions and flights are kept forever). The VM runs 180 days (read on 13-10-2026), so the first possible drop is about 05-04-2027 (ADR-026, ADR-030) |
+| `POSITION_RETENTION_DAYS` | 180, fixed in `docker-compose.yml` | How long raw positions are kept (sessions and flights are kept forever). The first possible drop is about 05-04-2027 (ADR-026, ADR-030) |
 | `HOME_ICAO_PREFIXES` | `Y` | Which airports count as the home region |
 | `GRAFANA_BIND`, `GRAFANA_PORT` | loopback, 3300 | Where Grafana listens |
-| `BACKUP_RETENTION_DAYS` | 14 | How many backup dumps are kept |
+| `BACKUP_RETENTION_DAYS` | 14, fixed in `docker-compose.yml` | How many days of backup dumps are kept |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | blank | Where the watchdog sends alerts |
 
 ### Configuration files and why they are needed
