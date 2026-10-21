@@ -58,6 +58,8 @@ docker compose exec db psql -U vatpac -d vatpac_restore -c "SELECT count(*) FROM
 ```
 Roles are not in the dump and ownership is dropped, so the copy is owned by the owner role. That is fine for inspection.
 
+To make a full local copy of PRODUCTION for testing (a fresh dump streamed from the VM, then this same script): [local-prod-copy.md](local-prod-copy.md).
+
 ## Disaster recovery: replace the live database
 Use when the live database is lost or corrupt. Replace `vatpac` with `POSTGRES_DB` if you changed it.
 1. Stop everything that connects: `docker compose stop collector grafana watchdog`. (The restore refuses if any other session remains.)
