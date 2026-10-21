@@ -1,6 +1,6 @@
 """Issue #89 (#138): QA sign-off. Pins the behaviour of design gaps that no earlier test covered.
 
-Each test names the gap number of docs/qa_89/scenarios.md section 8; the decision for every gap is in docs/qa_89/gap_decisions.md.
+Each test names the gap number from the QA scenario list.
 Only behaviour judged acceptable is pinned here. No product code is touched.
 """
 from __future__ import annotations

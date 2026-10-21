@@ -1,6 +1,6 @@
 # Owner actions: what only you can do, and exactly how
 
-Written 09-10-2026, updated 12-10-2026 (cards 9 to 14 are the owner actions left after the public-dashboard deploy of 11-10-2026; the live commit is b3189ad). Updated 14-10-2026: cards 15 to 18 are the owner steps for issue 173 (git checkout and registry images). Cards 15, 16 and 17 were run on 14-10-2026 (see each card); card 18 is open. Each item says what it is for, the least you have to do, and what Emma (Claude) does so you do not have to. Order is by value. Tracker rows are in docs/TRACKER.md.
+Written 09-10-2026, updated 12-10-2026 (cards 9 to 14 are the owner actions left after the public-dashboard deploy of 11-10-2026; the live commit is b3189ad). Updated 14-10-2026: cards 15 to 18 are the owner steps for issue 173 (git checkout and registry images). Cards 15, 16 and 17 were run on 14-10-2026 (see each card); card 18 is open. Each item says what it is for, the least you have to do, and what Emma (Claude) does so you do not have to. Order is by value.
 
 ## 1. Protect the main branch (issue #44, T37). WON'T DO: branch protection is not available on the GitHub plan in use; issue #44 closed 09-10-2026 (19:28 UTC). Kept below as a record only.
 **Why:** `main` is what gets deployed. Nothing stops a mistaken force push or deleting it.
@@ -40,7 +40,7 @@ Postgres 16.15 (db and backup), Grafana 11.6.5 (history: Grafana has run 12.4.12
 ## 6. Rename the two project folders (issue #23, T32). About 5 minutes, only when no Claude session is open in either folder.
 **Why:** `VATPAC-Stats V2` (old v1, read-only) and `vatpac-statsV2` (v3) are easy to mix up, and they were confused today.
 **You do:** close all Claude sessions, then in File Explorer under `C:\Users\mdora\Claude\` rename `VATPAC-Stats V2` to `VATPAC-Stats-v1-old` and `vatpac-statsV2` to `vatpac-stats-v3`.
-**Emma does (next session you open):** update docs/RESUME.md, absolute paths in the docs, the git worktrees, and the Claude memory notes (the memory folder is named after the old path).
+**Emma does (next session you open):** update absolute paths in the docs, the git worktrees, and the Claude memory notes (the memory folder is named after the old path).
 **Recommendation:** do it at a quiet moment after this batch of work is deployed, because several agents and worktrees currently use the old paths.
 
 ## 7. Clean up the Metabase host (issue #29, T24). WON'T DO: owner decision 09-10-2026, issue closed as not planned. Kept below as a record only.

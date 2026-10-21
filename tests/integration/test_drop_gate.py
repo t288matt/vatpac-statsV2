@@ -1,7 +1,6 @@
 """Issue #89 phase 4 (#140): the raw-position drop gate reconciles against WRITTEN flights.
 
-Design: docs/DESIGN_89_FINAL.md section 3; migration db/migrations/20261013000210_drop_gate_reconciles_flights.sql; the
-requirement-to-test table is docs/CONFORMANCE_89_PHASE4.md. A daily partition of pilot_position may be dropped only when, for
+Migration db/migrations/20261013000210_drop_gate_reconciles_flights.sql. A daily partition of pilot_position may be dropped only when, for
 every session with positions in it, (1) the flight writer has processed them (flown_upto), (2) a written flight covers them if
 the session has a flight plan, and (3) each flight wholly inside the day has the right sample_count. Anything else keeps the
 partition (fail safe) with a NOTICE that starts "DROP REFUSED".

@@ -1,7 +1,7 @@
 -- migrate:up
 SET LOCAL lock_timeout = '5s';   -- fail fast instead of queueing behind a long panel query
 -- Issue #89 phase 5 (issue #141, design docs/DESIGN_89_FINAL.md sections 1.2, 4, 7.2, 7.4 to 7.6): remove the old flight machinery
--- and give the flight table its final name. NOT YET DEPLOYED (branch p5-remove-old). FORWARD-ONLY AND DESTRUCTIVE: after this the
+-- and give the flight table its final name. DEPLOYED (listed in the live schema_migrations, checked 21-10-2026). FORWARD-ONLY AND DESTRUCTIVE: after this the
 -- pieces table, both refresh functions and flight_legacy are gone and the only way back is the pre-deploy dump
 -- (docs/RUNBOOKS/restore.md). Deploy only after phases 1, 3 and 4 are live and the second comparison run (ops/compare_flights_89.sql,
 -- which reads the pieces and so must be run BEFORE this migration) is clean.

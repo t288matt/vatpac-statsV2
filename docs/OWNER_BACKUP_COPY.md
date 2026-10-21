@@ -16,7 +16,7 @@ What it covers and what it does not:
 
 Sections A to C need you (the Proxmox root login and the VM's sudo password; I have neither). Section D is typing one line into the VM's `.env`. Everything after that I do, once you say go. You never paste a private key anywhere: the key pair is made on the VM and the private half never leaves it. Only the PUBLIC half (a line starting `ssh-ed25519`) is copied to Proxmox, and that is safe to paste.
 
-**Wait for deploy 1 first (planned 11-10-2026, [DEPLOY_PLAN_REVIEW_FIXES.md](DEPLOY_PLAN_REVIEW_FIXES.md)).** The watchdog on the VM today has no `backup_remote` check (it arrives in fix-ops), so a failing copy would be silent. You can do sections A and B before the deploy; sections C to F are best after it. This is also a change to the VM (an image rebuild of the backup container), so it needs your explicit go.
+**Wait for deploy 1 first (planned 11-10-2026).** The watchdog on the VM today has no `backup_remote` check (it arrives in fix-ops), so a failing copy would be silent. You can do sections A and B before the deploy; sections C to F are best after it. This is also a change to the VM (an image rebuild of the backup container), so it needs your explicit go.
 
 Placeholders used below: `PVE_HOST` is the Proxmox host's name or LAN address; `VM_ADDR` is the VM's LAN address (both known to you; this card deliberately does not write them down). User `vatpacbackup`, folder `/srv/vatpac-backups`; change them if you like but keep them the same everywhere. Give the VM a fixed LAN address (a DHCP reservation or a static address) before you start: `from="VM_ADDR"` in section A silently stops the copies if the VM's address ever changes.
 

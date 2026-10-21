@@ -31,7 +31,7 @@ make backup-test   # restores the newest dump into scratch DB vatpac_restore_tes
 The scratch database is dropped on every exit path, including failure.
 
 ## Check a dump by hand without touching the live database (the restore drill)
-`make backup-test` only checks that `pilot_session`, `poll_log` and `schema_migrations` exist and are readable. For a fuller check, restore the newest dump into a scratch database inside the running Postgres container and compare it with the live one. The first such drill, 08-10-2026, passed; its method, row counts and findings are in [../RESTORE_DRILL.md](../RESTORE_DRILL.md). Repeat monthly, and after any migration that changes tables or partitioning. Run from the stack folder (`~/vatpac-statsV2` on the VM); no passwords are typed, the `sh -c` arguments are in single quotes so the container's own `$POSTGRES_USER` is used:
+`make backup-test` only checks that `pilot_session`, `poll_log` and `schema_migrations` exist and are readable. For a fuller check, restore the newest dump into a scratch database inside the running Postgres container and compare it with the live one. The first such drill, 08-10-2026, passed. Repeat monthly, and after any migration that changes tables or partitioning. Run from the stack folder (`~/vatpac-statsV2` on the VM); no passwords are typed, the `sh -c` arguments are in single quotes so the container's own `$POSTGRES_USER` is used:
 ```sh
 docker compose exec -T backup ls -la /backups                      # pick the newest .dump
 docker compose exec -T backup cat /backups/<file>.dump | docker compose exec -T db sh -c 'cat > /tmp/restore_drill.dump'

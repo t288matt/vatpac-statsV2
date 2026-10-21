@@ -1,4 +1,4 @@
--- Issue #89 phase 4 (#140): rehearsal of the raw-position drop gate on a RESTORED COPY of a live dump. NOT YET DEPLOYED, never run live.
+-- Issue #89 phase 4 (#140): rehearsal of the raw-position drop gate on a RESTORED COPY of a live dump. The gate is deployed (migrations 20261013000210 and 20261013000300 are applied); this script is only for a scratch copy and is never run on the live database.
 -- Steps for the owner: docs/RUNBOOKS/drop-gate-rehearsal.md. Usage, against the scratch database only:
 --   psql -X -v ON_ERROR_STOP=1 -v retention=2 -v today=2026-10-13 [-v as_role=collector] -f ops/rehearse_drop_gate.sql -d vatpac_gate_test
 --   as_role: run the drop calls as that role (the collector's), which needs GRANT EXECUTE on the drop function in the scratch copy (the runbook gives the line).

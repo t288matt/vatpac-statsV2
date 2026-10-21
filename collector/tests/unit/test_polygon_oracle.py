@@ -174,7 +174,7 @@ def test_a_pilot_with_no_position_is_kept_by_both(ring: Ring, production) -> Non
 
 # ------------------------------------------------------------------ the oracle tells a wrong filter from the right one
 def test_the_oracle_notices_edges_counted_as_inside(ring: Ring, polygon_path: Path) -> None:
-    """Mutant C01 of docs/TEST_AUDIT.md (`contains` replaced by `covers`): edge points become inside."""
+    """Mutant C01 of the test audit (`contains` replaced by `covers`): edge points become inside."""
     poly = shapely.Polygon([(float(x), float(y)) for x, y in ring])
     wrong = [(lon, lat) for lon, lat, _ in edge_points(ring) if shapely.covers(poly, shapely.Point(lon, lat))]
     assert wrong and all(locate(ring, lon, lat) == "edge" for lon, lat in wrong)
