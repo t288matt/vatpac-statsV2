@@ -44,6 +44,13 @@ def run(conn, title: str, start: datetime | None = None, end: datetime | None = 
     return conn.execute(sql.rstrip().rstrip(";")).fetchall()
 
 
+def db_now(conn) -> datetime:
+    """The database's clock. Panels compare stored times with the database's now(), so a test that asserts an exact figure
+    or a narrow range must build its times from the same clock; the Python clock can differ by a fraction of a second (or
+    more, on Docker Desktop) and that flips a rounding boundary."""
+    return conn.execute("SELECT now() AS t").fetchone()["t"]
+
+
 def snapshot(conn, at: datetime, pilots=1, controllers=1, pilots_global=1, controllers_global=1) -> None:
     conn.execute("INSERT INTO network_snapshot VALUES (%s,%s,%s,%s,%s)", (at, pilots, controllers, pilots_global, controllers_global))
 
@@ -255,7 +262,7 @@ def test_age_panels_read_the_newest_record_of_their_own_source(conn) -> None:
 
 def test_snapshots_missed_compares_stored_snapshots_with_the_poll_interval(conn) -> None:
     set_poll_interval(conn, 30)
-    now = datetime.now(UTC)
+    now = db_now(conn)
     for k in range(60):
         snapshot(conn, now - timedelta(seconds=3600 - 60 * k))     # one a minute for an hour: half are missing
     snapshot(conn, now - timedelta(seconds=1))
@@ -310,7 +317,7 @@ def test_recent_poll_errors_newest_first_at_most_twenty(conn) -> None:
 
 
 def test_data_freshness_table_counts_the_last_hour(conn) -> None:
-    now = datetime.now(UTC)
+    now = db_now(conn)
     snapshot(conn, now - timedelta(seconds=20))
     conn.execute("INSERT INTO poll_log (status, polled_at) VALUES ('ok',%s),('ok',%s),('skipped_unchanged',%s),('error',%s),('error',%s)",
                  (now - timedelta(seconds=15), now - timedelta(minutes=30), now - timedelta(minutes=5), now - timedelta(minutes=10),
