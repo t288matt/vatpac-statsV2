@@ -149,7 +149,7 @@ The collector validates its settings at start-up and exits with code 2 and an "i
 
 ## Part B: v1 `docker-compose.yml` variables
 
-Source: `C:\Users\mdora\Claude\VATPAC-Stats V2\docker-compose.yml`. Several v1 variables are marked in the file itself as unused or stale; that is noted where it applies.
+Source: the v1 `docker-compose.yml` (the owner's local copy of the old v1 project, not in this repository). Several v1 variables are marked in the file itself as unused or stale; that is noted where it applies.
 
 ### B1. Database and application
 
