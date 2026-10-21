@@ -55,7 +55,7 @@ CASES: list[tuple[str, str, str, str]] = [
     ("restore_test", "warn", "last successful restore test 10.0 days ago (limit 9)", "overdue"),
     ("restore_test", "warn", "no restore test result after 10.0 days", "overdue"),
     ("restore_test", "warn", "last restore test result unreadable", "cannot be read"),
-    ("identity_flap", "warn", "1 pilot and 0 controller session pairs (same cid and callsign), 0 fractional logon_time", "logon times"),
+    ("identity_flap", "warn", "1 pilot and 0 controller session pairs (same cid and callsign)", "logon times"),
     ("identity_flap", "warn", "identity-flap query failed (OperationalError)", "could not run"),
     ("feed_archive", "warn", "last write 601s ago (limit 600s), 4 write errors, 12 MB", "safety copy"),
     ("data_integrity", "warn",

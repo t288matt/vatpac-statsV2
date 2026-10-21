@@ -23,10 +23,10 @@ T = datetime(2026, 10, 8, 4, 8, 27, tzinfo=UTC)
 
 
 class Cur:
-    """Answers the three flap queries in order: pilot pairs, controller pairs, fractional count."""
+    """Answers the two flap queries in order: pilot pairs, controller pairs."""
 
-    def __init__(self, pilot: int = 0, ctrl: int = 0, frac: int = 0, fail: Exception | None = None) -> None:
-        self.rows = [(pilot, T if pilot else None), (ctrl, T if ctrl else None), (frac,)]
+    def __init__(self, pilot: int = 0, ctrl: int = 0, fail: Exception | None = None) -> None:
+        self.rows = [(pilot, T if pilot else None), (ctrl, T if ctrl else None)]
         self.sql: list[str] = []
         self.fail = fail
 
@@ -47,7 +47,6 @@ def test_flap_ok_when_nothing_is_found() -> None:
 @pytest.mark.parametrize("cur,words", [
     (Cur(pilot=31, ctrl=3), ["31 pilot", "3 controller", "08-10-2026 04:08:27 UTC"]),
     (Cur(ctrl=1), ["0 pilot", "1 controller"]),
-    (Cur(frac=2), ["2 fractional"]),
 ])
 def test_flap_is_a_warning_with_the_counts(cur: Cur, words: list[str]) -> None:
     level, detail = wd.check_identity_flap(cur)
@@ -65,13 +64,11 @@ def test_flap_query_failure_is_a_warning_not_a_crash() -> None:
 
 
 def test_flap_sql_matches_the_ops_script_logic() -> None:
-    """The watchdog query and ops/check_identity_flap.sql must apply the same rule (cid, callsign, 2 s, fraction)."""
+    """The watchdog query and ops/check_identity_flap.sql must apply the same rule (cid, callsign, 2 s)."""
     script = (REPO / "ops" / "check_identity_flap.sql").read_text(encoding="utf-8")
     assert "a.cid = b.cid AND a.callsign = b.callsign" in script and "< 2" in script
     pairs = wd._PAIRS_SQL.format(t="pilot_session")
     assert "a.cid = b.cid AND a.callsign = b.callsign" in pairs and "2 seconds" in pairs
-    assert "logon_time <> date_trunc('second', logon_time)" in script
-    assert "logon_time <> date_trunc('second', logon_time)" in wd._FRACTION_SQL
 
 
 def test_flap_alerts_once_and_recovers() -> None:
