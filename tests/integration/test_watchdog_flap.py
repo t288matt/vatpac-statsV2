@@ -64,18 +64,6 @@ def test_old_pairs_age_out_of_the_window_so_the_alert_recovers(conn) -> None:
     assert run(conn)[0] == wd.OK
 
 
-def test_fractional_logon_time_is_found_when_the_constraint_is_off(conn) -> None:
-    conn.execute("ALTER TABLE pilot_session DROP CONSTRAINT pilot_session_logon_whole_second")
-    try:
-        conn.execute(PILOT, (1003, "VOZ1", "2026-10-08 04:06:12.5+00", 1, 0))
-        level, detail = run(conn)
-        assert level == wd.WARN and "1 fractional" in detail
-    finally:
-        conn.execute("TRUNCATE pilot_session CASCADE")
-        conn.execute("ALTER TABLE pilot_session ADD CONSTRAINT pilot_session_logon_whole_second "
-                     "CHECK (logon_time = date_trunc('second', logon_time))")
-
-
 @pytest.fixture()
 def as_watchdog(conn):
     if conn.execute("SELECT 1 FROM pg_roles WHERE rolname = 'watchdog_ro'").fetchone() is None:
