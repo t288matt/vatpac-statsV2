@@ -167,7 +167,8 @@ def check_db(cfg: Config) -> dict[str, Result]:
 
 
 # Session pairs with one cid and callsign and logon_time within 2 s (the same rule as ops/check_identity_flap.sql),
-# limited to sessions seen in the last FLAP_WINDOW_HOURS so that the alert clears once they age out. It walks the last_seen index and the (cid, callsign, logon_time) unique index, so it is cheap every cycle.
+# limited to sessions seen in the last FLAP_WINDOW_HOURS so that the alert clears once they age out. It walks the
+# last_seen index and the (cid, callsign, logon_time) unique index, so it is cheap every cycle.
 FLAP_WINDOW_HOURS = 24
 _PAIRS_SQL = (
     "SELECT count(*), min(b.first_seen) FROM {t} b JOIN {t} a ON a.cid = b.cid AND a.callsign = b.callsign AND a.id < b.id "
