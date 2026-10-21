@@ -177,22 +177,22 @@ def test_late_older_snapshot_cannot_fill_a_null_in_the_newer_one(db) -> None:
 
 
 def test_db_last_ts_ignores_a_future_row_and_reads_an_empty_table(db) -> None:
+    import os
+
     from psycopg_pool import ConnectionPool
 
-    from vatpac.main import Collector
+    from vatpac import resume
     from vatpac.settings import Settings
-
-    import os
 
     pool = ConnectionPool(os.environ["VATPAC_TEST_DSN"], min_size=1, max_size=1, open=True)
     try:
-        col = Collector.__new__(Collector)
-        col.pool, col.settings = pool, Settings(_env_file=None, archive_enabled=False)  # type: ignore[call-arg]
-        assert col._db_last_ts() is None  # empty database
+        settings = Settings(_env_file=None, archive_enabled=False)  # type: ignore[call-arg]
+        max_future_s = settings.feed_max_future_seconds
+        assert resume.db_last_ts(pool, max_future_s) is None  # empty database
         for off in ("-1 hour", "+1 day", "+119 seconds"):
             db.execute("INSERT INTO network_snapshot(observed_at, pilots_in_region, controllers_in_region, pilots_global, "
                        "controllers_global) VALUES (now() + %s::interval, 1, 1, 1, 1)", (off,))
-        got = col._db_last_ts()
+        got = resume.db_last_ts(pool, max_future_s)
         want = db.execute("SELECT max(observed_at) AS m FROM network_snapshot WHERE observed_at < now() + interval '120 seconds'"
                           ).fetchone()["m"]
         assert got == want and got is not None
