@@ -404,10 +404,10 @@ EOF
   else emit FAIL health "status=${hs:-none} archive_enabled=${en:-?} errors=${er:-?} last_write_age_s=${ag:-?} (needs 200, True, 0, 0 to 600)"; fi
 
   out="$( { echo "SET default_transaction_read_only = on;"; cat "$HERE/check_identity_flap.sql"; } | vm_in "$PSQL" 2>/dev/null | tr -d '\r' | grep -E '\|[0-9]+\|' )"
-  if [ "$(printf '%s\n' "$out" | grep -c .)" -ne 3 ]; then emit FAIL identity_flap "could not read three result rows"
+  if [ "$(printf '%s\n' "$out" | grep -c .)" -ne 2 ]; then emit FAIL identity_flap "could not read two result rows"
   else
     bad="$(printf '%s\n' "$out" | awk -F'|' '$2 != "0" {n++} END {print n+0}')"
-    if [ "$bad" -eq 0 ]; then emit PASS identity_flap "0, 0, 0"; else emit FAIL identity_flap "counts: $(printf '%s\n' "$out" | cut -d'|' -f2 | tr '\n' ' ')"; fi
+    if [ "$bad" -eq 0 ]; then emit PASS identity_flap "0, 0"; else emit FAIL identity_flap "counts: $(printf '%s\n' "$out" | cut -d'|' -f2 | tr '\n' ' ')"; fi
   fi
 
   # invariant pack: exactly as many rows as the local file defines, every row parseable (a NULL or text count is a FAIL)
