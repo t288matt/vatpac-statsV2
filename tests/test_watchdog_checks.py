@@ -23,20 +23,23 @@ T = datetime(2026, 10, 8, 4, 8, 27, tzinfo=UTC)
 
 
 class Cur:
-    """Answers the two flap queries in order: pilot pairs, controller pairs."""
+    """Answers the watchdog's two statements: set_config for the window, then ops/audit/identity_flap.sql (one row per table)."""
 
     def __init__(self, pilot: int = 0, ctrl: int = 0, fail: Exception | None = None) -> None:
-        self.rows = [(pilot, T if pilot else None), (ctrl, T if ctrl else None)]
+        self.rows = [("pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)", pilot, T if pilot else None),
+                     ("controller session pairs, same cid+callsign, logon_time within 2 s (identity flap)", ctrl, T if ctrl else None)]
         self.sql: list[str] = []
+        self.params: list[Any] = []
         self.fail = fail
 
     def execute(self, sql: str, params: Any = None) -> None:
         if self.fail:
             raise self.fail
         self.sql.append(sql)
+        self.params.append(params)
 
-    def fetchone(self) -> tuple[Any, ...]:
-        return self.rows[len(self.sql) - 1]
+    def fetchall(self) -> list[tuple[Any, ...]]:
+        return self.rows
 
 
 def test_flap_ok_when_nothing_is_found() -> None:
@@ -53,7 +56,7 @@ def test_flap_is_a_warning_with_the_counts(cur: Cur, words: list[str]) -> None:
     assert level == wd.WARN
     for w in words:
         assert w in detail
-    assert "check_identity_flap.sql" in detail
+    assert "audit/identity_flap.sql" in detail
 
 
 def test_flap_query_failure_is_a_warning_not_a_crash() -> None:
@@ -63,12 +66,19 @@ def test_flap_query_failure_is_a_warning_not_a_crash() -> None:
     assert level == wd.WARN and "InsufficientPrivilege" in detail and "denied" not in detail
 
 
-def test_flap_sql_matches_the_ops_script_logic() -> None:
-    """The watchdog query and ops/check_identity_flap.sql must apply the same rule (cid, callsign, 2 s)."""
-    script = (REPO / "ops" / "check_identity_flap.sql").read_text(encoding="utf-8")
-    assert "a.cid = b.cid AND a.callsign = b.callsign" in script and "< 2" in script
-    pairs = wd._PAIRS_SQL.format(t="pilot_session")
-    assert "a.cid = b.cid AND a.callsign = b.callsign" in pairs and "2 seconds" in pairs
+def test_flap_runs_the_shared_file_with_the_window_set_first() -> None:
+    """One definition of the rule: the watchdog sets the window, then runs ops/audit/identity_flap.sql unchanged."""
+    cur = Cur()
+    wd.check_identity_flap(cur)
+    shared = (REPO / "ops" / "audit" / "identity_flap.sql").read_text(encoding="utf-8")
+    assert "vatpac.flap_window_hours" in cur.sql[0] and cur.params[0] == (str(wd.FLAP_WINDOW_HOURS),)
+    assert cur.sql[1] == shared and "a.cid = b.cid AND a.callsign = b.callsign" in shared and "< 2" in shared
+
+
+def test_flap_missing_file_is_a_warning_not_a_crash(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(wd, "_FLAP_FILE", "no_such_file.sql")
+    level, detail = wd.check_identity_flap(Cur())
+    assert level == wd.WARN and "FileNotFoundError" in detail and "query failed" in detail
 
 
 def test_flap_alerts_once_and_recovers() -> None:
