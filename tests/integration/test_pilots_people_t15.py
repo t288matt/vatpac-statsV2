@@ -10,7 +10,7 @@ SQL that Grafana runs. Rules under test (owner's Metabase export, 08-10-2026):
   175         = per UTC month: distinct Y pilots, all pilots (logon month), distinct controllers (start month)
   183         = hours online per UTC month of completion from 1 September (UTC) of the current year
   155         = top 10 by airborne hours over 7 days, counting only flights over 30 minutes airborne
-v3 mapping (see docs/t15_notes/a_pilots_people.md): enroute minutes = airborne_minutes, time online = flight
+v3 mapping: enroute minutes = airborne_minutes, time online = flight
 duration, completion time = flight end_time. Months are UTC even when the database session is not.
 """
 from __future__ import annotations

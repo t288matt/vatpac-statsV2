@@ -1,4 +1,4 @@
-"""T30 test audit: tests added to kill mutants that survived the existing suite (see docs/TEST_AUDIT.md).
+"""T30 test audit: tests added to kill mutants that survived the existing suite.
 
 Each test names the mutant it kills. Style follows the existing integration tests: synthetic rows, rules taken from
 SPEC and docs/CHART_DEFINITIONS.md, expected values written by hand (not derived from the SQL under test).

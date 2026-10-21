@@ -3,7 +3,7 @@
 --   psql -X -v ON_ERROR_STOP=1 -d DATABASE -v v1_csv=v1_flight_summaries.csv -f ops/compare_flights_v1_89.sql
 -- after step 1 (ops/compare_flights_v1_export.sql) produced the CSV. The temp table below is dropped when psql exits; nothing in v3 changes.
 --
--- Window of docs/DESIGN_89_FINAL.md 1.4 (times when BOTH systems were polling): flights logging on from 08-10-2026 07:52 UTC, ending
+-- Window (times when BOTH systems were polling): flights logging on from 08-10-2026 07:52 UTC, ending
 -- before 10-10-2026 18:00 UTC, excluding any that overlap the joint power cut of 09-10-2026 15:30 to 15:50 UTC. Edit the four literals in
 -- `win` below for another window.
 --
