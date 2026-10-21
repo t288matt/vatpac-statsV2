@@ -7,7 +7,7 @@
 set -u
 
 # paths copied into the four images (collector/Dockerfile, ops/watchdog, ops/backup, ops/migrate and db)
-BAKED="collector ops/watchdog ops/backup ops/migrate ops/audit/independent.py ops/audit/invariants.sql db"
+BAKED="collector ops/watchdog ops/backup ops/migrate ops/audit/independent.py ops/audit/invariants.sql ops/audit/identity_flap.sql db"
 
 head="$(git rev-parse HEAD 2>/dev/null)" || head=""
 if [ -z "$head" ]; then echo "check_pulled_images: cannot read the checkout commit" >&2; exit 1; fi

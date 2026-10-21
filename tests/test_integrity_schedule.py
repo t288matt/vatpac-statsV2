@@ -359,7 +359,7 @@ def test_compose_dockerfile_and_env_example_agree_with_the_code() -> None:
     assert env["ARCHIVE_DIR"] == "/archive" and env["REFERENCE_CONFIG_DIR"] == "/config"
     assert compose["build"] == {"context": "./ops", "dockerfile": "watchdog/Dockerfile"}
     docker = (REPO / "ops" / "watchdog" / "Dockerfile").read_text(encoding="utf-8")
-    for f in ("watchdog/watchdog.py", "watchdog/integrity.py", "audit/independent.py", "audit/invariants.sql"):
+    for f in ("watchdog/watchdog.py", "watchdog/integrity.py", "audit/independent.py", "audit/invariants.sql", "audit/identity_flap.sql"):
         assert f in docker
     example = (REPO / ".env.example").read_text(encoding="utf-8")
     for k in ("WATCHDOG_INTEGRITY_INTERVAL_HOURS", "WATCHDOG_CROSSCHECK_INTERVAL_DAYS", "WATCHDOG_CROSSCHECK_SAMPLES"):

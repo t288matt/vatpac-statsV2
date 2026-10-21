@@ -403,7 +403,7 @@ EOF
     emit PASS health "200; archive enabled, errors 0, last write $ag s ago (limit 600)"
   else emit FAIL health "status=${hs:-none} archive_enabled=${en:-?} errors=${er:-?} last_write_age_s=${ag:-?} (needs 200, True, 0, 0 to 600)"; fi
 
-  out="$( { echo "SET default_transaction_read_only = on;"; cat "$HERE/check_identity_flap.sql"; } | vm_in "$PSQL" 2>/dev/null | tr -d '\r' | grep -E '\|[0-9]+\|' )"
+  out="$( { echo "SET default_transaction_read_only = on;"; cat "$HERE/audit/identity_flap.sql"; } | vm_in "$PSQL" 2>/dev/null | tr -d '\r' | grep -E '\|[0-9]+\|' )"
   if [ "$(printf '%s\n' "$out" | grep -c .)" -ne 2 ]; then emit FAIL identity_flap "could not read two result rows"
   else
     bad="$(printf '%s\n' "$out" | awk -F'|' '$2 != "0" {n++} END {print n+0}')"
