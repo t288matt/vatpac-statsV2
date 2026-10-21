@@ -96,6 +96,11 @@ def test_age_level_uses_the_configured_limits(monkeypatch: pytest.MonkeyPatch) -
     assert [wd.age_level(a, c, "x")[0] for a in (9, 10, 19, 20)] == [OK, WARN, WARN, CRIT]
 
 
+# The watchdog's automatic restart code is commented out (21-10-2026, owner decision; issue #232). The tests that exercise it
+# are skipped, not deleted, so they are ready if the restart code comes back.
+restart_disabled = pytest.mark.skip(reason="watchdog auto-restart code is commented out (issue #232)")
+
+
 # ------------------------------------------------------------------ check_http and collector_is_stuck
 def test_check_http_healthy_returns_the_body() -> None:
     res, body = wd.check_http(client_for(lambda r: httpx.Response(200, json={"status": "ok"})), "http://x/health")
@@ -131,6 +136,7 @@ def test_check_http_unreachable_is_critical() -> None:
     ((CRIT, "HTTP 503"), {"consecutive_failures": 1}, False),         # upstream outage: restarting would not help
     ((CRIT, "HTTP 503"), {"consecutive_failures": "3"}, False),
 ])
+@restart_disabled
 def test_collector_is_stuck(res: tuple[str, str], body: dict | None, stuck: bool) -> None:
     assert wd.collector_is_stuck(res, body) is stuck
 
@@ -480,6 +486,7 @@ def restart_setup(monkeypatch: pytest.MonkeyPatch):
     return cfg, rec
 
 
+@restart_disabled
 def test_try_restart_restarts_and_says_so(clock, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg, rec = restart_setup(monkeypatch)
     docker, state = FakeDocker(), {}
@@ -488,6 +495,7 @@ def test_try_restart_restarts_and_says_so(clock, monkeypatch: pytest.MonkeyPatch
     assert rec.sent == ["RESTARTED collector (1/3 this hour, ok=True): collector stuck"]
 
 
+@restart_disabled
 def test_try_restart_does_nothing_for_a_service_that_is_not_restartable(clock, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("WATCHDOG_RESTARTABLE", "db")
     cfg, rec = restart_setup(monkeypatch)
@@ -496,6 +504,7 @@ def test_try_restart_does_nothing_for_a_service_that_is_not_restartable(clock, m
     assert docker.restarted == [] and rec.sent == []
 
 
+@restart_disabled
 def test_try_restart_stops_at_the_hourly_cap_and_alerts_once(clock, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg, rec = restart_setup(monkeypatch)
     docker, state = FakeDocker(), {"restarts": {"collector": [NOW - 100, NOW - 200, NOW - 300]}}
@@ -505,6 +514,7 @@ def test_try_restart_stops_at_the_hourly_cap_and_alerts_once(clock, monkeypatch:
     assert rec.sent == ["CRIT restart-cap:collector: restart cap 3/hour reached; not restarting (stuck)"]
 
 
+@restart_disabled
 def test_try_restart_forgets_restarts_older_than_an_hour(clock, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg, rec = restart_setup(monkeypatch)
     docker = FakeDocker()
@@ -514,6 +524,7 @@ def test_try_restart_forgets_restarts_older_than_an_hour(clock, monkeypatch: pyt
     assert state["restarts"]["collector"] == [NOW - 3599, NOW]
 
 
+@restart_disabled
 def test_the_cap_alert_clears_when_restarts_age_out(clock, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg, rec = restart_setup(monkeypatch)
     docker, state = FakeDocker(), {"restarts": {"db": [NOW - 10, NOW - 20, NOW - 30]}}
@@ -524,6 +535,7 @@ def test_the_cap_alert_clears_when_restarts_age_out(clock, monkeypatch: pytest.M
     assert docker.restarted == ["d"]
 
 
+@restart_disabled
 def test_a_docker_error_during_restart_is_logged_not_raised(clock, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg, rec = restart_setup(monkeypatch)
     state: dict[str, Any] = {}
@@ -650,6 +662,7 @@ def test_cycle_sends_the_follow_up_notices_from_a_sweep(world: World) -> None:
     assert len(world.sent) == 1
 
 
+@restart_disabled
 def test_cycle_restarts_a_collector_that_does_not_answer_after_three_cycles(world: World) -> None:
     world.collector = httpx.ConnectError("down")
     world.cycle(2)
@@ -660,6 +673,7 @@ def test_cycle_restarts_a_collector_that_does_not_answer_after_three_cycles(worl
     assert any(s.startswith("CRIT collector_health") for s in world.sent)
 
 
+@restart_disabled
 def test_cycle_does_not_restart_a_collector_that_reports_an_upstream_outage(world: World) -> None:
     world.collector = httpx.Response(503, json={"consecutive_failures": 7})
     world.cycle(6)
@@ -667,6 +681,7 @@ def test_cycle_does_not_restart_a_collector_that_reports_an_upstream_outage(worl
     assert any(s.startswith("CRIT collector_health: HTTP 503") for s in world.sent)
 
 
+@restart_disabled
 def test_cycle_does_not_restart_a_collector_that_is_still_starting(world: World) -> None:
     world.collector = httpx.ConnectError("not up yet")
     world.docker.data["collector"] = {**ins(health="starting"), "Id": "id-collector"}
@@ -674,6 +689,7 @@ def test_cycle_does_not_restart_a_collector_that_is_still_starting(world: World)
     assert world.docker.restarted == []
 
 
+@restart_disabled
 def test_cycle_recovery_resets_the_restart_countdown(world: World) -> None:
     world.collector = httpx.ConnectError("down")
     world.cycle(2)
@@ -684,12 +700,14 @@ def test_cycle_recovery_resets_the_restart_countdown(world: World) -> None:
     assert world.docker.restarted == []                                      # never three bad cycles in a row
 
 
+@restart_disabled
 def test_cycle_restarts_grafana_after_three_failed_health_checks(world: World) -> None:
     world.grafana = httpx.Response(500)
     world.cycle(3)
     assert world.docker.restarted == ["id-grafana"]
 
 
+@restart_disabled
 def test_cycle_restarts_a_stopped_container_but_never_migrate(world: World) -> None:
     world.docker.data["db"] = {**ins("exited", "none"), "Id": "id-db"}
     world.docker.data["migrate"] = {**ins("exited", "none", exit_code=1), "Id": "id-migrate"}
@@ -706,6 +724,7 @@ def test_cycle_never_restarts_without_docker_access(monkeypatch: pytest.MonkeyPa
     assert not any("container:" in k for k in json.loads(w.cfg.status_file.read_text())["checks"])
 
 
+@restart_disabled
 def test_cycle_restarts_once_per_countdown_not_every_cycle(world: World) -> None:
     world.collector = httpx.ConnectError("down")
     world.cycle(5)
@@ -714,6 +733,7 @@ def test_cycle_restarts_once_per_countdown_not_every_cycle(world: World) -> None
     assert world.docker.restarted == ["id-collector"] * 2
 
 
+@restart_disabled
 def test_cycle_never_restarts_migrate_even_if_it_were_listed_as_restartable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     w = World(monkeypatch, tmp_path, WATCHDOG_RESTARTABLE="db,migrate")
     w.docker.data["migrate"] = {**ins("exited", "none", exit_code=1), "Id": "id-migrate"}
@@ -721,6 +741,7 @@ def test_cycle_never_restarts_migrate_even_if_it_were_listed_as_restartable(monk
     assert w.docker.restarted == []
 
 
+@restart_disabled
 def test_cycle_respects_the_restart_cap(world: World) -> None:
     world.collector = httpx.ConnectError("down")
     world.cycle(3 * 5)                                                       # five restart decisions, cap is 3 per hour

@@ -152,7 +152,7 @@ class Fake:
         w("panels.txt", "grafana health: HTTP 200 ok\npanel queries: 79 with rows, 5 empty, 0 errors\n")
         w("gap.txt", "30|25|20|10-10 14:59:30\n")
         w("health.txt", "200 True 0 266\n")
-        w("flap.txt", "pilot session pairs|0|\ncontroller session pairs|0|\nfractional|0|\n")
+        w("flap.txt", "pilot session pairs|0|\ncontroller session pairs|0|\n")
         self.invariants()
         w("wdlog.txt", "2026-10-10 INFO invariant sweep: ok\n")
         w("expected.txt", "")
@@ -240,7 +240,7 @@ SCENARIOS = [
     ("ver", "health", "FAIL", lambda f: f.write("health.txt", "200 False 0 5\n")),
     ("ver", "health", "FAIL", lambda f: f.write("health.txt", "200 True 3 5\n")),
     ("ver", "health", "FAIL", lambda f: f.brk("health")),
-    ("ver", "identity_flap", "FAIL", lambda f: f.write("flap.txt", "a|0|\nb|2|x\nc|0|\n")),
+    ("ver", "identity_flap", "FAIL", lambda f: f.write("flap.txt", "a|0|\nb|2|x\n")),
     ("ver", "invariant", "FAIL", lambda f: f.invariants({NAMES[1]: "1"})),
     ("ver", "invariants", "FAIL", lambda f: f.invariants(rows=NAMES[:1])),  # a short pack is not a pass
     ("ver", "invariant", "FAIL", lambda f: f.write("invariants.txt", "".join(f"{n}|0|\n" for n in NAMES[1:]) + f"{NAMES[0]}||\n")),  # NULL count
