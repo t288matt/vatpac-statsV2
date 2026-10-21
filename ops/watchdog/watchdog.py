@@ -2,10 +2,11 @@
 
 Every WATCHDOG_INTERVAL_SECONDS: run checks, alert on confirmed state changes only (Telegram,
 plain text), and write a status JSON to a volume. It never changes data or configuration.
-By default it has no Docker access (DOCKER_HOST_URL is empty): it checks HTTP health and the
-database only and does not restart anything. If DOCKER_HOST_URL is set (for example to a
-restricted Docker API endpoint provided outside this repo) it also checks container state and
-restarts clearly stuck containers (capped per container per hour).
+It has no Docker access by default (DOCKER_HOST_URL is empty): it checks HTTP health and the
+database only. If DOCKER_HOST_URL is set (for example to a restricted Docker API endpoint
+provided outside this repo) it also checks container state and alerts. It never restarts
+anything: the automatic restart code is commented out (21-10-2026, owner decision; we might
+come back to it, see issue #232 and the notes marked DISABLED below).
 """
 from __future__ import annotations
 
@@ -128,14 +129,18 @@ def check_http(client: httpx.Client, url: str) -> tuple[Result, dict[str, Any] |
     return (CRIT, f"HTTP {r.status_code}"), body
 
 
-def collector_is_stuck(res: Result, body: dict[str, Any] | None) -> bool:
-    """Stuck = not answering, or 503 with no failures counted (no polls and no errors).
-    A responsive collector with consecutive_failures > 0 is an upstream outage: do not restart."""
-    if res[0] == OK:
-        return False
-    if body is None:
-        return True
-    return int(body.get("consecutive_failures", 0) or 0) == 0
+# DISABLED 21-10-2026 (owner decision): the watchdog's automatic restart code is commented out, so it is alert-only again.
+# We might come back to it (issue #232, ADR-012). Before re-enabling: collector_is_stuck() treats a frozen VATSIM feed
+# (/health 503 with consecutive_failures 0) as stuck, which would restart the collector for nothing; fix that first,
+# and it also needs a Docker endpoint (DOCKER_HOST_URL is empty in docker-compose.yml) and tests re-enabled.
+# def collector_is_stuck(res: Result, body: dict[str, Any] | None) -> bool:
+#     """Stuck = not answering, or 503 with no failures counted (no polls and no errors).
+#     A responsive collector with consecutive_failures > 0 is an upstream outage: do not restart."""
+#     if res[0] == OK:
+#         return False
+#     if body is None:
+#         return True
+#     return int(body.get("consecutive_failures", 0) or 0) == 0
 
 
 def check_db(cfg: Config) -> dict[str, Result]:
@@ -351,9 +356,10 @@ class Docker:
             out[svc] = ins.json()
         return out
 
-    def restart(self, container_id: str) -> bool:
-        r = self.client.post(f"{self.cfg.docker}/containers/{container_id}/restart", params={"t": "20"}, timeout=60)
-        return r.status_code == 204
+    # DISABLED 21-10-2026: automatic restart code, see the note above collector_is_stuck (issue #232).
+    # def restart(self, container_id: str) -> bool:
+    #     r = self.client.post(f"{self.cfg.docker}/containers/{container_id}/restart", params={"t": "20"}, timeout=60)
+    #     return r.status_code == 204
 
 
 def check_containers(cfg: Config, containers: dict[str, dict[str, Any]], state: dict[str, Any]) -> dict[str, Result]:
@@ -576,22 +582,23 @@ class Alerter:
             self.send(f"{level.upper()} {name}: {detail}")
 
 
-def try_restart(cfg: Config, docker: Docker, alerter: Alerter, state: dict[str, Any], svc: str, ins: dict[str, Any], why: str) -> None:
-    if svc not in cfg.restartable:
-        return
-    stamps = [t for t in state.setdefault("restarts", {}).get(svc, []) if time.time() - t < 3600]
-    state["restarts"][svc] = stamps
-    if len(stamps) >= cfg.restart_cap:
-        alerter.update(f"restart-cap:{svc}", CRIT, f"restart cap {cfg.restart_cap}/hour reached; not restarting ({why})")
-        return
-    alerter.update(f"restart-cap:{svc}", OK, "below restart cap")
-    try:
-        done = docker.restart(ins["Id"])
-    except httpx.HTTPError as exc:
-        log.warning("restart %s failed (%s)", svc, type(exc).__name__)
-        return
-    stamps.append(time.time())
-    alerter.send(f"RESTARTED {svc} ({len(stamps)}/{cfg.restart_cap} this hour, ok={done}): {why}")
+# DISABLED 21-10-2026: automatic restart code, see the note above collector_is_stuck (issue #232).
+# def try_restart(cfg: Config, docker: Docker, alerter: Alerter, state: dict[str, Any], svc: str, ins: dict[str, Any], why: str) -> None:
+#     if svc not in cfg.restartable:
+#         return
+#     stamps = [t for t in state.setdefault("restarts", {}).get(svc, []) if time.time() - t < 3600]
+#     state["restarts"][svc] = stamps
+#     if len(stamps) >= cfg.restart_cap:
+#         alerter.update(f"restart-cap:{svc}", CRIT, f"restart cap {cfg.restart_cap}/hour reached; not restarting ({why})")
+#         return
+#     alerter.update(f"restart-cap:{svc}", OK, "below restart cap")
+#     try:
+#         done = docker.restart(ins["Id"])
+#     except httpx.HTTPError as exc:
+#         log.warning("restart %s failed (%s)", svc, type(exc).__name__)
+#         return
+#     stamps.append(time.time())
+#     alerter.send(f"RESTARTED {svc} ({len(stamps)}/{cfg.restart_cap} this hour, ok={done}): {why}")
 
 
 # ---------------------------------------------------------------- main loop
@@ -632,7 +639,7 @@ def cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, s
 
 def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, state: dict[str, Any]) -> str:
     results: dict[str, Result] = {}
-    streak: dict[str, int] = state.setdefault("streak", {})
+    # streak: dict[str, int] = state.setdefault("streak", {})
 
     coll, coll_body = check_http(client, cfg.collector_url)
     results["collector_health"] = coll
@@ -673,25 +680,29 @@ def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, 
         alerter.send(f"NEAR-MISS controller callsign(s) not on whitelist: {', '.join(fresh[:10])}")
         state["known_near_miss"] = sorted(known | set(fresh))
 
-    # Restart decisions. A target must be bad for restart_after consecutive cycles.
-    bad: dict[str, str] = {}
-    for svc in containers:
-        lv, detail = results.get(f"container:{svc}", (OK, ""))
-        if lv == CRIT and svc not in ("migrate", "watchdog"):
-            bad[svc] = detail
-    coll_health = containers.get("collector", {}).get("State", {}).get("Health", {}).get("Status")
-    if collector_is_stuck(coll, coll_body) and "collector" in containers and coll_health != "starting":
-        bad.setdefault("collector", f"collector {coll[1]} and no failures counted")
-    if graf[0] == CRIT and "grafana" in containers:
-        bad.setdefault("grafana", f"grafana {graf[1]}")
-    for svc in list(streak):
-        if svc not in bad:
-            streak.pop(svc)
-    for svc, why in bad.items():
-        streak[svc] = streak.get(svc, 0) + 1
-        if streak[svc] >= cfg.restart_after:
-            streak[svc] = 0
-            try_restart(cfg, docker, alerter, state, svc, containers[svc], why)
+    # DISABLED 21-10-2026 (owner decision): the watchdog's automatic restart code is commented out, so it is alert-only again.
+    # We might come back to it (issue #232, ADR-012). Before re-enabling: collector_is_stuck() treats a frozen VATSIM feed
+    # (/health 503 with consecutive_failures 0) as stuck, which would restart the collector for nothing; fix that first,
+    # and it also needs a Docker endpoint (DOCKER_HOST_URL is empty in docker-compose.yml) and tests re-enabled.
+    # # Restart decisions. A target must be bad for restart_after consecutive cycles.
+    # bad: dict[str, str] = {}
+    # for svc in containers:
+    #     lv, detail = results.get(f"container:{svc}", (OK, ""))
+    #     if lv == CRIT and svc not in ("migrate", "watchdog"):
+    #         bad[svc] = detail
+    # coll_health = containers.get("collector", {}).get("State", {}).get("Health", {}).get("Status")
+    # if collector_is_stuck(coll, coll_body) and "collector" in containers and coll_health != "starting":
+    #     bad.setdefault("collector", f"collector {coll[1]} and no failures counted")
+    # if graf[0] == CRIT and "grafana" in containers:
+    #     bad.setdefault("grafana", f"grafana {graf[1]}")
+    # for svc in list(streak):
+    #     if svc not in bad:
+    #         streak.pop(svc)
+    # for svc, why in bad.items():
+    #     streak[svc] = streak.get(svc, 0) + 1
+    #     if streak[svc] >= cfg.restart_after:
+    #         streak[svc] = 0
+    #         try_restart(cfg, docker, alerter, state, svc, containers[svc], why)
 
     alerter.flush()  # retry anything undelivered, just before the state (with the outbox) is saved
     overall = write_status(cfg, results, state)
