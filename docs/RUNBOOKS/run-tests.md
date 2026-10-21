@@ -14,7 +14,6 @@ From the repository root. These are the same commands CI runs.
 # unit tests (pytest, pyyaml, shapely and the collector requirements installed; Python 3.11 or newer)
 PYTHONPATH=collector/src python -m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv    # expect all passed; add -m "not integration and not slow_fuzz" for the quick local run (section 6); the strict xfails (known defects pinned by tests) are integration tests and show as xfailed there
 python grafana/validate_dashboards.py          # dashboard shape and SQL syntax; pip install sqlglot to parse SQL
-python grafana/check_columns.py                # every dashboard column exists in a view; expect "bad 0"
 python ops/check_config_drift.py               # collector settings, compose and .env.example agree (needs PyYAML)
 python ops/check_size_budget.py                # collector package under 1700 lines, no module over 300
 ruff check --config ops/ruff.toml ops          # lint of the ops scripts
