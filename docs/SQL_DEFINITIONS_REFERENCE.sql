@@ -7,9 +7,10 @@
 -- to and including 20261013000300.
 --
 -- How it was made (21-10-2026): a throwaway PostgreSQL 16 database built from db/migrations by the production
--- migrate image (the same way CI builds its test database), then extracted with the queries at the bottom. It was
--- NOT read from the live VM database. To compare with live, run the same queries there (read-only; see
--- ops/schema_dump.sql for how to run a file over ssh) and diff the output.
+-- migrate image (the same way CI builds its test database), then extracted with the queries at the bottom.
+-- Checked against the live VM database on 21-10-2026 (read-only, md5 of the same queries): the three functions and the
+-- view are identical to the text below. To check again, run the queries at the bottom there (read-only; see
+-- ops/schema_dump.sql for how to run a file over ssh) and compare.
 --
 -- It goes stale the next time a migration changes one of these objects. Regenerate it then, and update the
 -- migration number above.
@@ -44,7 +45,7 @@ BEGIN
         RETURN 0;
     END IF;
     -- One writer at a time. A second caller does not wait: it returns 0 at once (deliberate deviation from design section 2 step 1,
-    -- which blocks; the manager's decision of 12-10-2026, see docs/CONFORMANCE_89_PHASE1.md); the running call does the work.
+    -- which blocks; the manager's decision of 12-10-2026); the running call does the work.
     IF NOT pg_try_advisory_xact_lock(hashtext('vatpac.flight_writer')) THEN
         RETURN 0;
     END IF;

@@ -166,15 +166,20 @@ def check_db(cfg: Config) -> dict[str, Result]:
     return out
 
 
-# Session pairs with one cid and callsign and logon_time within 2 s (the same rule as ops/check_identity_flap.sql),
-# limited to sessions seen in the last FLAP_WINDOW_HOURS so that the alert clears once they age out. It walks the
-# last_seen index and the (cid, callsign, logon_time) unique index, so it is cheap every cycle.
+# Session pairs with one cid and callsign and logon_time within 2 s. The rule lives in ONE file, ops/audit/identity_flap.sql
+# (beside the watchdog in the image, else in ops/audit when run from a checkout); this reads it and limits it to sessions
+# seen in the last FLAP_WINDOW_HOURS through the custom setting vatpac.flap_window_hours, so the alert clears once a pair
+# ages out. ops/deploy.sh --verify runs the same file with no window.
 FLAP_WINDOW_HOURS = 24
-_PAIRS_SQL = (
-    "SELECT count(*), min(b.first_seen) FROM {t} b JOIN {t} a ON a.cid = b.cid AND a.callsign = b.callsign AND a.id < b.id "
-    "AND a.logon_time > b.logon_time - interval '2 seconds' AND a.logon_time < b.logon_time + interval '2 seconds' "
-    "WHERE b.last_seen > now() - make_interval(hours => %s)"
-)
+_FLAP_FILE = "identity_flap.sql"
+
+
+def _flap_sql() -> str:
+    here = Path(__file__).resolve().parent
+    for candidate in (here / _FLAP_FILE, here.parent / "audit" / _FLAP_FILE):
+        if candidate.is_file():
+            return candidate.read_text(encoding="utf-8")
+    raise FileNotFoundError(_FLAP_FILE)
 
 
 def flap_level(pilot_pairs: int, controller_pairs: int, first: datetime | None) -> Result:
@@ -183,22 +188,22 @@ def flap_level(pilot_pairs: int, controller_pairs: int, first: datetime | None) 
         return OK, f"no identity flap in the last {FLAP_WINDOW_HOURS} h"
     when = first.astimezone(UTC).strftime("%d-%m-%Y %H:%M:%S UTC") if first else "unknown time"
     return WARN, (f"{pilot_pairs} pilot and {controller_pairs} controller session pairs (same cid and callsign, logon_time "
-                  f"within 2 s), first seen {when}; run ops/check_identity_flap.sql")
+                  f"within 2 s), first seen {when}; run ops/audit/identity_flap.sql")
 
 
 def check_identity_flap(cur: Any) -> Result:
-    """Run the identity-flap queries on an open cursor (role watchdog_ro needs SELECT on both session tables)."""
+    """Run ops/audit/identity_flap.sql on an open cursor (role watchdog_ro needs SELECT on both session tables)."""
     try:
-        counts: list[int] = []
+        cur.execute("SELECT set_config('vatpac.flap_window_hours', %s, false)", (str(FLAP_WINDOW_HOURS),))
+        cur.execute(_flap_sql())
+        counts = {"pilot": 0, "controller": 0}
         firsts: list[datetime] = []
-        for table in ("pilot_session", "controller_session"):
-            cur.execute(_PAIRS_SQL.format(t=table), (FLAP_WINDOW_HOURS,))
-            n, first = cur.fetchone()
-            counts.append(int(n))
+        for name, bad, first in cur.fetchall():
+            counts["pilot" if str(name).startswith("pilot") else "controller"] += int(bad)
             if first is not None:
                 firsts.append(first)
-        return flap_level(counts[0], counts[1], min(firsts) if firsts else None)
-    except psycopg.Error as exc:
+        return flap_level(counts["pilot"], counts["controller"], min(firsts) if firsts else None)
+    except (psycopg.Error, OSError) as exc:
         return WARN, f"identity-flap query failed ({type(exc).__name__})"
 
 
