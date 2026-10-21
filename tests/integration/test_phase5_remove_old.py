@@ -1,4 +1,4 @@
-"""Issue #89 phase 5 (#141, NOT YET DEPLOYED): the old flight machinery is removed and flight_record becomes flight_summary.
+"""Issue #89 phase 5 (#141, deployed): the old flight machinery is removed and flight_record becomes flight_summary.
 
 Requirement-to-test table: docs/CONFORMANCE_89_PHASE5.md. Migration under test: 20261013000300_remove_pieces_rename_flight_summary.sql.
 
