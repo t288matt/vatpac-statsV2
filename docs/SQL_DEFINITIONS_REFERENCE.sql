@@ -1,9 +1,9 @@
 -- REFERENCE SNAPSHOT, NOT APPLIED. Nothing reads or runs this file; it is documentation only (issue #234).
 --
 -- What it is: the text of the database objects that migrations 20261009000120 and 20261013000300 rebuilt from the
--- live catalogue (pg_get_functiondef / pg_get_viewdef plus a text replace of flight_record with flight_summary), so
+-- live catalogue (pg_get_functiondef / pg_get_viewdef plus a text replace of the old flight table name with flight_summary), so
 -- the migration files themselves never contain the final text. The older migrations (20261012000190, 20261012000200,
--- 20261013000210) still say flight_record; the definitions below are what a database holds after every migration up
+-- 20261013000210) still use the old table name; the definitions below are what a database holds after every migration up
 -- to and including 20261013000300.
 --
 -- How it was made (21-10-2026): a throwaway PostgreSQL 16 database built from db/migrations by the production
