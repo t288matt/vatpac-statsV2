@@ -31,7 +31,7 @@ A call drops **at most one day**. After a DROP the parent table `pilot_position`
 - The watchdog: the integrity sweep (every 72 hours, repeated every 6 hours while it fails) has a check, `processed flight-plan sessions in no written flight (ended 2 to 30 days ago)`. It sees the session-side cause of a refusal (a session marked processed that no written flight lists) long before a day is due. The older check `sessions ended more than 2 days ago with unprocessed positions` sees the other cause (the writer has stopped). So the alert comes from the data, not from the maintenance run, and can be up to 3 days late.
 - Not alerted: a flight whose `sample_count` is wrong more than 3 days after it was written (the existing check looks only at flights written in the last 3 days), and a position inside the time range of a flight but outside the range of the flight's own session list. These show only as `DROP REFUSED` in the log.
 
-Nothing is lost when a day is refused: the positions stay and the next run tries again. The cost is disk (about 5 MB a day) and, if the cause is never fixed, a partition that stays for ever. The fallback in `docs/DESIGN_89_FINAL.md` section 6 is to raise `POSITION_RETENTION_DAYS` to 365.
+Nothing is lost when a day is refused: the positions stay and the next run tries again. The cost is disk (about 5 MB a day) and, if the cause is never fixed, a partition that stays for ever. The fallback is to raise `POSITION_RETENTION_DAYS` to 365.
 
 ## 3. Before the first real drop (checklist)
 
@@ -164,6 +164,6 @@ The table `drop_gate_refusal` (one row per refused day, with `first_refused`) fe
 
 ## 6. What was and was not tested (12-10-2026)
 
-Tested on a throwaway local PostgreSQL 16.2 with synthetic dates (no waiting for a real date): every rule above, the lock behaviour of migration 20261009000170, the rehearsal script (its refusal on a database not ending `_test`, its prediction against the real outcome), the new integrity check and the roles. Requirement-to-test table: `docs/CONFORMANCE_89_PHASE4.md`.
+Tested on a throwaway local PostgreSQL 16.2 with synthetic dates (no waiting for a real date): every rule above, the lock behaviour of migration 20261009000170, the rehearsal script (its refusal on a database not ending `_test`, its prediction against the real outcome), the new integrity check and the roles.
 
 Not tested: a real restored live dump (this runbook is the procedure for it); run times at live volume (about 90,000 positions a day at 5 years, 575,000 rows in the whole `flight_summary`); behaviour on PostgreSQL 16.15 (CI and the VM) as opposed to 16.2; the deploy.

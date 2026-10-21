@@ -1,4 +1,4 @@
-"""Issue #50: rule tests for the panels that no other test named (docs/TEST_AUDIT.md section 4 "still none", and smoke only).
+"""Issue #50: rule tests for the panels that no other test named (the test audit's "still none" list, and smoke only).
 
 Online-now panels, the "over time" series, the home-region pie charts and the joining cohorts, the quietest airports, the
 four retention panels that were only run, and the monitoring dashboard. The SQL is read from the dashboard JSON with

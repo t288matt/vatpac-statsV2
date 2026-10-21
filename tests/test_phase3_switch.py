@@ -1,6 +1,6 @@
 """Issue #89 phase 3 (#139, not yet deployed): static guards for the switch of the flight readers. No database.
 
-The requirement-to-test table is docs/CONFORMANCE_89_PHASE3.md. What is checked here without PostgreSQL:
+What is checked here without PostgreSQL:
   * no panel carries an in-progress filter any more, and the eleven panels that read `flight` directly still exist;
   * no panel reads the pieces, the old merging view, flight_record or the raw positions (panels read views only);
   * the validator refuses a panel that reads flight_legacy or flight_part;

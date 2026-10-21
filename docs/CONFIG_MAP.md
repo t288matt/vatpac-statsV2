@@ -85,7 +85,7 @@ Run `docker compose up -d backup`, open the pull request that changes the litera
 | `BACKUP_RESTORE_TEST_DAY` | `7` | backup | ISO weekday (1 Monday to 7 Sunday) on which the backup is restore-tested; `0` disables (then also set `WATCHDOG_RESTORE_TEST_MAX_DAYS` to `0`; that one is a literal in `docker-compose.yml`, so change it there or with the override file, not in `.env`). |
 | `BACKUP_REMOTE` | empty | backup | Optional off-box copy: a shell command run after every successful nightly dump with `$BACKUP_FILE` set. See [restore runbook](RUNBOOKS/restore.md), "Off-box copies". |
 | `BACKUP_EXTRA_APT_PACKAGES` | empty | backup (build argument) | Debian packages added to the backup image for the `BACKUP_REMOTE` command (for example `rclone`); rebuild to apply. |
-| `TELEGRAM_BOT_TOKEN` | empty | watchdog | Optional. If empty, alerts are logged only. Delivery to Telegram from the VM was verified on 07-10-2026 (docs/TRACKER.md, T4). Secret: keep out of git, chat and logs. |
+| `TELEGRAM_BOT_TOKEN` | empty | watchdog | Optional. If empty, alerts are logged only. Delivery to Telegram from the VM was verified on 07-10-2026. Secret: keep out of git, chat and logs. |
 | `TELEGRAM_CHAT_ID` | empty | watchdog | Optional, as above. |
 | `UPTIME_KUMA_PUSH_URL` | empty | watchdog | Optional heartbeat push URL. |
 | `WATCHDOG_INTERVAL_SECONDS` | `60` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Check cadence. |

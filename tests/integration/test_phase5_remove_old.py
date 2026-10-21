@@ -1,6 +1,6 @@
 """Issue #89 phase 5 (#141, NOT YET DEPLOYED): the old flight machinery is removed and flight_record becomes flight_summary.
 
-Requirement-to-test table: docs/CONFORMANCE_89_PHASE5.md. Migration under test: 20261013000300_remove_pieces_rename_flight_summary.sql.
+Migration under test: 20261013000300_remove_pieces_rename_flight_summary.sql.
 
 Like test_logon_whole_seconds_migration.py, the database tests build their own databases: a template from every migration BEFORE the phase 5
 one, then one copy per test, in which a fixture is loaded, the old state is captured, the migration is applied (up half only, as dbmate does)
