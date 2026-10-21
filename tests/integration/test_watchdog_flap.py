@@ -47,7 +47,7 @@ def test_controller_pair_is_found(conn) -> None:
     conn.execute(CTRL, (2001, "ML_APP", "2026-10-08 04:06:14+00", 1, 0))  # 2 s apart is not "within 2 s": quiet
     assert run(conn)[0] == wd.OK
     conn.execute(CTRL, (2001, "ML_APP", "2026-10-08 04:06:13+00", 1, 0))
-    assert "2 controller" in run(conn)[1]  # :13 pairs with :12 and with :14, as in ops/check_identity_flap.sql
+    assert "2 controller" in run(conn)[1]  # :13 pairs with :12 and with :14, as in ops/audit/identity_flap.sql
 
 
 def test_same_callsign_other_cid_or_far_logon_is_not_a_pair(conn) -> None:
