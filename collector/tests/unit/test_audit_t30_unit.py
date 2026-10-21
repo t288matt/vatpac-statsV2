@@ -1,4 +1,4 @@
-"""T30 test audit: unit tests added to kill mutants that survived the existing suite (docs/TEST_AUDIT.md)."""
+"""T30 test audit: unit tests added to kill mutants that survived the existing suite."""
 from __future__ import annotations
 
 import pytest

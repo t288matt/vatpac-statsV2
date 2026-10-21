@@ -45,7 +45,7 @@ The watchdog already alerts by Telegram on the worst failures ([alerts.md](alert
 3. **Partitions are rolling.** `docker compose exec db psql -U vatpac -d vatpac -c '\dt pilot_position_*'` should show days from today minus the retention up to a week ahead.
 4. **Near-miss callsigns.** `docker compose exec db psql -U vatpac -d vatpac -c "SELECT * FROM near_miss_controllers"`. Any row is a controller position missing from the whitelist: [update-reference-files.md](update-reference-files.md).
 5. **Dashboards still answer.** `python3 ops/check_panels.py` (on the VM, from the stack folder). Expect `0 errors`; empty panels are fine while data is young.
-6. **Open items.** Skim [../TRACKER.md](../TRACKER.md) for anything waiting on a date, and the GitHub Dependabot pull requests (tracker T9).
+6. **Open items.** Skim the GitHub Dependabot pull requests.
 
 (`vatpac` in the commands above is the default value of `POSTGRES_USER` and `POSTGRES_DB`; use the values from `.env` if you changed them.)
 
@@ -79,7 +79,7 @@ Verdicts:
 
 Notes for reading it:
 
-- The 99% threshold tolerates about 14 minutes of missing snapshots in 24 hours. A single 45-second gap (a collector restart) still passes. The project's own plan, however, restarted the soak clock after any gap so that the final run is clean ([../RESUME.md](../RESUME.md), section 1); decide with the owner which standard applies before announcing the goal met (see [../DOC_AUDIT.md](../DOC_AUDIT.md), open question 1).
+- The 99% threshold tolerates about 14 minutes of missing snapshots in 24 hours. A single 45-second gap (a collector restart) still passes. The project's own plan, however, restarted the soak clock after any gap so that the final run is clean; decide with the owner which standard applies before announcing the goal met.
 - Restarts and rebuilds inside the window create gaps. Do not deploy during a soak unless you must ([deploy-to-vm.md](deploy-to-vm.md)); say so if you do.
 - A restart count above 0 on a container is not a failure by itself; correlate it with the gaps.
 - When the verdict is `PASS` for a full 24 hours, record the whole output in [../ARCHITECTURE.md](../ARCHITECTURE.md), section 10, together with the reboot test, CI and Telegram evidence, and tell the owner. Never record a result that was not produced in that session.

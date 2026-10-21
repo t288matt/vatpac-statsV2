@@ -45,7 +45,7 @@ BEGIN
         RETURN 0;
     END IF;
     -- One writer at a time. A second caller does not wait: it returns 0 at once (deliberate deviation from design section 2 step 1,
-    -- which blocks; the manager's decision of 12-10-2026, see docs/CONFORMANCE_89_PHASE1.md); the running call does the work.
+    -- which blocks; the manager's decision of 12-10-2026); the running call does the work.
     IF NOT pg_try_advisory_xact_lock(hashtext('vatpac.flight_writer')) THEN
         RETURN 0;
     END IF;

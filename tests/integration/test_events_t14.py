@@ -10,7 +10,7 @@ timestamps, and the query is executed. Rules under test:
   card 131  Monday window 0700-1200 UTC; a session counts if it overlaps the window (starts before 1200,
             ends at or after 0700).
   card 134  YMML-YSSY (either direction) flights ending Monday 0700-1200 UTC; share of airborne minutes flown
-            by pilots whose home airfield is in the home region. (v1 still uses 0800: see docs/t14_notes/events.md.)
+            by pilots whose home airfield is in the home region. (v1 still uses 0800.)
   card 133  stays dropped (frequency matching, ADR-002): no panel mentions it.
 """
 from __future__ import annotations

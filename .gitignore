@@ -56,3 +56,29 @@ docs/reviews/*team-roles*
 
 # Emergency per-machine override of a policy value (docs/CONFIG_MAP.md, "Where each setting lives"); delete it once the fix is deployed
 docker-compose.override.yml
+
+# Process, review, audit and history documents: not for an end user installing or owning the product.
+# Kept locally, never committed (owner rule 21-10-2026: GitHub holds only what the end user needs).
+docs/reviews/
+docs/qa_89/
+docs/t14_notes/
+docs/t15_notes/
+docs/TRACKER.md
+docs/HANDOVER.md
+docs/TEST_AUDIT.md
+docs/DATA_INTEGRITY_AUDIT.md
+docs/DOC_AUDIT.md
+docs/RELEASE_REVIEW.md
+docs/RELEASE_REVIEW_FINDINGS.md
+docs/DESIGN_89_OPTIONS.md
+docs/CONFORMANCE_89_PHASE*.md
+docs/FLIGHT_VIEW_SCALING.md
+docs/V1_COMPARISON.md
+docs/V1_COMPARISON_2.md
+docs/OWNER_CHECKLIST.md
+docs/DEPLOY_PLAN_REVIEW_FIXES.md
+docs/TRUST_WORK.md
+docs/PENDING_DOC_CHANGES.md
+docs/INCIDENTS.md
+docs/RESTORE_DRILL.md
+tests/tools/release_review_*.py
