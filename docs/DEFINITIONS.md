@@ -35,7 +35,7 @@ A session that forms no flight (no flight plan, or no positions) is marked as pr
 
 **1b.4 History: the per-pilot version (superseded).** Phase 1 first went live on 12-10-2026 with a quiet test on the whole pilot: nothing of a pilot was written until the pilot's newest session was 8 hours old. Same flights, same numbers, only later. Phase 1b replaced it on 13-10-2026 08:01:09 UTC; the backfill (`ops/backfill_flights.sh`, called `ops/backfill_flight_record.sh` until phase 5) wrote the 9 held-back flights that remained.
 
-**1b.5 How it can be checked.** `docs/CONFORMANCE_89_PHASE1.md` lists each requirement against the test that proves it; the tests for this rule are in `tests/integration/test_flight_quiet_per_flight.py`. Two watchdog checks report flights that are overdue (`docs/RUNBOOKS/integrity-checks.md`).
+**1b.5 How it can be checked.** The tests for this rule are in `tests/integration/test_flight_quiet_per_flight.py`. Two watchdog checks report flights that are overdue (`docs/RUNBOOKS/integrity-checks.md`).
 
 ## 2. The flight gate
 
@@ -113,4 +113,4 @@ Handling: the callsign is not stored as a session. It is upserted into `controll
 
 ## 10. Verification status of these definitions
 
-Checked against the code and SQL on 07-10-2026 and again on 08-10-2026, and exercised by the integration tests (the suite is run against a real PostgreSQL 16 and in CI, which uses 16.4 until updated). The live filter counts were cross-checked against independent counts of the live feed on 07-10-2026 (15 pilots inside the polygon, 14 with a flight plan; no whitelisted controllers were online at the time) and on 08-10-2026 (6 of 6 samples matched exactly at two times of day; only 2 whitelisted controllers were online, so the controller filter is still lightly tested; see docs/TRACKER.md, T16 and T21). Not yet verified on real, long-running data: airborne minutes over full flights, the 8-hour span split, controller merging across real reconnects, and any chart that depends on weeks of history.
+Checked against the code and SQL on 07-10-2026 and again on 08-10-2026, and exercised by the integration tests (the suite is run against a real PostgreSQL 16 and in CI, which uses 16.4 until updated). The live filter counts were cross-checked against independent counts of the live feed on 07-10-2026 (15 pilots inside the polygon, 14 with a flight plan; no whitelisted controllers were online at the time) and on 08-10-2026 (6 of 6 samples matched exactly at two times of day; only 2 whitelisted controllers were online, so the controller filter is still lightly tested). Not yet verified on real, long-running data: airborne minutes over full flights, the 8-hour span split, controller merging across real reconnects, and any chart that depends on weeks of history.

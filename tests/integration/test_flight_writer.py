@@ -1,6 +1,5 @@
 """Issue #89 phase 1 (#137): write_finished_flights() fills flight_summary, one row per finished flight, written once.
 
-Design: docs/DESIGN_89_FINAL.md sections 1.3 to 1.6, 2, 5.3 and 7.3; the requirement-to-test table is docs/CONFORMANCE_89_PHASE1.md.
 Every test builds its own sessions and positions, puts a network_snapshot at the time the collector would have stored, and
 calls the writer. "Quiet" is measured against the newest snapshot, never the clock, so nothing here depends on now().
 """

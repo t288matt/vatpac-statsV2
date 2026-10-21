@@ -173,7 +173,7 @@ def test_movements_comment_documents_semantics(conn) -> None:
 
 
 def test_collector_may_execute_the_flight_writer_and_nothing_old_remains(conn) -> None:
-    """Issue 89 phase 5 (requirement 1 of docs/CONFORMANCE_89_PHASE5.md): db/roles.sql grants EXECUTE on write_finished_flights(int)
+    """Issue 89 phase 5 (requirement 1 of the phase 5 conformance list): db/roles.sql grants EXECUTE on write_finished_flights(int)
     to the collector, and the dropped refresh functions are gone (a stale grant would have aborted the migrate job)."""
     if not role_exists(conn, "collector"):
         pytest.skip("role collector not created")

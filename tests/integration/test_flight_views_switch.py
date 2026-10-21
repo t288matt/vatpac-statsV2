@@ -1,8 +1,7 @@
 """The flight views read the finished-flights table `flight_summary` (issue 89; built as flight_summary in phase 1, switched in phase 3 and
 renamed in phase 5, NOT YET DEPLOYED).
 
-Design: docs/DESIGN_89_FINAL.md sections 4 and 7.2; requirement-to-test tables: docs/CONFORMANCE_89_PHASE3.md and
-docs/CONFORMANCE_89_PHASE5.md. The old-against-new equivalence tests of phase 3 compared the new views with the old merging view
+The old-against-new equivalence tests of phase 3 compared the new views with the old merging view
 (a view of the old pieces), which phase 5 removes; the equivalence ACROSS THE RENAME is tested in test_phase5_remove_old.py.
 
   * The thin views: no panel view reaches the positions or pilot_session.

@@ -1,4 +1,4 @@
-"""Issue #89 phase 1 (#138): scenarios added from the independent QA list (branch p1-qa, docs/qa_89/scenarios.md).
+"""Issue #89 phase 1 (#138): scenarios added from the independent QA list (branch p1-qa).
 
 Ids in the test names (J7, A3 ...) are the QA scenario ids. Cadence 30 s and a 75 s airborne cap, as the coordinator decided.
 """

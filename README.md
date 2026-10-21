@@ -8,7 +8,7 @@ Live pilot and controller statistics for the VATPAC region, built from VATSIM's 
 
 VATPAC Stats shows live and historical statistics for pilots and air traffic controllers in the VATPAC region on VATSIM. The numbers are updated every 30 seconds and shown as ten dashboards. Anyone can view them on the internet without logging in, and nobody can change them (see "Public read-only access" below).
 
-This version replaces the original system. The two were compared on overlapping hours; the results and the differences are in [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md).
+This version (v3) replaces the original system (v1).
 
 - A flight is counted once it has finished, about 8 hours after the pilot's last position. If a pilot disconnects and reconnects on the same flight within two hours, it counts as one flight (details in [docs/DEFINITIONS.md](docs/DEFINITIONS.md)).
 - The charts started empty on 07-10-2026 and fill as data arrives. Nothing earlier was loaded, so the 30 to 90 day charts need that much history before they say anything useful.
@@ -151,12 +151,9 @@ Integration tests need a real PostgreSQL 16 with the migrations applied, in a **
 | [docs/INSTALL.md](docs/INSTALL.md) | Install a new instance from the source code |
 | [docs/README.md](docs/README.md) | Index of every document, with its status |
 | [docs/IF_CLAUDE_IS_UNAVAILABLE.md](docs/IF_CLAUDE_IS_UNAVAILABLE.md) | One-page card for the owner when Claude is not available |
-| [docs/TRACKER.md](docs/TRACKER.md) | The live task list; the single source of truth for status |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log (ADRs) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, data flow, containers, failure behaviour |
 | [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md) | Tables, views, functions, roles |
 | [docs/DEFINITIONS.md](docs/DEFINITIONS.md) | Flight, session, online now, airborne minutes and the other definitions |
 | [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md) | Every v1 chart and what replaced it |
-| [docs/V1_COMPARISON.md](docs/V1_COMPARISON.md) | v3 against v1 on overlapping hours |
-| [docs/HANDOVER.md](docs/HANDOVER.md) | Point-in-time hand-over of 07-10-2026 (history) |
 | [docs/OWNER_ACTIONS.md](docs/OWNER_ACTIONS.md) | Steps only the owner can do |

@@ -46,7 +46,7 @@ To test a branch with a NEW migration against a clean database: `docker rm -f va
 
 ## 2. Integration tests: the safe method on the VM
 
-Use this when there is no working Docker on the PC (Docker Desktop on the owner's PC was broken, docs/TRACKER.md T25; it works since 13-10-2026, see section 1b). It uses a throwaway database inside the VM's running Postgres container, a copy of the committed code in `/tmp`, and a short-lived container built from the collector image. The live database is not touched. It excludes the two role test files (`test_roles.py`, `test_grafana_ro.py`), which need roles that must not be created on the live cluster. CI runs those.
+Use this when there is no working Docker on the PC (Docker Desktop on the owner's PC was broken; it works since 13-10-2026, see section 1b). It uses a throwaway database inside the VM's running Postgres container, a copy of the committed code in `/tmp`, and a short-lived container built from the collector image. The live database is not touched. It excludes the two role test files (`test_roles.py`, `test_grafana_ro.py`), which need roles that must not be created on the live cluster. CI runs those.
 
 From the PC, in the repository root (so the VM gets exactly what is committed, without `.env`):
 
@@ -112,7 +112,7 @@ docker rm -f vp-test
 
 ## 4. After a run
 
-Report the exact counts you saw (the last line pytest printed, for example `N passed in S s`, with any `skipped` or `failed` figures in full), the commit tested, and which files were excluded. Do not call a run green from memory, and do not copy a count from another document: counts change with every test added. To see the current number of tests without running them: `PYTHONPATH=collector/src python -m pytest --collect-only -q tests collector/tests | tail -1` (all) or add `-m "not integration"` (unit only). If a test fails, read the failure first; two of the early failures were bugs in the tests themselves, not in the product (docs/TRACKER.md, T14).
+Report the exact counts you saw (the last line pytest printed, for example `N passed in S s`, with any `skipped` or `failed` figures in full), the commit tested, and which files were excluded. Do not call a run green from memory, and do not copy a count from another document: counts change with every test added. To see the current number of tests without running them: `PYTHONPATH=collector/src python -m pytest --collect-only -q tests collector/tests | tail -1` (all) or add `-m "not integration"` (unit only). If a test fails, read the failure first; two of the early failures were bugs in the tests themselves, not in the product.
 
 ## 5. Strict mode and the time-zone pass
 

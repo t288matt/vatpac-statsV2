@@ -2,7 +2,7 @@
 
 Since issue 89 phase 3 (not yet deployed) the view reads flight_summary, which write_finished_flights() fills once the pilot has
 been quiet for 8 hours of stored data (helpers.flights does that). v1's rule applies: one connection is never cut, so a long
-silence or a long session is ONE flight (design docs/DESIGN_89_FINAL.md 1.4); the earlier 120-minute and 8-hour splits live on
+silence or a long session is ONE flight; the earlier 120-minute and 8-hour splits live on
 only in the old merging view, which phase 5 removed. Sessions are inserted synthetically, so these tests do not depend on the collector code. They DO assume the view exposes the columns
 named in SPEC s6 (airborne_minutes, sample_count, is_circuit, is_zzzz, touches_home_region) plus
 cid, departure and arrival. SPEC does not list the view's full column set (see tests/README.md).

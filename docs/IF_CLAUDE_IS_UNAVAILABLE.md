@@ -88,13 +88,13 @@ Use a real file name from the `ls` output. These `make` targets use `docker comp
 5. Only when you are satisfied, drop the old copy (it uses disk until then): `docker compose exec db psql -U vatpac -d postgres -c 'DROP DATABASE "vatpac_old"'`.
 6. Data between the backup and the failure is gone; there is no backfill. Note the gap.
 
-Restores were drilled on 08-10-2026 ([RESTORE_DRILL.md](RESTORE_DRILL.md)); the exact B sequence has not been run end to end on the live volume, so go slowly and read each message.
+Restores were drilled on 08-10-2026; the exact B sequence has not been run end to end on the live volume, so go slowly and read each message.
 
 **Copying a dump to your PC** (an extra safeguard): `docker compose cp backup:/backups/<file>.dump .` on the VM, then `scp` it to the PC. Not run here and not in a runbook as written; `docker compose cp` is documented for the other direction. Dumps contain real names and CIDs (public data, but keep them private).
 
 ## 6. Who to ask for help
 
-- **Claude.** Start a new session in the folder `C:\Users\mdora\Claude\vatpac-statsV2` (not the folder `VATPAC-Stats V2`, which is the old v1 system) and paste the prompt in `NEXT_SESSION_PROMPT.md` (a Claude working file, kept outside the repo). It tells the session what to read first (`RESUME.md` (a Claude working file, kept outside the repo), then [TRACKER.md](TRACKER.md)).
+- **Claude.** Start a new session in the folder `C:\Users\mdora\Claude\vatpac-statsV2` (not the folder `VATPAC-Stats V2`, which is the old v1 system) and paste the prompt in `NEXT_SESSION_PROMPT.md` (a Claude working file, kept outside the repo). It tells the session what to read first (`RESUME.md`, also a Claude working file kept outside the repo).
 - **The repository and its issues:** https://github.com/t288matt/vatpac-statsV2 (the open issues list is the live backlog).
 - **A human engineer:** any engineer who knows Docker and PostgreSQL can work from [RUNBOOKS/](RUNBOOKS/) and [ARCHITECTURE.md](ARCHITECTURE.md). The repository names no other person or support contact. I could not verify one, so add a name here if you have one.
 - **VATSIM outages:** `https://status.vatsim.net/status.json`.
@@ -123,5 +123,5 @@ This card still says: do not deploy while Claude is unavailable. If you decide t
 
 ## 8. Where things stand that you might trip over (10-10-2026)
 
-- The code on `main` is ahead of what is deployed (backup and restore hardening, Telegram wording, collector hardening). The deploy plan is [DEPLOY_PLAN_REVIEW_FIXES.md](DEPLOY_PLAN_REVIEW_FIXES.md). If the runbooks describe a feature your VM does not show, check [../CHANGELOG.md](../CHANGELOG.md) for whether it is deployed. In particular [RUNBOOKS/restore.md](RUNBOOKS/restore.md) and [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) already describe the newer behaviour; the commands on this card work with both.
+- The code on `main` is ahead of what is deployed (backup and restore hardening, Telegram wording, collector hardening). If the runbooks describe a feature your VM does not show, check [../CHANGELOG.md](../CHANGELOG.md) for whether it is deployed. In particular [RUNBOOKS/restore.md](RUNBOOKS/restore.md) and [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) already describe the newer behaviour; the commands on this card work with both.
 - The daily digest email and the Claude desktop app: the digest only runs while the Claude desktop app is open.

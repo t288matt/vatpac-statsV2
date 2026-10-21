@@ -1,6 +1,6 @@
 # ops/audit: independent data-integrity audit scripts (T30, 08-10-2026)
 
-Scratch tooling written by an independent auditor for `docs/DATA_INTEGRITY_AUDIT.md`. Nothing here is imported by the
+Scratch tooling written by an independent auditor. Nothing here is imported by the
 collector or run by CI. Every script that touches the live database is **read only**: one SELECT-only session over ssh to
 `psql` inside the `db` container, with `default_transaction_read_only = on` (and `BEGIN ... READ ONLY` where a consistent
 snapshot matters). The scripts in `throwaway/` WRITE (TRUNCATE, INSERT) and are for a scratch Postgres container only: each refuses to run unless
