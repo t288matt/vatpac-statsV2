@@ -121,7 +121,7 @@ def summarise_invariants(findings: list[Finding], problems: list[str], total: in
 # ---------------------------------------------------------------- the archive cross-check
 
 def parse_ts(text: str) -> datetime:
-    """Feed timestamps carry nanoseconds; Python keeps microseconds (the same trim the audit's compare_samples.py used)."""
+    """Feed timestamps carry nanoseconds; Python keeps microseconds (the same trim the original audit tooling used)."""
     t = re.sub(r"(\.\d{6})\d+", r"\1", text.replace("Z", "+00:00"))
     d = datetime.fromisoformat(t)
     return d if d.tzinfo else d.replace(tzinfo=UTC)
