@@ -30,4 +30,6 @@ def test_the_shared_file_is_a_single_read_only_statement_with_an_optional_window
     body = re.sub(r"--[^\n]*", "", SHARED)
     assert body.count(";") == 1 and not re.search(r"(?i)\b(insert|update|delete|drop|alter|create|truncate)\b", body)
     assert "coalesce(nullif(current_setting('vatpac.flap_window_hours', true), ''), '0')" in body  # unset or empty means all history
-    assert body.count("w.hours = 0 OR b.last_seen > now() - make_interval(hours => w.hours)") == 2
+    assert "'-infinity'::timestamptz" in body and "now() - make_interval(hours => h.hours)" in body  # one lower bound; 0 = no bound
+    assert body.count("WHERE b.last_seen > (SELECT since FROM w)") == 2  # a plain range on last_seen, so the index is usable
+    assert "OR" not in body and "CROSS JOIN" not in body  # no per-row switch between window and whole history
