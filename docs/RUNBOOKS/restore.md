@@ -12,6 +12,8 @@ Monitoring:
 
 Roles: dumping needs only `backup_ro`. Restores and the restore test must `CREATE`, `DROP` and `RENAME` databases, which `backup_ro` cannot do, so `restore.sh` and `restore-test.sh` connect as the owner role through `RESTORE_PGUSER` / `RESTORE_PGPASSWORD` (set in the backup service from `POSTGRES_USER` / `POSTGRES_PASSWORD`). The nightly dump never uses the owner role.
 
+**Practical warnings.** `make backup`, `make backup-test` and `make restore` run `docker compose exec` without `-T`, so they need a terminal: use an interactive ssh session on the VM, not a one-line `ssh host 'make ...'` (it fails with "the input device is not a TTY"; the commands in this runbook that use `-T` are the ones that work without one). Do not restart the `db` container while a restore is running: it ends the restore session, and the script may not get to clean up its `<target>_restoring` working database; if one is left, check that no restore is running and drop it before trying again. The live database is not touched until the final rename.
+
 ## See what exists
 ```sh
 docker compose exec backup ls -lh /backups
@@ -68,7 +70,7 @@ Use when the live database is lost or corrupt. Replace `vatpac` with `POSTGRES_D
    make restore FILE=/backups/<file>.dump TARGET=vatpac CONFIRM=vatpac
    ```
    The old database is kept as `vatpac_old`, and a safety dump of it is in `/backups/*.prerestore`.
-3. Re-apply roles and grants to the new database: `docker compose up migrate` (idempotent; the dump carries no roles or ACLs).
+3. Re-apply roles and grants to the new database: `docker compose up migrate` (idempotent; the dump carries no roles or ACLs). Do this before the smoke test: `ops/smoke.sh` checks that `migrate` exited 0, and the restored database has none of the role passwords or grants until `migrate` has run.
 4. Start everything: `docker compose up -d`, then `make smoke`.
 5. When satisfied, drop the old copy: `docker compose exec db psql -U vatpac -d postgres -c 'DROP DATABASE "vatpac_old"'`. It occupies disk until you do.
 6. Positions between the backup and the failure are lost (no backfill); note the gap.
