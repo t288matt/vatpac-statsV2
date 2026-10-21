@@ -1,7 +1,8 @@
 -- migrate:up
 -- Issue #89 phase 4 (#140): the raw-position drop gate reconciles against WRITTEN flights.
 -- Design: docs/DESIGN_89_FINAL.md section 3 (branch opus-89); requirement-to-test table: docs/CONFORMANCE_89_PHASE4.md.
--- NOT YET DEPLOYED: written on branch p4-drop-gate, not merged, not run on the VM or the live database.
+-- DEPLOYED (listed in the live schema_migrations, checked 21-10-2026). The function text below is what this migration
+-- applied; the final text after migration 20261013000300 is in docs/SQL_DEFINITIONS_REFERENCE.sql.
 --
 -- Until now a daily partition of pilot_position was dropped only after the pieces table (flight_summary) had been
 -- "finalised" for every session in it (refresh_flight_summary_sessions(ids, true), the final flag). That rule belongs to the
