@@ -68,8 +68,8 @@ Since 11-10-2026 all ten dashboards are also published read-only on the internet
 
 ```
 visitor -> Cloudflare (rate limit rule, Bot Fight Mode) -> Cloudflare Tunnel (named Home; connector on the Traefik machine)
-        -> Traefik (owner's other machine, 192.168.1.145) -> helper container vatpac-proxy (alpine/socat, ~/vatpac-proxy there)
-        -> http://192.168.1.222:3300 (Grafana on this VM)
+        -> Traefik (owner's other machine, <TRAEFIK_HOST_IP>) -> helper container vatpac-proxy (alpine/socat, ~/vatpac-proxy there)
+        -> http://<VM_LAN_IP>:3300 (Grafana on this VM)
 ```
 
 | Part | Where | In this repository? |
@@ -79,7 +79,7 @@ visitor -> Cloudflare (rate limit rule, Bot Fight Mode) -> Cloudflare Tunnel (na
 | Cloudflare (rate limit, Bot Fight Mode), the tunnel, DNS | Cloudflare account | No (described in the runbook) |
 | Traefik and the `vatpac-proxy` helper (Traefik reads Docker labels only on its own machine and its file provider is off, so a forwarder with labels carries the route) | owner's Traefik machine | No (compose file shown in the runbook) |
 
-Neither Cloudflare nor the Traefik machine can be checked from this repository or the VM. A visitor can open the public pages and see every panel; they cannot run their own SQL, change the time range, edit, or use Explore. Panels run only the queries saved on the dashboard, through the read-only role `grafana_ro`; the page does expose the SQL text of each panel. Verified 11-10-2026: without a login `/api/search`, `/api/datasources`, `/api/user` and `/api/ds/query` answer 401, SQL sent inside a public panel request is ignored, and 84 of 84 data panels work as public dashboards (none over 5 s). Anonymous access stays off because an anonymous Viewer could send any SQL to `grafana_ro` through `/api/ds/query`. The Grafana login page is still reachable from the internet (the owner chose not to add a Cloudflare rule against it). The Departure board panel is fixed to YSSY, because public dashboards do not fill text-box variables. Runbook: [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md); the work on the Traefik machine is documented in its section "The Traefik machine (192.168.1.145)". The owner keeps copies of that machine's compose file and README in `vatpac-claude-setup/traefik/` on his PC.
+Neither Cloudflare nor the Traefik machine can be checked from this repository or the VM. A visitor can open the public pages and see every panel; they cannot run their own SQL, change the time range, edit, or use Explore. Panels run only the queries saved on the dashboard, through the read-only role `grafana_ro`; the page does expose the SQL text of each panel. Verified 11-10-2026: without a login `/api/search`, `/api/datasources`, `/api/user` and `/api/ds/query` answer 401, SQL sent inside a public panel request is ignored, and 84 of 84 data panels work as public dashboards (none over 5 s). Anonymous access stays off because an anonymous Viewer could send any SQL to `grafana_ro` through `/api/ds/query`. The Grafana login page is still reachable from the internet (the owner chose not to add a Cloudflare rule against it). The Departure board panel is fixed to YSSY, because public dashboards do not fill text-box variables. Runbook: [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md); the work on the Traefik machine is documented in its section "The Traefik machine (<TRAEFIK_HOST_IP>)". The owner keeps copies of that machine's compose file and README in `vatpac-claude-setup/traefik/` on his PC.
 
 ## 4. Collector internals
 
@@ -146,7 +146,7 @@ The collector package has a hard size budget of 1800 physical lines with no modu
 
 ## 9. Related documents
 
-[DATA_DICTIONARY.md](DATA_DICTIONARY.md), [DEFINITIONS.md](DEFINITIONS.md), [CONFIG_MAP.md](CONFIG_MAP.md), [CHART_DEFINITIONS.md](CHART_DEFINITIONS.md), [DASHBOARDS_SIMPLIFIED.md](DASHBOARDS_SIMPLIFIED.md), [DECISIONS.md](DECISIONS.md), [RUNBOOKS/](RUNBOOKS/).
+[DATA_DICTIONARY.md](DATA_DICTIONARY.md), [DEFINITIONS.md](DEFINITIONS.md), [CONFIG_MAP.md](CONFIG_MAP.md), [CHART_DEFINITIONS.md](CHART_DEFINITIONS.md), [DECISIONS.md](DECISIONS.md), [RUNBOOKS/](RUNBOOKS/).
 
 ## 10. Goal evidence
 

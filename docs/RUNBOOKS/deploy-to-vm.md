@@ -38,7 +38,7 @@ git fetch origin && git checkout --detach <commit> && docker compose pull && doc
 | 3 | Registry token, `docker login`, the two `.env` lines, first pull (phase P3) | section 2e | Run and verified 14-10-2026 |
 | 4 | Every later deploy | section 2f | Procedure; the second deploy is not yet run |
 
-Owner cards: [../OWNER_ACTIONS.md](../OWNER_ACTIONS.md) cards 15 to 18. Decision record: ADR-031 in [../DECISIONS.md](../DECISIONS.md).
+Decision record: ADR-031 in [../DECISIONS.md](../DECISIONS.md).
 
 **The old method is kept as a fallback:** section 2c (`git archive | tar -x`) and the "Fallback" notes under Updating and Roll back. It never deletes files, so stale files on the VM survive it; read the warning in 2c before using it.
 
@@ -51,6 +51,7 @@ Owner cards: [../OWNER_ACTIONS.md](../OWNER_ACTIONS.md) cards 15 to 18. Decision
 **Housekeeping and prune policy on the VM.**
 - Keep the locally built `:local` images: they are the current rollback (see Roll back). Keep them, and the old `grafana/grafana-oss:11.6.5` image, until about 18-10-2026, then decide with the owner.
 - Keep the current and the previous `sha-` image set. Remove older ones one by one with `docker image rm <image:tag>` after listing them (`docker images 'ghcr.io/*'`).
+- Never print or paste `.env`, the Telegram token, the registry token or the Grafana password anywhere, including into a chat with an AI. Never run test suites, scratch databases or throwaway containers on the VM without the caps in [run-tests.md](run-tests.md) (an uncapped test container once took 6.9 GB of 7.9 GB and cost the collector a gap, incident #113). Never delete a Docker volume: `vatpac_pgdata` is the data, `vatpac_backups` holds every backup, `vatpac_grafana_data` the Grafana state, `vatpac_archive` the raw-feed safety copy; `docker compose down -v` deletes them all. Never touch the old v1 system or its folder.
 - Never run `docker system prune`. Never run `docker volume prune` blindly: named volumes hold the data, backups and Grafana state. The 85 unused anonymous volumes (about 10.6 GB, read 14-10-2026) are a separate cleanup: list them first and check each is anonymous and unused.
 - The registry token lasts 90 days (expires about 12-01-2027; the owner's calendar reminder is 05-01-2027). The deploy preflight (pull request 180) fails early if the registry image cannot be read.
 - Optional owner tidy: the VM `.env` carries a stale `VATPAC_VERSION=dev` line that nothing reads (`VATPAC_VERSION` is a build argument; the collector health output reports its own `__version__`). It can be deleted.
@@ -137,7 +138,7 @@ cd ~/vatpac-statsV2
 git -C ~/vatpac-statsV2-git ls-files -z | sort -z > ~/main-files.txt
 find . -type f -not -path './.git/*' -not -path './.deploy/*' -not -path './.claude/*' -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.env*' -print0 | sed -z 's#^\./##' | sort -z > ~/live-files.txt
 comm -z -13 ~/main-files.txt ~/live-files.txt > ~/stale-files-14-10-2026.txt
-tr -cd ' ' < ~/stale-files-14-10-2026.txt | wc -c
+tr -cd '\0' < ~/stale-files-14-10-2026.txt | wc -c
 tar -czf ~/stale-files-14-10-2026.tgz --null -T ~/stale-files-14-10-2026.txt && xargs -0 rm -f < ~/stale-files-14-10-2026.txt
 rm -f ~/main-files.txt ~/live-files.txt
 ```
@@ -242,9 +243,9 @@ cd ~/vatpac-statsV2 && git status --short && make deploy
 5. **PC: verify.** `bash ops/deploy.sh --verify` (all PASS), then open the ten public addresses ([public-access.md](public-access.md)).
 6. **PC: mark.** `bash ops/deploy.sh --mark <commit>` after commenting on the issues in the commits. The release file is unchanged; `release.log` now records the running collector image's revision in its `images=` line.
 
-**What a change needs in registry mode.** The table "What a change needs" below still applies, with one change: wherever it says `docker compose up -d --build` for collector, watchdog, backup or migrate code, read "publish the commit, set the tag, `docker compose pull`, `docker compose up -d --no-build`". The build arguments `BACKUP_EXTRA_APT_PACKAGES` and `VATPAC_VERSION` are ignored in registry mode: the published backup image has no `rsync`, `ssh` or `rclone`, so an off-box copy hook that needs them ([restore.md](restore.md), [../OWNER_BACKUP_COPY.md](../OWNER_BACKUP_COPY.md)) works only in local-build mode until the tools are added to the published image. Dashboards, provisioning, `config/` and migrations are mounts: a checkout is enough, as before.
+**What a change needs in registry mode.** The table "What a change needs" below still applies, with one change: wherever it says `docker compose up -d --build` for collector, watchdog, backup or migrate code, read "publish the commit, set the tag, `docker compose pull`, `docker compose up -d --no-build`". The build arguments `BACKUP_EXTRA_APT_PACKAGES` and `VATPAC_VERSION` are ignored in registry mode: the published backup image has no `rsync`, `ssh` or `rclone`, so an off-box copy hook that needs them ([restore.md](restore.md), "Off-box copies" there) works only in local-build mode until the tools are added to the published image. Dashboards, provisioning, `config/` and migrations are mounts: a checkout is enough, as before.
 
-**Old images pile up.** Each deploy leaves the previous four images on the VM. After the second registry deploy, the previous `sha-` tag exists locally and is the quick rollback: keep it pulled. Policy for what to keep and remove is in the Overview ("Housekeeping and prune policy"); remove only with the owner's go ([../OWNER_ACTIONS.md](../OWNER_ACTIONS.md), card 18).
+**Old images pile up.** Each deploy leaves the previous four images on the VM. After the second registry deploy, the previous `sha-` tag exists locally and is the quick rollback: keep it pulled. Policy for what to keep and remove is in the Overview ("Housekeeping and prune policy"); remove only with the owner's go.
 
 **Never `up -d --build` on the VM in registry mode.** It rebuilds locally and retags the registry name, defeating the pull. If someone did, run `docker compose pull` and `docker compose up -d --no-build --force-recreate <service>` to get the published image back.
 
