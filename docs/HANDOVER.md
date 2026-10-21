@@ -290,7 +290,7 @@ docs/RUNBOOKS/               deploy-to-vm, restore, feed-outage, stuck-collector
 docs/reference/v1_metabase_cards.json   recovered v1 card SQL (118 cards)
 collector/                   Dockerfile, pyproject.toml, requirements.txt (all versions pinned), src/vatpac/, tests/unit/
 db/                          migrations/ (dbmate, forward-only, 20261007000001..24; now ..20261008000031), roles.sql
-grafana/                     provisioning/ (datasource, dashboards), dashboards/<folder>/*.json, validate_dashboards.py, check_columns.py
+grafana/                     provisioning/ (datasource, dashboards), dashboards/<folder>/*.json, validate_dashboards.py
 ops/                         check_env.sh gen_env.sh smoke.sh soak_report.sh/.sql check_panels.py check_config_drift.py check_size_budget.py ruff.toml (check_fixture_pii.py was removed 08-10-2026, TRACKER T29); backup/ migrate/ watchdog/ postgres/
 tests/                       integration/ (needs Postgres), fixtures/ (anonymised feed snapshot + expected.json), tools/make_fixture.py, README.md
 config/                      australian_airspace_polygon.json, controller_callsigns_list.txt, australian_airspace_sectors.geojson (unused by v3)

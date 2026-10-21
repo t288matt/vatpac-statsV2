@@ -6,7 +6,7 @@ Last reviewed: 11-10-2026. Dashboards are code: JSON files in git, loaded by Gra
 
 - `grafana/dashboards/<folder>/<name>.json`: one file per dashboard. The directory name becomes the Grafana folder (`pilots`, `atc`, `events`, `demographics`, `military`, `monitoring`).
 - `grafana/provisioning/dashboards/dashboards.yml`: loads every file under that directory and rescans every 30 seconds. `grafana/provisioning/datasources/postgres.yml`: the single data source `vatpac` (uid `vatpac`), connecting as the read-only role `grafana_ro`.
-- `grafana/validate_dashboards.py` and `grafana/check_columns.py`: the static checks below.
+- `grafana/validate_dashboards.py`: the static check below. Every panel query is also run against a real database by `tests/integration/test_audit_t30.py::test_every_panel_query_runs_as_grafana_ro`.
 - `docs/CHART_DEFINITIONS.md`: one row per chart saying what it shows, where it comes from and how to test it.
 
 ## The rules a dashboard must follow
@@ -34,7 +34,6 @@ Without a database (anywhere, fast):
 
 ```sh
 python grafana/validate_dashboards.py     # expect RESULT: OK (0 errors); one known warning is printed for the controller activity trends panel
-python grafana/check_columns.py           # resolves every column against the view definitions; expect "bad 0"
 ```
 
 Against synthetic data, on a throwaway database named `*_test` (see [run-tests.md](run-tests.md)): the integration tests load the dashboard JSON, take the panel's `rawSql`, replace `$__timeFrom()` and `$__timeTo()`, insert synthetic flights or sessions and assert on the result. To cover a new or changed panel, add a test in `tests/integration/` beside the existing ones (for example `tests/integration/test_card_90.py`, which reuses `run_panel` and `add_flight` from `tests/integration/test_pilots_t14.py`). The marker is `@pytest.mark.integration`.
