@@ -16,6 +16,10 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 - **One Grafana client (issue #210).** `ops/grafana_api.py` serves `ops/check_panels.py` and `ops/grafana_public.py`: the admin login goes in clear text only to an address of this machine and over https otherwise, redirects are never followed, and `check_panels.py` prints the message of a non-JSON error reply. Typed with `mypy --strict` in CI.
 - No change to the running stack or its images.
 
+## Retention list panels show the highest rating (22-10-2026, issue 236; merged, not yet deployed)
+
+- The two retention list panels, "Who might need help reactivating?" and "Who reactivated after being away for more than 60 days?", now take the rank group (S1, S2, C1 and so on) from the controller's highest rating. Before, a controller promoted from S2 to C1 showed S2; now C1. Labels and blanks are unchanged. Two integration tests pin it.
+
 ## Clean-ups and tidier checks, deployed as 2dc8a92 (marked 22-10-2026 16:56 UTC) and 450a74c (marked 22-10-2026 19:02 UTC)
 
 - **Identity-flap check in one file (issue #201, pull request 250; deployed as 2dc8a92).** The watchdog (last 24 hours) and `ops/deploy.sh --verify` (whole history) now run the same file, `ops/audit/identity_flap.sql`; the separate copy `ops/check_identity_flap.sql` is gone, and the 24 hour query uses the `last_seen` index again.
