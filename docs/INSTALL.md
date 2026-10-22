@@ -1,6 +1,6 @@
 # Install a new instance from the source code
 
-*Note 14-10-2026 (issue 173): a new section 4b describes the registry mode that the production VM has used since 14-10-2026, and section 2 describes the read-only deploy key. Everything else below is the local-build install, last reviewed 10-10-2026 against the deployed commit 3eb81a3 (the `.env.example`, `Makefile`, `docker-compose.yml` and `ops/` scripts at that commit). Written for a person with a clean Linux machine and nothing from the owner's VM. Nobody has followed this page on a fresh machine, because the owner's PC has no working Docker; every command was checked against the repository only. Anything not checked is marked UNVERIFIED.*
+*Note 14-10-2026 (issue 173): a new section 4b describes the registry mode that the production VM has used since 14-10-2026, and section 2 describes the read-only deploy key. Everything else below is the local-build install, last reviewed 10-10-2026 against the deployed commit 3eb81a3 (the `.env.example`, `Makefile`, `docker-compose.yml` and `ops/` scripts at that commit). Written for a person with a clean Linux machine and nothing from the owner's VM. Walked through on 21-10-2026 on a Windows 11 PC (Docker Desktop, Git Bash, local-build mode, commit c072491, no earlier data): sections 3 to 6 worked, with the corrections marked "Walk-through 21-10-2026" below and the Windows notes in section 11. The Linux server path was not re-run. Anything not checked is marked UNVERIFIED.*
 
 The result is the same stack that runs in production: PostgreSQL 16, a collector that reads the public VATSIM feed every 30 seconds, Grafana dashboards, a nightly backup, and a watchdog. A new instance starts with NO history and NO backfill: every chart starts empty at your go-live and fills as data arrives. The 30 to 90 day charts need that much history before they mean anything.
 
@@ -9,7 +9,7 @@ The result is the same stack that runs in production: PostgreSQL 16, a collector
 - Docker Engine and the Docker Compose plugin (`docker compose version` must show v2.20 or newer). Install steps: section 1 of deploy-to-vm.md (`curl -fsSL https://get.docker.com | sudo sh`, then add your user to the `docker` group and log in again).
 - A synchronised clock. Check `timedatectl`: it must say `System clock synchronized: yes`. The collector rejects a feed snapshot dated more than `FEED_MAX_FUTURE_SECONDS` (120) ahead of the clock, and a clock that is more than about two minutes slow breaks polling.
 - Outbound internet access to `data.vatsim.net` and `status.vatsim.net` (HTTPS), and for the image builds.
-- `git`, `sh` (POSIX shell), `make`, `openssl` (used by `ops/gen_env.sh` when present), `curl` (for the Docker install line), `sudo` (for the Docker install) and Python 3.11 or newer on the machine, for the helper scripts.
+- `git`, `sh` (POSIX shell), `make`, `openssl` (used by `ops/gen_env.sh` when present), `curl` (for the Docker install line), `sudo` (for the Docker install) and Python 3.11 or newer on the machine, for the helper scripts. On a Windows PC (development only, never production) `make` is not installed and `psql` is not on the PATH of Git Bash; the stack needs neither: see section 11.
 - Access to the repository (it is private: you need a read credential from the owner). The method planned for servers is a read-only GitHub deploy key (section 2). UNVERIFIED: the exact clone method you will be given.
 
 ## 2. Get the code
@@ -60,6 +60,8 @@ docker compose ps
 ```
 Without `make`: `sh ops/check_env.sh .env` then `docker compose up -d --build`. The first build downloads images and compiles the collector; allow several minutes.
 
+**Starting again over an old stack (Walk-through 21-10-2026).** `docker compose down` keeps the named volumes (`pgdata`, `grafana_data`, `backups`, `watchdog_status`), and they belong to the project name `vatpac`, so a new `.env` on the same machine silently reuses them. Postgres reads `POSTGRES_PASSWORD` only when it first creates the data directory, so the new random passwords will not match the old database, and the old database still has the old table layout. For a genuinely fresh start on a development machine, delete the old volumes first: `docker compose down -v` removes ALL of this stack's volumes (the database, Grafana state, backups and the archive), so use it only when none of that data matters. Then run `sh ops/gen_env.sh` again and start as above.
+
 ### 4b. Optional: run published images instead of building (the production VM since 14-10-2026)
 The default above builds the four project images on the machine (`VATPAC_IMAGE_PREFIX` unset, names `vatpac-stats-<name>:latest`). The production VM runs images that GitHub Actions builds and publishes to a private registry, named `ghcr.io/t288matt/vatpac-stats-<name>:latest` (also kept as `:sha-<first 7 characters of the commit>`). You switch with one `.env` line, `VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/` (nothing secret; described in [CONFIG_MAP.md](CONFIG_MAP.md)), and a registry login with a read-only token (`docker login ghcr.io`, steps in section 2e of the deploy runbook). Then start with `make deploy` (or `docker compose pull && docker compose up -d --no-build`) instead of `make up`, and never use `up -d --build` there (it rebuilds locally and replaces the pulled image). Two consequences: the build arguments `BACKUP_EXTRA_APT_PACKAGES` and `VATPAC_VERSION` are ignored in this mode, and a new instance needs the owner to give you a token and a published commit tag. The registry is private, so a stranger cannot use this mode. Source of truth: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md).
 
@@ -84,11 +86,28 @@ docker compose logs --tail=20 collector     # an ok poll about every 30 seconds
 
 Charts: the "Monitoring: collector and data freshness" dashboard shows whether data is arriving. The rest fill over the first hours and days. Routine checks afterwards: [RUNBOOKS/daily-checks.md](RUNBOOKS/daily-checks.md).
 
+**What day zero looks like (Walk-through 21-10-2026).** Within ten minutes of the first start `ops/smoke.sh` ended with SMOKE PASS and `ops/check_panels.py` reported 0 errors, with a bit under half of the roughly 80 dashboard queries returning rows and the rest empty. That is normal: errors are what matter, empty panels fill as data arrives.
+
+### 5b. Optional, owner only: compare a new instance with production
+Both commands only read. From the repository root, dump the structure of the new instance and of production with `ops/schema_dump.sql` and compare the two files:
+```sh
+docker compose exec -T db psql -U vatpac -d vatpac -P pager=off -A -F" | " < ops/schema_dump.sql > schema_local.txt
+ssh vatpac-v3 'cd ~/vatpac-statsV2 && docker compose exec -T db psql -U vatpac -d vatpac -P pager=off -A -F" | "' < ops/schema_dump.sql > schema_prod.txt
+diff schema_local.txt schema_prod.txt
+```
+On 21-10-2026 the new instance and production differed in exactly three places, none of them a real difference: the `version` column of `schema_migrations` is `varchar(128)` on production (created by an older dbmate) and plain `varchar` on a new install; the number of daily `pilot_position` partitions depends on how long the database has run; and the settings of the `grafana_ro` role are listed in a different order. Anything else is worth looking at. Delete the two files afterwards (they are not for git).
+
 ## 6. First backup and a test restore
 ```sh
 docker compose exec backup backup.sh once   # or: make backup     writes vatpac_<UTC stamp>.dump into the backups volume
 make backup-test                            # restores the newest dump into a scratch database and checks it, then drops it
 ```
+**On a brand-new instance the first command fails (Walk-through 21-10-2026).** The backup script refuses a first dump smaller than `BACKUP_MIN_FIRST_BYTES` (default 1 MiB, a guard against keeping an empty backup), and a database that is only minutes old is about 130 KB. It prints `FAILED content check: first dump is ... bytes, under the minimum ...`, moves the file aside as `vatpac_<stamp>.dump.rejected` in the backups volume, and `make backup-test` then says `no backup found`. For the first backup of a new instance lower the limit for that one run, then continue as normal:
+```sh
+docker compose exec -e BACKUP_MIN_FIRST_BYTES=100000 backup backup.sh once
+docker compose exec backup restore-test.sh      # = make backup-test; expect: OK /backups/vatpac_<stamp>.dump poll_log=<n> pilot_session=<n> flight_summary=0
+```
+Once the database is bigger than 1 MiB the default limit passes by itself, so the nightly backups need no change. The restore check also fails with `poll_log is empty` or `pilot_session is empty` if nothing has been stored yet (nobody was in the airspace in the first minutes); wait a few minutes and run it again. `RESTORE_SANITY_ALLOW_EMPTY=1` waives only that row-count rule and is meant for a new install (`ops/backup/restore-lib.sh`); the walk-through did not need it. You can delete the `.rejected` file from the first attempt.
 The restore check counts `poll_log`, `pilot_session` and `flight_summary` (the table of finished flights, which the 29 migrations create together with `drop_gate_refusal` and the `write_finished_flights` function; nothing is run by hand). It does not require `flight_summary` to hold rows, and a flight is written only 8 hours after its last position, so it is empty on a new install at first. The backup service also runs by itself at `BACKUP_TIME_UTC` and keeps `BACKUP_RETENTION_DAYS` days. The `backups` volume is on the same disk as the database, so set up a copy somewhere else (the `BACKUP_REMOTE` setting, [RUNBOOKS/restore.md](RUNBOOKS/restore.md) "Off-box copies"). A backup you have never restored is not a backup: the full restore procedure and the restore drill are in [RUNBOOKS/restore.md](RUNBOOKS/restore.md). `make backup-test` only checks that the main tables exist and hold rows, so run it after the collector has stored its first snapshots. UNVERIFIED on a fresh instance.
 
 ## 7. Optional: Telegram alerts and an outside heartbeat
@@ -107,3 +126,22 @@ The default is safe: Grafana listens on the loopback address only, the database 
 
 ## 10. Stopping and starting
 `make down` (or `docker compose down`) stops the stack and KEEPS the volumes (data, Grafana state, backups, archive). Do not add `-v` unless you mean to delete all data.
+
+## 11. Setting up on a Windows PC (development only, never production)
+Walked through on 21-10-2026 on Windows 11. Production stays on Linux; this is for trying the stack or testing a change.
+- **You need:** Git for Windows (its Git Bash provides `sh` and `openssl`), Docker Desktop with the WSL 2 backend, and Python 3.11 or newer (`python3` must work in Git Bash). Run every command in this guide from Git Bash, in the repository folder.
+- **`make` is not installed and not needed.** Every `make` target in this guide is a plain command:
+
+| Instead of | Run |
+|---|---|
+| `make gen-env`, `make check-env` | `sh ops/gen_env.sh`, `sh ops/check_env.sh .env` |
+| `make up` | `sh ops/check_env.sh .env` then `docker compose up -d --build` |
+| `make smoke` | `sh ops/smoke.sh` |
+| `make backup` | `docker compose exec backup backup.sh once` (see the first-backup note in section 6) |
+| `make backup-test` | `docker compose exec backup restore-test.sh` |
+| `make down` | `docker compose down` |
+
+- **`psql` is not needed on the PC** to run the stack: the commands above run `psql` inside the containers. Windows installs the PostgreSQL client in `C:\Program Files\PostgreSQL\<version>\bin`, which Git Bash does not have on its PATH. Only some of the repository's own integration tests look for `psql` there, and they skip when it cannot be found; [RUNBOOKS/run-tests.md](RUNBOOKS/run-tests.md) section 1b has the one `PATH` line that fixes it.
+- **Docker Desktop will not start and says `com.docker.build: exit status 1`** (often after "failed to fetch extensions"). A leftover `com.docker.build.exe` from an earlier crash is holding the build service's pipe, so every restart fails; restarting Docker Desktop or running `wsl --shutdown` does not clear it. Quit Docker Desktop, end that `com.docker.build` process in Task Manager (its start time is older than Docker Desktop's), then start Docker Desktop again. Do NOT use "Reset to factory defaults": it deletes every image, container and volume.
+- **Git Bash rewrites container paths.** An argument that starts with `/` (for example `restore.sh /backups/file.dump`) is turned into a Windows path (`C:/Program Files/Git/backups/...`) before Docker sees it, and the command says the file is not found. Put `MSYS_NO_PATHCONV=1` in front of that one command, or write the path with a double slash (`//backups/file.dump`).
+- **Ports:** Grafana is on `http://localhost:3300`. Nothing else is published.

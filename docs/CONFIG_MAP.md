@@ -51,7 +51,7 @@ Run `docker compose up -d backup`, open the pull request that changes the litera
 | `GRAFANA_PORT` | `3300` | grafana | Host port mapped to Grafana's 3000. |
 | `GRAFANA_BIND` | `127.0.0.1` | grafana | Interface Grafana is published on. Loopback by default. For LAN access use `0.0.0.0` (production, since 15-10-2026) or the machine's LAN address, then firewall it. On a machine whose address comes from DHCP use `0.0.0.0`: a specific address fails to bind if Docker starts before DHCP has given it, and the container then stays down (issue 164). |
 | `GRAFANA_COOKIE_SECURE` | `false` | grafana | Set `true` only when users reach Grafana over https; with plain http a secure cookie stops logins working. |
-| `GRAFANA_ROOT_URL` | `http://localhost:3300/` | grafana | External URL; set it when served through a proxy or tunnel. Production on 11-10-2026: `http://192.168.1.222:3300/` (see RUNBOOKS/public-access.md). It is still the LAN http address because it only matters for links that Grafana builds itself (the admin login, redirects, shared links). The public dashboard pages are served by path (`/public-dashboards/<token>`) through the proxy and do not need it. Set it to `https://vpac.mpengor.com/` (with `GRAFANA_COOKIE_SECURE=true`) only if the admin should log in through the public name. |
+| `GRAFANA_ROOT_URL` | `http://localhost:3300/` | grafana | External URL; set it when served through a proxy or tunnel. Production on 11-10-2026: `http://<VM_LAN_IP>:3300/` (see RUNBOOKS/public-access.md). It is still the LAN http address because it only matters for links that Grafana builds itself (the admin login, redirects, shared links). The public dashboard pages are served by path (`/public-dashboards/<token>`) through the proxy and do not need it. Set it to `https://vpac.mpengor.com/` (with `GRAFANA_COOKIE_SECURE=true`) only if the admin should log in through the public name. |
 | `VATSIM_FEED_URL` | `https://data.vatsim.net/v3/vatsim-data.json` | collector | Fallback feed URL, used if discovery fails. |
 | `VATSIM_STATUS_URL` | `https://status.vatsim.net/status.json` | collector | Discovery document (`data.v3[0]`). |
 | `POLL_INTERVAL_SECONDS` | `30` | collector | Poll cadence (ADR-024). The one place the interval is held: the airborne gap cap, the archive gap threshold, the online-now windows (2 x this), the soak report and the Snapshots-missed panel derive from it. Valid 5 to 300. |
@@ -149,7 +149,7 @@ The collector validates its settings at start-up and exits with code 2 and an "i
 
 ## Part B: v1 `docker-compose.yml` variables
 
-Source: `C:\Users\mdora\Claude\VATPAC-Stats V2\docker-compose.yml`. Several v1 variables are marked in the file itself as unused or stale; that is noted where it applies.
+Source: the v1 `docker-compose.yml` (the owner's local copy of the old v1 project, not in this repository). Several v1 variables are marked in the file itself as unused or stale; that is noted where it applies.
 
 ### B1. Database and application
 

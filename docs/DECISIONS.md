@@ -123,7 +123,7 @@ Status: CONFIRMED by the owner on 10-10-2026. It reverses part of ADR-020. Conse
 
 ## ADR-029 Publish all ten dashboards read-only with Grafana public dashboards (11-10-2026, owner decision)
 Context: the owner wants anyone to see the dashboards, without a login and without any way to run their own queries. Grafana was upgraded the same day from 11.6.5 to 12.4.12 (the 11.6 line ended with 11.6.15 on 03-06-2026 and the `grafana-oss` image stops at 11.6.5, so the image became `grafana/grafana`, the OSS edition). The upgrade was tested first on a copy of the live `grafana_data` volume and deployed at about 19:40 UTC (commit 848526c).
-Decision: use Grafana public dashboards, one public link per dashboard (token in the address) with a fixed time range, managed by `ops/grafana_public.py`, with fixed tokens and ten short addresses that redirect to the links (Traefik labels on the helper). Anonymous access stays OFF. Traffic path: Cloudflare (rate limit rule, Bot Fight Mode), Cloudflare Tunnel (named Home), Traefik on the owner's other machine, a small forwarder container `vatpac-proxy` (alpine/socat, standard Traefik labels) that passes on to Grafana at the VM's LAN address. Public name `vpac.mpengor.com` (changed from `vatpac.mpengor.com` so it does not show in searches for "vatpac"). Details, including the section "The Traefik machine (192.168.1.145)" (outside this repository, not verifiable from it): [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md).
+Decision: use Grafana public dashboards, one public link per dashboard (token in the address) with a fixed time range, managed by `ops/grafana_public.py`, with fixed tokens and ten short addresses that redirect to the links (Traefik labels on the helper). Anonymous access stays OFF. Traffic path: Cloudflare (rate limit rule, Bot Fight Mode), Cloudflare Tunnel (named Home), Traefik on the owner's other machine, a small forwarder container `vatpac-proxy` (alpine/socat, standard Traefik labels) that passes on to Grafana at the VM's LAN address. Public name `vpac.mpengor.com` (changed from `vatpac.mpengor.com` so it does not show in searches for "vatpac"). Details, including the section "The Traefik machine (<TRAEFIK_HOST_IP>)" (outside this repository, not verifiable from it): [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md).
 Alternatives rejected:
 - Anonymous Viewer: any visitor could send arbitrary SQL to the `grafana_ro` role through `/api/ds/query`. Rejected.
 - `cloudflared` inside this compose file: the owner does not want it maintained there; the tunnel already exists on the Traefik machine.
@@ -174,7 +174,7 @@ Trade-off: a newer interpreter, so every pinned package must publish a wheel for
 Consequences: a future package that lacks a 3.14 wheel blocks its own bump until it ships one. Local helper scripts still accept Python 3.11 or newer. Dependabot pull requests 170 and 171 are superseded by this change.
 
 ## OPEN decisions for the owner
-(Rewritten 09-10-2026. The owner's open actions are in docs/OWNER_ACTIONS.md.)
+(Rewritten 09-10-2026.)
 - The backup container holds the owner password for the restore scripts (ADR-017); a dedicated restore-only role would be tighter.
 - Data retention: DECIDED 09-10-2026, see ADR-026 (implementation pending).
 - Monday attendance: it counts people present and reads `flight_summary`, so ADR-025 does not filter it.

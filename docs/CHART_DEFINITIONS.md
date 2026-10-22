@@ -114,7 +114,24 @@ Rebuilt from the owner's Metabase SQL export of 08-10-2026, merged from branch `
 | 139 How healthy is enrichment last 24 hours? | enrichment health, last 24 hours | v1 enrichment monitor; replaced by the Monitoring dashboard (poll_log, freshness) | DROPPED |
 | 148 Which day of week has most pilot/ATC interaction | minute-weighted share of airborne time on a controller frequency, by UTC weekday (last 90 days) | needs frequency matching (the airborne-controller-time percentage), not part of v3 | DROPPED | T15 08-10-2026: stays dropped (ADR-002); substitute weekday profile not built. |
 
-Cards 118 and 120 (freshness gauges) are listed above as CHANGED because the Monitoring dashboard replaces them. Aircraft-handled metrics (a column of card 108 and others) go with frequency matching; see `docs/DASHBOARDS_SIMPLIFIED.md`.
+Cards 118 and 120 (freshness gauges) are listed above as CHANGED because the Monitoring dashboard replaces them. Aircraft-handled metrics (a column of card 108 and others) go with frequency matching.
+
+### Why these charts were dropped, and what else was simplified
+
+**Frequency matching and sector matching are not part of v3** (SPEC sections 1, 10 and 13). The collector stores pilots inside the Australian boundary polygon and whitelisted controllers, with their sessions and positions. It does not work out which pilot was talking to which controller, nor which sector an aircraft was in. Every v1 chart that depended on either was dropped rather than approximated, because an approximation would show numbers that look authoritative and are not.
+
+- **Frequency matching** (cards 41, 43, 98, 133, 148): also removed as a consequence are the ATC-contact percentage column of the popular VFR routes chart (card 59) and the "aircraft handled" part of the top 50 service providers score (card 108, now hours online only). Controller frequencies are still stored (integer Hz) and the online-controllers list shows them in MHz; they are just not matched to pilots.
+- **Sector matching** (cards 51, 88, 102, 104 to 107): needs sector boundaries, occupancy tracking and transition detection. If sectors are wanted later they belong in a separate project that reads `pilot_position`; raw positions are kept for 90 days, but the charts would start from the day the work is done.
+- **Milk Run Monday fastest and slowest** (cards 62, 86, 132): dropped by decision (SPEC section 10). The event attendance chart (card 131) and the local-pilot share (card 134) remain on the Monday event dashboard.
+- **v1 pipeline monitors** (cards 121 to 126, 139): these watched v1's enrichment and matching jobs, which do not exist in v3. The Monitoring dashboard (`grafana/dashboards/monitoring/collector-health.json`) replaces them: snapshot age, last successful poll, missed snapshots, errors, rejected values and near-miss controllers. The v1 freshness gauges (cards 118 and 120) live on as the snapshot-age and controller-sighting-age panels.
+
+Simplifications that are not drops:
+
+- Pilot "online" and "active" counts come from `network_snapshot` and the `flight` view, not from enrichment tables.
+- Military aircraft are a boolean in the `aircraft_type` lookup instead of a long hard-coded list in each query (card 65). Cards 66 and 78 identify RAAFv flights by the flight-plan remarks, as v1 now does.
+- Airline, aircraft category and pilot home region are lookups (`airline`, `aircraft_type`, `region_map`), seeded by migration `20261007000011_seed_analytics_lookups.sql`. Unlisted codes show as Other or Unknown instead of being silently dropped.
+- Home-region tests use the `home_icao_prefixes` setting (default `Y`) rather than a hard-coded `Y`.
+- No backfill: every chart starts empty at go-live, and each dashboard says "Data since" the first stored snapshot. The 30 to 90 day measures of the controller retention dashboard stay empty or misleading until history accumulates.
 
 ## Charts without a v1 SQL in the original snapshot
 
