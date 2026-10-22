@@ -1,9 +1,11 @@
 #!/bin/bash
 # Read-only deploy checks for the production VM (issue 104, trimmed slice). Run from the owner's PC (Git Bash), repo root:
 #   bash ops/deploy.sh --preflight <commit>   before the deploy: is it safe to start? (reads only)
-#   bash ops/deploy.sh --verify               after the deploy: is the stack healthy? (reads only)
+#   bash ops/deploy.sh --verify               after the deploy: is the stack healthy? (reads only; FAILS first if this checkout is not
+#       at the commit the VM checkout is at: it counts invariants from the local ops/audit/*.sql, so it must be an up-to-date checkout)
 #   bash ops/deploy.sh --status               what is live: release marker, containers, newest dump (reads only)
 #   bash ops/deploy.sh --mark <commit> [--allow-silent-issues]  after a VERIFIED deploy: write ~/vatpac-statsV2/.deploy/release (the ONLY write)
+#       Refuses unless this checkout's HEAD is exactly <commit> (the silent-issue check reads commits and scripts from here).
 #       Refuses first if an issue named in the commits since the previous marker has no comment newer than its newest commit
 #       (ops/stale_issues.sh), or if that cannot be checked; --allow-silent-issues marks anyway and prints a warning.
 #       Warns if the VM checkout is not at the commit being marked; the .deploy/release.log entry also records thirdparty=<digests of db, grafana and the dbmate base; unknown on any failure> and images=<revision of the
@@ -150,6 +152,12 @@ INSPECT='docker inspect -f "{{.Name}}|{{.State.StartedAt}}|{{.RestartCount}}|{{i
 # Newest dump: epoch size name (validity checked with pg_restore -l in the backup container, which only reads)
 NEWEST_DUMP='docker compose exec -T backup sh -c '\''f=$(find /backups -maxdepth 1 -name "*.dump" -printf "%T@ %s %f\n" | sort -n | tail -n 1); echo "$f"; n=${f##* }; [ -n "$n" ] && pg_restore -l "/backups/$n" >/dev/null 2>&1 && echo valid || echo invalid'\'''
 
+# local_head: the full commit the local checkout (where this script and ops/audit/*.sql are read from) is at; empty when unreadable
+local_head() { g rev-parse HEAD 2>/dev/null | tr -d '\r' | head -n 1; }
+# vm_head: the full commit the VM checkout is at; empty when the VM cannot be read
+vm_head() { vm 'git rev-parse HEAD' 2>/dev/null | tr -d '\r' | head -n 1; }
+STALE_HINT="run it from an up-to-date checkout of main, for example a fresh worktree: git worktree add --detach .worktrees/verify origin/main"
+
 vm_now() { vm 'date -u +%s' 2>/dev/null | tr -d '\r' | grep -E '^[0-9]+$' | head -n 1; }
 iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null; }
 
@@ -200,7 +208,7 @@ check_images() {
   pfx="$(vm_env_key VATPAC_IMAGE_PREFIX)"; tag="$(vm_env_key VATPAC_IMAGE_TAG)"; mode="$(registry_mode "$pfx" "$tag")"
   case "$mode" in
     local) emit PASS image_revisions "local build mode" ;;
-    *) head="$(vm 'git rev-parse HEAD' 2>/dev/null | tr -d '\r' | head -n 1)"
+    *) head="$(vm_head)"
        if [ -z "$CONTAINERS" ] || ! [[ "$head" =~ ^[0-9a-f]{40}$ ]]; then emit FAIL image_revisions "could not read the containers or the checkout HEAD"; return; fi
        probs="$(image_problems "$head" "$tag")"
        if [ -z "$probs" ]; then emit PASS image_revisions "registry mode: $REGISTRY_SERVICES run ${tag:-latest}, built from the checkout ${head:0:10}"
@@ -231,6 +239,7 @@ preflight() {
   local want="$1" full tip behind now out ci_lines ci_bad pct free tdc mem foreign dumpage ageh bt load
   [[ "$want" =~ ^[0-9a-fA-F]{7,40}$ ]] || { echo "usage: deploy.sh --preflight <commit (7 to 40 hex characters)>" >&2; return 2; }
   echo "deploy preflight for $want against $DEPLOY_SSH (read-only)"
+  echo "local checkout is at $(local_head | cut -c1-10)"
 
   g fetch -q origin main 2>/dev/null
   full="$(g rev-parse --verify -q "${want}^{commit}" 2>/dev/null)"
@@ -355,10 +364,27 @@ check_registry_preflight() {
 
 # ---------------------------------------------------------------- --verify
 
+# check_checkout_current: --verify counts the invariants and runs the flap check from the LOCAL ops/audit/*.sql, so a checkout that is
+# not at the commit the VM runs gives wrong results (22-10-2026: 21 invariants counted against 20 in production). Returns 1 on a
+# mismatch (the caller stops: nothing after it could be trusted); an unreadable HEAD is a FAIL line but does not stop the run.
+check_checkout_current() {
+  local lh vh
+  lh="$(local_head)"; vh="$(vm_head)"
+  if ! [[ "$lh" =~ ^[0-9a-f]{40}$ ]]; then emit FAIL checkout_current "cannot read the local checkout HEAD"
+  elif ! [[ "$vh" =~ ^[0-9a-f]{40}$ ]]; then emit FAIL checkout_current "cannot read the VM checkout HEAD, so the local checkout ${lh:0:10} cannot be compared with it"
+  elif [ "$lh" != "$vh" ]; then
+    echo "!!!! STALE CHECKOUT: this checkout is at ${lh:0:10} but the VM checkout is at ${vh:0:10}. Nothing below can be trusted, so no check was run."
+    emit FAIL checkout_current "local ${lh:0:10} is not the VM's ${vh:0:10}; $STALE_HINT"
+    return 1
+  else emit PASS checkout_current "local checkout and VM checkout are both at ${lh:0:10}"; fi
+  return 0
+}
+
 verify() {
   local out line name cnt detail res st age maxgap rows ts bad total seen hits lines gapclass hs en er ag
   echo "deploy verify against $DEPLOY_SSH (read-only)"
   if [ "$(vm 'echo reachable' 2>/dev/null | tr -d '\r')" != reachable ]; then VM_DOWN=1; emit FAIL vm_reachable "ssh $DEPLOY_SSH did not answer"; else emit PASS vm_reachable "ssh answers"; fi
+  check_checkout_current || { summary verify; return 1; }
 
   # smoke: only the guarded version (issue 86). The old VM copy had unguarded DELETE and INSERT attempts, so it is never run.
   out="$(vm 'grep -c ro-check-begin ops/smoke.sh' 2>/dev/null | tr -d '\r' | head -n 1)"
@@ -446,6 +472,7 @@ EOF
 status() {
   local out now
   echo "deploy status of $DEPLOY_SSH (read-only)"
+  echo "local checkout is at $(local_head | cut -c1-10)"
   if [ "$(vm 'echo reachable' 2>/dev/null | tr -d '\r')" != reachable ]; then echo "FAIL  ssh $DEPLOY_SSH did not answer"; return 1; fi
   echo "== release marker"
   out="$(vm 'cat .deploy/release 2>/dev/null || echo "no marker: no deploy has been marked yet"' 2>/dev/null | tr -d '\r')"
@@ -455,7 +482,7 @@ status() {
   if [ -z "$CONTAINERS" ]; then echo "could not read the container list"; else printf '%s\n' "$CONTAINERS" | cut -d'|' -f1-4; fi
   echo "== images (name | image | revision label)"
   if [ -n "$CONTAINERS" ]; then printf '%s\n' "$CONTAINERS" | awk -F'|' '{printf "%s | %s | %s\n", $1, ($5 == "" ? "?" : $5), ($6 == "" ? "(no label)" : substr($6, 1, 12))}'; fi
-  echo "image mode: $(registry_mode "$(vm_env_key VATPAC_IMAGE_PREFIX)" "$(vm_env_key VATPAC_IMAGE_TAG)") (only the two image keys of the VM's .env are read); checkout HEAD: $(vm 'git rev-parse HEAD' 2>/dev/null | tr -d '\r' | head -n 1 | cut -c1-12)"
+  echo "image mode: $(registry_mode "$(vm_env_key VATPAC_IMAGE_PREFIX)" "$(vm_env_key VATPAC_IMAGE_TAG)") (only the two image keys of the VM's .env are read); checkout HEAD: $(vm_head | cut -c1-12)"
   echo "== newest dump"
   now="$(vm_now)"
   if dump_facts && [ -n "$now" ]; then echo "$D_NAME, $(( (now - D_EPOCH) / 3600 )) h old, $D_SIZE bytes, pg_restore -l: $D_VALID"
@@ -480,11 +507,17 @@ third_party_digests() {
 # ---------------------------------------------------------------- --mark (the only write)
 
 mark() {
-  local want="$1" allow="${2:-}" full now stamp who prev rc vmhead pfx tag imgs crev
+  local want="$1" allow="${2:-}" full lh now stamp who prev rc vmhead pfx tag imgs crev
   [ -z "$allow" ] || [ "$allow" = --allow-silent-issues ] || { echo "usage: deploy.sh --mark <commit> [--allow-silent-issues]" >&2; return 2; }
   [[ "$want" =~ ^[0-9a-fA-F]{7,40}$ ]] || { echo "usage: deploy.sh --mark <commit (7 to 40 hex characters)>" >&2; return 2; }
   full="$(g rev-parse --verify -q "${want}^{commit}" 2>/dev/null)"
   [ -n "$full" ] || { echo "FAIL  cannot resolve '$want' to a commit" >&2; return 1; }
+  # the silent-issue check below runs ops/stale_issues.sh from this checkout: refuse unless HEAD is exactly the commit being marked
+  lh="$(local_head)"
+  if [ "$lh" != "$full" ]; then
+    echo "!!!! STALE CHECKOUT: this checkout is at ${lh:0:10} but the commit being marked is ${full:0:10}; nothing written. $STALE_HINT (to mark an older commit, use a worktree at that commit)" >&2
+    return 1
+  fi
   g fetch -q origin main 2>/dev/null
   g merge-base --is-ancestor "$full" origin/main 2>/dev/null || { echo "FAIL  ${full:0:10} is not on origin/main; nothing written" >&2; return 1; }
   now="$(vm_now)"; [ -n "$now" ] || { echo "FAIL  could not read the VM time; nothing written" >&2; return 1; }
@@ -500,7 +533,7 @@ mark() {
       return 1
     fi
   fi
-  vmhead="$(vm 'git rev-parse HEAD' 2>/dev/null | tr -d '\r' | head -n 1)"
+  vmhead="$(vm_head)"
   if [ "$vmhead" != "$full" ]; then
     echo "WARN  the VM checkout HEAD (${vmhead:-unreadable}) is not the commit being marked (${full:0:10}); mark only a commit that is really deployed" >&2
   fi
