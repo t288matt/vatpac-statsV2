@@ -83,4 +83,7 @@ docs/TRUST_WORK.md
 docs/PENDING_DOC_CHANGES.md
 docs/INCIDENTS.md
 docs/RESTORE_DRILL.md
+docs/IF_CLAUDE_IS_UNAVAILABLE.md
+docs/OWNER_ACTIONS.md
+docs/OWNER_BACKUP_COPY.md
 tests/tools/release_review_*.py

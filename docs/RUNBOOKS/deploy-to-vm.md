@@ -2,7 +2,7 @@
 
 > **Note, issue 89 phase 5 (LIVE since 13-10-2026, marker 7a71d30 at 10:05:56 UTC).** This is a dated record. It uses the names as they were when it was written: `flight_summary` meant the old pieces table, `flight_record` the table of finished flights. Migration 20261013000300 (live) dropped the pieces table, `flight_part`, `flight_legacy`, `refresh_flight_summary` and `refresh_flight_summary_sessions`, and renamed `flight_record` to `flight_summary`. Current description: [DATA_DICTIONARY.md](../DATA_DICTIONARY.md) and ADR-030.
 
-Last reviewed 13-10-2026; the commit running in production is 7a71d3054506d5d6e5e0165860de0feb97e0f651 (issue 89 phases 4 and 5, deployed together about 10:03 UTC), release marker of 13-10-2026 10:05:56 UTC. Marker history read from the VM's `.deploy/release.log` on 13-10-2026: b3189ad (11-10-2026 20:35:53 UTC), c70e72f (phase 1, 12-10-2026 17:58:21 UTC), 3d4b5b6 (phase 1b, 13-10-2026 08:01:09 UTC), 38e3958 (phase 3, 13-10-2026 08:14:12 UTC), 7a71d30 (phases 4 and 5, 13-10-2026 10:05:56 UTC). The phase 4 and 5 deploy was done by the owner with a pre-deploy dump (the only way back from phase 5, which is forward-only), a rollback copy of the tree on the VM and the scripted checks of `ops/deploy.sh` (preflight 12 checks, then verify); the plan, the decision tree for each failure and the 24 hour watch list are `DEPLOY_PLAN_PHASE_4_5.md`, kept privately by the owner. Sections written before 11-10-2026 were not all re-checked line by line against that commit; where a step names 3eb81a3 or deploys 1 and 2 at 520dc3e, read it as history. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD** (the minimum; the production VM has 4 cores, 6 GB RAM and 161 GB free, read 14-10-2026). The production VM is reached as `ssh vatpac-v3` (an alias in the owner's `~/.ssh/config`) and the stack lives in `~/vatpac-statsV2`. Since 14-10-2026 `~/vatpac-statsV2` is a read-only git checkout (deploy key) and the VM runs registry images (overview below and sections 2d to 2f); the `git archive` copy of section 2c is the fallback. Times in this runbook are UTC.
+Last reviewed 22-10-2026. The commit running in production is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. Marker history of 11 to 13-10-2026: b3189ad, c70e72f (phase 1), 3d4b5b6 (phase 1b), 38e3958 (phase 3), 7a71d30 (phases 4 and 5, 13-10-2026 10:05:56 UTC). The phase 4 and 5 deploy was done by the owner with a pre-deploy dump (the only way back from phase 5, which is forward-only), a rollback copy of the tree on the VM and the scripted checks of `ops/deploy.sh` (preflight 12 checks, then verify); the plan, the decision tree for each failure and the 24 hour watch list are `DEPLOY_PLAN_PHASE_4_5.md`, kept privately by the owner. Sections written before 11-10-2026 were not all re-checked line by line against that commit; where a step names 3eb81a3 or deploys 1 and 2 at 520dc3e, read it as history. Target: always-on Linux VM (Debian/Ubuntu), 2 vCPU, 4 GB RAM, **40 GB+ SSD** (the minimum; the production VM has 4 cores, 6 GB RAM and 161 GB free, read 14-10-2026). The production VM is reached as `ssh vatpac-v3` (an alias in the owner's `~/.ssh/config`) and the stack lives in `~/vatpac-statsV2`. Since 14-10-2026 `~/vatpac-statsV2` is a read-only git checkout (deploy key) and the VM runs registry images (overview below and sections 2d to 2f); the `git archive` copy of section 2c is the fallback. Times in this runbook are UTC.
 
 Disk sizing: about 2 to 3 GB of positions at 180 days, plus WAL (up to 2 GB), plus `BACKUP_RETENTION_DAYS` (default 14) dumps on the same disk, plus Docker images, logs and build cache. 20 GB is too tight. Provision 40 GB or more, or lower `BACKUP_RETENTION_DAYS` (fixed in `docker-compose.yml`; for an immediate change use the override file in [CONFIG_MAP](../CONFIG_MAP.md), "Where each setting lives") and copy dumps off-box (`restore.md`, "Off-box copies"). The watchdog checks the filesystems listed in `WATCHDOG_DISK_PATHS` (default `/backups,/`, which is the Docker data-root filesystem that holds the `pgdata` and `backups` named volumes) and warns at `WATCHDOG_DISK_PCT` (80%). If you move a volume onto its own mount, mount that path into the watchdog and add it to the list.
 
@@ -57,25 +57,8 @@ Decision record: ADR-031 in [../DECISIONS.md](../DECISIONS.md).
 - The registry token lasts 90 days (expires about 12-01-2027; the owner's calendar reminder is 05-01-2027). The deploy preflight (pull request 180) fails early if the registry image cannot be read.
 - Optional owner tidy: the VM `.env` carries a stale `VATPAC_VERSION=dev` line that nothing reads (`VATPAC_VERSION` is a build argument; the collector health output reports its own `__version__`). It can be deleted.
 
-## 0. VM CPU type (Proxmox or QEMU)
-Set the VM CPU type to `host` (or `x86-64-v2-AES`), not the default "Common KVM processor": the collector uses numpy 2.x, which needs the x86-64-v2 baseline (SSE4.2, POPCNT) and otherwise crash-loops on import (07-10-2026). Check on the VM: `grep -m1 -ow sse4_2 /proc/cpuinfo` prints `sse4_2`. Changing the type needs a full stop and start of the VM, not a reboot.
-
-## 1. Install Docker
-```sh
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker "$USER"   # log out and in again
-docker compose version            # needs v2.20 or newer
-```
-
-## 2. Get the code (private repo)
-Preferred: a read-only **deploy key**.
-```sh
-ssh-keygen -t ed25519 -f ~/.ssh/vatpac_deploy -N ""
-cat ~/.ssh/vatpac_deploy.pub      # GitHub: repo Settings > Deploy keys > Add (leave write access OFF)
-GIT_SSH_COMMAND="ssh -i ~/.ssh/vatpac_deploy -o IdentitiesOnly=yes" \
-  git clone git@github.com:t288matt/<repo>.git vatpac-stats && cd vatpac-stats
-```
-Alternative: HTTPS with a fine-grained personal access token (Contents: read-only, this repo only). Do not store the token in the remote URL; use a credential helper.
+## 0 to 2. Prepare the VM and get the code
+Not repeated here: see [INSTALL.md](../INSTALL.md) sections 1 and 2 (VM CPU type `host` or `x86-64-v2-AES`, because numpy 2.x crash-loops on import with the default "Common KVM processor"; changing it needs a full stop and start of the VM; installing Docker; the read-only deploy key or token). Section 2d below is the checked procedure for the production VM's git checkout.
 
 ## 2b. Pin a release (by commit)
 ```sh
@@ -250,26 +233,8 @@ cd ~/vatpac-statsV2 && git status --short && make deploy
 
 **Never `up -d --build` on the VM in registry mode.** It rebuilds locally and retags the registry name, defeating the pull. If someone did, run `docker compose pull` and `docker compose up -d --no-build --force-recreate <service>` to get the published image back.
 
-## 3. Configure
-`.env.example` has **blank secrets on purpose**: the stack will not start with trivial credentials.
-```sh
-sh ops/gen_env.sh          # writes .env (mode 600) with random hex passwords; prints only the variable names
-# or: cp .env.example .env, chmod 600 .env, and fill the blanks yourself
-sh ops/check_env.sh        # rejects blank, change-me*, under 16 characters, repeated, or non letter/digit values
-```
-`make up` runs `check_env` first. Secrets: `POSTGRES_PASSWORD` (owner; used by the db, migrate and restore only), `GRAFANA_RO_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, `WATCHDOG_DB_PASSWORD`, `COLLECTOR_DB_PASSWORD` (role `collector`), `BACKUP_DB_PASSWORD` (role `backup_ro`). They sit inside connection URLs, so they must be letters and digits only. Then set `GRAFANA_ROOT_URL`, and `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` if you want alerts. Never commit `.env`.
-
-Two caveats:
-- `GRAFANA_ADMIN_PASSWORD` only applies on Grafana's **first start** (empty `grafana_data`). Changing it in `.env` later does nothing. To rotate: `docker compose exec grafana grafana cli admin reset-admin-password '<new password>'`, then update `.env` to match.
-- Changing the other passwords: edit `.env`, then `docker compose up -d` (the migrate job runs `ALTER ROLE ... PASSWORD`; `POSTGRES_PASSWORD` itself is only read by Postgres at first initialisation, so rotate it with `ALTER ROLE` inside the database as well).
-
-## 4. Start
-Local-build mode (both image variables unset), as on a PC or a new VM before the registry is set up:
-```sh
-make up                      # = check_env + docker compose up -d --build
-docker compose ps            # migrate shows "exited (0)"; everything else healthy within about 2 minutes
-```
-Registry mode (the production VM since 14-10-2026): after the `docker login` and the two `.env` lines of section 2e, start with `docker compose pull && docker compose up -d --no-build` instead of `make up` (`make up` builds, which on the VM would replace the pulled image). A `make deploy` target (pull plus `up -d --no-build`, registry mode only) and a refusal of `make up` in registry mode are added by the deploy tooling pull request (separate draft, merged only after review).
+## 3 and 4. Configure and start
+Not repeated here: see [INSTALL.md](../INSTALL.md) sections 3 and 4 (generating `.env`, the secrets, the Grafana first-start and password-rotation caveats, `make up`). In registry mode (the production VM since 14-10-2026) start with `docker compose pull && docker compose up -d --no-build`, never `make up` or `up -d --build`, which would rebuild locally and replace the pulled image (section 2f).
 
 ## 4a. About sections 4b to 4e
 They are dated records of special deploys, written for local-build mode. Keep them as they are. In registry mode read each `docker compose up -d --build` in them as "publish the commit, set the tag, `docker compose pull`, `docker compose up -d --no-build`" (section 2f), and read `git archive` as the git checkout of section 2d.
@@ -342,6 +307,8 @@ docker compose exec backup backup.sh once    # first backup, then `ls` the volum
 ```
 `python3 ops/check_panels.py` runs every dashboard query through Grafana's own API; expect `0 errors` (empty panels are fine while data is young). It reads `.env` and never prints the password.
 
+**Run `ops/deploy.sh --verify` from an up-to-date checkout of `main`** (and `--mark` from one too, to mark the right commit). Only `--verify` counts; it counts the integrity checks from the copy of `ops/audit/invariants.sql` in the checkout it runs from, so a stale checkout reports the old count (it showed 21 on 22-10-2026 while production runs 20). Run `git pull --ff-only` on the PC first.
+
 Open `http://localhost:3300` on the VM (or `http://<GRAFANA_BIND>:3300` from the LAN), log in as the admin user from `.env`. Charts start empty (no backfill).
 
 ## 7. Reboot test
@@ -380,7 +347,7 @@ ssh vatpac-v3 'cd ~/vatpac-statsV2 && sh ops/smoke.sh && python3 ops/check_panel
 | `grafana/dashboards/**/*.json` | Nothing to restart: the provider rescans the read-only mount every 30 seconds. Reload the browser page | No |
 | `grafana/provisioning/**` (datasource or provider settings) | `docker compose restart grafana` (provisioning is read at start-up) | No |
 | `config/*.json`, `config/*.txt` (polygon, whitelist) | No rebuild: `docker compose kill -s HUP collector` (see [update-reference-files.md](update-reference-files.md)) | No |
-| `.env` (a password) | `docker compose up -d` (the `migrate` job runs `ALTER ROLE`; `POSTGRES_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` only apply at first start, see section 3) | The services using the changed value are recreated |
+| `.env` (a password) | `docker compose up -d` (the `migrate` job runs `ALTER ROLE`; `POSTGRES_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` only apply at first start, see [INSTALL.md](../INSTALL.md) section 3) | The services using the changed value are recreated |
 | `.env` (a collector setting that is still in `.env`; retention periods and alert thresholds are in `docker-compose.yml`, next row) | `docker compose up -d collector` | Yes, about 45 s |
 | `docker-compose.yml` | `docker compose up -d` (recreates the services whose definition changed; a new named volume, such as `archive`, is created by the same command) | Only for those services |
 | `ops/postgres/postgresql.conf` | `docker compose restart db` | Yes, the database restarts; the collector retries |
