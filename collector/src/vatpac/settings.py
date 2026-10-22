@@ -1,5 +1,5 @@
 """Collector settings from environment variables: names, defaults and ranges are the fields below; each variable is
-described in docs/CONFIG_MAP.md. DATABASE_URL overrides the five POSTGRES_* values. Derived from POLL_INTERVAL_SECONDS
+described in docs/CONFIG_MAP.md. DATABASE_URL is required (compose builds it). Derived from POLL_INTERVAL_SECONDS
 (ADR-024) unless set: AIRBORNE_GAP_CAP_SECONDS 2.5x, ARCHIVE_GAP_S 2x + 5, and the /health ages (health.py).
 Published to app_setting for the SQL views: POLL_INTERVAL_SECONDS, AIRBORNE_GAP_CAP_SECONDS, HOME_ICAO_PREFIXES."""
 
@@ -14,12 +14,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore", case_sensitive=False, env_ignore_empty=True)
 
-    database_url: str | None = None
-    postgres_host: str = "db"
-    postgres_port: int = Field(5432, ge=1, le=65535)
-    postgres_db: str = "vatpac"
-    postgres_user: str = "vatpac"
-    postgres_password: str = ""
+    database_url: str = Field(min_length=1)  # required: no fallback to separate host/port/user values
     vatsim_feed_url: str = "https://data.vatsim.net/v3/vatsim-data.json"
     vatsim_status_url: str = "https://status.vatsim.net/status.json"
     poll_interval_seconds: float = Field(30.0, ge=5, le=300)
@@ -76,8 +71,4 @@ class Settings(BaseSettings):
 
     @property
     def dsn(self) -> str:
-        from psycopg.conninfo import make_conninfo
-
-        return self.database_url or make_conninfo(
-            host=self.postgres_host, port=self.postgres_port, dbname=self.postgres_db,
-            user=self.postgres_user, password=self.postgres_password)
+        return self.database_url
