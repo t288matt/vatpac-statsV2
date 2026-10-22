@@ -11,39 +11,15 @@ Usage: python ops/check_panels.py [--env .env] [--range 24h]
 from __future__ import annotations
 
 import argparse
-import base64
 import glob
 import json
 import re
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
 
 from env_file import read_env  # the one .env reader (ops/env_file.py); python puts this script's folder first on sys.path
-
-
-class Grafana:
-    def __init__(self, base: str, user: str, password: str) -> None:
-        self.base = base.rstrip("/")
-        self.auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
-
-    def call(self, method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, dict[str, Any] | list[Any] | str]:
-        data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self.base + path, data=data, method=method)
-        req.add_header("Authorization", self.auth)
-        req.add_header("Content-Type", "application/json")
-        try:
-            with urllib.request.urlopen(req, timeout=60) as r:
-                raw = r.read().decode()
-                return r.status, (json.loads(raw) if raw else "")
-        except urllib.error.HTTPError as e:
-            raw = e.read().decode(errors="replace")
-            try:
-                return e.code, json.loads(raw)
-            except ValueError:
-                return e.code, raw
+from grafana_api import Grafana, default_url  # the one Grafana client with its login-protection rules (ops/grafana_api.py)
 
 
 def variable_values(dash: dict[str, Any]) -> dict[str, str]:
@@ -90,11 +66,11 @@ def main() -> int:
     ap.add_argument("--dashboards", default="grafana/dashboards")
     args = ap.parse_args()
     env = read_env(Path(args.env))
-    host = env.get("GRAFANA_BIND", "127.0.0.1")
-    if host in ("", "0.0.0.0"):
-        host = "127.0.0.1"
-    g = Grafana(f"http://{host}:{env.get('GRAFANA_PORT', '3300')}",
-                env.get("GRAFANA_ADMIN_USER", "admin"), env["GRAFANA_ADMIN_PASSWORD"])
+    try:
+        g = Grafana(default_url(env), env.get("GRAFANA_ADMIN_USER", "admin"), env["GRAFANA_ADMIN_PASSWORD"])
+    except ValueError as exc:  # the login would go to another machine in clear text
+        print(exc, file=sys.stderr)
+        return 2
 
     code, body = g.call("GET", "/api/health")
     print(f"grafana health: HTTP {code} {body if code != 200 else 'ok'}")
