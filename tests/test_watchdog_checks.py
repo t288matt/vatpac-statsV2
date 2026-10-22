@@ -322,3 +322,23 @@ def test_restore_test_with_the_age_check_disabled_ignores_the_marker(monkeypatch
 ])
 def test_parse_restore_result_is_pinned(text: str, expected: tuple[datetime | None, str]) -> None:
     assert wd.parse_restore_result(text) == expected
+
+
+def test_read_marker_returns_text_and_mtime_or_none(tmp_path: Path) -> None:
+    """Fail-if-reverted (issue 216): the one reader both marker checks use."""
+    import os
+    f = tmp_path / ".marker"
+    assert wd.read_marker(f) is None                                      # missing
+    assert wd.read_marker(tmp_path) is None                               # unreadable (a directory): OSError, not a crash
+    f.write_text("")
+    os.utime(f, (1_700_000_000, 1_700_000_000))
+    assert wd.read_marker(f) == ("", 1_700_000_000.0)                     # empty is a marker, not a miss
+    f.write_text("2026-10-08T04:08:27Z OK\n")
+    assert wd.read_marker(f) is not None and wd.read_marker(f)[0] == "2026-10-08T04:08:27Z OK\n"
+
+
+@pytest.mark.parametrize("text,ok", [("2026-10-08T04:08:27Z", True), ("  2026-10-08T04:08:27Z OK x\n", True),
+                                     ("", False), ("  \n", False), ("garbage", False), ("2026-13-45T99:99:99Z", False)])
+def test_parse_marker_time(text: str, ok: bool) -> None:
+    assert (wd.parse_marker_time(text) == datetime(2026, 10, 8, 4, 8, 27, tzinfo=UTC)) is ok
+    assert ok or wd.parse_marker_time(text) is None
