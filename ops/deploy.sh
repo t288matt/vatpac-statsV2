@@ -52,7 +52,7 @@ PASSES=0; WARNS=0; FAILS=0
 # mem_ok <MemAvailable in MB>: succeeds when it is a number at least the minimum.
 mem_ok() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge "$MIN_MEM_MB" ]; }
 
-# registry_mode <prefix> [<tag, ignored>] -> local (no prefix) | registry (prefix set; the tag defaults to latest)
+# registry_mode <prefix> -> local (no prefix) | registry (prefix set; the tag defaults to latest)
 registry_mode() { if [ -n "$1" ]; then echo registry; else echo local; fi; }
 
 # short_tag <commit> -> sha-<first 7 characters>, the tag the release workflow gives an image
@@ -154,8 +154,21 @@ NEWEST_DUMP='docker compose exec -T backup sh -c '\''f=$(find /backups -maxdepth
 
 # local_head: the full commit the local checkout (where this script and ops/audit/*.sql are read from) is at; empty when unreadable
 local_head() { g rev-parse HEAD 2>/dev/null | tr -d '\r' | head -n 1; }
-# vm_head: the full commit the VM checkout is at; empty when the VM cannot be read
-vm_head() { vm 'git rev-parse HEAD' 2>/dev/null | tr -d '\r' | head -n 1; }
+# load_vm_head: sets VM_HEAD to the full commit the VM checkout is at (empty when the VM cannot be read); read once per run
+VM_HEAD=""; VM_HEAD_LOADED=0
+load_vm_head() {
+  [ "$VM_HEAD_LOADED" = 1 ] && return 0
+  VM_HEAD="$(vm 'git rev-parse HEAD' 2>/dev/null | tr -d '\r' | head -n 1)"; VM_HEAD_LOADED=1
+}
+
+# vm_up: probes the VM once per run (the answer is kept); succeeds when ssh answers, and sets VM_DOWN=1 when it does not
+VM_PROBE=""
+vm_up() {
+  if [ -z "$VM_PROBE" ]; then
+    if [ "$(vm 'echo reachable' 2>/dev/null | tr -d '\r')" = reachable ]; then VM_PROBE=up; else VM_PROBE=down; VM_DOWN=1; fi
+  fi
+  [ "$VM_PROBE" = up ]
+}
 STALE_HINT="run it from an up-to-date checkout of main, for example a fresh worktree: git worktree add --detach .worktrees/verify origin/main"
 
 vm_now() { vm 'date -u +%s' 2>/dev/null | tr -d '\r' | grep -E '^[0-9]+$' | head -n 1; }
@@ -169,6 +182,13 @@ load_containers() { CONTAINERS="$(vm "$INSPECT" 2>/dev/null | tr -d '\r' | grep 
 # vm_env_key <NAME>: the value of one key from the VM's .env; nothing else of the file is read (used for the two image keys only)
 # The read is ops/env_key.sh's env_key (rules there), sent to the VM as text because the VM checkout may still be the old commit before a deploy.
 vm_env_key() { vm "$(declare -f env_key); env_key .env $1" 2>/dev/null | tr -d '\r'; }
+
+# load_image_keys: sets IMG_PREFIX and IMG_TAG from the VM's .env, read once per run
+IMG_PREFIX=""; IMG_TAG=""; IMG_LOADED=0
+load_image_keys() {
+  [ "$IMG_LOADED" = 1 ] && return 0
+  IMG_PREFIX="$(vm_env_key VATPAC_IMAGE_PREFIX)"; IMG_TAG="$(vm_env_key VATPAC_IMAGE_TAG)"; IMG_LOADED=1
+}
 
 # svc_line <service>: the inspect line of the service's container
 svc_line() { printf '%s\n' "$CONTAINERS" | grep -E "^/vatpac-$1-[0-9]+\|" | head -n 1; }
@@ -205,10 +225,10 @@ image_problems() {
 check_images() {
   local pfx tag mode head probs
   [ "$VM_DOWN" = 1 ] && { emit FAIL image_revisions "VM unreachable"; return; }
-  pfx="$(vm_env_key VATPAC_IMAGE_PREFIX)"; tag="$(vm_env_key VATPAC_IMAGE_TAG)"; mode="$(registry_mode "$pfx" "$tag")"
+  load_image_keys; pfx="$IMG_PREFIX"; tag="$IMG_TAG"; mode="$(registry_mode "$pfx")"
   case "$mode" in
     local) emit PASS image_revisions "local build mode" ;;
-    *) head="$(vm_head)"
+    *) load_vm_head; head="$VM_HEAD"
        if [ -z "$CONTAINERS" ] || ! [[ "$head" =~ ^[0-9a-f]{40}$ ]]; then emit FAIL image_revisions "could not read the containers or the checkout HEAD"; return; fi
        probs="$(image_problems "$head" "$tag")"
        if [ -z "$probs" ]; then emit PASS image_revisions "registry mode: $REGISTRY_SERVICES run ${tag:-latest}, built from the checkout ${head:0:10}"
@@ -270,8 +290,8 @@ preflight() {
     fi
   fi
 
-  if [ "$(vm 'echo reachable' 2>/dev/null | tr -d '\r')" != reachable ]; then
-    VM_DOWN=1; emit FAIL vm_reachable "ssh $DEPLOY_SSH did not answer"
+  if ! vm_up; then
+    emit FAIL vm_reachable "ssh $DEPLOY_SSH did not answer"
   else
     emit PASS vm_reachable "ssh $DEPLOY_SSH answers"
   fi
@@ -342,7 +362,7 @@ check_registry_preflight() {
   local c7 pfx tag mode n bad=""
   c7="$(short_tag "$1")"
   [ "$VM_DOWN" = 1 ] && { emit FAIL registry_mode "VM unreachable, registry checks skipped"; return; }
-  pfx="$(vm_env_key VATPAC_IMAGE_PREFIX)"; tag="$(vm_env_key VATPAC_IMAGE_TAG)"; mode="$(registry_mode "$pfx" "$tag")"
+  load_image_keys; pfx="$IMG_PREFIX"; tag="$IMG_TAG"; mode="$(registry_mode "$pfx")"
   case "$mode" in
     local) emit PASS registry_mode "local build mode"; return ;;
   esac
@@ -369,7 +389,7 @@ check_registry_preflight() {
 # mismatch (the caller stops: nothing after it could be trusted); an unreadable HEAD is a FAIL line but does not stop the run.
 check_checkout_current() {
   local lh vh
-  lh="$(local_head)"; vh="$(vm_head)"
+  load_vm_head; lh="$(local_head)"; vh="$VM_HEAD"
   if ! [[ "$lh" =~ ^[0-9a-f]{40}$ ]]; then emit FAIL checkout_current "cannot read the local checkout HEAD"
   elif ! [[ "$vh" =~ ^[0-9a-f]{40}$ ]]; then emit FAIL checkout_current "cannot read the VM checkout HEAD, so the local checkout ${lh:0:10} cannot be compared with it"
   elif [ "$lh" != "$vh" ]; then
@@ -383,7 +403,7 @@ check_checkout_current() {
 verify() {
   local out line name cnt detail res st age maxgap rows ts bad total seen hits lines gapclass hs en er ag
   echo "deploy verify against $DEPLOY_SSH (read-only)"
-  if [ "$(vm 'echo reachable' 2>/dev/null | tr -d '\r')" != reachable ]; then VM_DOWN=1; emit FAIL vm_reachable "ssh $DEPLOY_SSH did not answer"; else emit PASS vm_reachable "ssh answers"; fi
+  if ! vm_up; then emit FAIL vm_reachable "ssh $DEPLOY_SSH did not answer"; else emit PASS vm_reachable "ssh answers"; fi
   check_checkout_current || { summary verify; return 1; }
 
   # smoke: only the guarded version (issue 86). The old VM copy had unguarded DELETE and INSERT attempts, so it is never run.
@@ -473,7 +493,7 @@ status() {
   local out now
   echo "deploy status of $DEPLOY_SSH (read-only)"
   echo "local checkout is at $(local_head | cut -c1-10)"
-  if [ "$(vm 'echo reachable' 2>/dev/null | tr -d '\r')" != reachable ]; then echo "FAIL  ssh $DEPLOY_SSH did not answer"; return 1; fi
+  if ! vm_up; then echo "FAIL  ssh $DEPLOY_SSH did not answer"; return 1; fi
   echo "== release marker"
   out="$(vm 'cat .deploy/release 2>/dev/null || echo "no marker: no deploy has been marked yet"' 2>/dev/null | tr -d '\r')"
   printf '%s\n' "${out:-could not read the VM tree}"
@@ -482,7 +502,8 @@ status() {
   if [ -z "$CONTAINERS" ]; then echo "could not read the container list"; else printf '%s\n' "$CONTAINERS" | cut -d'|' -f1-4; fi
   echo "== images (name | image | revision label)"
   if [ -n "$CONTAINERS" ]; then printf '%s\n' "$CONTAINERS" | awk -F'|' '{printf "%s | %s | %s\n", $1, ($5 == "" ? "?" : $5), ($6 == "" ? "(no label)" : substr($6, 1, 12))}'; fi
-  echo "image mode: $(registry_mode "$(vm_env_key VATPAC_IMAGE_PREFIX)" "$(vm_env_key VATPAC_IMAGE_TAG)") (only the two image keys of the VM's .env are read); checkout HEAD: $(vm_head | cut -c1-12)"
+  load_image_keys; load_vm_head
+  echo "image mode: $(registry_mode "$IMG_PREFIX") (only the two image keys of the VM's .env are read); checkout HEAD: ${VM_HEAD:0:12}"
   echo "== newest dump"
   now="$(vm_now)"
   if dump_facts && [ -n "$now" ]; then echo "$D_NAME, $(( (now - D_EPOCH) / 3600 )) h old, $D_SIZE bytes, pg_restore -l: $D_VALID"
@@ -533,12 +554,12 @@ mark() {
       return 1
     fi
   fi
-  vmhead="$(vm_head)"
+  load_vm_head; vmhead="$VM_HEAD"
   if [ "$vmhead" != "$full" ]; then
     echo "WARN  the VM checkout HEAD (${vmhead:-unreadable}) is not the commit being marked (${full:0:10}); mark only a commit that is really deployed" >&2
   fi
-  pfx="$(vm_env_key VATPAC_IMAGE_PREFIX)"; tag="$(vm_env_key VATPAC_IMAGE_TAG)"
-  case "$(registry_mode "$pfx" "$tag")" in
+  load_image_keys; pfx="$IMG_PREFIX"; tag="$IMG_TAG"
+  case "$(registry_mode "$pfx")" in
     registry) load_containers   # record the revision actually running (the tag is the moving name latest), not the tag
               crev="$(svc_line collector | cut -d'|' -f6 | tr -cd '0-9a-f')"
               imgs="${crev:0:12}"; [ -n "$imgs" ] || imgs=unknown ;;
