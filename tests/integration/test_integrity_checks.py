@@ -99,7 +99,7 @@ def failing(counts: dict[str, int]) -> set[str]:
 def test_a_clean_database_reports_zero_for_every_invariant(conn: Any, dsn: str, role: str | None) -> None:
     World(conn)
     counts = sweep(dsn, role)
-    assert set(counts) == set(NAMES) and len(counts) == 21
+    assert set(counts) == set(NAMES) and len(counts) == 20
     assert failing(counts) == set(), failing(counts)
 
 
@@ -220,16 +220,6 @@ def _(conn: Any, w: World) -> Iterator[None]:
     with constraint_off(conn, "pilot_session", ["pilot_session_identity"]):  # the unique constraint normally forbids this
         conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "
                      "SELECT cid, callsign, logon_time, %s, %s FROM pilot_session WHERE id = %s", (w.ts[3], w.ts[3], w.sessions["A"]))
-        yield
-
-
-@case("positions outside plausibility caps")
-@contextmanager
-def _(conn: Any, w: World) -> Iterator[None]:
-    checks = [r["conname"] for r in conn.execute(
-        "SELECT conname FROM pg_constraint WHERE conrelid = 'pilot_position'::regclass AND contype = 'c'").fetchall()]
-    with constraint_off(conn, "pilot_position", checks):  # the CHECK constraints normally forbid this
-        conn.execute("UPDATE pilot_position SET gs_kt = 9999 WHERE observed_at = %s AND session_id = %s", (w.ts[5], w.sessions["A"]))
         yield
 
 
@@ -394,7 +384,7 @@ def test_the_cases_cover_exactly_the_invariants_in_the_pack() -> None:
     """The guard: delete or rename an invariant, or add one without a case, and this fails."""
     assert set(NAMES) - set(CASES) == set(), "an invariant has no broken-data test"
     assert set(CASES) - set(NAMES) == set()
-    assert len(NAMES) == 21 and len(CASES) == len(NAMES)
+    assert len(NAMES) == 20 and len(CASES) == len(NAMES)
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -432,11 +422,11 @@ def test_run_due_reports_ok_on_clean_data_and_a_named_warning_on_broken_data(con
     w = World(conn)
     state: dict[str, Any] = {}
     res, _ = integrity.run_due(plan(dsn, tmp_path, crosscheck_interval_s=0), state, now=1000.0)
-    assert res["data_integrity"][0] == "ok" and "all 21 invariants hold" in res["data_integrity"][1]
+    assert res["data_integrity"][0] == "ok" and "all 20 invariants hold" in res["data_integrity"][1]
     conn.execute("DELETE FROM poll_log WHERE snapshot_ts = %s", (w.ts[5],))
     res, _ = integrity.run_due(plan(dsn, tmp_path, crosscheck_interval_s=0), state, now=1000.0 + 72 * 3600)
     level, text = res["data_integrity"]
-    assert level == "warn" and "snapshot rows without an ok poll_log row (1)" in text and "1 of 21" in text
+    assert level == "warn" and "snapshot rows without an ok poll_log row (1)" in text and "1 of 20" in text
     assert state["integrity"]["data_integrity"]["retry_at"] is not None  # rechecked in 6 h, not 3 days
 
 
