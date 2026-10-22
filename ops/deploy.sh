@@ -37,6 +37,8 @@ SERVICES="db collector grafana backup watchdog"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXPECTED_FILE="${DEPLOY_EXPECTED_FILE:-$HERE/deploy_expected_warnings.txt}"
 ROOT="$(cd "$HERE/.." && pwd)"
+# shellcheck source=ops/release_common.sh
+. "$HERE/release_common.sh"   # gh_bin, RELEASE_MARKER_CMD, release_marker_commit (shared with stale_issues.sh)
 
 VM_DOWN=0
 g() { git -C "$ROOT" "$@"; }
@@ -138,11 +140,6 @@ with_timeout() { if command -v timeout >/dev/null 2>&1; then timeout "${TMO:-$CM
 vm()    { [ "$VM_DOWN" = 1 ] && return 255; with_timeout ssh -n $SSH_OPTS "$DEPLOY_SSH" "cd $DEPLOY_DIR && $1"; }
 # shellcheck disable=SC2086
 vm_in() { [ "$VM_DOWN" = 1 ] && return 255; with_timeout ssh $SSH_OPTS "$DEPLOY_SSH" "cd $DEPLOY_DIR && $1"; }
-
-gh_bin() {
-  if [ -n "${DEPLOY_GH:-}" ]; then echo "$DEPLOY_GH"; return; fi
-  command -v gh 2>/dev/null || echo "/c/Program Files/GitHub CLI/gh.exe"
-}
 
 # psql inside the db container, read-only, SQL on stdin. The single quotes keep $POSTGRES_* for the container's shell.
 PSQL='docker compose exec -T db sh -c '\''psql -X -q -tA -F"|" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'\'''
@@ -522,7 +519,7 @@ mark() {
   g merge-base --is-ancestor "$full" origin/main 2>/dev/null || { echo "FAIL  ${full:0:10} is not on origin/main; nothing written" >&2; return 1; }
   now="$(vm_now)"; [ -n "$now" ] || { echo "FAIL  could not read the VM time; nothing written" >&2; return 1; }
   # silent-issue guard (fails closed): each issue named since the previous marker needs a comment newer than its newest commit
-  prev="$(vm 'cat .deploy/release 2>/dev/null' 2>/dev/null | tr -d '\r' | sed -n 's/^commit=\([0-9a-fA-F]\{40\}\)$/\1/p' | head -n 1)"
+  prev="$(vm "$RELEASE_MARKER_CMD" 2>/dev/null | release_marker_commit)"
   if [ -z "$prev" ]; then rc=2; echo "no previous marker could be read, so the commits to check are unknown" >&2
   else DEPLOY_SSH="$DEPLOY_SSH" DEPLOY_DIR="$DEPLOY_DIR" GH_BIN="$(gh_bin)" REPO="$DEPLOY_REPO" bash "$HERE/stale_issues.sh" --range "$prev..$full"; rc=$?; fi
   if [ "$rc" -ne 0 ]; then

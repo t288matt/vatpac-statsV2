@@ -14,10 +14,8 @@ DEPLOY_DIR="${DEPLOY_DIR:-~/vatpac-statsV2}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 g() { git -C "$ROOT" "$@"; }
-gh_bin() {
-  if [ -n "${GH_BIN:-}" ]; then echo "$GH_BIN"; return; fi
-  command -v gh 2>/dev/null || echo "C:\\Program Files\\GitHub CLI\\gh.exe"
-}
+# shellcheck source=ops/release_common.sh
+. "$HERE/release_common.sh"   # gh_bin, RELEASE_MARKER_CMD, release_marker_commit (shared with deploy.sh)
 
 # issue_refs: stdin is `git log --format=%x01%H%x1f%cI%x1f%B`; prints "number<TAB>sha<TAB>iso date", once per commit and number.
 # Matches "#93" (also "#93, #94") and the word forms "issue 93", "issues 93, 94 and 95", "issues #93, 94".
@@ -38,8 +36,7 @@ issue_refs() {
 # last_marker_commit: the commit in the VM release marker, empty when there is none or the VM cannot be read.
 last_marker_commit() {
   # shellcheck disable=SC2029
-  ssh -n -o BatchMode=yes -o ConnectTimeout=10 "$DEPLOY_SSH" "cd $DEPLOY_DIR && cat .deploy/release" 2>/dev/null \
-    | tr -d '\r' | sed -n 's/^commit=\([0-9a-fA-F]\{7,40\}\)$/\1/p' | head -n 1
+  ssh -n -o BatchMode=yes -o ConnectTimeout=10 "$DEPLOY_SSH" "cd $DEPLOY_DIR && $RELEASE_MARKER_CMD" 2>/dev/null | release_marker_commit
 }
 
 main() {
