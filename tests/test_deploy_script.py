@@ -836,3 +836,24 @@ def test_vm_env_keys_are_read_with_quotes_export_and_crlf(tmp_path: Path) -> Non
     assert "outside the 03:30 UTC backup window" in line_for(out, "backup_window"), out  # a quoted BACKUP_TIME_UTC is now honoured like the image keys
     f.dotenv("VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/\nVATPAC_IMAGE_PREFIX=\n")  # the last assignment wins: blank means local mode
     assert "local build mode" in line_for(f.run("--preflight", "f893585")[1], "registry_mode")
+
+
+# ------------------------------------------------------------------ one wording of the sha- pin warning (issue 213)
+
+def test_the_sha_pin_warning_has_one_wording_in_all_three_places(tmp_path: Path) -> None:
+    sentence = subprocess.run([str(BASH), "-c", f'IMAGE_MODE_SOURCE_ONLY=1 . "{(REPO / "ops" / "image_mode.sh").as_posix()}"; sha_pin_warning'],
+                              capture_output=True, text=True, timeout=30).stdout.strip()
+    assert sentence.startswith("WARNING: VATPAC_IMAGE_TAG is a sha- pin") and "Delete that line unless this is a deliberate rollback" in sentence
+    env = tmp_path / "e.env"
+    env.write_text("VATPAC_IMAGE_PREFIX=ghcr.io/x/\nVATPAC_IMAGE_TAG=sha-1234567\n", newline="\n")
+    p = subprocess.run([str(BASH), "-c", f'sh "{(REPO / "ops" / "image_mode.sh").as_posix()}" "{env.as_posix()}"'], capture_output=True, text=True, timeout=30)
+    assert sentence in p.stderr and "1234567" not in p.stderr
+    secrets = subprocess.run([str(BASH), "-c", f'sh "{(REPO / "ops" / "gen_env.sh").as_posix()}" "{(tmp_path / "g.env").as_posix()}"'], capture_output=True, text=True, timeout=30)
+    assert secrets.returncode == 0, secrets.stderr
+    (tmp_path / "g.env").write_text((tmp_path / "g.env").read_text(encoding="utf-8") + "VATPAC_IMAGE_TAG=sha-1234567\n", newline="\n")
+    p = subprocess.run([str(BASH), "-c", f'sh "{(REPO / "ops" / "check_env.sh").as_posix()}" "{(tmp_path / "g.env").as_posix()}"'], capture_output=True, text=True, timeout=30)
+    assert "check_env: " + sentence in p.stderr and "1234567" not in p.stderr
+    f = Fake(tmp_path / "vm")
+    f.registry(tag="sha-1234567")
+    out = f.run("--preflight", "f893585")[1]
+    assert sentence in line_for(out, "image_tag_env") and line_for(out, "image_tag_env").startswith("WARN")

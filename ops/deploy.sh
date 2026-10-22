@@ -38,6 +38,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXPECTED_FILE="${DEPLOY_EXPECTED_FILE:-$HERE/deploy_expected_warnings.txt}"
 ROOT="$(cd "$HERE/.." && pwd)"
 # shellcheck source=ops/release_common.sh
+IMAGE_MODE_SOURCE_ONLY=1 . "$HERE/image_mode.sh"   # sha_pin_warning: the one wording of the sha- pin warning (issue 213)
+SHA_PIN_WARNING="$(sha_pin_warning)"
 . "$HERE/env_key.sh"   # env_key: sent to the VM as text by vm_env_key, so the remote read is the same code as the local ones
 . "$HERE/release_common.sh"   # gh_bin, RELEASE_MARKER_CMD, release_marker_commit (shared with stale_issues.sh)
 
@@ -354,7 +356,7 @@ check_registry_preflight() {
     else emit FAIL registry_images "not readable as $c7:$bad; check the release workflow published this commit, or the token expired: docker login ghcr.io"; fi
   fi
   case "$tag" in
-    sha-*) emit WARN image_tag_env "WARNING: the VM's .env pins VATPAC_IMAGE_TAG=$tag, so make deploy will NOT move to the new images. Delete that line unless this is a deliberate rollback" ;;
+    sha-*) emit WARN image_tag_env "$SHA_PIN_WARNING (the VM's .env pins $tag)" ;;
     '') emit PASS image_tag_env "no VATPAC_IMAGE_TAG line: images follow latest" ;;
     *) emit PASS image_tag_env "VATPAC_IMAGE_TAG override is set (not a sha- pin)" ;;
   esac
