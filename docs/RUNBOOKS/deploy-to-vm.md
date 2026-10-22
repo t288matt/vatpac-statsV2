@@ -307,7 +307,7 @@ docker compose exec backup backup.sh once    # first backup, then `ls` the volum
 ```
 `python3 ops/check_panels.py` runs every dashboard query through Grafana's own API; expect `0 errors` (empty panels are fine while data is young). It reads `.env` and never prints the password.
 
-**Run `ops/deploy.sh --verify` and `--mark` from an up-to-date checkout of `main`.** The script counts the integrity checks from the copy of `ops/audit/invariants.sql` in the checkout it runs from, so a stale checkout reports the old count (it showed 21 on 22-10-2026 while production runs 20). Run `git pull --ff-only` on the PC first.
+**Run `ops/deploy.sh --verify` from an up-to-date checkout of `main`** (and `--mark` from one too, to mark the right commit). Only `--verify` counts; it counts the integrity checks from the copy of `ops/audit/invariants.sql` in the checkout it runs from, so a stale checkout reports the old count (it showed 21 on 22-10-2026 while production runs 20). Run `git pull --ff-only` on the PC first.
 
 Open `http://localhost:3300` on the VM (or `http://<GRAFANA_BIND>:3300` from the LAN), log in as the admin user from `.env`. Charts start empty (no backfill).
 

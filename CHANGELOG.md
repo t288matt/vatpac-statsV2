@@ -6,16 +6,18 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
-## Clean-ups and tidier checks, deployed as 2dc8a92 and 450a74c (marker of 450a74c: 22-10-2026 19:02:45 UTC)
+## Clean-ups and tidier checks, deployed as 2dc8a92 (marked 22-10-2026 16:56 UTC) and 450a74c (marked 22-10-2026 19:02 UTC)
 
 - **Identity-flap check in one file (issue #201, pull request 250; deployed as 2dc8a92).** The watchdog (last 24 hours) and `ops/deploy.sh --verify` (whole history) now run the same file, `ops/audit/identity_flap.sql`; the separate copy `ops/check_identity_flap.sql` is gone, and the 24 hour query uses the `last_seen` index again.
 - **Documents (2dc8a92 and 450a74c).** Process, review and history documents are no longer in the repository; the repository keeps only what an end user needs to install and run the product. The unused one-off audit scripts under `ops/audit/` were removed (issue #229); three files remain.
 - **The collector needs `DATABASE_URL` (issue #228; 450a74c).** The unused `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_PASSWORD` fallback settings are gone from the collector, so a missing `DATABASE_URL` stops it at start-up instead of silently building a connection from other variables. Docker Compose already sets `DATABASE_URL`, so nothing changes on the VM; the database container's own `POSTGRES_*` variables are unchanged.
 - **One marker reader in the watchdog (issue #216; 450a74c).** The backup-remote check and the restore-test check read their marker files with the same function and parse the time stamp the same way. The alerts are unchanged.
 - **One invariant fewer (issue #243; 450a74c).** The data-integrity sweep drops the check "positions outside plausibility caps", so it has 20 checks instead of 21 (`ops/deploy.sh --verify` shows 20). The three CHECK constraints on `pilot_position` (altitude, groundspeed, heading), the collector's clamp and `ops/audit/independent.py` are unchanged; the consequence is that nobody is alerted if those constraints are dropped or loosened.
+- **Dependency (pull request 197).** pydantic-settings 2.15.0 to 2.16.0 in the collector requirements.
+- **Deploy notes and a test exemption (pull request 248, issues #234 and #242).** Stale deploy notes were corrected and the live-definition comparison was recorded; a stale `near_miss` exemption was removed.
 - Also in 450a74c: dead helper functions removed from the collector, and stale comments and test addresses cleaned up (issue #251).
 
-## Policy values moved into docker-compose.yml (19-10-2026, issue 21; not yet deployed)
+## Policy values moved into docker-compose.yml (19-10-2026, issue 21; deployed as c072491, marked 21-10-2026 14:50 UTC)
 
 - The retention periods and the watchdog thresholds are now fixed values in `docker-compose.yml` instead of settings in `.env`, so what the repository says is what runs (ADR-034). The code default for raw positions is 180 days (it was 90) and the watchdog database warning is 5 GB (it was 20), as decided in ADR-026.
 - The production VM already ran 180 days; its `.env` still has the old lines, which are now ignored. After the deploy, delete every moved key from the VM's `.env` (11 are there today: `POSITION_RETENTION_DAYS`, `BACKUP_RETENTION_DAYS` and nine `WATCHDOG_*` keys; `sh ops/check_env.sh .env` lists them). Their values equal the new literals, except `WATCHDOG_DB_MAX_GB`, which goes from 20 to 5. The database warning drops from 20 GB to 5 GB when the new image is deployed; the database is about 160 MB.
