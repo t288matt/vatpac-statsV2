@@ -17,9 +17,10 @@ python grafana/validate_dashboards.py          # dashboard shape and SQL syntax;
 python ops/check_config_drift.py               # collector settings, compose and .env.example agree (needs PyYAML)
 python ops/check_size_budget.py                # collector package under 1700 lines, no module over 300
 ruff check --config ops/ruff.toml ops          # lint of the ops scripts
+# the ops tooling tests run with the unit tests above: tests/test_deploy_script.py (deploy.sh, including the stale-checkout refusal), tests/test_env_readers.py (the shell and Python .env readers must agree) and tests/test_grafana_public.py (the shared Grafana client)
 cd collector && ruff check . && mypy src       # lint and strict typing of the collector
 # strict typing of the watchdog and ops scripts (the exact list is in .github/workflows/ci.yml; the watchdog needs the two audit files on its path)
-mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py ops/check_panels.py
+mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py ops/check_panels.py ops/grafana_public.py ops/grafana_api.py ops/env_file.py
 ```
 
 `make test`, `make drift`, `make size` and `make lint` wrap the same commands. On Windows without `make`, run the commands above. Set up the Python environment once: `python -m venv collector/.venv`, then `collector/.venv/bin/pip install pytest -r collector/requirements.txt` (Windows: `collector\.venv\Scripts\pip`).
