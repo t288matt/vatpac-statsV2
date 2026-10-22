@@ -9,6 +9,7 @@ set -u
 ENV_FILE="${1:-.env}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/env_key.sh"   # env_key FILE NAME: the one reader of .env keys (issue 212)
+IMAGE_MODE_SOURCE_ONLY=1 . "$HERE/image_mode.sh"   # sha_pin_warning: the one wording of the sha- pin warning (issue 213)
 MIN_LEN=16
 SECRETS="POSTGRES_PASSWORD GRAFANA_RO_PASSWORD GRAFANA_ADMIN_PASSWORD WATCHDOG_DB_PASSWORD COLLECTOR_DB_PASSWORD BACKUP_DB_PASSWORD"
 
@@ -42,7 +43,7 @@ done
 # Registry mode is switched by VATPAC_IMAGE_PREFIX alone (issue 173); VATPAC_IMAGE_TAG is an optional override that pins an
 # older build. A sha- pin gets a loud warning (values other than the pin's kind are never printed).
 case "$(env_key "$ENV_FILE" VATPAC_IMAGE_TAG)" in
-  sha-*) echo "check_env: WARNING VATPAC_IMAGE_TAG is a sha- pin: images will not follow new releases. Delete that line unless this is a deliberate rollback." >&2 ;;
+  sha-*) echo "check_env: $(sha_pin_warning)" >&2 ;;
 esac
 
 # Policy values (retention periods, alert thresholds) are literals in docker-compose.yml (ADR-034). A leftover line for one in
