@@ -432,13 +432,10 @@ def test_read_only_modes_write_nothing_and_run_nothing_forbidden(tmp_path: Path)
     assert sorted(str(p.relative_to(f.home)) for p in f.home.rglob("*")) == before
     f.run("--mark", "f893585", "--allow-silent-issues")
     log = f.ssh_log() + (f.dir / "docker.log").read_text()
-    one_read = "sed -n 's/^BACKUP_TIME_UTC=//p' .env"  # the one deliberate read of .env: a single key
-    assert one_read in log
-    log = log.replace(one_read, "")
-    # Registry mode (issue 173) reads two more keys the same way, by name, to learn the image mode. The key names are not
-    # secrets and the values are never printed; any other .env access still trips FORBIDDEN below.
-    for key in ("VATPAC_IMAGE_PREFIX", "VATPAC_IMAGE_TAG"):
-        read = f"sed -n -e 's/^export[[:space:]][[:space:]]*//' -e 's/^{key}=//p' .env"
+    # The only reads of .env: three keys by name, each through env_key (ops/env_key.sh, sent to the VM as text; issue 212). The key
+    # names are not secrets and the values are never printed; any other .env access still trips FORBIDDEN below.
+    for key in ("BACKUP_TIME_UTC", "VATPAC_IMAGE_PREFIX", "VATPAC_IMAGE_TAG"):
+        read = f"env_key .env {key}"
         assert read in log
         log = log.replace(read, "")
     assert not FORBIDDEN.search(log), FORBIDDEN.search(log)
@@ -826,3 +823,16 @@ def test_one_marker_reader_for_both_scripts(tmp_path: Path) -> None:
             assert rc == 0, (key, mout)
         else:
             assert rc == 1 and "no previous marker" in mout, (key, mout)
+
+
+# ------------------------------------------------------------------ one .env key reader (issue 212)
+
+def test_vm_env_keys_are_read_with_quotes_export_and_crlf(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    f.dotenv('export VATPAC_IMAGE_PREFIX="ghcr.io/t288matt/"\r\nVATPAC_IMAGE_TAG=\'sha-1234567\'\r\nBACKUP_TIME_UTC="03:30"\r\nVATPAC_IMAGE_PREFIX="ghcr.io/t288matt/"\r\n')
+    f.write("inspect.txt", _inspect_registry())
+    rc, out = f.run("--preflight", "f893585")
+    assert "registry mode" in line_for(out, "registry_mode") and line_for(out, "image_tag_env").startswith("WARN"), out
+    assert "outside the 03:30 UTC backup window" in line_for(out, "backup_window"), out  # a quoted BACKUP_TIME_UTC is now honoured like the image keys
+    f.dotenv("VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/\nVATPAC_IMAGE_PREFIX=\n")  # the last assignment wins: blank means local mode
+    assert "local build mode" in line_for(f.run("--preflight", "f893585")[1], "registry_mode")

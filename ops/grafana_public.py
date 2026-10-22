@@ -26,6 +26,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from env_file import read_env  # the one .env reader (ops/env_file.py); python puts this script's folder first on sys.path
+
 WANTED = {"isEnabled": True, "timeSelectionEnabled": False, "annotationsEnabled": False, "share": "public"}
 
 # Short, readable addresses (https://<host>/live) that redirect to a dashboard's public link. Grafana only accepts a
@@ -65,16 +67,6 @@ def traefik_labels(host: str) -> str:
             f'      - "traefik.http.middlewares.{r}-go.redirectregex.replacement=https://{host}/public-dashboards/{stable_token(uid)}"',
         ]
     return "\n".join(lines)
-
-
-def read_env(path: Path) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            key, value = line.split("=", 1)
-            out[key.strip()] = value.strip().strip('"').strip("'")
-    return out
 
 
 def plan(dashboards: list[dict[str, Any]], public: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any], dict[str, Any] | None]]:

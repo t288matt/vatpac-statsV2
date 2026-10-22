@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "ops"))  # as when the script is run: its folder is first on sys.path (it imports env_file)
 spec = importlib.util.spec_from_file_location("grafana_public", REPO / "ops" / "grafana_public.py")
 gp = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gp)
