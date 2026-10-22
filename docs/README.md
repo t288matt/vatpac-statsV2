@@ -4,7 +4,7 @@ Index of the project documents. Merged work that is not yet deployed is in CHANG
 
 **Status key.** CURRENT: kept up to date, trust it (subject to the notes). HISTORICAL: a dated record of a moment; correct for that date, not maintained, do not edit. OBSOLETE: wrong or superseded; do not use.
 
-**Who.** Owner = Matt. Operator = whoever runs the stack on the VM (Matt, Claude or an engineer). Agent = a Claude session or sub-agent doing a task.
+**Who.** Owner = Matt. Operator = whoever runs the stack on the VM (Matt or an engineer). Agent = a Claude session or sub-agent doing a task.
 
 Files outside `docs/` that belong with these: [../README.md](../README.md) (what the project is and how to start it), [../SPEC.md](../SPEC.md) (the specification), [../CHANGELOG.md](../CHANGELOG.md) (what changed and when, deployed or not), [../tests/README.md](../tests/README.md) (how the tests are organised), [../.env.example](../.env.example) (every setting, secrets blank).
 
@@ -12,10 +12,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 
 | File | What it is for | Who reads it | Status |
 |---|---|---|---|
-| [INSTALL.md](INSTALL.md) | How to install a new instance from the source code on a clean Linux machine | Operator, engineer | CURRENT (written 10-10-2026; UNVERIFIED on a fresh machine) |
-| [IF_CLAUDE_IS_UNAVAILABLE.md](IF_CLAUDE_IS_UNAVAILABLE.md) | One-page card: how to see the system is healthy, what to check, how to restart, back up and restore, and what never to do | Owner | CURRENT (written 10-10-2026) |
-| [OWNER_ACTIONS.md](OWNER_ACTIONS.md) | What only the owner can do, step by step (branch protection, PBS restore test, folder rename and so on) | Owner | Needs update: items 1 and 4 are decided or done and still read as open |
-| [OWNER_BACKUP_COPY.md](OWNER_BACKUP_COPY.md) | Owner card: one-time Proxmox-side set-up of the off-VM backup copy (ADR-026 item 7) | Owner | CURRENT (written 10-10-2026; not yet run, steps marked UNVERIFIED) |
+| [INSTALL.md](INSTALL.md) | How to install a new instance from the source code on a clean Linux machine | Operator, engineer | CURRENT (walked through on a clean Windows PC on 21-10-2026; a fresh Linux machine is still unverified) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the system fits together, what each container does; section 10 is the goal evidence | Engineers, agents | CURRENT (reviewed 08-10-2026; later changes are in the ADRs and runbooks) |
 
 ## 2. Operations (runbooks, in [RUNBOOKS/](RUNBOOKS/))
@@ -26,7 +23,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) | What each Telegram alert means and what to do | Operator, owner | CURRENT (main and production agree: 21 invariant checks, marker 7a71d30) |
 | [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md) | Public read-only dashboards through a Cloudflare Tunnel and Traefik: the links script, proxy and tunnel set-up, checks, roll back | Owner | CURRENT |
 | [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md) | How to install, deploy, roll back and verify; the special cases and traps (sections 4b to 4f) | Operator | CURRENT; long, accumulates one section per release |
-| [RUNBOOKS/restore.md](RUNBOOKS/restore.md) | Backups, restore, the restore drill, off-box copies | Operator | CURRENT (deployed behaviour) |
+| [RUNBOOKS/restore.md](RUNBOOKS/restore.md) | Backups, restore, the restore drill, a local copy of production for testing, off-box copies | Operator | CURRENT (deployed behaviour) |
 | [RUNBOOKS/stuck-collector.md](RUNBOOKS/stuck-collector.md) | Collector up but not polling: diagnose and fix | Operator | CURRENT; plain restart allowed for a hung collector with no code change (owner decision 10-10-2026) |
 | [RUNBOOKS/feed-outage.md](RUNBOOKS/feed-outage.md) | VATSIM feed is down or unreachable | Operator | CURRENT |
 | [RUNBOOKS/feed-archive.md](RUNBOOKS/feed-archive.md) | The rolling archive of raw feed snapshots | Operator | CURRENT |
@@ -35,10 +32,10 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | [RUNBOOKS/outside-heartbeat.md](RUNBOOKS/outside-heartbeat.md) | The check on the owner's PC that sees a dead VM | Owner | CURRENT |
 | [RUNBOOKS/update-reference-files.md](RUNBOOKS/update-reference-files.md) | Changing the airspace polygon or the controller whitelist | Operator | CURRENT |
 | [RUNBOOKS/dashboards.md](RUNBOOKS/dashboards.md) | Adding or changing a Grafana dashboard (dashboards are code) | Engineer | CURRENT |
+| [RUNBOOKS/drop-gate-rehearsal.md](RUNBOOKS/drop-gate-rehearsal.md) | The raw-position drop gate (issue 89 phase 4): what it does and how it was rehearsed; live since 13-10-2026 | Engineer | CURRENT |
 | [RUNBOOKS/run-tests.md](RUNBOOKS/run-tests.md) | Running the checks and tests safely (throwaway Postgres, caps on the VM) | Engineer, agent | CURRENT |
-| [RUNBOOKS/data-dictionary.md](RUNBOOKS/data-dictionary.md) | How to refresh DATA_DICTIONARY.md | Engineer | CURRENT |
 | [CONFIG_MAP.md](CONFIG_MAP.md) | Every setting (part A) and how v1 settings map to v3 (part B) | Operator, engineer | CURRENT for deployed settings; enforced in part by `ops/check_config_drift.py` |
-| [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Tables, views, functions, roles and grants | Engineer, analyst | CURRENT to migration 160 (checked 09-10-2026); migration 170 (partition drop) is not in it yet |
+| [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Tables, views, functions, roles and grants; how to refresh it | Engineer, analyst | CURRENT to migration 160 (checked 09-10-2026); migration 170 (partition drop) is not in it yet |
 
 ## 3. Design and decisions
 
@@ -46,6 +43,6 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 |---|---|---|---|
 | [DECISIONS.md](DECISIONS.md) | The ADR log: every design decision with reason and consequence, ADR-001 to ADR-028, plus open decisions | Everyone | CURRENT |
 | [DEFINITIONS.md](DEFINITIONS.md) | What a flight, a session, "online now" and so on mean | Owner, analyst | CURRENT (reviewed 08-10-2026; later changes in ADR-023 to ADR-025) |
-| [CHART_DEFINITIONS.md](CHART_DEFINITIONS.md) | Every v1 chart and what replaced it, with the rule and the test | Owner, analyst | CURRENT |
-| [DASHBOARDS_SIMPLIFIED.md](DASHBOARDS_SIMPLIFIED.md) | What was dropped or simplified from v1 and why | Owner | CURRENT |
+| [CHART_DEFINITIONS.md](CHART_DEFINITIONS.md) | Every v1 chart and what replaced it, with the rule and the test; why charts were dropped | Owner, analyst | CURRENT |
+| [SQL_DEFINITIONS_REFERENCE.sql](SQL_DEFINITIONS_REFERENCE.sql) | Reference text (not applied) of the flight-writer functions and views as they stand after the migrations | Engineer | CURRENT (21-10-2026) |
 | [reference/v1_metabase_cards.json](reference/v1_metabase_cards.json) | The exported v1 Metabase card definitions (source data) | Engineer | CURRENT as reference data |
