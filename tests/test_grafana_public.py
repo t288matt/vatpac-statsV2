@@ -144,7 +144,7 @@ def test_list_shows_links_of_dashboards_that_are_no_longer_provisioned(tmp_path:
 
 def test_default_url_follows_grafana_bind_and_port() -> None:
     assert gp.default_url({}) == "http://127.0.0.1:3300"
-    assert gp.default_url({"GRAFANA_BIND": "192.168.1.222"}) == "http://192.168.1.222:3300"
+    assert gp.default_url({"GRAFANA_BIND": "192.0.2.10"}) == "http://192.0.2.10:3300"
     assert gp.default_url({"GRAFANA_BIND": "0.0.0.0", "GRAFANA_PORT": "3400"}) == "http://127.0.0.1:3400"
 
 

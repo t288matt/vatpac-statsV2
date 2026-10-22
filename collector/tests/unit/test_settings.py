@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from vatpac.settings import Settings
 
 ENV_NAMES = [
-    "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD", "GRAFANA_RO_PASSWORD", "VATSIM_FEED_URL",
+    "DATABASE_URL", "GRAFANA_RO_PASSWORD", "VATSIM_FEED_URL",
     "VATSIM_STATUS_URL", "POLL_INTERVAL_SECONDS", "HTTP_TIMEOUT_SECONDS", "POSITION_RETENTION_DAYS",
     "AIRBORNE_GAP_CAP_SECONDS", "HOME_ICAO_PREFIXES", "LOG_LEVEL", "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID", "UPTIME_KUMA_PUSH_URL",
@@ -21,15 +21,27 @@ ENV_NAMES = [
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     for name in ENV_NAMES:
         monkeypatch.delenv(name, raising=False)
-    # the database credentials are the only values .env.example ships with placeholders for
-    monkeypatch.setenv("POSTGRES_DB", "vatpac")
-    monkeypatch.setenv("POSTGRES_USER", "vatpac")
-    monkeypatch.setenv("POSTGRES_PASSWORD", "change-me")
+    # DATABASE_URL is the only required setting (compose builds it from COLLECTOR_DB_PASSWORD)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://collector:change-me@db:5432/vatpac")
     return monkeypatch
 
 
 def make() -> Settings:
     return Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_database_url_is_required(clean_env: pytest.MonkeyPatch) -> None:
+    """Fail-if-reverted (#228): no silent fallback to a guessed host/user when DATABASE_URL is missing or empty."""
+    clean_env.delenv("DATABASE_URL")
+    with pytest.raises(ValidationError, match="database_url"):
+        make()
+    clean_env.setenv("DATABASE_URL", "")
+    with pytest.raises(ValidationError, match="database_url"):
+        make()
+
+
+def test_dsn_is_the_database_url(clean_env: pytest.MonkeyPatch) -> None:
+    assert make().dsn == "postgresql://collector:change-me@db:5432/vatpac"
 
 
 def test_defaults_match_env_example(clean_env: pytest.MonkeyPatch) -> None:

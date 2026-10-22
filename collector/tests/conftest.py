@@ -5,6 +5,7 @@ Tests are written from SPEC.md section 7 (public interfaces), not from the imple
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -14,6 +15,10 @@ REPO = Path(__file__).resolve().parents[2]
 SRC = REPO / "collector" / "src"
 if SRC.is_dir() and str(SRC) not in sys.path:  # allow running without an editable install
     sys.path.insert(0, str(SRC))
+
+
+# DATABASE_URL is a required setting; unit tests never connect, so any well-formed value will do.
+os.environ.setdefault("DATABASE_URL", "postgresql://unit:unit@localhost:5432/unit")
 
 
 @pytest.fixture(autouse=True)

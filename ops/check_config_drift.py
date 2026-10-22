@@ -8,9 +8,9 @@ Compares (names are case-insensitive env names):
 
 Checks:
   - every settings field is a collector environment key, unless listed in IGNORE_SETTINGS below
-  - every ${VAR} a collector environment value reads is a key in .env.example (or in ENV_ONLY_OK)
+  - every ${VAR} a collector environment value reads is a key in .env.example
   - where compose uses ${VAR:-default} and the settings default is a literal, the two defaults agree
-  - every collector environment key is a settings field (typos/dead keys), unless in COMPOSE_ONLY_OK
+  - every collector environment key is a settings field (typos/dead keys)
   - policy keys (POLICY_KEYS: retention periods and watchdog thresholds) are literals in docker-compose.yml, are absent from
     .env.example, and equal EVERY default the code gives them (settings.py; watchdog.py and integrity.py; all of ops/backup/*.sh)
 
@@ -27,18 +27,9 @@ from typing import Any
 
 # Settings that are intentionally NOT passed through compose, with the reason.
 IGNORE_SETTINGS: dict[str, str] = {
-    "postgres_host": "superseded by DATABASE_URL, which compose always sets",
-    "postgres_port": "superseded by DATABASE_URL",
-    "postgres_db": "superseded by DATABASE_URL (database name comes from POSTGRES_DB)",
-    "postgres_user": "superseded by DATABASE_URL (the collector uses the least-privilege role)",
-    "postgres_password": "superseded by DATABASE_URL (COLLECTOR_DB_PASSWORD)",
     "polygon_path": "fixed path; the config/ directory is mounted read-only at /app/config",
     "whitelist_path": "fixed path; the config/ directory is mounted read-only at /app/config",
 }
-# Collector environment keys that are not Settings fields.
-COMPOSE_ONLY_OK: set[str] = set()
-# Variables compose reads that need not appear in .env.example.
-ENV_ONLY_OK: set[str] = set()
 
 # Policy values: decided in an ADR, so they live in docker-compose.yml as literals (reviewed in git), never in .env.
 # Add a key here when it moves; see docs/CONFIG_MAP.md, section "Where each setting lives".
@@ -224,10 +215,10 @@ def main() -> int:
             errors.append(f"{key}: settings field cannot be set via compose (add it to the collector environment or IGNORE_SETTINGS)")
 
     for key, value in env_upper.items():
-        if key.lower() not in fields and key not in COMPOSE_ONLY_OK:
+        if key.lower() not in fields:
             errors.append(f"{key}: collector environment key is not a settings field")
         for var in VAR_RE.findall(value):
-            if var not in example and var not in ENV_ONLY_OK:
+            if var not in example:
                 errors.append(f"{key}: reads ${{{var}}} which is missing from .env.example")
 
     check_policy(errors, example, fields, compose)
