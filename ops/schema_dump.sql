@@ -1,4 +1,4 @@
--- Read-only schema dump for refreshing docs/DATA_DICTIONARY.md (docs/RUNBOOKS/data-dictionary.md).
+-- Read-only schema dump for refreshing docs/DATA_DICTIONARY.md (docs/DATA_DICTIONARY.md, section 8).
 -- Run from your machine (the file is read locally and piped over ssh; no secret is printed, nothing is copied to the VM):
 --   ssh vatpac-v3 'cd ~/vatpac-statsV2 && docker compose exec -T db psql -U vatpac -d vatpac -P pager=off -A -F" | "' < ops/schema_dump.sql
 -- It only reads the catalogue. The first line makes the session refuse any write.
