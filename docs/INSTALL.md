@@ -27,7 +27,7 @@ All settings live in one file, `.env`, which is not in git. `.env.example` lists
 
 ```sh
 sh ops/gen_env.sh      # writes .env (mode 600) from .env.example with a random value for every blank secret; refuses to overwrite an existing .env
-sh ops/check_env.sh    # rejects blank, change-me*, shorter than 16 characters, repeated, or non letter-and-digit secrets
+sh ops/check_env.sh    # rejects blank, change-me*, shorter than 16 characters, repeated, or non letter-and-digit secrets (a quoted or `export`ed value is read without the quotes, as every `.env` reader does)
 ```
 (`make gen-env` and `make check-env` do the same.) Without `sh`, copy `.env.example` to `.env`, `chmod 600 .env`, and fill each blank secret yourself with a different random value of letters and digits only, 16 characters or more (they are placed inside database connection URLs). Example generator: `openssl rand -hex 24`. Never commit `.env`; never paste its values into a chat or ticket.
 
