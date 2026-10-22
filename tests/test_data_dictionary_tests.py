@@ -2,7 +2,7 @@
 
 Unit level, no database: the migration files are parsed for CREATE TABLE / VIEW / FUNCTION and DROP statements, and the
 dictionary is searched for each surviving name in backticks. The header must also name the latest migration, so a new
-migration cannot land without the dictionary being looked at. Refresh steps: docs/RUNBOOKS/data-dictionary.md.
+migration cannot land without the dictionary being looked at. Refresh steps: docs/DATA_DICTIONARY.md, section 8.
 """
 from __future__ import annotations
 
