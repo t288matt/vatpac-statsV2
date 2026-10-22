@@ -31,14 +31,14 @@ echo "$*" >> "$FAKE_DIR/ssh.log"
 [ -n "$FAKE_SSH_DOWN" ] && exit 255
 while [ $# -gt 0 ]; do case "$1" in -o) shift 2 ;; -n) shift ;; *) break ;; esac; done
 shift   # the host
-HOME="$FAKE_HOME" exec sh -c "$1"
+HOME="$FAKE_HOME" FAKE_ON_VM=1 exec sh -c "$1"
 """,
     "git": r"""#!/bin/sh
 [ "$1" = "-C" ] && shift 2
 case "$1" in
   fetch) exit 0 ;;
   rev-parse) for a; do last="$a"; done
-    case "$last" in HEAD) echo "${FAKE_VM_HEAD:-$FAKE_GIT_FULL}"; exit 0 ;; 0000000*) exit 1 ;; origin/main) echo "$FAKE_GIT_TIP"; exit 0 ;; *) echo "$FAKE_GIT_FULL"; exit 0 ;; esac ;;
+    case "$last" in HEAD) if [ -n "$FAKE_ON_VM" ]; then echo "${FAKE_VM_HEAD:-$FAKE_GIT_FULL}"; else echo "${FAKE_LOCAL_HEAD:-$FAKE_GIT_FULL}"; fi; exit 0 ;; 0000000*) exit 1 ;; origin/main) echo "$FAKE_GIT_TIP"; exit 0 ;; *) echo "$FAKE_GIT_FULL"; exit 0 ;; esac ;;
   merge-base) exit "${FAKE_ANCESTOR_RC:-0}" ;;
   rev-list) echo 3 ;;
   log) echo "$*" >> "$FAKE_DIR/gitlog.args"; [ -f "$FAKE_DIR/gitlog.txt" ] && cat "$FAKE_DIR/gitlog.txt" ;;
@@ -284,6 +284,44 @@ def test_every_check_passes_when_healthy_and_fails_alone() -> None:
     with ThreadPoolExecutor(16) as pool:
         bad = [r for r in pool.map(_scenario, list(enumerate(SCENARIOS))) if r]
     assert not bad, "\n".join(bad)
+
+
+def test_verify_refuses_a_checkout_that_is_not_at_the_vm_commit(tmp_path: Path) -> None:
+    other = "a" * 40
+    f = Fake(tmp_path / "stale")  # local checkout at another commit than the VM checkout
+    f.set(FAKE_LOCAL_HEAD=other)
+    rc, out = f.run("--verify")
+    ln = line_for(out, "checkout_current")
+    assert rc == 1 and ln.startswith("FAIL") and other[:10] in ln and FULL[:10] in ln, out
+    assert "STALE CHECKOUT" in out and "run it from an up-to-date checkout of main, for example a fresh worktree: git worktree add --detach .worktrees/verify origin/main" in out
+    assert "RESULT   verify FAILED" in out
+    assert "invariants" not in out and "smoke" not in out  # nothing that reads the local SQL ran
+    f = Fake(tmp_path / "same")  # same commit passes
+    rc, out = f.run("--verify")
+    assert rc == 0 and line_for(out, "checkout_current").startswith("PASS"), out
+    f = Fake(tmp_path / "down")  # the VM cannot be read: vm_reachable still FAILs and the comparison does not pass either
+    f.set(FAKE_SSH_DOWN="1")
+    rc, out = f.run("--verify")
+    assert rc == 1 and line_for(out, "vm_reachable").startswith("FAIL") and line_for(out, "checkout_current").startswith("FAIL")
+
+
+def test_mark_refuses_when_the_checkout_is_not_the_commit(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    tree = f.home / "vatpac-statsV2"
+    f.set(FAKE_LOCAL_HEAD="a" * 40)
+    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
+    assert rc == 1 and "STALE CHECKOUT" in out and "git worktree add --detach .worktrees/verify origin/main" in out and "nothing written" in out, out
+    assert not (tree / ".deploy").exists()
+    f.set(FAKE_LOCAL_HEAD=FULL)
+    assert f.run("--mark", "f893585", "--allow-silent-issues")[0] == 0
+
+
+def test_preflight_and_status_name_the_local_checkout(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    f.set(FAKE_LOCAL_HEAD="a" * 40)  # these two keep working from any checkout
+    for mode in (["--preflight", "f893585"], ["--status"]):
+        rc, out = f.run(*mode)
+        assert rc == 0 and "local checkout is at " + "a" * 10 in out, out
 
 
 def test_usage_and_hostile_arguments(tmp_path: Path) -> None:
