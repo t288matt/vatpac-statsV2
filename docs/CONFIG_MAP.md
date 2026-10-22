@@ -1,6 +1,6 @@
 # Configuration map
 
-Last reviewed 19-10-2026 for the retention, backup keep and watchdog keys (issue 21, ADR-034) and 13-10-2026 for the rest (issue 89 phases 1b, 3, 4 and 5 marked live, marker 7a71d30; the `flight_quiet_hours` row checked) against `docker-compose.yml`, `.env.example` and the code (`python ops/check_config_drift.py` enforces the collector part). Part A lists every environment variable v3 reads. Part B maps every variable in v1's `docker-compose.yml` to KEPT, CHANGED or DROPPED.
+Last reviewed 22-10-2026 for `DATABASE_URL` (issue 228), 19-10-2026 for the retention, backup keep and watchdog keys (issue 21, ADR-034) and 13-10-2026 for the rest (issue 89 phases 1b, 3, 4 and 5; the `flight_quiet_hours` row checked) against `docker-compose.yml`, `.env.example` and the code (`python ops/check_config_drift.py` enforces the collector part). Part A lists every environment variable v3 reads. Part B maps every variable in v1's `docker-compose.yml` to KEPT, CHANGED or DROPPED.
 
 Third-party images are not configured in `.env`: they are fixed in `docker-compose.yml` and the Dockerfiles as the loosest tag their registry publishes (`postgres:16-bookworm` and `amacneil/dbmate:2` float on the bare major; `grafana/grafana:12.4` floats on the minor, since Docker Hub has no bare-major tag for that image; ADR-032).
 
@@ -105,7 +105,7 @@ Run `docker compose up -d backup`, open the pull request that changes the litera
 
 | Variable | Value | Meaning |
 |---|---|---|
-| `DATABASE_URL` (collector) | built from `COLLECTOR_DB_PASSWORD` and `POSTGRES_DB`, role `collector`, host `db` | Overrides the five `POSTGRES_*` connection settings inside the collector. |
+| `DATABASE_URL` (collector) | built from `COLLECTOR_DB_PASSWORD` and `POSTGRES_DB`, role `collector`, host `db` | **Required** by the collector (since issue 228, 22-10-2026): it stops at start-up without it. The old `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_PASSWORD` fallback settings no longer exist in the collector; the database container's own `POSTGRES_*` variables are unchanged. |
 | `GF_*` (grafana) | anonymous access off, sign-up off, analytics and update checks off, default timezone UTC | Grafana hardening. Public dashboards are on (Grafana default) and are the only way pages are seen without a login; anonymous access must stay off (ADR-029). Image `grafana/grafana:12.4`. |
 | `GRAFANA_RO_DB_PASSWORD` (grafana) | `${GRAFANA_RO_PASSWORD}` | Referenced by the provisioned datasource. |
 | `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` (backup) | `db`, `5432`, `backup_ro`, `BACKUP_DB_PASSWORD`, `POSTGRES_DB` | Connection for `pg_dump`. |
@@ -126,7 +126,6 @@ These have defaults and work as documented, but changing them needs a compose ed
 |---|---|---|---|
 | `POLYGON_PATH` | `/app/config/australian_airspace_polygon.json` | collector | Polygon file. |
 | `WHITELIST_PATH` | `/app/config/controller_callsigns_list.txt` | collector | Controller whitelist. |
-| `POSTGRES_HOST` / `POSTGRES_PORT` | `db` / `5432` | collector | Used only if `DATABASE_URL` is not set. |
 | `WATCHDOG_RESTART_CAP_PER_HOUR` | `3` | watchdog | Restart cap per container per hour; only relevant with `DOCKER_HOST_URL`. |
 | `WATCHDOG_RESTART_AFTER_CYCLES` | `3` | watchdog | Unhealthy cycles before a restart; only with `DOCKER_HOST_URL`. |
 | `WATCHDOG_RESTARTABLE` | `db,collector,grafana,backup` | watchdog | Containers it may restart; only with `DOCKER_HOST_URL`. |
@@ -159,7 +158,7 @@ Source: the v1 `docker-compose.yml` (the owner's local copy of the old v1 projec
 | `POSTGRES_USER` | `vatsim_user` | CHANGED | `POSTGRES_USER` default `vatpac`. |
 | `POSTGRES_PASSWORD` | a hard-coded default password committed in the compose file | CHANGED | Now required from `.env`, no default, never in git. |
 | `POSTGRES_SHARED_BUFFERS`, `POSTGRES_EFFECTIVE_CACHE_SIZE`, `POSTGRES_WORK_MEM`, `POSTGRES_MAINTENANCE_WORK_MEM` | 4GB / 16GB / 128MB / 1GB | CHANGED | These are not standard settings of the official postgres image, so they were probably not applied in v1 (not verified). v3 sets tuning in `ops/postgres/postgresql.conf` (512MB shared buffers, 1GB cache, 16MB work_mem) sized for a 2 GB container. |
-| `DATABASE_URL` | hard-coded URL | CHANGED | Built in compose from the `POSTGRES_*` values. |
+| `DATABASE_URL` | hard-coded URL | CHANGED | Built in compose from `COLLECTOR_DB_PASSWORD` and `POSTGRES_DB`; required by the collector. |
 | `LOG_LEVEL` | `INFO` | KEPT | Same name. v3 emits JSON logs. |
 | `API_WORKERS`, `API_DEBUG`, `API_RELOAD`, `CORS_ORIGINS` | 4 / false / false / `*` | DROPPED | v3 has no REST API (ADR-010); only `/health` and `/metrics`. |
 

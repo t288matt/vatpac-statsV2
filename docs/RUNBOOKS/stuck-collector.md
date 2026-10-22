@@ -1,6 +1,6 @@
 # Runbook: stuck collector
 
-Last reviewed 12-10-2026 against commit b3189ad (the commit running in production since 11-10-2026), checked against `collector/src/vatpac/feed.py` and `main.py`. The collector never sends two requests to VATSIM less than 30 seconds apart (`MIN_REQUEST_GAP_S`), so a restart or a stalled feed does not make it poll faster; do not expect a quick burst of polls after a restart.
+Last reviewed 12-10-2026 against commit b3189ad (the production commit at that date; the current one is shown by `bash ops/deploy.sh --status`), checked against `collector/src/vatpac/feed.py` and `main.py`. The collector never sends two requests to VATSIM less than 30 seconds apart (`MIN_REQUEST_GAP_S`), so a restart or a stalled feed does not make it poll faster; do not expect a quick burst of polls after a restart.
 
 The collector should never exit and never stop polling. "Stuck" means the container is up but `poll_log` has no new rows, or `/health` does not answer or returns 503 with `consecutive_failures` of 0.
 

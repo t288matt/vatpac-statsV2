@@ -1,6 +1,6 @@
 # Chart definitions
 
-*Describes main, which production runs (7a71d30, live since 13-10-2026 10:05:56 UTC); behaviour added by later changes that are not yet deployed is listed in CHANGELOG.md.*
+*Describes main (the commit production runs is shown by `bash ops/deploy.sh --status`); behaviour added by later changes that are not yet deployed is listed in CHANGELOG.md.*
 
 
 Every in-scope v1 chart and what replaced it, for the Grafana dashboards in `grafana/dashboards/`. Dates are DD-MM-YYYY and all times UTC.

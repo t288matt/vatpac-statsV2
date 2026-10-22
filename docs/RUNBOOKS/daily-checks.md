@@ -1,6 +1,6 @@
 # Runbook: daily and weekly checks, and the soak report
 
-Last reviewed 13-10-2026 against commit 7a71d30, the production marker of 13-10-2026 10:05:56 UTC (issue 89 phases 4 and 5) (soak thresholds last checked against `ops/soak_report.sh` on 12-10-2026: p95 cadence at most the poll interval + 2 s). Charts show a flight about 8 hours after its last position since phase 3 went live, so a small recent-flights count is normal, not a fault. All times are UTC. Run the commands from the stack folder: `~/vatpac-statsV2` on the production VM (reach it with `ssh vatpac-v3`). Read the clock on the VM with `date -u`; do not estimate times.
+Last reviewed 22-10-2026 against main (the commit production runs is shown by `bash ops/deploy.sh --status`) (soak thresholds last checked against `ops/soak_report.sh` on 12-10-2026: p95 cadence at most the poll interval + 2 s). Charts show a flight about 8 hours after its last position since phase 3 went live, so a small recent-flights count is normal, not a fault. All times are UTC. Run the commands from the stack folder: `~/vatpac-statsV2` on the production VM (reach it with `ssh vatpac-v3`). Read the clock on the VM with `date -u`; do not estimate times.
 
 The watchdog already alerts by Telegram on the worst failures ([alerts.md](alerts.md)). These checks catch what it does not, and prove the system is healthy rather than merely quiet.
 
