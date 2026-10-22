@@ -67,7 +67,7 @@ If a message says `could not run (InsufficientPrivilege)`, the `watchdog_ro` gra
 
 ## Deliberately not automated (owner decision 09-10-2026)
 
-The heavy deep recomputations of the audit stay manual tools under `ops/audit/`: `recompute_flights.py` (every flight rebuilt from raw positions), `panel_recompute.py` (26 panels recomputed from raw tables) and `capture.py` (the read-only capture they read). Run them by hand after a large change, as described in [../../ops/audit/README.md](../../ops/audit/README.md). There are no tuned per-check severities; every finding is one `WARN`.
+The heavy deep recomputations of the original audit (every flight rebuilt from raw positions, the panels recomputed from raw tables) were one-off manual tools. They were removed on 21-10-2026 (issue #229) and stay in git history; the commit that removed them says how to restore them. There are no tuned per-check severities; every finding is one `WARN`.
 
 ## Tests that prove the checks fire
 
