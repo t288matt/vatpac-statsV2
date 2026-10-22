@@ -6,6 +6,10 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 13-10-2026 (docs flip for phases 4 and 5, issue #89). The production VM runs commit 7a71d3054506d5d6e5e0165860de0feb97e0f651 (issue 89 phases 4 and 5, deployed together at about 10:03 UTC), marked live on 13-10-2026 at 10:05:56 UTC. The marker history in the VM's release record (`.deploy/release.log`, read on 13-10-2026): b3189ad on 11-10-2026 at 20:35:53 UTC, c70e72f (phase 1) on 12-10-2026 at 17:58:21 UTC, 3d4b5b6 (phase 1b) on 13-10-2026 at 08:01:09 UTC, 38e3958 (phase 3) on 13-10-2026 at 08:14:12 UTC, 7a71d30 (phases 4 and 5) on 13-10-2026 at 10:05:56 UTC. The live database is at migration 20261013000300 (29 rows in `schema_migrations`, read-only query on 13-10-2026 after the deploy). Main was at 7a71d30 when this page was updated; a 24 hour watch of the phase 4 and 5 deploy runs from 13-10-2026 10:05 UTC (plan: `DEPLOY_PLAN_PHASE_4_5.md`, section 5, kept privately by the owner, not in this repository). The entries below for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Retention list panels show the highest rating (22-10-2026, issue 236; on branch fix-236-retention-rating-label, not yet merged or deployed)
+
+- The two retention list panels, "Who might need help reactivating?" and "Who reactivated after being away for more than 60 days?", now take the rank group (S1, S2, C1 and so on) from the controller's highest rating. Before, a controller promoted from S2 to C1 showed S2; now C1. Labels and blanks are unchanged. Two integration tests pin it.
+
 ## Policy values moved into docker-compose.yml (19-10-2026, issue 21; not yet deployed)
 
 - The retention periods and the watchdog thresholds are now fixed values in `docker-compose.yml` instead of settings in `.env`, so what the repository says is what runs (ADR-034). The code default for raw positions is 180 days (it was 90) and the watchdog database warning is 5 GB (it was 20), as decided in ADR-026.
