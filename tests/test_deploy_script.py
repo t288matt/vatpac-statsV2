@@ -37,6 +37,7 @@ HOME="$FAKE_HOME" FAKE_ON_VM=1 exec sh -c "$1"
 [ "$1" = "-C" ] && shift 2
 case "$1" in
   fetch) exit 0 ;;
+  status) [ -n "$FAKE_GIT_STATUS_FAIL" ] && exit 128; [ -n "$FAKE_DIRTY" ] && printf '%s\n' "$FAKE_DIRTY"; exit 0 ;;
   rev-parse) for a; do last="$a"; done
     case "$last" in HEAD) if [ -n "$FAKE_ON_VM" ]; then echo "${FAKE_VM_HEAD:-$FAKE_GIT_FULL}"; else echo "${FAKE_LOCAL_HEAD:-$FAKE_GIT_FULL}"; fi; exit 0 ;; 0000000*) exit 1 ;; origin/main) echo "$FAKE_GIT_TIP"; exit 0 ;; *) echo "$FAKE_GIT_FULL"; exit 0 ;; esac ;;
   merge-base) exit "${FAKE_ANCESTOR_RC:-0}" ;;
@@ -293,7 +294,8 @@ def test_verify_refuses_a_checkout_that_is_not_at_the_vm_commit(tmp_path: Path) 
     rc, out = f.run("--verify")
     ln = line_for(out, "checkout_current")
     assert rc == 1 and ln.startswith("FAIL") and other[:10] in ln and FULL[:10] in ln, out
-    assert "STALE CHECKOUT" in out and "run it from an up-to-date checkout of main, for example a fresh worktree: git worktree add --detach .worktrees/verify origin/main" in out
+    assert "STALE CHECKOUT" in out and "run it from a checkout of the VM's commit, for example a fresh worktree: git worktree add --detach .worktrees/verify " + FULL[:10] in out
+    assert "origin/main" not in out  # main may have moved on since the release: the hint names the VM's commit
     assert "RESULT   verify FAILED" in out
     assert "invariants" not in out and "smoke" not in out  # nothing that reads the local SQL ran
     f = Fake(tmp_path / "same")  # same commit passes
@@ -310,7 +312,8 @@ def test_mark_refuses_when_the_checkout_is_not_the_commit(tmp_path: Path) -> Non
     tree = f.home / "vatpac-statsV2"
     f.set(FAKE_LOCAL_HEAD="a" * 40)
     rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
-    assert rc == 1 and "STALE CHECKOUT" in out and "git worktree add --detach .worktrees/verify origin/main" in out and "nothing written" in out, out
+    assert rc == 1 and "STALE CHECKOUT" in out and "git worktree add --detach .worktrees/verify " + FULL[:10] in out and "nothing written" in out, out
+    assert "origin/main" not in out
     assert not (tree / ".deploy").exists()
     f.set(FAKE_LOCAL_HEAD=FULL)
     assert f.run("--mark", "f893585", "--allow-silent-issues")[0] == 0
