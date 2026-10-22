@@ -169,7 +169,16 @@ vm_up() {
   fi
   [ "$VM_PROBE" = up ]
 }
-STALE_HINT="run it from an up-to-date checkout of main, for example a fresh worktree: git worktree add --detach .worktrees/verify origin/main"
+# stale_hint <commit>: what to do when this checkout is not at the commit the VM runs (or the commit being marked). It must name THAT commit:
+# origin/main may have moved on since the release.
+stale_hint() { echo "run it from a checkout of the VM's commit, for example a fresh worktree: git worktree add --detach .worktrees/verify ${1:0:10}"; }
+
+# dirty_ops: prints up to three changed or untracked files under ops/ ("?" when git cannot answer); empty when clean
+dirty_ops() {
+  local out
+  out="$(g status --porcelain -- ops 2>/dev/null)" || { echo "?"; return; }
+  printf '%s\n' "$out" | sed '/^$/d' | head -n 3 | cut -c4- | tr '\n' ' '
+}
 
 vm_now() { vm 'date -u +%s' 2>/dev/null | tr -d '\r' | grep -E '^[0-9]+$' | head -n 1; }
 iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null; }
@@ -384,6 +393,15 @@ check_registry_preflight() {
 
 # ---------------------------------------------------------------- --verify
 
+# check_checkout_clean: uncommitted edits under ops/ are what --verify and --mark would run, whatever HEAD says. Returns 1 when dirty.
+check_checkout_clean() {
+  local d
+  d="$(dirty_ops)"
+  if [ "$d" = "?" ]; then emit FAIL checkout_clean "cannot read the git status of this checkout (git missing or not a repository)"; return 1
+  elif [ -n "$d" ]; then emit FAIL checkout_clean "uncommitted changes under ops/: ${d% }; commit, stash or use a clean worktree at the VM's commit"; return 1
+  else emit PASS checkout_clean "no uncommitted changes under ops/"; fi
+}
+
 # check_checkout_current: --verify counts the invariants and runs the flap check from the LOCAL ops/audit/*.sql, so a checkout that is
 # not at the commit the VM runs gives wrong results (22-10-2026: 21 invariants counted against 20 in production). Returns 1 on a
 # mismatch (the caller stops: nothing after it could be trusted); an unreadable HEAD is a FAIL line but does not stop the run.
@@ -394,7 +412,7 @@ check_checkout_current() {
   elif ! [[ "$vh" =~ ^[0-9a-f]{40}$ ]]; then emit FAIL checkout_current "cannot read the VM checkout HEAD, so the local checkout ${lh:0:10} cannot be compared with it"
   elif [ "$lh" != "$vh" ]; then
     echo "!!!! STALE CHECKOUT: this checkout is at ${lh:0:10} but the VM checkout is at ${vh:0:10}. Nothing below can be trusted, so no check was run."
-    emit FAIL checkout_current "local ${lh:0:10} is not the VM's ${vh:0:10}; $STALE_HINT"
+    emit FAIL checkout_current "local ${lh:0:10} is not the VM's ${vh:0:10}; $(stale_hint "$vh")"
     return 1
   else emit PASS checkout_current "local checkout and VM checkout are both at ${lh:0:10}"; fi
   return 0
@@ -405,6 +423,7 @@ verify() {
   echo "deploy verify against $DEPLOY_SSH (read-only)"
   if ! vm_up; then emit FAIL vm_reachable "ssh $DEPLOY_SSH did not answer"; else emit PASS vm_reachable "ssh answers"; fi
   check_checkout_current || { summary verify; return 1; }
+  check_checkout_clean || { summary verify; return 1; }
 
   # smoke: only the guarded version (issue 86). The old VM copy had unguarded DELETE and INSERT attempts, so it is never run.
   out="$(vm 'grep -c ro-check-begin ops/smoke.sh' 2>/dev/null | tr -d '\r' | head -n 1)"
@@ -528,7 +547,7 @@ third_party_digests() {
 # ---------------------------------------------------------------- --mark (the only write)
 
 mark() {
-  local want="$1" allow="${2:-}" full lh now stamp who prev rc vmhead pfx tag imgs crev
+  local want="$1" allow="${2:-}" d full lh now stamp who prev rc vmhead pfx tag imgs crev
   [ -z "$allow" ] || [ "$allow" = --allow-silent-issues ] || { echo "usage: deploy.sh --mark <commit> [--allow-silent-issues]" >&2; return 2; }
   [[ "$want" =~ ^[0-9a-fA-F]{7,40}$ ]] || { echo "usage: deploy.sh --mark <commit (7 to 40 hex characters)>" >&2; return 2; }
   full="$(g rev-parse --verify -q "${want}^{commit}" 2>/dev/null)"
@@ -536,7 +555,12 @@ mark() {
   # the silent-issue check below runs ops/stale_issues.sh from this checkout: refuse unless HEAD is exactly the commit being marked
   lh="$(local_head)"
   if [ "$lh" != "$full" ]; then
-    echo "!!!! STALE CHECKOUT: this checkout is at ${lh:0:10} but the commit being marked is ${full:0:10}; nothing written. $STALE_HINT (to mark an older commit, use a worktree at that commit)" >&2
+    echo "!!!! STALE CHECKOUT: this checkout is at ${lh:0:10} but the commit being marked is ${full:0:10}; nothing written. $(stale_hint "$full")" >&2
+    return 1
+  fi
+  d="$(dirty_ops)"
+  if [ -n "$d" ]; then
+    echo "!!!! DIRTY CHECKOUT: uncommitted changes under ops/ (or git status unreadable): ${d% }; commit, stash or use a clean worktree at the commit being marked; nothing written" >&2
     return 1
   fi
   g fetch -q origin main 2>/dev/null
