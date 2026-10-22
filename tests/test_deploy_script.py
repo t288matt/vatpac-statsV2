@@ -889,3 +889,26 @@ def test_read_only_output_is_unchanged_by_the_caching(tmp_path: Path) -> None:
     assert "image mode: registry (only the two image keys of the VM's .env are read); checkout HEAD: " + FULL[:12] in out
     out = f.run("--verify")[1]
     assert "registry mode: collector watchdog backup migrate run latest, built from the checkout " + FULL[:10] in line_for(out, "image_revisions")
+
+
+def test_verify_and_mark_refuse_uncommitted_changes_under_ops(tmp_path: Path) -> None:
+    f = Fake(tmp_path / "clean")
+    rc, out = f.run("--verify")
+    assert rc == 0 and line_for(out, "checkout_clean").startswith("PASS"), out
+    f = Fake(tmp_path / "dirty")  # a modified tracked file and untracked files, four in all: at most three are named
+    f.set(FAKE_DIRTY=" M ops/audit/invariants.sql\n?? ops/new1.sql\n?? ops/new2.sql\n?? ops/new3.sql")
+    rc, out = f.run("--verify")
+    ln = line_for(out, "checkout_clean")
+    assert rc == 1 and ln.startswith("FAIL") and "ops/audit/invariants.sql" in ln and "ops/new2.sql" in ln and "new3" not in ln, out
+    assert "commit, stash or use a clean worktree at the VM's commit" in ln and "invariants " not in out.split("checkout_clean")[1]
+    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
+    assert rc == 1 and "DIRTY CHECKOUT" in out and "ops/audit/invariants.sql" in out and "nothing written" in out
+    assert not (f.home / "vatpac-statsV2" / ".deploy").exists()
+    f.set(FAKE_DIRTY="?? ops/scratch.sh")  # untracked alone is enough
+    assert f.run("--verify")[0] == 1
+    f.set(FAKE_DIRTY="", FAKE_GIT_STATUS_FAIL="1")  # git cannot answer: a FAIL with a clear message, not a crash
+    rc, out = f.run("--verify")
+    assert rc == 1 and "cannot read the git status" in line_for(out, "checkout_clean")
+    assert f.run("--mark", "f893585", "--allow-silent-issues")[0] == 1
+    f.set(FAKE_DIRTY=" M ops/x.sh", FAKE_GIT_STATUS_FAIL="")  # preflight and status work from a dirty checkout
+    assert f.run("--preflight", "f893585")[0] == 0 and f.run("--status")[0] == 0
