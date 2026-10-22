@@ -75,7 +75,8 @@ visitor -> Cloudflare (rate limit rule, Bot Fight Mode) -> Cloudflare Tunnel (na
 | Part | Where | In this repository? |
 |---|---|---|
 | Grafana with public dashboards enabled (the default); anonymous access off | `docker-compose.yml`, the VM | Yes |
-| `ops/grafana_public.py` (create, repair, `--list`, `--remove`, `--traefik-labels --host <host>`; reads the admin login from `.env`, never prints it) | run on the VM | Yes |
+| `ops/grafana_public.py` (create, repair, `--list`, `--remove`, `--traefik-labels --host <host>`; reads the admin login from `.env`, never prints it; shares the Grafana client `ops/grafana_api.py` with `ops/check_panels.py`: the login goes in clear text only to an address of this machine, https otherwise, and redirects are never followed) | run on the VM | Yes |
+| `.env` readers: `ops/env_key.sh` (shell scripts) and `ops/env_file.py` (Python tools), one set of rules; `ops/release_common.sh` (release-marker reader and `gh_bin`, shared by `ops/deploy.sh` and `ops/stale_issues.sh`) | ops scripts | Yes |
 | Cloudflare (rate limit, Bot Fight Mode), the tunnel, DNS | Cloudflare account | No (described in the runbook) |
 | Traefik and the `vatpac-proxy` helper (Traefik reads Docker labels only on its own machine and its file provider is off, so a forwarder with labels carries the route) | owner's Traefik machine | No (compose file shown in the runbook) |
 

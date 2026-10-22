@@ -31,14 +31,15 @@ echo "$*" >> "$FAKE_DIR/ssh.log"
 [ -n "$FAKE_SSH_DOWN" ] && exit 255
 while [ $# -gt 0 ]; do case "$1" in -o) shift 2 ;; -n) shift ;; *) break ;; esac; done
 shift   # the host
-HOME="$FAKE_HOME" exec sh -c "$1"
+HOME="$FAKE_HOME" FAKE_ON_VM=1 exec sh -c "$1"
 """,
     "git": r"""#!/bin/sh
 [ "$1" = "-C" ] && shift 2
 case "$1" in
   fetch) exit 0 ;;
+  status) [ -n "$FAKE_GIT_STATUS_FAIL" ] && exit 128; [ -n "$FAKE_DIRTY" ] && printf '%s\n' "$FAKE_DIRTY"; exit 0 ;;
   rev-parse) for a; do last="$a"; done
-    case "$last" in HEAD) echo "${FAKE_VM_HEAD:-$FAKE_GIT_FULL}"; exit 0 ;; 0000000*) exit 1 ;; origin/main) echo "$FAKE_GIT_TIP"; exit 0 ;; *) echo "$FAKE_GIT_FULL"; exit 0 ;; esac ;;
+    case "$last" in HEAD) if [ -n "$FAKE_ON_VM" ]; then echo "${FAKE_VM_HEAD:-$FAKE_GIT_FULL}"; else echo "${FAKE_LOCAL_HEAD:-$FAKE_GIT_FULL}"; fi; exit 0 ;; 0000000*) exit 1 ;; origin/main) echo "$FAKE_GIT_TIP"; exit 0 ;; *) echo "$FAKE_GIT_FULL"; exit 0 ;; esac ;;
   merge-base) exit "${FAKE_ANCESTOR_RC:-0}" ;;
   rev-list) echo 3 ;;
   log) echo "$*" >> "$FAKE_DIR/gitlog.args"; [ -f "$FAKE_DIR/gitlog.txt" ] && cat "$FAKE_DIR/gitlog.txt" ;;
@@ -286,6 +287,46 @@ def test_every_check_passes_when_healthy_and_fails_alone() -> None:
     assert not bad, "\n".join(bad)
 
 
+def test_verify_refuses_a_checkout_that_is_not_at_the_vm_commit(tmp_path: Path) -> None:
+    other = "a" * 40
+    f = Fake(tmp_path / "stale")  # local checkout at another commit than the VM checkout
+    f.set(FAKE_LOCAL_HEAD=other)
+    rc, out = f.run("--verify")
+    ln = line_for(out, "checkout_current")
+    assert rc == 1 and ln.startswith("FAIL") and other[:10] in ln and FULL[:10] in ln, out
+    assert "STALE CHECKOUT" in out and "run it from a checkout of the VM's commit, for example a fresh worktree: git worktree add --detach .worktrees/verify " + FULL[:10] in out
+    assert "origin/main" not in out  # main may have moved on since the release: the hint names the VM's commit
+    assert "RESULT   verify FAILED" in out
+    assert "invariants" not in out and "smoke" not in out  # nothing that reads the local SQL ran
+    f = Fake(tmp_path / "same")  # same commit passes
+    rc, out = f.run("--verify")
+    assert rc == 0 and line_for(out, "checkout_current").startswith("PASS"), out
+    f = Fake(tmp_path / "down")  # the VM cannot be read: vm_reachable still FAILs and the comparison does not pass either
+    f.set(FAKE_SSH_DOWN="1")
+    rc, out = f.run("--verify")
+    assert rc == 1 and line_for(out, "vm_reachable").startswith("FAIL") and line_for(out, "checkout_current").startswith("FAIL")
+
+
+def test_mark_refuses_when_the_checkout_is_not_the_commit(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    tree = f.home / "vatpac-statsV2"
+    f.set(FAKE_LOCAL_HEAD="a" * 40)
+    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
+    assert rc == 1 and "STALE CHECKOUT" in out and "git worktree add --detach .worktrees/verify " + FULL[:10] in out and "nothing written" in out, out
+    assert "origin/main" not in out
+    assert not (tree / ".deploy").exists()
+    f.set(FAKE_LOCAL_HEAD=FULL)
+    assert f.run("--mark", "f893585", "--allow-silent-issues")[0] == 0
+
+
+def test_preflight_and_status_name_the_local_checkout(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    f.set(FAKE_LOCAL_HEAD="a" * 40)  # these two keep working from any checkout
+    for mode in (["--preflight", "f893585"], ["--status"]):
+        rc, out = f.run(*mode)
+        assert rc == 0 and "local checkout is at " + "a" * 10 in out, out
+
+
 def test_usage_and_hostile_arguments(tmp_path: Path) -> None:
     f = Fake(tmp_path)
     assert f.run("--preflight")[0] == 2
@@ -394,13 +435,10 @@ def test_read_only_modes_write_nothing_and_run_nothing_forbidden(tmp_path: Path)
     assert sorted(str(p.relative_to(f.home)) for p in f.home.rglob("*")) == before
     f.run("--mark", "f893585", "--allow-silent-issues")
     log = f.ssh_log() + (f.dir / "docker.log").read_text()
-    one_read = "sed -n 's/^BACKUP_TIME_UTC=//p' .env"  # the one deliberate read of .env: a single key
-    assert one_read in log
-    log = log.replace(one_read, "")
-    # Registry mode (issue 173) reads two more keys the same way, by name, to learn the image mode. The key names are not
-    # secrets and the values are never printed; any other .env access still trips FORBIDDEN below.
-    for key in ("VATPAC_IMAGE_PREFIX", "VATPAC_IMAGE_TAG"):
-        read = f"sed -n -e 's/^export[[:space:]][[:space:]]*//' -e 's/^{key}=//p' .env"
+    # The only reads of .env: three keys by name, each through env_key (ops/env_key.sh, sent to the VM as text; issue 212). The key
+    # names are not secrets and the values are never printed; any other .env access still trips FORBIDDEN below.
+    for key in ("BACKUP_TIME_UTC", "VATPAC_IMAGE_PREFIX", "VATPAC_IMAGE_TAG"):
+        read = f"env_key .env {key}"
         assert read in log
         log = log.replace(read, "")
     assert not FORBIDDEN.search(log), FORBIDDEN.search(log)
@@ -417,7 +455,7 @@ def test_ci_checks_deploy_sh_with_bash_not_sh() -> None:
 
 # ------------------------------------------------------------------ silent-issue guard (issue 104)
 
-STALE = REPO / "ops" / "stale_issues.sh"
+STALE = STALE_SH = REPO / "ops" / "stale_issues.sh"
 PREV = "c" * 40
 
 
@@ -512,7 +550,7 @@ def test_stale_issues_script_table_and_exit_codes(tmp_path: Path) -> None:
 # ------------------------------------------------------------------ registry mode (issue 173)
 
 def test_registry_pure_logic() -> None:
-    calls = ["registry_mode '' ''", "registry_mode ghcr.io/x/ sha-1", "registry_mode ghcr.io/x/ ''", "registry_mode '' sha-1",
+    calls = ["registry_mode ''", "registry_mode ghcr.io/x/", "registry_mode ghcr.io/x/", "registry_mode ''",  # the prefix alone decides (the tag argument was ignored and is gone)
              "short_tag " + FULL + "; echo", "valid_prefix ghcr.io/t288matt/ && echo v", "valid_prefix 'ghcr.io/x' || echo noslash",
              "valid_prefix 'a/b/;rm -rf /' || echo unsafe", "valid_prefix '' || echo empty",
              f"head_matches {FULL} {FULL[:7]} && echo m1", f"head_matches {FULL} {FULL} && echo m2",
@@ -740,3 +778,137 @@ def test_pulled_images_check_distinct_messages(tmp_path: Path) -> None:
     body = mk.split("\ndeploy:")[1].split("\n\n")[0]
     order = [body.index(x) for x in ("git pull --ff-only", "docker compose pull", "check_pulled_images.sh", "docker compose up -d --no-build")]
     assert order == sorted(order) and "--build" not in body.replace("--no-build", "")  # never up before the check, never builds
+
+
+# ------------------------------------------------------------------ shared helper file (issue 215)
+
+def _source_run(script: Path, flag: str, calls: str, **env: str) -> str:
+    e = {k: v for k, v in os.environ.items() if k not in ("GH_BIN", "DEPLOY_GH")}
+    e.update(env, **{flag: "1"})
+    p = subprocess.run([str(BASH), "-c", f'. "{script.as_posix()}"; {calls}'], capture_output=True, text=True, env=e, timeout=60)
+    assert p.returncode == 0, p.stderr
+    return p.stdout.strip()
+
+
+def test_gh_bin_is_the_same_in_both_scripts() -> None:
+    fallback = 'PATH=/nonexistent; gh_bin'  # builtins only: the function is already defined, so no gh and no other program is found
+    for script, flag, var in ((SCRIPT, "DEPLOY_SOURCE_ONLY", "DEPLOY_GH"), (STALE_SH, "STALE_SOURCE_ONLY", "GH_BIN")):
+        assert _source_run(script, flag, "gh_bin", **{var: "/x/my-gh"}) == "/x/my-gh", script
+        assert _source_run(script, flag, fallback) == "/c/Program Files/GitHub CLI/gh.exe", script  # the Windows fallback
+    assert _source_run(STALE_SH, "STALE_SOURCE_ONLY", "gh_bin", DEPLOY_GH="/x/dep-gh", GH_BIN="/x/env-gh") == "/x/env-gh"  # one function: GH_BIN wins
+
+
+def test_one_marker_reader_for_both_scripts(tmp_path: Path) -> None:
+    """The release marker is read with one pattern (7 to 40 hex characters; git resolves a short one) wherever it is read."""
+    text = {"full": f"commit={FULL}\nmarked_utc=x\n", "short": "commit=f893585\r\nmarked_utc=x\r\n", "bad": "commit=zzzzzzz\n", "tiny": "commit=f89358\n"}
+    want = {"full": FULL, "short": "f893585", "bad": "", "tiny": ""}
+    for key, body in text.items():
+        f = Fake(tmp_path / key)
+        d = f.home / "vatpac-statsV2" / ".deploy"
+        d.mkdir()
+        (d / "release").write_bytes(body.encode())
+        f.set(GH_BIN=str(f.bin / "gh"), REPO="o/r")
+        f.write("gitlog.txt", "")
+        p = subprocess.run([str(BASH), str(STALE_SH)], capture_output=True, text=True, env=f.env, cwd=REPO, timeout=60)
+        out = p.stdout + p.stderr
+        if want[key]:
+            assert p.returncode == 0 and f"since the release marker {want[key][:10]}" in out, (key, out)
+        else:
+            assert p.returncode == 2 and "could not read the release marker" in out, (key, out)
+        # deploy.sh --mark takes the previous marker from the same file
+        g = Fake(tmp_path / (key + "-mark"))
+        d = g.home / "vatpac-statsV2" / ".deploy"
+        d.mkdir()
+        (d / "release").write_bytes(body.encode())
+        g.write("gitlog.txt", "")
+        rc, mout = g.run("--mark", "f893585")
+        if want[key]:
+            assert rc == 0, (key, mout)
+        else:
+            assert rc == 1 and "no previous marker" in mout, (key, mout)
+
+
+# ------------------------------------------------------------------ one .env key reader (issue 212)
+
+def test_vm_env_keys_are_read_with_quotes_export_and_crlf(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    f.dotenv('export VATPAC_IMAGE_PREFIX="ghcr.io/t288matt/"\r\nVATPAC_IMAGE_TAG=\'sha-1234567\'\r\nBACKUP_TIME_UTC="03:30"\r\nVATPAC_IMAGE_PREFIX="ghcr.io/t288matt/"\r\n')
+    f.write("inspect.txt", _inspect_registry())
+    rc, out = f.run("--preflight", "f893585")
+    assert "registry mode" in line_for(out, "registry_mode") and line_for(out, "image_tag_env").startswith("WARN"), out
+    assert "outside the 03:30 UTC backup window" in line_for(out, "backup_window"), out  # a quoted BACKUP_TIME_UTC is now honoured like the image keys
+    f.dotenv("VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/\nVATPAC_IMAGE_PREFIX=\n")  # the last assignment wins: blank means local mode
+    assert "local build mode" in line_for(f.run("--preflight", "f893585")[1], "registry_mode")
+
+
+# ------------------------------------------------------------------ one wording of the sha- pin warning (issue 213)
+
+def test_the_sha_pin_warning_has_one_wording_in_all_three_places(tmp_path: Path) -> None:
+    sentence = subprocess.run([str(BASH), "-c", f'IMAGE_MODE_SOURCE_ONLY=1 . "{(REPO / "ops" / "image_mode.sh").as_posix()}"; sha_pin_warning'],
+                              capture_output=True, text=True, timeout=30).stdout.strip()
+    assert sentence.startswith("WARNING: VATPAC_IMAGE_TAG is a sha- pin") and "Delete that line unless this is a deliberate rollback" in sentence
+    env = tmp_path / "e.env"
+    env.write_text("VATPAC_IMAGE_PREFIX=ghcr.io/x/\nVATPAC_IMAGE_TAG=sha-1234567\n", newline="\n")
+    p = subprocess.run([str(BASH), "-c", f'sh "{(REPO / "ops" / "image_mode.sh").as_posix()}" "{env.as_posix()}"'], capture_output=True, text=True, timeout=30)
+    assert sentence in p.stderr and "1234567" not in p.stderr
+    secrets = subprocess.run([str(BASH), "-c", f'sh "{(REPO / "ops" / "gen_env.sh").as_posix()}" "{(tmp_path / "g.env").as_posix()}"'], capture_output=True, text=True, timeout=30)
+    assert secrets.returncode == 0, secrets.stderr
+    (tmp_path / "g.env").write_text((tmp_path / "g.env").read_text(encoding="utf-8") + "VATPAC_IMAGE_TAG=sha-1234567\n", newline="\n")
+    p = subprocess.run([str(BASH), "-c", f'sh "{(REPO / "ops" / "check_env.sh").as_posix()}" "{(tmp_path / "g.env").as_posix()}"'], capture_output=True, text=True, timeout=30)
+    assert "check_env: " + sentence in p.stderr and "1234567" not in p.stderr
+    f = Fake(tmp_path / "vm")
+    f.registry(tag="sha-1234567")
+    out = f.run("--preflight", "f893585")[1]
+    assert sentence in line_for(out, "image_tag_env") and line_for(out, "image_tag_env").startswith("WARN")
+
+
+# ------------------------------------------------------------------ read once, probe once (issue 214)
+
+def _count(f: Fake, needle: str) -> int:
+    return f.ssh_log().count(needle)
+
+
+def test_each_mode_reads_the_image_keys_head_and_reachability_once(tmp_path: Path) -> None:
+    for mode in (["--verify"], ["--preflight", "f893585"], ["--status"], ["--mark", "f893585", "--allow-silent-issues"]):
+        f = Fake(tmp_path / mode[0].strip("-"))
+        f.registry()
+        rc, out = f.run(*mode)
+        assert rc == 0, out
+        assert _count(f, "env_key .env VATPAC_IMAGE_PREFIX") <= 1 and _count(f, "env_key .env VATPAC_IMAGE_TAG") <= 1, (mode, f.ssh_log())
+        assert _count(f, "git rev-parse HEAD") <= 1 and _count(f, "echo reachable") <= 1, (mode, f.ssh_log())
+    f = Fake(tmp_path / "verify-counts")
+    f.registry()
+    f.run("--verify")
+    assert _count(f, "env_key .env VATPAC_IMAGE_PREFIX") == 1 and _count(f, "git rev-parse HEAD") == 1 and _count(f, "echo reachable") == 1
+
+
+def test_read_only_output_is_unchanged_by_the_caching(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    f.registry()
+    out = f.run("--status")[1]
+    assert "image mode: registry (only the two image keys of the VM's .env are read); checkout HEAD: " + FULL[:12] in out
+    out = f.run("--verify")[1]
+    assert "registry mode: collector watchdog backup migrate run latest, built from the checkout " + FULL[:10] in line_for(out, "image_revisions")
+
+
+def test_verify_and_mark_refuse_uncommitted_changes_under_ops(tmp_path: Path) -> None:
+    f = Fake(tmp_path / "clean")
+    rc, out = f.run("--verify")
+    assert rc == 0 and line_for(out, "checkout_clean").startswith("PASS"), out
+    f = Fake(tmp_path / "dirty")  # a modified tracked file and untracked files, four in all: at most three are named
+    f.set(FAKE_DIRTY=" M ops/audit/invariants.sql\n?? ops/new1.sql\n?? ops/new2.sql\n?? ops/new3.sql")
+    rc, out = f.run("--verify")
+    ln = line_for(out, "checkout_clean")
+    assert rc == 1 and ln.startswith("FAIL") and "ops/audit/invariants.sql" in ln and "ops/new2.sql" in ln and "new3" not in ln, out
+    assert "commit, stash or use a clean worktree at the VM's commit" in ln and "invariants " not in out.split("checkout_clean")[1]
+    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
+    assert rc == 1 and "DIRTY CHECKOUT" in out and "ops/audit/invariants.sql" in out and "nothing written" in out
+    assert not (f.home / "vatpac-statsV2" / ".deploy").exists()
+    f.set(FAKE_DIRTY="?? ops/scratch.sh")  # untracked alone is enough
+    assert f.run("--verify")[0] == 1
+    f.set(FAKE_DIRTY="", FAKE_GIT_STATUS_FAIL="1")  # git cannot answer: a FAIL with a clear message, not a crash
+    rc, out = f.run("--verify")
+    assert rc == 1 and "cannot read the git status" in line_for(out, "checkout_clean")
+    assert f.run("--mark", "f893585", "--allow-silent-issues")[0] == 1
+    f.set(FAKE_DIRTY=" M ops/x.sh", FAKE_GIT_STATUS_FAIL="")  # preflight and status work from a dirty checkout
+    assert f.run("--preflight", "f893585")[0] == 0 and f.run("--status")[0] == 0
