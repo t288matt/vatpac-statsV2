@@ -38,6 +38,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXPECTED_FILE="${DEPLOY_EXPECTED_FILE:-$HERE/deploy_expected_warnings.txt}"
 ROOT="$(cd "$HERE/.." && pwd)"
 # shellcheck source=ops/release_common.sh
+. "$HERE/env_key.sh"   # env_key: sent to the VM as text by vm_env_key, so the remote read is the same code as the local ones
 . "$HERE/release_common.sh"   # gh_bin, RELEASE_MARKER_CMD, release_marker_commit (shared with stale_issues.sh)
 
 VM_DOWN=0
@@ -164,8 +165,8 @@ CONTAINERS=""
 load_containers() { CONTAINERS="$(vm "$INSPECT" 2>/dev/null | tr -d '\r' | grep '|')"; }
 
 # vm_env_key <NAME>: the value of one key from the VM's .env; nothing else of the file is read (used for the two image keys only)
-# (tolerates a leading "export " and single or double quotes around the value)
-vm_env_key() { vm "sed -n -e 's/^export[[:space:]][[:space:]]*//' -e 's/^$1=//p' .env 2>/dev/null | tail -n 1" 2>/dev/null | tr -d '\r \t' | tr -d "\"'"; }
+# The read is ops/env_key.sh's env_key (rules there), sent to the VM as text because the VM checkout may still be the old commit before a deploy.
+vm_env_key() { vm "$(declare -f env_key); env_key .env $1" 2>/dev/null | tr -d '\r'; }
 
 # svc_line <service>: the inspect line of the service's container
 svc_line() { printf '%s\n' "$CONTAINERS" | grep -E "^/vatpac-$1-[0-9]+\|" | head -n 1; }
@@ -302,7 +303,7 @@ preflight() {
 
   # backup window: BACKUP_TIME_UTC from the VM's .env if set (only that one value is read, and only an HH:MM is ever used)
   now="$(vm_now)"
-  bt="$(vm "sed -n 's/^BACKUP_TIME_UTC=//p' .env 2>/dev/null | head -n 1" 2>/dev/null | tr -d '\r ')"
+  bt="$(vm_env_key BACKUP_TIME_UTC)"
   [[ "$bt" =~ ^[0-9]{2}:[0-9]{2}$ ]] || bt="02:00"
   if [ -z "$now" ]; then emit FAIL backup_window "could not read the VM time"
   elif in_backup_window "$now" "$bt"; then emit FAIL backup_window "$(iso "$now" | cut -c12-16) UTC is within -10/+30 minutes of the $bt UTC backup and restore test"

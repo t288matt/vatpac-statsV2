@@ -7,12 +7,12 @@
 set -u
 
 ENV_FILE="${1:-.env}"
+. "$(dirname "$0")/env_key.sh"   # env_key FILE NAME: the one reader of .env keys (issue 212)
 
 val() {  # val <NAME>: the value from the environment, else from ENV_FILE
   eval "v=\${$1:-}"
   if [ -z "$v" ] && [ -f "$ENV_FILE" ]; then
-    # tolerate a leading "export " and single or double quotes around the value
-    v="$(sed -n -e 's/^export[[:space:]][[:space:]]*//' -e "s/^$1=//p" "$ENV_FILE" | tail -n 1 | tr -d '\r' | tr -d "\"'")"
+    v="$(env_key "$ENV_FILE" "$1")"
   fi
   printf '%s' "$v"
 }

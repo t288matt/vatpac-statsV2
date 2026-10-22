@@ -21,14 +21,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-
-def load_env(path: Path) -> dict[str, str]:
-    env: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip() and not line.startswith("#") and "=" in line:
-            k, v = line.split("=", 1)
-            env[k.strip()] = v.strip()
-    return env
+from env_file import read_env  # the one .env reader (ops/env_file.py); python puts this script's folder first on sys.path
 
 
 class Grafana:
@@ -96,7 +89,7 @@ def main() -> int:
     ap.add_argument("--range", default="24h")
     ap.add_argument("--dashboards", default="grafana/dashboards")
     args = ap.parse_args()
-    env = load_env(Path(args.env))
+    env = read_env(Path(args.env))
     host = env.get("GRAFANA_BIND", "127.0.0.1")
     if host in ("", "0.0.0.0"):
         host = "127.0.0.1"

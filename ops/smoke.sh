@@ -65,7 +65,8 @@ fi
 #    each runs inside BEGIN READ WRITE ... ROLLBACK, and the statements match no rows (WHERE false / SELECT ... WHERE false).
 #    PostgreSQL checks the privilege before it looks at any row, so a missing privilege still gives "permission denied",
 #    while a wrongly granted one succeeds on zero rows and the check fails without touching anything.
-RO_PW="$(sed -n 's/^GRAFANA_RO_PASSWORD=//p' .env 2>/dev/null | head -n1)"
+. "$(dirname "$0")/env_key.sh"   # env_key FILE NAME: the one reader of .env keys (issue 212)
+RO_PW="$(env_key .env GRAFANA_RO_PASSWORD)"
 # ro-check-begin
 ro_try() {
   dc exec -T -e PGPASSWORD="$RO_PW" db sh -c 'psql -X -tA -h 127.0.0.1 -U grafana_ro -d "$POSTGRES_DB" -c "BEGIN READ WRITE" -c "$1" -c "ROLLBACK" 2>&1' sh "$1"
