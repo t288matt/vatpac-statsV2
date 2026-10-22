@@ -68,6 +68,7 @@ Recorded here because SPEC.md says decisions belong in this log. Source: the own
 - Cards 94 and 95 (when people are online) are rebuilt to match v1 counting; card 94 uses Monday to Friday (UTC), where v1 used Sunday, Monday and Saturday as a data workaround.
 - Cards 90 and 135 (most popular aircraft) keep the `aircraft_type` lookup categories, not v1's `LIKE` ladder.
 - The retention panels copy v1's rules exactly, including the quirk that "reactivated" needs no earlier session, so every controller counts as reactivated until 60 days of history exist. (The reactivated quirk is superseded by ADR-028.)
+- Note 22-10-2026 (issue #236, owner decision): the two retention list panels take the rank group from the controller's highest rating, not the alphabetically last label. The labels and the blanks for other ratings are unchanged.
 - Accepted risk (owner, 07-10-2026): the Telegram bot token appeared once in a session transcript and was not rotated.
 Consequence: the corresponding rows in CHART_DEFINITIONS.md describe these rules. A later change needs a new ADR.
 
