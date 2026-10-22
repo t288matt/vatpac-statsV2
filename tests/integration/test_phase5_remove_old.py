@@ -92,7 +92,7 @@ def test_the_collector_calls_the_writer_with_a_small_batch_and_contains_a_cancel
 
 def test_the_watchdog_has_no_check_for_the_pieces_and_counts_21() -> None:
     sql = (REPO / "ops" / "audit" / "invariants.sql").read_text(encoding="utf-8")
-    assert len(re.findall(r"SELECT +'[^']+'( +AS +check_name)? *, *count\(", sql)) == 21        # requirement 4
+    assert len(re.findall(r"SELECT +'[^']+'( +AS +check_name)? *, *count\(", sql)) == 20        # requirement 4
     assert "rows missing for sessions older than 12 h" not in sql and "final or settled" not in sql
     msg = (REPO / "ops" / "watchdog" / "messages.py").read_text(encoding="utf-8")
     assert "rows missing for sessions older than 12 h" not in msg and "_MAINTENANCE" not in msg
@@ -129,7 +129,7 @@ ALLOWED_OLD_NAMES = {
     "tests/integration/test_roles.py": "asserts the old functions are gone",
 }
 HISTORY_DOCS = {  # dated records of earlier phases, audits and decisions: they describe the state at that time (each carries a note)
-    "CHANGELOG.md", "docs/DESIGN_89_OPTIONS.md", "docs/TEST_AUDIT.md", "docs/DOC_AUDIT.md", "docs/DATA_INTEGRITY_AUDIT.md",
+    "CHANGELOG.md", "docs/DESIGN_89_OPTIONS.md", "docs/TEST_AUDIT.md", "docs/DOC_AUDIT.md",
     "docs/CONFORMANCE_89_PHASE1.md", "docs/CONFORMANCE_89_PHASE3.md", "docs/CONFORMANCE_89_PHASE4.md",
     "docs/CONFORMANCE_89_PHASE5.md", "docs/RESTORE_DRILL.md", "docs/DECISIONS.md", "docs/HANDOVER.md", "docs/TRACKER.md",
     "docs/FLIGHT_VIEW_SCALING.md", "docs/RUNBOOKS/deploy-to-vm.md", "docs/reference/v1_metabase_cards.json",

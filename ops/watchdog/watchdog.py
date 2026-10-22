@@ -263,24 +263,38 @@ def check_backup(cfg: Config, first_run: float) -> Result:
     return (CRIT if age_h > cfg.backup_max_h else OK), detail
 
 
+def read_marker(path: Path) -> tuple[str, float] | None:
+    """A marker file's text and modification time, or None when it cannot be read (missing, or removed mid-read)."""
+    try:
+        return path.read_text(), path.stat().st_mtime
+    except OSError:
+        return None
+
+
+def parse_marker_time(text: str) -> datetime | None:
+    """The leading '<UTC timestamp>' of a marker line, or None when the text is empty or the timestamp is malformed."""
+    tokens = text.split()
+    try:
+        return datetime.strptime(tokens[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) if tokens else None
+    except ValueError:
+        return None
+
+
 def check_backup_remote(cfg: Config, first_run: float) -> Result:
     """The off-box copy (BACKUP_REMOTE) must have succeeded within WATCHDOG_BACKUP_MAX_HOURS: the backup container writes
     /backups/.last_remote_success after every successful hook run. Only active when BACKUP_REMOTE_ENABLED is set (issue 91)."""
     if not cfg.backup_remote:
         return OK, "off-box copy not configured (BACKUP_REMOTE is empty)"
     path = cfg.backup_dir / ".last_remote_success"
-    try:
-        text = path.read_text()
-        mtime = path.stat().st_mtime
-    except OSError:
+    marker = read_marker(path)
+    if marker is None:
         age_h = (time.time() - first_run) / 3600
         if age_h > cfg.backup_max_h:
             return WARN, f"no off-box copy recorded after {age_h:.1f} h since watchdog first ran"
         return OK, "no off-box copy yet"
-    try:
-        ts = datetime.strptime(text.strip().split()[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC).timestamp()
-    except (ValueError, IndexError):
-        ts = mtime
+    text, mtime = marker
+    when = parse_marker_time(text)
+    ts = when.timestamp() if when else mtime
     age_h = (time.time() - ts) / 3600
     if age_h > cfg.backup_max_h:
         return WARN, f"last off-box copy {age_h:.1f} h ago (limit {cfg.backup_max_h:g})"
@@ -311,11 +325,7 @@ def parse_restore_result(text: str) -> tuple[datetime | None, str]:
     tokens = text.strip().split()
     if len(tokens) < 2:
         return None, "?"
-    try:
-        when: datetime | None = datetime.strptime(tokens[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
-    except ValueError:
-        when = None
-    return when, tokens[1] if tokens[1] in ("OK", "FAIL", "WARN") else "?"
+    return parse_marker_time(text), tokens[1] if tokens[1] in ("OK", "FAIL", "WARN") else "?"
 
 
 def check_restore_test(cfg: Config, first_run: float) -> Result:
@@ -324,14 +334,13 @@ def check_restore_test(cfg: Config, first_run: float) -> Result:
     path = cfg.backup_dir / ".last_restore_test"
     if cfg.restore_test_max_days <= 0:
         return OK, "restore-test age check disabled"
-    try:
-        text = path.read_text()
-        mtime = path.stat().st_mtime
-    except OSError:
+    marker = read_marker(path)
+    if marker is None:
         age_d = (time.time() - first_run) / 86400
         if age_d > cfg.restore_test_max_days:
             return WARN, f"no restore test result after {age_d:.1f} days"
         return OK, "no restore test yet"
+    text, mtime = marker
     when, verdict = parse_restore_result(text)
     ts = when.timestamp() if when else mtime
     age_d = (time.time() - ts) / 86400

@@ -224,3 +224,121 @@ def test_a_warn_line_from_the_weekly_restore_test_is_a_warning_not_critical(tmp_
     assert "worked, but the newest data in the backup was old" in messages.humanise("restore_test", "warn", detail)
     (tmp_path / ".last_restore_test").write_text(f"{stamp} FAIL x\n")
     assert wd.check_restore_test(cfg, _t.time())[0] == wd.CRIT                    # a real failure is still critical
+
+
+# --- marker-file characterisation (issue 216): the two checks that read a "<UTC timestamp> ..." marker must behave the same
+# --- for every marker content before and after they share one reader and one timestamp parser.
+
+def _marker(path: Path, content: str | None, mtime_ago_s: float) -> None:
+    import os
+    import time as _t
+    if content is None:
+        path.unlink(missing_ok=True)
+        return
+    path.write_text(content)
+    os.utime(path, (_t.time() - mtime_ago_s, _t.time() - mtime_ago_s))
+
+
+def _ts(seconds_ago: float) -> str:
+    import time as _t
+    return _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime(_t.time() - seconds_ago))
+
+
+H, D = 3600.0, 86400.0
+REMOTE_CASES = [  # (content, marker mtime age s, expected level, expected detail)
+    ("{t:2h} extra words\n", 0, "ok", "last off-box copy 2.0 h ago"),
+    ("{t:100h}\n", 0, "warn", "last off-box copy 100.0 h ago (limit 26)"),
+    ("{t:2h}", 50 * H, "ok", "last off-box copy 2.0 h ago"),            # timestamp alone is enough; the file time is ignored
+    ("", 5 * H, "ok", "last off-box copy 5.0 h ago"),                    # empty: file time
+    ("   \n", 40 * H, "warn", "last off-box copy 40.0 h ago (limit 26)"),
+    ("garbage here", 7 * H, "ok", "last off-box copy 7.0 h ago"),        # malformed: file time
+    ("2026-13-45T99:99:99Z ok", 8 * H, "ok", "last off-box copy 8.0 h ago"),
+    ("{t:-3h} ok\n", 0, "ok", "last off-box copy -3.0 h ago"),           # future timestamp: negative age, not an alert
+    (None, 0, "ok", "no off-box copy yet"),                              # missing, watchdog first ran 1 h ago
+]
+
+
+def _expand(content: str | None) -> str | None:
+    if content is None:
+        return None
+    for tag, secs in (("{t:2h}", 2 * H), ("{t:100h}", 100 * H), ("{t:-3h}", -3 * H)):
+        content = content.replace(tag, _ts(secs))
+    return content
+
+
+@pytest.mark.parametrize("content,mtime_ago,level,detail", REMOTE_CASES)
+def test_backup_remote_marker_behaviour_is_pinned(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, content: str | None,
+                                                  mtime_ago: float, level: str, detail: str) -> None:
+    import time as _t
+    cfg = _remote_cfg(monkeypatch, tmp_path)
+    _marker(tmp_path / ".last_remote_success", _expand(content), mtime_ago)
+    assert wd.check_backup_remote(cfg, _t.time() - H) == (level, detail)
+
+
+RESTORE_CASES = [
+    ("{t:2d} OK /b/x.dump\n", 0, "ok", "last restore test OK 2.0 days ago"),
+    ("{t:12d} OK x\n", 0, "warn", "last successful restore test 12.0 days ago (limit 9)"),
+    ("{t:2d} FAIL x\n", 0, "crit", "last restore test FAILED 2.0 days ago"),
+    ("{t:2d} WARN x\n", 0, "warn", "last restore test restored fine but the data in the dump was stale (2.0 days ago)"),
+    ("{t:2d} BOGUS x\n", 0, "warn", "last restore test result unreadable"),
+    ("{t:2d}\n", 0, "warn", "last restore test result unreadable"),     # one token: no verdict, so unreadable
+    ("", 3 * D, "warn", "last restore test result unreadable"),
+    ("garbage OK", 3 * D, "ok", "last restore test OK 3.0 days ago"),   # bad timestamp, valid verdict: file time
+    ("garbage FAIL", 4 * D, "crit", "last restore test FAILED 4.0 days ago"),
+    ("{t:-2d} OK x\n", 0, "ok", "last restore test OK -2.0 days ago"),  # future timestamp
+    (None, 0, "ok", "no restore test yet"),
+]
+
+
+@pytest.mark.parametrize("content,mtime_ago,level,detail", RESTORE_CASES)
+def test_restore_test_marker_behaviour_is_pinned(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, content: str | None,
+                                                 mtime_ago: float, level: str, detail: str) -> None:
+    import time as _t
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path))
+    cfg = wd.Config()
+    if content is not None:
+        for tag, secs in (("{t:2d}", 2 * D), ("{t:12d}", 12 * D), ("{t:-2d}", -2 * D)):
+            content = content.replace(tag, _ts(secs))
+    _marker(tmp_path / ".last_restore_test", content, mtime_ago)
+    assert wd.check_restore_test(cfg, _t.time() - H) == (level, detail)
+
+
+def test_restore_test_with_the_age_check_disabled_ignores_the_marker(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import time as _t
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path))
+    monkeypatch.setenv("WATCHDOG_RESTORE_TEST_MAX_DAYS", "0")
+    (tmp_path / ".last_restore_test").write_text(f"{_ts(2 * D)} FAIL x\n")
+    assert wd.check_restore_test(wd.Config(), _t.time()) == ("ok", "restore-test age check disabled")
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("2026-10-08T04:08:27Z OK x", (datetime(2026, 10, 8, 4, 8, 27, tzinfo=UTC), "OK")),
+    ("2026-10-08T04:08:27Z FAIL", (datetime(2026, 10, 8, 4, 8, 27, tzinfo=UTC), "FAIL")),
+    ("2026-10-08T04:08:27Z WARN x", (datetime(2026, 10, 8, 4, 8, 27, tzinfo=UTC), "WARN")),
+    ("2026-10-08T04:08:27Z nope", (datetime(2026, 10, 8, 4, 8, 27, tzinfo=UTC), "?")),
+    ("2026-10-08T04:08:27Z", (None, "?")),
+    ("bad OK", (None, "OK")),
+    ("", (None, "?")),
+])
+def test_parse_restore_result_is_pinned(text: str, expected: tuple[datetime | None, str]) -> None:
+    assert wd.parse_restore_result(text) == expected
+
+
+def test_read_marker_returns_text_and_mtime_or_none(tmp_path: Path) -> None:
+    """Fail-if-reverted (issue 216): the one reader both marker checks use."""
+    import os
+    f = tmp_path / ".marker"
+    assert wd.read_marker(f) is None                                      # missing
+    assert wd.read_marker(tmp_path) is None                               # unreadable (a directory): OSError, not a crash
+    f.write_text("")
+    os.utime(f, (1_700_000_000, 1_700_000_000))
+    assert wd.read_marker(f) == ("", 1_700_000_000.0)                     # empty is a marker, not a miss
+    f.write_text("2026-10-08T04:08:27Z OK\n")
+    assert wd.read_marker(f) is not None and wd.read_marker(f)[0] == "2026-10-08T04:08:27Z OK\n"
+
+
+@pytest.mark.parametrize("text,ok", [("2026-10-08T04:08:27Z", True), ("  2026-10-08T04:08:27Z OK x\n", True),
+                                     ("", False), ("  \n", False), ("garbage", False), ("2026-13-45T99:99:99Z", False)])
+def test_parse_marker_time(text: str, ok: bool) -> None:
+    assert (wd.parse_marker_time(text) == datetime(2026, 10, 8, 4, 8, 27, tzinfo=UTC)) is ok
+    assert ok or wd.parse_marker_time(text) is None

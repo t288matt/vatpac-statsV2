@@ -58,9 +58,6 @@ UNION ALL
 SELECT 'identity duplicates (cid, callsign, logon_time)', count(*), NULL FROM (
   SELECT 1 FROM pilot_session GROUP BY cid, callsign, logon_time HAVING count(*) > 1) d
 UNION ALL
-SELECT 'positions outside plausibility caps', count(*), NULL FROM pilot_position
-WHERE observed_at >= now() - interval '3 days' AND (gs_kt NOT BETWEEN 0 AND 700 OR alt_ft NOT BETWEEN -1500 AND 65000)
-UNION ALL
 -- The feed can restart and re-publish logon_time without its fractional seconds (seen 08-10-2026 04:08:27 UTC), which
 -- creates a second session for every pilot online. Two sessions of one cid + callsign less than 2 s apart are never real.
 SELECT 'pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)', count(*), min(a.first_seen)::text

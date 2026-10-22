@@ -13,9 +13,7 @@ on:
       - 'docs/reference/**'
       - 'docs/CHART_DEFINITIONS.md'
       - 'docs/DATA_DICTIONARY.md'
-      - 'docs/DATA_INTEGRITY_AUDIT.md'
       - 'docs/DEFINITIONS.md'
-      - 'docs/TEST_AUDIT.md'
   pull_request:
     # Skip runs for changes that only touch prose. Order matters: a later pattern overrides an earlier one, so the
     # docs that tests read (and everything else outside docs/) still run CI. docs-secret-scan.yml still scans prose.
@@ -27,9 +25,7 @@ on:
       - 'docs/reference/**'
       - 'docs/CHART_DEFINITIONS.md'
       - 'docs/DATA_DICTIONARY.md'
-      - 'docs/DATA_INTEGRITY_AUDIT.md'
       - 'docs/DEFINITIONS.md'
-      - 'docs/TEST_AUDIT.md'
   workflow_call:  # reusable; release.yml no longer calls it (it checks the commit's main CI run instead, issue 173)
 
 permissions:
@@ -156,7 +152,7 @@ jobs:
         run: pytest tests/integration -m integration -q
       # Second pass, same database and same tests, but the test connection's session time zone is Australia/Sydney
       # (production is UTC and grafana_ro is pinned to UTC, so only the tests' own connection moves). This is what
-      # catches SQL that stopped converting to UTC (issue #51, mutants U03, U05, U07 in docs/TEST_AUDIT.md). It adds about a minute.
+      # catches SQL that stopped converting to UTC (issue #51, mutants U03, U05, U07 in the test audit). It adds about a minute.
       - name: pytest (integration, session time zone Australia/Sydney)
         env:
           PYTHONPATH: collector/src

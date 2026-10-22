@@ -28,7 +28,7 @@ from .logsetup import setup_logging
 from .maintenance import FLIGHT_REFRESH_INTERVAL_S, refresh_flights, run_maintenance
 from .model import Snapshot, parse_snapshot, update_timestamp
 from .pollstats import update_stats
-from .resume import db_last_ts, load_last_ts
+from .resume import load_last_ts
 from .settings import Settings
 from .store import ApplyResult, apply_snapshot, record_reference_change, write_poll_log
 
@@ -74,9 +74,6 @@ class Collector:
                                       deadline=time.monotonic() + APPLY_DEADLINE_S)
         finally:
             self._apply_lock.release()
-
-    def _db_last_ts(self) -> datetime | None:
-        return db_last_ts(self.pool, self.settings.feed_max_future_seconds)
 
     async def load_last_ts(self) -> None:
         self.last_ts = await load_last_ts(self.pool, self.settings.feed_max_future_seconds, self.last_ts)
@@ -156,13 +153,10 @@ class Collector:
         ms = int((time.monotonic() - t0) * 1000)
         await asyncio.to_thread(self._log_poll, status, ref, snapshot_ts=snap_ts, duration_ms=ms, http_status=http,
                                 result=result, error=err)
-        self._update_stats(status, result, snap_ts, err)
+        update_stats(self.stats, self.settings, status, result, snap_ts, err)
         # queued for the archive thread: never blocks or raises
         self.archive.submit(getattr(self.feed, "last_raw", None), seen_ts, status, http, err)
         return PollOutcome(status, retry_in)
-
-    def _update_stats(self, status: str, result: ApplyResult | None, snap_ts: datetime | None, err: str | None) -> None:
-        update_stats(self.stats, self.settings, status, result, snap_ts, err)
 
     async def _sleep(self, seconds: float) -> bool:
         """Sleep unless stopping. Returns True if asked to stop."""

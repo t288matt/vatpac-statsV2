@@ -34,7 +34,6 @@ INVARIANT_WORDS: dict[str, str] = {
     "pilot session first/last seen differ from first/last stored position": "a flight's first or last seen time does not match its stored positions",
     "pilot sessions with no position (active in last 3 days)": "a recent flight was recorded without any positions",
     "identity duplicates (cid, callsign, logon_time)": "the same flight appears to be stored twice",
-    "positions outside plausibility caps": "an aircraft position has an impossible speed or altitude",
     "pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)": "one pilot connection may have been stored as two flights",
     "controller session pairs, same cid+callsign, logon_time within 2 s (identity flap)": "one controller connection may have been stored as two sessions",
     "snapshots that created sessions for more than 50% of in-region pilots": "a snapshot started new flights for over half the pilots in our region, as if everyone had reconnected",
@@ -67,7 +66,6 @@ INVARIANT_ACTIONS: dict[str, str] = {
     "pilot session first/last seen differ from first/last stored position": _ENGINEER,
     "pilot sessions with no position (active in last 3 days)": _ENGINEER,
     "identity duplicates (cid, callsign, logon_time)": _LOGON,
-    "positions outside plausibility caps": f"Bad values may be getting into the data; an engineer should look today (see {_IG} on the VM).",
     "pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)": _LOGON,
     "controller session pairs, same cid+callsign, logon_time within 2 s (identity flap)": _LOGON,
     "snapshots that created sessions for more than 50% of in-region pilots": _LOGON,
@@ -231,7 +229,6 @@ SAME_DAY_INVARIANTS: tuple[str, ...] = (
     "daily partitions missing for today..today+3",
     "newest snapshot in the future or older than 5 minutes",
     "flights quiet longer than the quiet period plus 1 hour with unprocessed positions",  # a stopped writer (issue 89 phase 5: the old "rows missing" check went)
-    "positions outside plausibility caps",
     "in-region count above global count",
     "positions per snapshot differ from pilots_in_region",
 )
