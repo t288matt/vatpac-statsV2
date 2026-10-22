@@ -163,3 +163,45 @@ def test_every_panel_query_runs(populated):
     for p in json.loads(DASHBOARD.read_text(encoding="utf-8"))["panels"]:
         for t in p.get("targets", []):
             populated.execute(t["rawSql"]).fetchall()
+
+
+# ---- issue 236: the rating group of a controller with sessions at different ratings is the HIGHEST rating's label
+def old_rank_group(rating: int) -> str | None:
+    """The labels the two list panels showed for a controller with a single rating (before issue 236)."""
+    if rating >= 8:
+        return "I1+"
+    return {2: "S1", 3: "S2", 4: "S3", 5: "C1", 7: "C3"}.get(rating)
+
+
+def rank_groups_as_grafana_ro(conn) -> dict[str, dict[int, str | None]]:
+    """rank_group per cid from both list panels, run as the dashboards' read-only role."""
+    conn.execute("SET ROLE grafana_ro")
+    try:
+        return {t: {r["cid"]: r["rank_group"] for r in conn.execute(panel_sql(t)).fetchall()} for t in REACTIVATED_LISTS}
+    finally:
+        conn.execute("RESET ROLE")
+
+
+def add_returning(conn, cid: int, earlier_rating: int, recent_rating: int) -> None:
+    """A reactivated, short-session controller: one session 120 days ago, one 5 days ago (10 minutes)."""
+    add_session(conn, cid, 120, 30, rating=earlier_rating)
+    add_session(conn, cid, 5, 10, rating=recent_rating)
+
+
+def test_promoted_controller_shows_the_highest_rating(conn):
+    add_returning(conn, 9000101, 3, 5)     # S2 then C1: C1 (the old query said S2, the alphabetically last label)
+    add_returning(conn, 9000102, 4, 8)     # S3 then I1: I1+ (the old query said S3)
+    add_returning(conn, 9000103, 1, 5)     # OBS then C1: C1
+    add_returning(conn, 9000104, 5, 3)     # C1 then S2 (rating lowered): still C1, whichever session is first
+    add_returning(conn, 9000105, 8, 4)     # I1 then S3: I1+
+    for title, groups in rank_groups_as_grafana_ro(conn).items():
+        assert groups == {9000101: "C1", 9000102: "I1+", 9000103: "C1", 9000104: "C1", 9000105: "I1+"}, title
+
+
+def test_single_rating_controllers_keep_the_old_label_including_null(conn):
+    ratings = [-1, 0, *range(1, 13)]
+    for i, rating in enumerate(ratings):
+        add_returning(conn, 9000200 + i, rating, rating)
+    for title, groups in rank_groups_as_grafana_ro(conn).items():
+        assert groups == {9000200 + i: old_rank_group(r) for i, r in enumerate(ratings)}, title
+    assert old_rank_group(1) is None and old_rank_group(6) is None and old_rank_group(0) is None   # NULL stays NULL

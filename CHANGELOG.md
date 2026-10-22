@@ -6,6 +6,10 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Retention list panels show the highest rating (22-10-2026, issue 236; merged, not yet deployed)
+
+- The two retention list panels, "Who might need help reactivating?" and "Who reactivated after being away for more than 60 days?", now take the rank group (S1, S2, C1 and so on) from the controller's highest rating. Before, a controller promoted from S2 to C1 showed S2; now C1. Labels and blanks are unchanged. Two integration tests pin it.
+
 ## Clean-ups and tidier checks, deployed as 2dc8a92 (marked 22-10-2026 16:56 UTC) and 450a74c (marked 22-10-2026 19:02 UTC)
 
 - **Identity-flap check in one file (issue #201, pull request 250; deployed as 2dc8a92).** The watchdog (last 24 hours) and `ops/deploy.sh --verify` (whole history) now run the same file, `ops/audit/identity_flap.sql`; the separate copy `ops/check_identity_flap.sql` is gone, and the 24 hour query uses the `last_seen` index again.
