@@ -455,7 +455,7 @@ def test_ci_checks_deploy_sh_with_bash_not_sh() -> None:
 
 # ------------------------------------------------------------------ silent-issue guard (issue 104)
 
-STALE = REPO / "ops" / "stale_issues.sh"
+STALE = STALE_SH = REPO / "ops" / "stale_issues.sh"
 PREV = "c" * 40
 
 
@@ -778,3 +778,51 @@ def test_pulled_images_check_distinct_messages(tmp_path: Path) -> None:
     body = mk.split("\ndeploy:")[1].split("\n\n")[0]
     order = [body.index(x) for x in ("git pull --ff-only", "docker compose pull", "check_pulled_images.sh", "docker compose up -d --no-build")]
     assert order == sorted(order) and "--build" not in body.replace("--no-build", "")  # never up before the check, never builds
+
+
+# ------------------------------------------------------------------ shared helper file (issue 215)
+
+def _source_run(script: Path, flag: str, calls: str, **env: str) -> str:
+    e = {k: v for k, v in os.environ.items() if k not in ("GH_BIN", "DEPLOY_GH")}
+    e.update(env, **{flag: "1"})
+    p = subprocess.run([str(BASH), "-c", f'. "{script.as_posix()}"; {calls}'], capture_output=True, text=True, env=e, timeout=60)
+    assert p.returncode == 0, p.stderr
+    return p.stdout.strip()
+
+
+def test_gh_bin_is_the_same_in_both_scripts() -> None:
+    fallback = 'PATH=/nonexistent; gh_bin'  # builtins only: the function is already defined, so no gh and no other program is found
+    for script, flag, var in ((SCRIPT, "DEPLOY_SOURCE_ONLY", "DEPLOY_GH"), (STALE_SH, "STALE_SOURCE_ONLY", "GH_BIN")):
+        assert _source_run(script, flag, "gh_bin", **{var: "/x/my-gh"}) == "/x/my-gh", script
+        assert _source_run(script, flag, fallback) == "/c/Program Files/GitHub CLI/gh.exe", script  # the Windows fallback
+    assert _source_run(STALE_SH, "STALE_SOURCE_ONLY", "gh_bin", DEPLOY_GH="/x/dep-gh", GH_BIN="/x/env-gh") == "/x/env-gh"  # one function: GH_BIN wins
+
+
+def test_one_marker_reader_for_both_scripts(tmp_path: Path) -> None:
+    """The release marker is read with one pattern (7 to 40 hex characters; git resolves a short one) wherever it is read."""
+    text = {"full": f"commit={FULL}\nmarked_utc=x\n", "short": "commit=f893585\r\nmarked_utc=x\r\n", "bad": "commit=zzzzzzz\n", "tiny": "commit=f89358\n"}
+    want = {"full": FULL, "short": "f893585", "bad": "", "tiny": ""}
+    for key, body in text.items():
+        f = Fake(tmp_path / key)
+        d = f.home / "vatpac-statsV2" / ".deploy"
+        d.mkdir()
+        (d / "release").write_bytes(body.encode())
+        f.set(GH_BIN=str(f.bin / "gh"), REPO="o/r")
+        f.write("gitlog.txt", "")
+        p = subprocess.run([str(BASH), str(STALE_SH)], capture_output=True, text=True, env=f.env, cwd=REPO, timeout=60)
+        out = p.stdout + p.stderr
+        if want[key]:
+            assert p.returncode == 0 and f"since the release marker {want[key][:10]}" in out, (key, out)
+        else:
+            assert p.returncode == 2 and "could not read the release marker" in out, (key, out)
+        # deploy.sh --mark takes the previous marker from the same file
+        g = Fake(tmp_path / (key + "-mark"))
+        d = g.home / "vatpac-statsV2" / ".deploy"
+        d.mkdir()
+        (d / "release").write_bytes(body.encode())
+        g.write("gitlog.txt", "")
+        rc, mout = g.run("--mark", "f893585")
+        if want[key]:
+            assert rc == 0, (key, mout)
+        else:
+            assert rc == 1 and "no previous marker" in mout, (key, mout)
