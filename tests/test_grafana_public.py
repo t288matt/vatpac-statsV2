@@ -10,6 +10,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "ops"))  # as when the script is run: its folder is first on sys.path (it imports env_file)
+import grafana_api as ga  # noqa: E402  (the shared client: its rules are tested here, through both scripts)
 spec = importlib.util.spec_from_file_location("grafana_public", REPO / "ops" / "grafana_public.py")
 gp = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gp)
@@ -124,8 +125,8 @@ def test_refuses_to_send_the_login_in_clear_to_another_host(tmp_path: Path, caps
     env.write_text("GRAFANA_ADMIN_PASSWORD=pw\n", encoding="utf-8")
     assert gp.main(["--url", "http://203.0.113.9:3000", "--env", str(env)]) == 2
     assert "refusing" in capsys.readouterr().err
-    gp.check_url("https://vatpac.example")
-    gp.check_url("http://127.0.0.1:3300")
+    ga.check_url("https://vatpac.example")
+    ga.check_url("http://127.0.0.1:3300")
 
 
 def test_grafana_down_and_missing_env_give_a_message_not_a_traceback(tmp_path: Path, capsys) -> None:
@@ -145,14 +146,14 @@ def test_list_shows_links_of_dashboards_that_are_no_longer_provisioned(tmp_path:
 
 
 def test_default_url_follows_grafana_bind_and_port() -> None:
-    assert gp.default_url({}) == "http://127.0.0.1:3300"
-    assert gp.default_url({"GRAFANA_BIND": "192.0.2.10"}) == "http://192.0.2.10:3300"
-    assert gp.default_url({"GRAFANA_BIND": "0.0.0.0", "GRAFANA_PORT": "3400"}) == "http://127.0.0.1:3400"
+    assert ga.default_url({}) == "http://127.0.0.1:3300"
+    assert ga.default_url({"GRAFANA_BIND": "192.0.2.10"}) == "http://192.0.2.10:3300"
+    assert ga.default_url({"GRAFANA_BIND": "0.0.0.0", "GRAFANA_PORT": "3400"}) == "http://127.0.0.1:3400"
 
 
 def test_http_is_allowed_only_to_addresses_of_this_machine() -> None:
-    assert gp.is_this_machine("127.0.0.1") and gp.is_this_machine("localhost")
-    assert not gp.is_this_machine("203.0.113.9") and not gp.is_this_machine(None)
+    assert ga.is_this_machine("127.0.0.1") and ga.is_this_machine("localhost")
+    assert not ga.is_this_machine("203.0.113.9") and not ga.is_this_machine(None)
 
 
 def test_stable_token_is_32_hex_and_always_the_same() -> None:
@@ -183,3 +184,150 @@ def test_traefik_labels_redirect_each_short_name_to_its_stable_link(capsys) -> N
         assert f"redirectregex.replacement=https://vpac.example/public-dashboards/{gp.stable_token(uid)}" in out
     assert out.count("redirectregex.regex=") == len(gp.SHORT_NAMES) and "/?$$" in out
     assert gp.main(["--traefik-labels"]) == 2
+
+
+# ------------------------------------------------------------------ the security rules of the shared client (issue 210)
+
+class _Hits(BaseHTTPRequestHandler):
+    hits: list[tuple[str, str | None]] = []
+    target = ""
+
+    def log_message(self, *a) -> None:
+        pass
+
+    def do_GET(self) -> None:
+        type(self).hits.append((self.path, self.headers.get("Authorization")))
+        if self.path == "/redirect":
+            self.send_response(302)
+            self.send_header("Location", self.target)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+        else:
+            raw = b'{"ok": true}'
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+
+def _serve(handler: type) -> HTTPServer:
+    server = HTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+def test_a_redirect_is_never_followed_so_the_login_goes_nowhere_else() -> None:
+    class Far(_Hits):
+        hits: list[tuple[str, str | None]] = []
+
+    class Near(_Hits):
+        hits: list[tuple[str, str | None]] = []
+
+    far, near = _serve(Far), _serve(Near)
+    Near.target = f"http://127.0.0.1:{far.server_port}/stolen"
+    try:
+        status, _ = gp.Grafana(f"http://127.0.0.1:{near.server_port}", "admin", "pw").call("GET", "/redirect")
+        assert status == 302  # reported as an error status, not followed
+        assert Near.hits and Near.hits[0][1].startswith("Basic ")
+        assert Far.hits == []  # the other address never saw a request, let alone the login
+    finally:
+        far.shutdown()
+        near.shutdown()
+
+
+def test_the_client_refuses_clear_text_to_another_machine_and_allows_this_one() -> None:
+    import pytest
+
+    for bad in ("http://203.0.113.9:3000", "http://grafana.example", "ftp://127.0.0.1"):
+        with pytest.raises(ValueError, match="refusing to send the Grafana login"):
+            gp.Grafana(bad, "admin", "pw")
+    gp.Grafana("https://grafana.example", "admin", "pw")
+    gp.Grafana("http://127.0.0.1:3300", "admin", "pw")
+    gp.Grafana("http://localhost:3300", "admin", "pw")
+
+
+# ------------------------------------------------------------------ ops/check_panels.py on the shared client (issue 210)
+
+cp_spec = importlib.util.spec_from_file_location("check_panels", REPO / "ops" / "check_panels.py")
+cp = importlib.util.module_from_spec(cp_spec)
+cp_spec.loader.exec_module(cp)
+
+
+class _PanelsGrafana(BaseHTTPRequestHandler):
+    seen_auth: list[str | None] = []
+
+    def log_message(self, *a) -> None:
+        pass
+
+    def _send(self, code: int, body: object) -> None:
+        raw = json.dumps(body).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def do_GET(self) -> None:
+        type(self).seen_auth.append(self.headers.get("Authorization"))
+        self._send(200, {"database": "ok", "message": "Data source is working"})
+
+    def do_POST(self) -> None:
+        n = int(self.headers.get("Content-Length") or 0)
+        q = json.loads(self.rfile.read(n))["queries"][0]
+        if "boom" in q["rawSql"]:
+            self._send(200, {"results": {q["refId"]: {"error": "syntax error"}}})
+        elif "nothing" in q["rawSql"]:
+            self._send(200, {"results": {q["refId"]: {"frames": [{"data": {"values": []}}]}}})
+        else:
+            self._send(200, {"results": {q["refId"]: {"frames": [{"data": {"values": [[1, 2]]}}]}}})
+
+
+def _panels_env(tmp_path: Path, port: int, bind: str = "127.0.0.1") -> Path:
+    d = tmp_path / "dash" / "x"
+    d.mkdir(parents=True)
+    panels = [{"title": t, "targets": [{"refId": "A", "rawSql": sql}]} for t, sql in (("ok", "select 1"), ("empty", "select nothing"), ("bad", "select boom"))]
+    (d / "d.json").write_text(json.dumps({"panels": panels}), encoding="utf-8")
+    env = tmp_path / ".env"
+    env.write_text(f'GRAFANA_BIND={bind}\nexport GRAFANA_PORT="{port}"\nGRAFANA_ADMIN_PASSWORD=pw\n', encoding="utf-8")
+    return env
+
+
+def test_check_panels_counts_rows_empties_and_errors_through_the_shared_client(tmp_path: Path, capsys) -> None:
+    _PanelsGrafana.seen_auth = []
+    server = _serve(_PanelsGrafana)
+    try:
+        env = _panels_env(tmp_path, server.server_port)
+        import sys as _sys
+        old = _sys.argv
+        _sys.argv = ["check_panels.py", "--env", str(env), "--dashboards", str(tmp_path / "dash")]
+        try:
+            code = cp.main()
+        finally:
+            _sys.argv = old
+    finally:
+        server.shutdown()
+    out = capsys.readouterr().out
+    assert code == 1 and "panel queries: 1 with rows, 1 empty, 1 errors" in out and "ERROR" in out and "syntax error" in out
+    assert _PanelsGrafana.seen_auth and all(a and a.startswith("Basic ") for a in _PanelsGrafana.seen_auth)
+
+
+def test_check_panels_refuses_to_send_the_login_in_clear_to_another_machine(tmp_path: Path, capsys) -> None:
+    import sys as _sys
+    env = _panels_env(tmp_path, 3300, bind="203.0.113.9")
+    old = _sys.argv
+    _sys.argv = ["check_panels.py", "--env", str(env), "--dashboards", str(tmp_path / "dash")]
+    try:
+        assert cp.main() == 2
+    finally:
+        _sys.argv = old
+    assert "refusing to send the Grafana login" in capsys.readouterr().err
+
+
+def test_both_scripts_use_the_one_client_module() -> None:
+    for name in ("check_panels.py", "grafana_public.py"):
+        text = (REPO / "ops" / name).read_text(encoding="utf-8")
+        assert "from grafana_api import Grafana" in text and "urllib.request" not in text and "class Grafana" not in text, name
+    import subprocess as sp
+    import sys as _sys
+    r = sp.run([_sys.executable, "ops/check_panels.py", "--help"], capture_output=True, text=True, cwd=REPO, timeout=60)  # run as the VM runs it
+    assert r.returncode == 0 and "--dashboards" in r.stdout, r.stderr
