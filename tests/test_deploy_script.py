@@ -547,7 +547,7 @@ def test_stale_issues_script_table_and_exit_codes(tmp_path: Path) -> None:
 # ------------------------------------------------------------------ registry mode (issue 173)
 
 def test_registry_pure_logic() -> None:
-    calls = ["registry_mode '' ''", "registry_mode ghcr.io/x/ sha-1", "registry_mode ghcr.io/x/ ''", "registry_mode '' sha-1",
+    calls = ["registry_mode ''", "registry_mode ghcr.io/x/", "registry_mode ghcr.io/x/", "registry_mode ''",  # the prefix alone decides (the tag argument was ignored and is gone)
              "short_tag " + FULL + "; echo", "valid_prefix ghcr.io/t288matt/ && echo v", "valid_prefix 'ghcr.io/x' || echo noslash",
              "valid_prefix 'a/b/;rm -rf /' || echo unsafe", "valid_prefix '' || echo empty",
              f"head_matches {FULL} {FULL[:7]} && echo m1", f"head_matches {FULL} {FULL} && echo m2",
@@ -857,3 +857,32 @@ def test_the_sha_pin_warning_has_one_wording_in_all_three_places(tmp_path: Path)
     f.registry(tag="sha-1234567")
     out = f.run("--preflight", "f893585")[1]
     assert sentence in line_for(out, "image_tag_env") and line_for(out, "image_tag_env").startswith("WARN")
+
+
+# ------------------------------------------------------------------ read once, probe once (issue 214)
+
+def _count(f: Fake, needle: str) -> int:
+    return f.ssh_log().count(needle)
+
+
+def test_each_mode_reads_the_image_keys_head_and_reachability_once(tmp_path: Path) -> None:
+    for mode in (["--verify"], ["--preflight", "f893585"], ["--status"], ["--mark", "f893585", "--allow-silent-issues"]):
+        f = Fake(tmp_path / mode[0].strip("-"))
+        f.registry()
+        rc, out = f.run(*mode)
+        assert rc == 0, out
+        assert _count(f, "env_key .env VATPAC_IMAGE_PREFIX") <= 1 and _count(f, "env_key .env VATPAC_IMAGE_TAG") <= 1, (mode, f.ssh_log())
+        assert _count(f, "git rev-parse HEAD") <= 1 and _count(f, "echo reachable") <= 1, (mode, f.ssh_log())
+    f = Fake(tmp_path / "verify-counts")
+    f.registry()
+    f.run("--verify")
+    assert _count(f, "env_key .env VATPAC_IMAGE_PREFIX") == 1 and _count(f, "git rev-parse HEAD") == 1 and _count(f, "echo reachable") == 1
+
+
+def test_read_only_output_is_unchanged_by_the_caching(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    f.registry()
+    out = f.run("--status")[1]
+    assert "image mode: registry (only the two image keys of the VM's .env are read); checkout HEAD: " + FULL[:12] in out
+    out = f.run("--verify")[1]
+    assert "registry mode: collector watchdog backup migrate run latest, built from the checkout " + FULL[:10] in line_for(out, "image_revisions")
