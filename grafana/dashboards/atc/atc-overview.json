@@ -662,7 +662,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT date_trunc('week', session_start AT TIME ZONE 'UTC') AS time,\n       round(sum(duration_minutes) / 60.0, 1) AS \"CTR hours\"\nFROM controller_session_ranked\nWHERE facility = 6\n  AND session_start BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "SELECT date_trunc('week', session_start AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       round(sum(duration_minutes) / 60.0, 1) AS \"CTR hours\"\nFROM controller_session_ranked\nWHERE facility = 6\n  AND session_start BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "options": {},

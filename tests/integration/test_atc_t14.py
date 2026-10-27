@@ -27,6 +27,10 @@ weeks ago, a 35-day gap) rather than relying on a session appearing in exactly o
 Card 116 (panel 6) buckets are not rolling (a plain per-week sum, like the old per-month sum), so a session
 placed inside a given week only ever contributes to that week's row; its tests use in-week day offsets
 (0-6 days from the Monday) the same way the old tests used in-month day offsets.
+
+Panel 15 "CTR hours staffed per week" (issue #259, 27-10-2026) has no v1 card: a plain per-week sum of
+`duration_minutes` on `controller_session_ranked` filtered to `facility = 6` (the VATSIM CTR code), not the
+`is_ctr_fss` flag used elsewhere on this dashboard.
 """
 from __future__ import annotations
 
@@ -43,6 +47,7 @@ DASHBOARD = REPO / "grafana" / "dashboards" / "atc" / "atc-overview.json"
 CTR_TITLE = "CTR and FSS controllers active (30 days to month end, monthly)"
 ALL_TITLE = "Controllers active (30 days to week end, weekly)"
 RATING_TITLE = "Controllers logged on each week, by rating group"
+CTR_HOURS_TITLE = "CTR hours staffed per week"
 
 
 def month_start(months_ago: int) -> datetime:
@@ -78,13 +83,13 @@ def panel_sql(title: str) -> str:
 
 
 def add_session(conn, cid: int, period_start: datetime, minutes: int, *, callsign: str | None = None,
-                rating: int = 3, day_offset: int = 14, hour: int = 0) -> None:
+                rating: int = 3, facility: int | None = None, day_offset: int = 14, hour: int = 0) -> None:
     start = period_start + timedelta(days=day_offset, hours=hour)
     conn.execute(
-        "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        (cid, callsign or f"TEST{cid}_TWR", start.replace(microsecond=0), f"Controller {cid}", rating, start,
-         start + timedelta(minutes=minutes)),
+        "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, facility, first_seen, last_seen) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+        (cid, callsign or f"TEST{cid}_TWR", start.replace(microsecond=0), f"Controller {cid}", rating, facility,
+         start, start + timedelta(minutes=minutes)),
     )
 
 
@@ -186,3 +191,12 @@ def test_every_changed_panel_query_runs(conn):
     add_session(conn, 9100001, M1, 90, callsign="TEST_CTR")
     for title in (CTR_TITLE, ALL_TITLE, RATING_TITLE):
         conn.execute(panel_sql(title)).fetchall()
+
+
+def test_ctr_hours_per_week_counts_only_facility_6(conn):
+    """New panel (id 15, issue #259, 27-10-2026, no v1 card): facility = 6 is the VATSIM CTR code; a session
+    at a different facility (4, TWR) in the same week must not add to the CTR hours total."""
+    add_session(conn, 9100050, W1, 90, facility=6, day_offset=1)             # CTR: 90 minutes = 1.5 hours
+    add_session(conn, 9100051, W1, 60, facility=4, day_offset=2)             # TWR: excluded
+    rows = rows_by_bucket(conn, CTR_HOURS_TITLE)
+    assert float(rows[W1]["CTR hours"]) == 1.5
