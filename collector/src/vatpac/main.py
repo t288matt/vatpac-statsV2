@@ -39,6 +39,7 @@ MAINTENANCE_RETRY_S = 60.0
 APPLY_TIMEOUT_S = 25.0  # the poll stops waiting after this
 APPLY_DEADLINE_S = 20.0  # the worker stops itself after this (transaction scope), so it cannot outlive the wait
 MAX_MALFORMED_FRACTION, MIN_WHITELIST_FRACTION = 0.2, 0.7
+SLOW_POLL_LOG_MS = 2000  # issue #261: log the feed's wait/request split so duration_ms can't hide which it was
 # fail fast on a stuck statement or lock; Collector._maintain raises statement_timeout for its own session
 DB_OPTIONS = "-c statement_timeout=20000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=30000"
 
@@ -154,6 +155,9 @@ class Collector:
         await asyncio.to_thread(self._log_poll, status, ref, snapshot_ts=snap_ts, duration_ms=ms, http_status=http,
                                 result=result, error=err)
         update_stats(self.stats, self.settings, status, result, snap_ts, err)
+        if ms > SLOW_POLL_LOG_MS:  # #261: show whether the time was our own throttle wait or the request itself
+            log.warning("slow poll", extra={"duration_ms": ms, "wait_ms": self.feed.last_wait_ms,
+                                            "request_ms": self.feed.last_request_ms})
         # queued for the archive thread: never blocks or raises
         self.archive.submit(getattr(self.feed, "last_raw", None), seen_ts, status, http, err)
         return PollOutcome(status, retry_in)
