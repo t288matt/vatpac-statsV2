@@ -1,9 +1,4 @@
-"""Feed access: URL discovery, conditional GET, retries with jitter, 429 handling.
-
-Issue #261: `_throttle` used to stamp the moment it woke from a wait, not the moment aimed for, so each wait's small
-scheduling overshoot carried into the next poll's gap and ratcheted duration_ms up to ~min_gap_s before each
-sawtooth reset. It now stamps the aimed-for time. `last_wait_ms`/`last_request_ms` show a slow poll's split.
-"""
+"""Feed access: URL discovery, conditional GET, retries with jitter, 429 handling."""
 
 from __future__ import annotations
 
@@ -56,12 +51,12 @@ class FeedClient:
         self._settings = settings
         self._min_gap_s = min_gap_s
         self.stop = stop  # set on SIGTERM: waits end at once so the container stops inside its grace period
-        self._last_request_at: float | None = None
+        self.last_request_at: float | None = None  # monotonic send time of the newest request; main.py paces from it
         self.url = settings.vatsim_feed_url
         self._last_modified: str | None = None
         self._etag: str | None = None
         self.last_raw: bytes | None = None  # body of the newest 200 response, for the archive; else None
-        self.last_wait_ms, self.last_request_ms = 0.0, 0.0  # #261: throttle wait vs GET time, for a slow poll's log
+        self.last_wait_ms, self.last_request_ms = 0.0, 0.0  # #261: last attempt's floor wait and GET time
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(settings.http_timeout_seconds, connect=min(5.0, settings.http_timeout_seconds)),
             headers={"User-Agent": f"vatpac-stats/{__version__}", "Accept-Encoding": "gzip"},
@@ -79,16 +74,15 @@ class FeedClient:
         raise FeedError("collector is stopping")
 
     async def _throttle(self) -> None:
-        """Wait until min_gap_s has passed since the previous request started, stamping the moment aimed for
-        (not the wake time), so a wait's scheduling overshoot can never carry into the next poll's gap (#261)."""
-        now = time.monotonic()
-        target = now if self._last_request_at is None else self._last_request_at + self._min_gap_s
+        """Wait until min_gap_s has passed since the previous request was sent, then stamp the actual send time."""
         self.last_wait_ms = 0.0
-        if target > now:
-            await self._wait(target - now)
-            self.last_wait_ms = round((target - now) * 1000, 1)
-            now = target  # the moment aimed for, not whatever the wait actually woke up at
-        self._last_request_at = now
+        if self.last_request_at is not None:
+            wait = self.last_request_at + self._min_gap_s - time.monotonic()
+            if wait > 0:
+                t0 = time.monotonic()
+                await self._wait(wait)
+                self.last_wait_ms = round((time.monotonic() - t0) * 1000, 1)
+        self.last_request_at = time.monotonic()
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -116,8 +110,10 @@ class FeedClient:
         self.last_raw = None
         await self._throttle()
         t0 = time.monotonic()
-        resp = await self._client.get(self.url, headers=headers)
-        self.last_request_ms = round((time.monotonic() - t0) * 1000, 1)
+        try:
+            resp = await self._client.get(self.url, headers=headers)
+        finally:  # also when the GET raises, so a timed-out poll never logs the previous poll's number
+            self.last_request_ms = round((time.monotonic() - t0) * 1000, 1)
         if resp.status_code == 304:
             return FetchResult(None, 304)
         if resp.status_code == 429:
