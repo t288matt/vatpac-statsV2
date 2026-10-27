@@ -268,8 +268,8 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Controllers logged on each month, by rating group",
-      "description": "Controllers per rating group with more than 60 minutes online, for each calendar month (UTC).",
+      "title": "Controllers logged on each week, by rating group",
+      "description": "Controllers per rating group with more than 60 minutes online, for each calendar week (UTC).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -290,7 +290,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH bounds AS (\n  SELECT date_trunc('month', min(session_start) AT TIME ZONE 'UTC') AS first_month,\n         date_trunc('month', max(session_start) AT TIME ZONE 'UTC') AS last_month\n  FROM controller_session_ranked\n),\nmonths AS (\n  SELECT g.m AS month_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_month, date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_month, date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 month') AS g(m)\n  WHERE b.first_month IS NOT NULL\n),\nper_controller AS (\n  SELECT m.month_start, s.cid, s.rating\n  FROM months m\n  JOIN controller_session_ranked s\n    ON (s.session_start AT TIME ZONE 'UTC') >= m.month_start\n   AND (s.session_start AT TIME ZONE 'UTC') <  m.month_start + interval '1 month'\n  GROUP BY m.month_start, s.cid, s.rating\n  HAVING sum(s.duration_minutes) > 60\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S1')  AS \"S1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S2')  AS \"S2\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S3')  AS \"S3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C1')  AS \"C1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C3')  AS \"C3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'I1+') AS \"I1+\"\nFROM months m\nLEFT JOIN per_controller p ON p.month_start = m.month_start\nGROUP BY m.month_start\nORDER BY 1"
+          "rawSql": "WITH bounds AS (\n  SELECT date_trunc('week', min(session_start) AT TIME ZONE 'UTC') AS first_week,\n         date_trunc('week', max(session_start) AT TIME ZONE 'UTC') AS last_week\n  FROM controller_session_ranked\n),\nweeks AS (\n  SELECT g.w AS week_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_week, date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_week, date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 week') AS g(w)\n  WHERE b.first_week IS NOT NULL\n),\nper_controller AS (\n  SELECT m.week_start, s.cid, s.rating\n  FROM weeks m\n  JOIN controller_session_ranked s\n    ON (s.session_start AT TIME ZONE 'UTC') >= m.week_start\n   AND (s.session_start AT TIME ZONE 'UTC') <  m.week_start + interval '1 week'\n  GROUP BY m.week_start, s.cid, s.rating\n  HAVING sum(s.duration_minutes) > 60\n)\nSELECT m.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S1')  AS \"S1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S2')  AS \"S2\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S3')  AS \"S3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C1')  AS \"C1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C3')  AS \"C3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'I1+') AS \"I1+\"\nFROM weeks m\nLEFT JOIN per_controller p ON p.week_start = m.week_start\nGROUP BY m.week_start\nORDER BY 1"
         }
       ],
       "options": {},
@@ -352,8 +352,8 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Controllers active (30 days to month end, monthly)",
-      "description": "Controllers who started a session of more than 30 minutes in the 30 days to the end of each month.",
+      "title": "Controllers active (30 days to week end, weekly)",
+      "description": "Controllers who started a session of more than 30 minutes in the 30 days to the end of each week (UTC).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -374,7 +374,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH bounds AS (\n  SELECT date_trunc('month', min(session_start) AT TIME ZONE 'UTC') AS first_month,\n         date_trunc('month', max(session_start) AT TIME ZONE 'UTC') AS last_month\n  FROM controller_session_ranked\n),\nmonths AS (\n  SELECT g.m AS month_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_month, date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_month, date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 month') AS g(m)\n  WHERE b.first_month IS NOT NULL\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM months m\nLEFT JOIN controller_session_ranked s\n       ON (s.session_start AT TIME ZONE 'UTC') >= m.month_start + interval '1 month' - interval '30 days'\n      AND (s.session_start AT TIME ZONE 'UTC') <  m.month_start + interval '1 month'\n      AND s.duration_minutes > 30\nGROUP BY m.month_start\nORDER BY 1"
+          "rawSql": "WITH bounds AS (\n  SELECT date_trunc('week', min(session_start) AT TIME ZONE 'UTC') AS first_week,\n         date_trunc('week', max(session_start) AT TIME ZONE 'UTC') AS last_week\n  FROM controller_session_ranked\n),\nweeks AS (\n  SELECT g.w AS week_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_week, date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_week, date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 week') AS g(w)\n  WHERE b.first_week IS NOT NULL\n)\nSELECT m.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM weeks m\nLEFT JOIN controller_session_ranked s\n       ON (s.session_start AT TIME ZONE 'UTC') >= m.week_start + interval '1 week' - interval '30 days'\n      AND (s.session_start AT TIME ZONE 'UTC') <  m.week_start + interval '1 week'\n      AND s.duration_minutes > 30\nGROUP BY m.week_start\nORDER BY 1"
         }
       ],
       "options": {},
@@ -636,6 +636,48 @@
         "defaults": {},
         "overrides": []
       }
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "CTR hours staffed per week",
+      "description": "Total hours CTR positions (facility = 6, the VATSIM Enroute code) were staffed, per week.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 76,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('week', session_start AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       round(sum(duration_minutes) / 60.0, 1) AS \"CTR hours\"\nFROM controller_session_ranked\nWHERE facility = 6\n  AND session_start BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "12M"
     }
   ]
 }

@@ -371,10 +371,13 @@ def test_controller_is_open_only_when_seen_in_the_newest_snapshot(conn) -> None:
 
 
 def test_rating_groups_s3_and_c3_have_their_own_columns(conn) -> None:
-    """Mutants V11 and V12 (rank_group_of mislabels ratings 7 and 4): the existing test only asserts S3 and C3 are 0."""
-    atc14.add_session(conn, 9830001, atc14.M1, 90, rating=4)
-    atc14.add_session(conn, 9830002, atc14.M1, 90, rating=7)
-    row = atc14.by_month(conn, atc14.RATING_TITLE)[atc14.M1]
+    """Mutants V11 and V12 (rank_group_of mislabels ratings 7 and 4): the existing test only asserts S3 and C3 are 0.
+
+    RATING_TITLE (panel 6) moved from monthly to weekly buckets in issue #259 (27-10-2026); this uses
+    atc14.W1 and an in-week day_offset rather than atc14.M1, to match."""
+    atc14.add_session(conn, 9830001, atc14.W1, 90, rating=4, day_offset=1)
+    atc14.add_session(conn, 9830002, atc14.W1, 90, rating=7, day_offset=1)
+    row = atc14.rows_by_bucket(conn, atc14.RATING_TITLE)[atc14.W1]
     assert {k: v for k, v in row.items() if k != "time"} == {"S1": 0, "S2": 0, "S3": 1, "C1": 0, "C3": 1, "I1+": 0}
 
 
@@ -579,20 +582,21 @@ def test_top_50_providers_includes_short_sessions_and_stops_at_fifty(conn) -> No
 def test_card_63_exactly_sixty_minutes_does_not_count(conn) -> None:
     """Mutant P02 (`>= 60`)."""
     atc14.add_session(conn, 9890001, atc14.M1, 60, callsign="TEST_CTR")
-    assert atc14.by_month(conn, atc14.CTR_TITLE)[atc14.M1]["Controllers"] == 0
+    assert atc14.rows_by_bucket(conn, atc14.CTR_TITLE)[atc14.M1]["Controllers"] == 0
 
 
 def test_card_63_window_is_30_days_to_month_end(conn) -> None:
     """Mutant P03 (window 30 -> 25 days): a session 28 days before the end of the month is inside."""
     length = calendar.monthrange(atc14.M1.year, atc14.M1.month)[1]
     atc14.add_session(conn, 9890002, atc14.M1, 90, callsign="TEST_CTR", day_offset=length - 28)
-    assert atc14.by_month(conn, atc14.CTR_TITLE)[atc14.M1]["Controllers"] == 1
+    assert atc14.rows_by_bucket(conn, atc14.CTR_TITLE)[atc14.M1]["Controllers"] == 1
 
 
 def test_card_116_exactly_sixty_minutes_does_not_count(conn) -> None:
-    """Mutant P04 (`>= 60`)."""
-    atc14.add_session(conn, 9890003, atc14.M1, 60, rating=3)
-    assert atc14.by_month(conn, atc14.RATING_TITLE)[atc14.M1]["S2"] == 0
+    """Mutant P04 (`>= 60`). RATING_TITLE (panel 6) moved from monthly to weekly buckets in issue #259
+    (27-10-2026); this uses atc14.W1 and an in-week day_offset rather than atc14.M1, to match."""
+    atc14.add_session(conn, 9890003, atc14.W1, 60, rating=3, day_offset=1)
+    assert atc14.rows_by_bucket(conn, atc14.RATING_TITLE)[atc14.W1]["S2"] == 0
 
 
 def test_retention_active_window_is_thirty_days(conn) -> None:
