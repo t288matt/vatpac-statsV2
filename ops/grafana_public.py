@@ -36,6 +36,7 @@ SHORT_NAMES = {
     "vatpac-atc-overview": "atc",
     "vatpac-atc-retention": "atc-retention",
     "vatpac-atc-position-hours": "atc-hours",
+    "vatpac-pilots-records": "pilots",
     "vatpac-monday-events": "monday",
     "vatpac-military": "military",
     "vatpac-management": "monthly",
