@@ -1,6 +1,6 @@
 # Public read-only dashboards (Cloudflare Tunnel)
 
-Last reviewed 11-10-2026 against commit b3189ad and the VM. Audience: the owner. Purpose: show the dashboards to anyone on the internet at `https://vpac.mpengor.com`, read-only, without opening a port on the router. The hostname `vpac.mpengor.com` is the owner's choice (changed from `vatpac.mpengor.com` so it does not appear in searches for "vatpac"; confirmed by the owner). DNS, Cloudflare and the Traefik machine are outside this repository and cannot be checked from it or from the VM. The proxy and the tunnel run on the owner's `docker` machine; this stack only provides Grafana's public dashboards and a script that manages the links.
+Last reviewed 11-10-2026 against commit b3189ad and the VM. Audience: the owner. Purpose: show the dashboards to anyone on the internet at `https://vpac.mpengor.com`, read-only, without opening a port on the router. The hostname `vpac.mpengor.com` is the owner's choice (changed from `vatpac.mpengor.com` so it does not appear in searches for "vatpac"; confirmed by the owner). DNS, Cloudflare and the Traefik machine are outside this repository and cannot be checked from it or from the VM. The proxy and the tunnel run on the owner's `docker 145` machine (the Docker host that also runs Traefik; "the Traefik machine" and "the docker machine" below mean this same host); this stack only provides Grafana's public dashboards and a script that manages the links.
 
 ```
 visitor -> Cloudflare (rate limit, Bot Fight Mode) -> Cloudflare Tunnel (named Home; connector on the Traefik machine) -> Traefik (docker machine)
@@ -60,7 +60,7 @@ What runs there for us: only the folder `~/vatpac-proxy`, one container `vatpac-
 How to check, stop, start and troubleshoot: see the README in the appendix. If the machine is replaced, rebuild three things: the folder with the compose file below and its README, the Docker network `proxy`, and the Cloudflare hostname route to `https://<that machine>:443`.
 
 ### The compose file
-Traefik reads Docker labels of containers on its own machine only, and Grafana runs on the v3 VM. So the docker machine (<TRAEFIK_HOST_IP>) runs a tiny forwarder container, `vatpac-proxy`, that carries the usual labels (the same pattern as the other apps) and passes everything on to Grafana at `<VM_LAN_IP>:3300`. Traefik's own configuration is not changed and Traefik is not restarted. The folder is `~/vatpac-proxy` with this `docker-compose.yml` (and a README for whoever looks at that machine):
+Traefik reads Docker labels of containers on its own machine only, and Grafana runs on the v3 VM. So the docker 145 machine (<TRAEFIK_HOST_IP>), the host that runs Traefik, also runs a tiny forwarder container, `vatpac-proxy`, that carries the usual labels (the same pattern as the other apps) and passes everything on to Grafana at `<VM_LAN_IP>:3300`. The container is deployed on docker 145 because of its proximity to Traefik: Traefik only reads labels of containers on its own host, so the forwarder has to sit next to it, not on the VM. Traefik's own configuration is not changed and Traefik is not restarted. Every `docker compose` command for `vatpac-proxy` (including `up -d --force-recreate` after a label change; a plain `up -d` does not pick up changed labels) is run on docker 145, never on the VM. The folder is `~/vatpac-proxy` with this `docker-compose.yml` (and a README for whoever looks at that machine):
 ```yaml
 services:
   vatpac-proxy:
@@ -124,7 +124,7 @@ Start it with `docker compose up -d` in that folder. Check it on the docker mach
 ## Appendix: README for `~/vatpac-proxy` on the Traefik machine
 Copy this text to `~/vatpac-proxy/README.md` there (the compose file there holds 81 labels: 11 base lines plus 7 labels and a comment per dashboard) (this repository holds the source of truth).
 ```
-# vatpac-proxy (on the Traefik machine, <TRAEFIK_HOST_IP>)
+# vatpac-proxy (on the docker 145 machine, which also runs Traefik, <TRAEFIK_HOST_IP>)
 
 What it is: a tiny forwarder container so that Traefik can serve the VATPAC Stats Grafana at https://vpac.mpengor.com.
 Grafana runs on another machine (the v3 VM, <VM_LAN_IP>, port 3300), and Traefik only reads Docker labels of containers
