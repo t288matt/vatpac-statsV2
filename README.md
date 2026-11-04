@@ -6,7 +6,7 @@ Live pilot and controller statistics for the VATPAC region, built from VATSIM's 
 
 ## About
 
-VATPAC Stats shows live and historical statistics for pilots and air traffic controllers in the VATPAC region on VATSIM. The numbers are updated every 30 seconds and shown as ten dashboards. Anyone can view them on the internet without logging in, and nobody can change them (see "Public read-only access" below).
+VATPAC Stats shows live and historical statistics for pilots and air traffic controllers in the VATPAC region on VATSIM. The numbers are updated every 30 seconds and shown as twelve dashboards. Anyone can view them on the internet without logging in, and nobody can change them (see "Public read-only access" below).
 
 This version (v3) replaces the original system (v1).
 
@@ -46,17 +46,17 @@ You should see an `ok` poll about every 30 seconds in `poll_log`, plus a few `sk
 
 Open Grafana at http://localhost:3300 and log in with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` from `.env`. Anonymous access is off. Grafana listens on the loopback address only; set `GRAFANA_BIND` in `.env` to reach it from the LAN (see [docs/RUNBOOKS/deploy-to-vm.md](docs/RUNBOOKS/deploy-to-vm.md)). To publish the dashboards read-only, see [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md).
 
-Dashboards (as code in `grafana/dashboards/`): Pilots now, Pilots traffic, Pilot onboarding, ATC overview, ATC retention, Pilot origins, Military, Monday events, Management, and Collector health. Every chart is explained in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md).
+Dashboards (as code in `grafana/dashboards/`): Pilots now, Pilots traffic, Pilots: records and totals, Pilot onboarding, ATC overview, ATC position hours, ATC retention, Pilot origins, Military, Monday events, Management, and Collector health. Every chart is explained in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md).
 
 ## Public read-only access
 
-All eleven dashboards can be shown to anyone on the internet, read-only, without a login. Each dashboard has its own public link, with a fixed time range, and a short address such as `https://vpac.mpengor.com/live` that redirects to it; visitors cannot send their own queries, change the time range or edit anything. Anonymous access in Grafana stays off. The links are created by `ops/grafana_public.py`, and traffic reaches Grafana through Cloudflare, a Cloudflare Tunnel and a small forwarder on the owner's Traefik machine. Setup, checks and how to switch it off: [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md); what runs on the Traefik machine (<TRAEFIK_HOST_IP>, outside this repository) is in its section "The Traefik machine". The public address is `https://vpac.mpengor.com` (DNS and Cloudflare are outside this repository).
+All twelve dashboards can be shown to anyone on the internet, read-only, without a login. Each dashboard has its own public link, with a fixed time range, and a short address such as `https://vpac.mpengor.com/live` that redirects to it; visitors cannot send their own queries, change the time range or edit anything. Anonymous access in Grafana stays off. The links are created by `ops/grafana_public.py`, and traffic reaches Grafana through Cloudflare, a Cloudflare Tunnel and a small forwarder on the owner's Traefik machine. Setup, checks and how to switch it off: [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md); what runs on the Traefik machine (<TRAEFIK_HOST_IP>, outside this repository) is in its section "The Traefik machine". The public address is `https://vpac.mpengor.com` (DNS and Cloudflare are outside this repository).
 
 The collector serves `/health` and `/metrics` on port 8080 inside the Docker network only (not published). The database is not published either; the dev overlay (`make dev`) publishes it on `127.0.0.1:55432` only.
 
 ## For dashboard users
 
-Eleven dashboards, all in Grafana (folder: dashboard). Times are UTC. What each one shows is in Grafana itself (dashboard and panel descriptions); the exact rule behind every chart is in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md), and the meaning of "flight", "session", "online now" and "airborne minutes" is in [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
+Twelve dashboards, all in Grafana (folder: dashboard). Times are UTC. What each one shows is in Grafana itself (dashboard and panel descriptions); the exact rule behind every chart is in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md), and the meaning of "flight", "session", "online now" and "airborne minutes" is in [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
 
 Charts start empty at go-live (07-10-2026) and fill as data arrives; a flight appears in the flight totals about 8 hours after its last position.
 
