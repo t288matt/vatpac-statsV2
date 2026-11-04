@@ -103,7 +103,7 @@ Start it with `docker compose up -d` in that folder. Check it on the docker mach
    Do not block `/public-dashboards/*`, `/api/public/*` or the static files: the public pages need them. If the owner's home IP changes, update the rule.
 
 ## 4. Check it works (from a phone on mobile data, not the home network)
-- Each short address, for example `https://vpac.mpengor.com/live`, answers 302 to the long link and the dashboard loads (`curl -sI https://vpac.mpengor.com/live`).
+- Each short address, for example `https://vpac.mpengor.com/live`, answers 302 to the long link and the dashboard loads (`curl -sI https://vpac.mpengor.com/live`). Test the bare address: the redirect rule matches the whole URL, so an address with a query string (for example `?cb=1`) is not redirected and goes to the Grafana login.
 - A public link opens without a login and every panel loads; there is no time picker and no edit button.
 - `https://vpac.mpengor.com/api/search`, `/api/datasources`, `/api/user` and a POST to `/api/ds/query` answer 401, and plain http redirects to https.
 - `https://vpac.mpengor.com/login` shows the login page (or the Cloudflare block page if the optional rule is on).
