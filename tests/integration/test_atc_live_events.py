@@ -84,7 +84,7 @@ def test_every_rank_panel_says_it_uses_the_current_rank_and_lists_the_ranks_incl
             continue
         d = p["description"]
         if d.startswith("Question E1 "):
-            assert "RANK AT THE TIME" in d                                    # the two copies keep the old rule and say so
+            assert "RANK AT THE TIME" in d and "supervisors" in d             # the two copies keep the old rule and say so
         else:
             assert "CURRENT RANK" in d and "will not match" in d
             assert all(r in d for r in SIX) and "Left out: observers" in d and "C2" in d and "unknown" in d
@@ -111,8 +111,6 @@ COPIES = [  # (dashboard, title, source file)
     (LIVE, "Controllers online now", "atc/atc-overview.json"),
     (LIVE, "Departure board", "pilots/pilots-now.json"),
     (LIVE, "Where pilots currently online come from", "demographics/pilot-origins.json"),
-    (LIVE, "Monday event attendance (0700-1200Z)", "events/monday-events.json"),
-    (LIVE, "Share of YMML-YSSY airborne time flown by local pilots (Mondays 0700-1200Z)", "events/monday-events.json"),
     (LIVE, "Airborne aircraft during the latest Monday event (0700-1200Z, 5-minute slots)", "events/monday-events.json"),
     (LIVE, "Busiest days by flights (last 6 months)", "pilots/pilots-traffic.json"),
     (LIVE, "Busiest days by pilots online (last 6 months)", "pilots/pilots-traffic.json"),
@@ -484,3 +482,53 @@ def test_f10_starts_twelve_months_back_at_most_and_shows_empty_months_as_zero(co
 def test_f10_with_no_flights_is_empty_and_says_history_starts_at_go_live(conn):
     assert run(conn, LIVE, "Flights per month, month on month (last 12 months)") == []
     assert "07-10-2026" in panel(LIVE, "Flights per month, month on month (last 12 months)")["description"]
+
+
+# ------------------------------------------------------------------ F6 and F7: only the latest Monday event
+F6 = "Latest Monday event attendance (0700-1200Z)"
+F7 = "Share of YMML-YSSY airborne time flown by local pilots (latest Monday 0700-1200Z)"
+
+
+def test_f6_and_f7_are_adapted_not_copied_and_say_so():
+    for title in (F6, F7):
+        d = panel(LIVE, title)["description"]
+        assert "ADAPTED" in d and "not a plain copy" in d and "latest" in d.lower()
+    assert panel(LIVE, F6)["targets"][0]["rawSql"] != panel(DASH / "events" / "monday-events.json", "Monday event attendance (0700-1200Z)")["targets"][0]["rawSql"]
+
+
+def stage_two_mondays(conn):
+    """Flights and controllers on the latest Monday event and on the Monday before it (different numbers)."""
+    n = now()
+    mon = last_monday(n)
+    conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (mon - timedelta(days=21),))   # go-live: the view lists Mondays from here
+    def fl(cid, end, minutes, airborne, **plan):
+        add_flight(conn, cid, days_ago=(datetime.now(UTC) - end).total_seconds() / 86400.0, minutes=minutes, airborne=airborne, **plan)
+    # latest Monday: two pilots, one controller; YMML-YSSY traffic 120 minutes local + 60 minutes visiting
+    fl(701, mon + timedelta(hours=9), 90, 120, dep="YMML", arr="YSSY", home_icao="YSSY")
+    fl(702, mon + timedelta(hours=10), 90, 60, dep="YSSY", arr="YMML", home_icao="EGLL")
+    add(conn, 1, "T_A_TWR", mon + timedelta(hours=8), 60)
+    # the Monday before: five pilots, three controllers, all visiting pilots on YMML-YSSY
+    prev = mon - timedelta(days=7)
+    for i in range(5):
+        fl(710 + i, prev + timedelta(hours=9), 90, 100, dep="YMML", arr="YSSY", home_icao="EGLL")
+    for i in range(3):
+        add(conn, 10 + i, f"T_B{i}_TWR", prev + timedelta(hours=8), 60)
+    return mon
+
+
+def test_f6_two_mondays_give_only_the_latest(conn):
+    mon = stage_two_mondays(conn)
+    rows = run(conn, LIVE, F6)
+    assert [(r["Event date (UTC)"], r["Pilots"], r["Controllers"]) for r in rows] == [(mon.strftime("%d-%m-%Y"), 2, 1)]
+
+
+def test_f7_two_mondays_give_only_the_latest(conn):
+    mon = stage_two_mondays(conn)
+    rows = run(conn, LIVE, F7)
+    # latest Monday: 120 local of 180 airborne minutes = 66.7 per cent over 3.0 hours; the earlier Monday (0 per cent, 8.3 hours) must not show
+    assert [(r["Event date (UTC)"], float(r["Local pilots (%)"]), float(r["Airborne hours"])) for r in rows] == [(mon.strftime("%d-%m-%Y"), 66.7, 3.0)]
+
+
+def test_f7_with_no_event_flights_shows_the_date_and_no_share(conn):
+    rows = run(conn, LIVE, F7)
+    assert len(rows) == 1 and rows[0]["Local pilots (%)"] is None and float(rows[0]["Airborne hours"]) == 0.0

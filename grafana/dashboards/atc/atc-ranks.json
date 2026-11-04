@@ -59,7 +59,7 @@
       "id": 2,
       "type": "barchart",
       "title": "Controllers logged on (last 30 days)",
-      "description": "Question E1 (v1 card 115), copied unchanged from ATC: controllers. Definition: distinct controllers per rating group with more than 60 minutes online in total over the last 30 days. THIS PANEL USES THE RANK AT THE TIME OF EACH SESSION (not the current rank used by the other panels on this page), so it can differ from them; observers and C2 are left out. Times are UTC.",
+      "description": "Question E1 (v1 card 115), copied unchanged from ATC: controllers. Definition: distinct controllers per rating group with more than 60 minutes online in total over the last 30 days. THIS PANEL USES THE RANK AT THE TIME OF EACH SESSION (not the current rank used by the other panels on this page), so it can differ from them; I1+ includes supervisors and administrators (rating 8 and above); observers and C2 are left out. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -99,7 +99,7 @@
       "id": 3,
       "type": "timeseries",
       "title": "Controllers logged on each week, by rating group",
-      "description": "Question E1 (v1 card 116), copied unchanged from ATC: controllers. Definition: per calendar week (UTC), distinct controllers per rating group (S1, S2, S3, C1, C3, I1+) whose sessions that week at that rating total more than 60 minutes. THIS PANEL USES THE RANK AT THE TIME OF EACH SESSION (not the current rank used by the other panels on this page); observers and C2 are not shown. Times are UTC.",
+      "description": "Question E1 (v1 card 116), copied unchanged from ATC: controllers. Definition: per calendar week (UTC), distinct controllers per rating group (S1, S2, S3, C1, C3, I1+) whose sessions that week at that rating total more than 60 minutes. THIS PANEL USES THE RANK AT THE TIME OF EACH SESSION (not the current rank used by the other panels on this page); I1+ includes supervisors and administrators (rating 8 and above); observers and C2 are not shown. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
