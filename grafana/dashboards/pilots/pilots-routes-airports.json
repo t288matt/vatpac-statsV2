@@ -337,7 +337,7 @@
     },
     {
       "type": "table",
-      "title": "Australian airports (code starts with Y) with the most international arrivals (last 30 days, top 10)",
+      "title": "Australian airports with the most international arrivals (last 30 days, top 10)",
       "description": "Question B8 (new). Definition: the ten Australian airports (ICAO code starts with Y) with the most international arrivals among flights that finished in the last 30 days (UTC, ending now). An international arrival is a flight that lands at an Australian airport after departing from an airport whose code does not start with Y. Flights with airborne time only; flights to or from ZZZZ are left out; ties by airport code. Flights between two Australian airports (ICAO code starts with Y), and flights leaving Australia, are not counted. Australian here means the ICAO code starts with Y; it has nothing to do with the pilot's own home airport. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
