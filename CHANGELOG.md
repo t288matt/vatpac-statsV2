@@ -8,7 +8,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 ## ATC hours staffed by position type (04-11-2026, issue 267 group G; pull request pending, not yet merged or deployed)
 
-- **What is new.** Two panels on the "ATC: controllers" dashboard answer "how many hours were CTR, TWR, APP, DEP, GND, DEL, FSS and FMP positions staffed?": a stacked weekly chart per position type, and a table of the eight types for the last 7 days, last 30 days, last full month and since go-live. Dashboard and tests only: no migration and no image release.
+- **What is new.** A new dashboard, "ATC: position hours" (its own public link, short address `/atc-hours`), answers "how many hours were CTR, TWR, APP, DEP, GND, DEL, FSS and FMP positions staffed?": a stacked weekly chart per position type, and a table of the eight types for the last 7 days, last 30 days, last full month and since go-live. It is a new dashboard file, so it needs three steps at deploy time: run `python3 ops/grafana_public.py --public-url https://vpac.mpengor.com` on the VM to create its public link, and the owner pastes the new short-address labels into the Traefik helper (`--traefik-labels`). No migration and no image release.
 - **The rule.** Position-hours: merged controller sessions, clipped to the period, summed per type, so two CTR sectors online for 3 hours count as 6. The type is the callsign suffix, so APP and DEP are separate and CTR excludes FSS.
 - **What does not change.** The existing "CTR hours staffed per week" panel is untouched; its CTR figure can differ slightly because it credits a whole session to the week it started and uses the feed's facility code. FMP may often show 0 (not yet checked how it appears in the feed).
 

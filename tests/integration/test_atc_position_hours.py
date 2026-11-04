@@ -1,8 +1,8 @@
 """Group G of the database-questions catalogue (issue #267, 04-11-2026): ATC hours staffed by position type.
 
-Two panels on atc/atc-overview.json:
-  16 "ATC hours staffed per week, by position type"  (stacked bars, one series per position type)
-  17 "ATC hours staffed by position type (7 days, ...)" (table, eight fixed rows, four windows)
+Two panels on their own dashboard, atc/atc-position-hours.json ("ATC: position hours", short address /atc-hours):
+  "ATC hours staffed per week, by position type"  (stacked bars, one series per position type)
+  "ATC hours staffed by position type (7 days, ...)" (table, eight fixed rows, four windows)
 
 The rule under test (position-hours): time from merged controller sessions, clipped to the period shown, summed per
 position type; the type is the callsign suffix, so APP and DEP are separate and CTR excludes FSS; two CTR sectors online
@@ -19,7 +19,7 @@ from conftest import REPO
 
 pytestmark = pytest.mark.integration
 
-DASHBOARD = REPO / "grafana" / "dashboards" / "atc" / "atc-overview.json"
+DASHBOARD = REPO / "grafana" / "dashboards" / "atc" / "atc-position-hours.json"
 WEEKLY = "ATC hours staffed per week, by position type"
 TABLE = "ATC hours staffed by position type (7 days, 30 days, last full month, since go-live)"
 TYPES = ["CTR", "TWR", "APP", "DEP", "GND", "DEL", "FSS", "FMP"]
@@ -30,9 +30,9 @@ def panel(title: str) -> dict:
     return next(p for p in json.loads(DASHBOARD.read_text(encoding="utf-8"))["panels"] if p.get("title") == title)
 
 
-def sql_of(title: str) -> str:
+def sql_of(title: str, frm: datetime | None = None) -> str:
     now = datetime.now(UTC)
-    frm, to = now - timedelta(days=365), now + timedelta(days=1)
+    frm, to = frm or now - timedelta(days=365), now + timedelta(days=1)
     return (panel(title)["targets"][0]["rawSql"]
             .replace("$__timeFrom()", f"'{frm.isoformat()}'").replace("$__timeTo()", f"'{to.isoformat()}'"))
 
@@ -52,8 +52,8 @@ def add(conn, cid: int, callsign: str, start: datetime, minutes: int) -> None:
     )
 
 
-def weekly(conn) -> dict[tuple[datetime, str], float]:
-    return {(r["time"], r["metric"]): float(r["hours"]) for r in conn.execute(sql_of(WEEKLY)).fetchall()}
+def weekly(conn, frm: datetime | None = None) -> dict[tuple[datetime, str], float]:
+    return {(r["time"], r["metric"]): float(r["hours"]) for r in conn.execute(sql_of(WEEKLY, frm)).fetchall()}
 
 
 def table(conn) -> dict[str, dict]:
@@ -158,3 +158,25 @@ def test_both_panels_are_present_and_typed_as_intended():
     assert weekly_panel["type"] == "timeseries" and weekly_panel["targets"][0]["format"] == "time_series"
     assert table_panel["type"] == "table" and table_panel["targets"][0]["format"] == "table"
     assert [c for c in WINDOWS if c in table_panel["targets"][0]["rawSql"]] == WINDOWS
+
+
+def test_suffix_edge_cases_and_very_short_sessions(conn):
+    """The suffix is what follows the last underscore and must be upper case; a six-minute session still counts
+    (all session time counts, no minimum length)."""
+    w = monday(2)
+    add(conn, 9300701, "A_B_TWR", w + timedelta(days=1), 60)       # an extra underscore: still TWR
+    add(conn, 9300702, "TEST_twr", w + timedelta(days=1), 60)      # lower case: not a staffed position type
+    add(conn, 9300703, "CTR", w + timedelta(days=1), 60)           # a suffix alone, no underscore: left out
+    add(conn, 9300704, "TEST_DEL", w + timedelta(days=1), 6)       # six minutes: 0.1 hours, no minimum length
+    got = weekly(conn)
+    assert got[(w, "TWR")] == 1.0
+    assert (w, "CTR") not in got
+    assert got[(w, "DEL")] == 0.1
+
+
+def test_first_week_is_whole_when_the_time_range_starts_mid_week(conn):
+    """A session earlier in the first week than the range start still belongs to that week's bar."""
+    w = monday(2)
+    add(conn, 9300801, "TEST_TWR", w + timedelta(hours=1), 60)     # Monday 01:00, before a Wednesday range start
+    got = weekly(conn, frm=w + timedelta(days=2))
+    assert got[(w, "TWR")] == 1.0
