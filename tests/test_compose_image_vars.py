@@ -144,3 +144,18 @@ def test_ci_postgres_service_matches_production_major() -> None:
     ci = yaml.safe_load((REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
     imgs = [s["image"] for j in ci["jobs"].values() for s in (j.get("services") or {}).values() if s["image"].startswith("postgres")]
     assert imgs and all(i == "postgres:16" for i in imgs)
+
+
+def test_release_runs_after_green_ci_on_main_and_never_publishes_a_stale_commit() -> None:
+    """Issue 268: automatic release after ci, but only for main's tip, and the manual run stays."""
+    text = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    wf = yaml.safe_load(text)
+    triggers = wf.get("on", wf.get(True))
+    assert triggers["workflow_run"] == {"workflows": ["ci"], "types": ["completed"], "branches": ["main"]}
+    assert "workflow_dispatch" in triggers  # rollbacks and docs-only tips are still published by hand
+    check = wf["jobs"]["check"]
+    assert "workflow_run.conclusion == 'success'" in check["if"] and "workflow_run.event == 'push'" in check["if"]
+    run = " ".join(str(st.get("run", "")) for st in check["steps"])
+    assert 'tip="$(gh api' in run and '[ "$sha" != "$tip" ]' in run and "publish=false" in run  # a stale commit publishes nothing
+    assert wf["jobs"]["images"]["if"] == "needs.check.outputs.publish == 'true'"
+    assert set(wf["jobs"]["promote"]["needs"]) == {"check", "images"}  # latest still moves only after all four images
