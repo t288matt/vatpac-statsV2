@@ -37,9 +37,9 @@ def test_no_panel_carries_an_in_progress_filter_or_a_piece_column() -> None:
     assert bad == [], bad
 
 
-def test_the_eleven_panels_that_read_flight_directly_still_exist_and_are_not_filtered_on_progress() -> None:
+def test_the_fifteen_panels_that_read_flight_directly_still_exist_and_are_not_filtered_on_progress() -> None:
     direct = [(n, s) for n, s in _panels() if DIRECT_FLIGHT.search(s)]
-    assert len(direct) == 11, [n for n, _ in direct]          # the panels listed in docs/CHART_DEFINITIONS.md
+    assert len(direct) == 15, [n for n, _ in direct]          # listed in docs/CHART_DEFINITIONS.md: 11, plus 4 copies on pilots-records
     assert [n for n, s in direct if "in_progress" in s] == []
 
 
