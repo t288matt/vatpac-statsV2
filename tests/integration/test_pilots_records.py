@@ -197,3 +197,31 @@ def test_new_queries_run_as_grafana_ro_within_the_statement_limit(conn):
     finally:
         conn.execute("RESET statement_timeout")
         conn.execute("RESET ROLE")
+
+
+# ------------------------------------------------------------------ review fixes: window edges and tie-breaks
+def test_a10_window_edges_6_9_and_7_1_days_and_29_9_and_30_1_days(conn):
+    add_flight(conn, 9430001, days_ago=6.9, airborne=60)     # inside 7 days
+    add_flight(conn, 9430002, days_ago=7.1, airborne=120)    # outside 7 days, inside 30
+    add_flight(conn, 9430003, days_ago=29.9, airborne=180)   # inside 30 days
+    add_flight(conn, 9430004, days_ago=30.1, airborne=240)   # outside 30 days
+    rows = {r["Period"]: r for r in conn.execute(sql_of(AVERAGE)).fetchall()}
+    assert [(float(r["Average airborne minutes"]), r["Flights with airborne time"]) for r in rows.values()] == [
+        (60.0, 1), (120.0, 3), (150.0, 4)]
+
+
+def test_a2_ties_are_broken_by_the_ten_lowest_cids_whatever_the_insert_order(conn):
+    for cid in range(9440040, 9440000, -1):          # 40 pilots, one flight each, the highest cid inserted first
+        add_flight(conn, cid, days_ago=3, name=f"Pilot {cid}")
+    rows = conn.execute(sql_of(MOST_FLIGHTS)).fetchall()
+    assert [r["Pilot"] for r in rows] == [f"Pilot {c}" for c in range(9440001, 9440011)]
+
+
+def test_a4_ties_on_hours_and_finish_are_broken_by_session_id(conn):
+    end = datetime.now(UTC).replace(microsecond=0) - timedelta(days=2)
+    for cid in range(9450001, 9450012):               # 11 flights, same airborne time and same finish time
+        flight_ending(conn, cid, end, airborne=120, name=f"Pilot {cid}")
+    for sid in conn.execute("SELECT session_id FROM flight_summary ORDER BY session_id DESC").fetchall():
+        conn.execute("UPDATE flight_summary SET written_at = now() WHERE session_id = %s", (sid["session_id"],))
+    rows = conn.execute(sql_of(LONGEST)).fetchall()   # heap order is now descending; the query must still give ascending ids
+    assert [r["Pilot"] for r in rows] == [f"Pilot {c}" for c in range(9450001, 9450011)]
