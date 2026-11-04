@@ -68,7 +68,7 @@ Since 11-10-2026 the dashboards (eleven since the ATC position hours dashboard, 
 
 ```
 visitor -> Cloudflare (rate limit rule, Bot Fight Mode) -> Cloudflare Tunnel (named Home; connector on the Traefik machine)
-        -> Traefik (owner's other machine, <TRAEFIK_HOST_IP>) -> helper container vatpac-proxy (alpine/socat, ~/vatpac-proxy there)
+        -> Traefik (owner's docker 145 machine, <TRAEFIK_HOST_IP>) -> helper container vatpac-proxy (alpine/socat, ~/vatpac-proxy there)
         -> http://<VM_LAN_IP>:3300 (Grafana on this VM)
 ```
 
@@ -78,7 +78,7 @@ visitor -> Cloudflare (rate limit rule, Bot Fight Mode) -> Cloudflare Tunnel (na
 | `ops/grafana_public.py` (create, repair, `--list`, `--remove`, `--traefik-labels --host <host>`; reads the admin login from `.env`, never prints it; shares the Grafana client `ops/grafana_api.py` with `ops/check_panels.py`: the login goes in clear text only to an address of this machine, https otherwise, and redirects are never followed) | run on the VM | Yes |
 | `.env` readers: `ops/env_key.sh` (shell scripts) and `ops/env_file.py` (Python tools), one set of rules; `ops/release_common.sh` (release-marker reader and `gh_bin`, shared by `ops/deploy.sh` and `ops/stale_issues.sh`) | ops scripts | Yes |
 | Cloudflare (rate limit, Bot Fight Mode), the tunnel, DNS | Cloudflare account | No (described in the runbook) |
-| Traefik and the `vatpac-proxy` helper (Traefik reads Docker labels only on its own machine and its file provider is off, so a forwarder with labels carries the route) | owner's Traefik machine | No (compose file shown in the runbook) |
+| Traefik and the `vatpac-proxy` helper (Traefik reads Docker labels only on its own machine and its file provider is off, so a forwarder with labels carries the route; the forwarder is deployed on the same host as Traefik, docker 145, for that reason) | owner's docker 145 machine (runs Traefik) | No (compose file shown in the runbook) |
 
 Neither Cloudflare nor the Traefik machine can be checked from this repository or the VM. A visitor can open the public pages and see every panel; they cannot run their own SQL, change the time range, edit, or use Explore. Panels run only the queries saved on the dashboard, through the read-only role `grafana_ro`; the page does expose the SQL text of each panel. Verified 11-10-2026: without a login `/api/search`, `/api/datasources`, `/api/user` and `/api/ds/query` answer 401, SQL sent inside a public panel request is ignored, and 84 of 84 data panels work as public dashboards (none over 5 s). Anonymous access stays off because an anonymous Viewer could send any SQL to `grafana_ro` through `/api/ds/query`. The Grafana login page is still reachable from the internet (the owner chose not to add a Cloudflare rule against it). The Departure board panel is fixed to YSSY, because public dashboards do not fill text-box variables. Runbook: [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md); the work on the Traefik machine is documented in its section "The Traefik machine (<TRAEFIK_HOST_IP>)". The owner keeps copies of that machine's compose file and README privately on his PC.
 
