@@ -106,7 +106,7 @@ def b5_b6_flights(conn) -> None:
     for _ in range(2):
         add_flight(conn, 9500004, dep="YSCB", arr="YSSY", days_ago=2)
     add_flight(conn, 9500005, dep="YSSY", arr="YSSY", days_ago=2)                          # a circuit: one departure and one arrival
-    add_flight(conn, 9500006, dep="EGLL", arr="YSSY", days_ago=2)                          # arrival counts; EGLL is not a home airport
+    add_flight(conn, 9500006, dep="EGLL", arr="YSSY", days_ago=2)                          # arrival counts; EGLL is not an Australian airport
     add_flight(conn, 9500007, dep="YSSY", arr="ZZZZ", days_ago=2)                          # ZZZZ: left out
     add_flight(conn, 9500007, dep="ZZZZ", arr="YSSY", days_ago=2)
     add_flight(conn, 9500008, dep="YSSY", arr="YMML", days_ago=2, airborne=0)              # parked: left out
@@ -115,14 +115,14 @@ def b5_b6_flights(conn) -> None:
     add_flight(conn, 9500010, dep="YSSY", arr="YMML", days_ago=30.2)                       # outside the window altogether
 
 
-def test_b5_counts_departures_by_start_time_at_home_airports_with_airborne_time_and_not_zzzz(conn):
+def test_b5_counts_departures_by_start_time_at_australian_airports_with_airborne_time_and_not_zzzz(conn):
     b5_b6_flights(conn)
     got = [(r["Airport"], r["Departures"]) for r in rows(conn, ROUTES, B5)]
     # YSSY 3 + circuit 1 = 4; YBBN 2 and YSCB 2 tie, lower code first; YMML 1. No EGLL, no YPPH (started outside), no ZZZZ.
     assert got == [("YSSY", 4), ("YBBN", 2), ("YSCB", 2), ("YMML", 1)]
 
 
-def test_b6_counts_arrivals_by_end_time_at_home_airports_with_airborne_time_and_not_zzzz(conn):
+def test_b6_counts_arrivals_by_end_time_at_australian_airports_with_airborne_time_and_not_zzzz(conn):
     b5_b6_flights(conn)
     got = [(r["Airport"], r["Arrivals"]) for r in rows(conn, ROUTES, B6)]
     # YSSY: 1 + 2 + 2 + circuit 1 + EGLL 1 + YPPH 1 = 8; YMML: 3. The ZZZZ, parked and 30.2-day flights add nothing.
@@ -138,22 +138,24 @@ def test_b5_b6_show_ten_rows_at_most_and_break_ties_by_airport_code(conn, title,
 
 
 # ------------------------------------------------------------------ B8: international arrivals
-def test_b8_counts_arrivals_at_home_airports_from_outside_the_region(conn):
+def test_b8_counts_arrivals_at_australian_airports_from_outside_the_region(conn):
     add_flight(conn, 9510001, dep="EGLL", arr="YSSY", days_ago=2)
     add_flight(conn, 9510001, dep="NZAA", arr="YSSY", days_ago=3)                          # same pilot: 2 flights, 1 pilot so far
     add_flight(conn, 9510002, dep="NZAA", arr="YSSY", days_ago=4)                          # second pilot: YSSY 3 flights, 2 pilots
     add_flight(conn, 9510003, dep="NZAA", arr="YMML", days_ago=2)
     add_flight(conn, 9510004, dep="WSSS", arr="YMML", days_ago=2)                          # YMML 2 flights, 2 pilots
     add_flight(conn, 9510005, dep="NZAA", arr="YPPH", days_ago=29.9)                       # inside the window: YPPH 1
-    add_flight(conn, 9510006, dep="YSSY", arr="NZAA", days_ago=2)                          # leaving the region: not an arrival at home
+    add_flight(conn, 9510006, dep="YSSY", arr="NZAA", days_ago=2)                          # leaving the region: not an arrival at an Australian airport
     add_flight(conn, 9510006, dep="YSSY", arr="YMML", days_ago=2)                          # domestic: not international
     add_flight(conn, 9510007, dep="NZAA", arr="YPPH", days_ago=2, airborne=0)              # parked
     add_flight(conn, 9510007, dep="NZAA", arr="YPPH", days_ago=2, airborne=None)
     add_flight(conn, 9510008, dep="NZAA", arr="ZZZZ", days_ago=2)                          # ZZZZ either end
     add_flight(conn, 9510008, dep="ZZZZ", arr="YSSY", days_ago=2)
     add_flight(conn, 9510009, dep="EGLL", arr="YSSY", days_ago=30.2)                       # too old
+    add_flight(conn, 9510010, dep="NZAA", arr="YBBN", days_ago=29.95)                      # started 30.03 days ago, ended inside: counted (by end time)
+    add_flight(conn, 9510011, dep=None, arr="YSSY", days_ago=2)                            # no filed departure: never an international arrival
     got = [(r["Airport"], r["International arrivals"], r["Pilots"]) for r in rows(conn, ROUTES, B8)]
-    assert got == [("YSSY", 3, 2), ("YMML", 2, 2), ("YPPH", 1, 1)]
+    assert got == [("YSSY", 3, 2), ("YMML", 2, 2), ("YBBN", 1, 1), ("YPPH", 1, 1)]
 
 
 def test_b8_shows_ten_rows_at_most_and_breaks_ties_by_airport_code(conn):
@@ -174,7 +176,7 @@ def b10_flights(conn) -> None:
     add_flight(conn, 9520007, dep="YPPH", arr="YSSY", days_ago=5)                         # F7: 7 days only
     add_flight(conn, 9520008, dep="YSSY", arr="YMML", days_ago=7.1)                       # F8: outside both
     add_flight(conn, 9520009, dep="YMML", arr="YBBN", days_ago=6.95)                      # F9: started 7.03 days ago, arrival inside 7 days
-    add_flight(conn, 9520010, dep="EGLL", arr="YSSY", days_ago=1 * HOUR)                  # F10: only the arrival is at a home airport
+    add_flight(conn, 9520010, dep="EGLL", arr="YSSY", days_ago=1 * HOUR)                  # F10: only the arrival is at an Australian airport
 
 
 def test_b10_rolling_24_hours_counts_departures_at_start_and_arrivals_at_end(conn):
@@ -221,8 +223,9 @@ def test_c3_counts_flights_and_pilots_per_type_normalised_with_airborne_time_and
     add_flight(conn, 9530009, aircraft="B738", days_ago=2, airborne=None)
     for _ in range(5):
         add_flight(conn, 9530010, aircraft="B738", days_ago=30.1)                           # outside the window
+    add_flight(conn, 9530011, aircraft="C172", days_ago=29.95)                              # started 30.03 days ago, ended inside: counted (by end time)
     got = [(r["Aircraft type"], r["Flights"], r["Pilots"]) for r in rows(conn, AIRCRAFT, C3)]
-    assert got == [("A388", 3, 3), ("B738", 3, 2), ("A320", 2, 1)]                          # the A388/B738 tie goes to the lower code
+    assert got == [("A388", 3, 3), ("B738", 3, 2), ("A320", 2, 1), ("C172", 1, 1)]                          # the A388/B738 tie goes to the lower code
 
 
 def test_c3_shows_ten_rows_at_most_and_breaks_ties_by_type_code(conn):
@@ -244,8 +247,9 @@ def test_c5_ranks_airlines_by_airborne_hours_not_flights_and_ignores_parked_old_
     for n in range(3):
         add_flight(conn, 9540008, callsign=f"XYZ{n + 1}", airborne=90, days_ago=2)          # not in the airline list: shown by prefix, 4.5 h, 3 flights
     add_flight(conn, 9540009, callsign="VHABC", airborne=1000, days_ago=2)                  # a private registration is not an airline
+    add_flight(conn, 9540010, callsign="ABC1", airborne=30, days_ago=29.95)                 # started 30.03 days ago, ended inside: counted (by end time)
     got = [(r["Airline"], float(r["Airborne hours"]), r["Flights"]) for r in rows(conn, AIRCRAFT, C5)]
-    assert got == [("Virgin Australia", 10.0, 1), ("Qantas", 7.5, 2), ("Jetstar", 6.7, 2), ("XYZ", 4.5, 3)]
+    assert got == [("Virgin Australia", 10.0, 1), ("Qantas", 7.5, 2), ("Jetstar", 6.7, 2), ("XYZ", 4.5, 3), ("ABC", 0.5, 1)]
 
 
 def test_c5_shows_ten_rows_at_most_and_breaks_ties_by_airline_prefix(conn):

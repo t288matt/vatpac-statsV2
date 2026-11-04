@@ -202,7 +202,7 @@
     {
       "type": "table",
       "title": "Airports with the most departures (last 30 days, top 10)",
-      "description": "Question B5 (new). Definition: the ten Australian airports (ICAO code starts with Y) with the most departures among flights that started in the last 30 days (UTC, ending now), by departure time. Flights with airborne time only (a parked flight, with none, is not counted); flights to or from ZZZZ are left out; a circuit counts as one departure and one arrival; ties by airport code. Airports outside the home region are not listed. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Question B5 (new). Definition: the ten Australian airports (ICAO code starts with Y) with the most departures among flights that started in the last 30 days (UTC, ending now), by departure time. Flights with airborne time only (a parked flight, with none, is not counted); flights to or from ZZZZ are left out; a circuit counts as one departure and one arrival; ties by airport code. Airports outside the home region are not listed. Australian airports means ICAO code starts with the configured home prefix, currently Y. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -236,7 +236,7 @@
     {
       "type": "table",
       "title": "Airports with the most arrivals (last 30 days, top 10)",
-      "description": "Question B6 (new). Definition: the ten Australian airports (ICAO code starts with Y) with the most arrivals among flights that finished in the last 30 days (UTC, ending now), by arrival time. Flights with airborne time only; flights to or from ZZZZ are left out; ties by airport code. Airports outside the home region are not listed. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Question B6 (new). Definition: the ten Australian airports (ICAO code starts with Y) with the most arrivals among flights that finished in the last 30 days (UTC, ending now), by arrival time. Flights with airborne time only; flights to or from ZZZZ are left out; ties by airport code. Airports outside the home region are not listed. Australian airports means ICAO code starts with the configured home prefix, currently Y. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -270,7 +270,7 @@
     {
       "type": "table",
       "title": "Busiest airports, departures plus arrivals (rolling last 24 hours, top 10)",
-      "description": "Question B10 (new). Definition: the ten Australian airports (ICAO code starts with Y) with the most movements (departures counted at flight start, arrivals at flight end) in the 24 hours ending now. Flights with airborne time only; flights to or from ZZZZ are left out; ties by airport code. A flight appears only about 8 hours after the pilot's last position, so the most recent hours are incomplete and a quiet or empty table does not mean a quiet airport. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Question B10 (new). Definition: the ten Australian airports (ICAO code starts with Y) with the most movements (departures counted at flight start, arrivals at flight end) in the 24 hours ending now. Flights with airborne time only; flights to or from ZZZZ are left out; ties by airport code. A flight appears only about 8 hours after the pilot's last position, so the most recent hours are incomplete and a quiet or empty table does not mean a quiet airport. Australian airports means ICAO code starts with the configured home prefix, currently Y. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -304,7 +304,7 @@
     {
       "type": "table",
       "title": "Busiest airports, departures plus arrivals (rolling last 7 days, top 10)",
-      "description": "Question B10 (new). Definition: the ten Australian airports (ICAO code starts with Y) with the most movements (departures counted at flight start, arrivals at flight end) in the 7 days ending now. Flights with airborne time only; flights to or from ZZZZ are left out; ties by airport code. The last few hours are incomplete because a flight appears about 8 hours after the pilot's last position. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Question B10 (new). Definition: the ten Australian airports (ICAO code starts with Y) with the most movements (departures counted at flight start, arrivals at flight end) in the 7 days ending now. Flights with airborne time only; flights to or from ZZZZ are left out; ties by airport code. The last few hours are incomplete because a flight appears about 8 hours after the pilot's last position. Australian airports means ICAO code starts with the configured home prefix, currently Y. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -338,7 +338,7 @@
     {
       "type": "table",
       "title": "Australian airports with the most international arrivals (last 30 days, top 10)",
-      "description": "Question B8 (new). Definition: the ten Australian airports (ICAO code starts with Y) with the most international arrivals among flights that finished in the last 30 days (UTC, ending now). An international arrival is a flight that lands at an Australian airport after departing from an airport whose code does not start with Y. Flights with airborne time only; flights to or from ZZZZ are left out; ties by airport code. Flights between two Australian airports (ICAO code starts with Y), and flights leaving Australia, are not counted. Australian here means the ICAO code starts with Y; it has nothing to do with the pilot's own home airport. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Question B8 (new). Definition: the ten Australian airports (ICAO code starts with Y) with the most international arrivals among flights that finished in the last 30 days (UTC, ending now). An international arrival is a flight that lands at an Australian airport after departing from an airport whose code does not start with Y. Flights with airborne time only; flights to or from ZZZZ are left out; ties by airport code. Flights between two Australian airports (ICAO code starts with Y), and flights leaving Australia, are not counted. Australian here means the ICAO code starts with Y; it has nothing to do with the pilot's own home airport. Australian airports means ICAO code starts with the configured home prefix, currently Y. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -359,7 +359,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT f.arrival AS \"Airport\", count(*) AS \"International arrivals\", count(DISTINCT f.cid) AS \"Pilots\"\nFROM flight_ext f\nWHERE f.end_time >= now() - interval '30 days'\n  AND f.airborne_minutes > 0\n  AND f.arr_is_home\n  AND NOT f.dep_is_home\n  AND NOT f.is_zzzz\nGROUP BY f.arrival\nORDER BY count(*) DESC, f.arrival\nLIMIT 10"
+          "rawSql": "SELECT f.arrival AS \"Airport\", count(*) AS \"International arrivals\", count(DISTINCT f.cid) AS \"Pilots\"\nFROM flight_ext f\nWHERE f.end_time >= now() - interval '30 days'\n  AND f.airborne_minutes > 0\n  AND f.departure IS NOT NULL\n  AND f.arr_is_home\n  AND NOT f.dep_is_home\n  AND NOT f.is_zzzz\nGROUP BY f.arrival\nORDER BY count(*) DESC, f.arrival\nLIMIT 10"
         }
       ],
       "options": {},
