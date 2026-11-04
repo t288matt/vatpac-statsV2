@@ -1,0 +1,809 @@
+{
+  "uid": "vatpac-atc-ranks",
+  "title": "ATC: hours by rank",
+  "tags": [
+    "vatpac",
+    "atc"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "constant",
+        "hide": 2,
+        "query": "07-10-2026 21:38 UTC",
+        "current": {
+          "text": "07-10-2026 21:38 UTC",
+          "value": "07-10-2026 21:38 UTC"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "07-10-2026 21:38 UTC",
+            "value": "07-10-2026 21:38 UTC"
+          }
+        ]
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no earlier data. All times are UTC. **Rank here is the controller's CURRENT rank**, the latest rating seen for each CID, so every controller counts once. The older ATC panels use the rank held at the time of each session, so totals on this page will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (rating 8 and above). Left out: observers, C2 (not in use) and unknown ratings. Hours are merged-session time with no minimum session length, for the last 30 days."
+      }
+    },
+    {
+      "id": 2,
+      "type": "barchart",
+      "title": "Controllers logged on (last 30 days)",
+      "description": "Question E1 (v1 card 115), copied unchanged from ATC: controllers. Definition: distinct controllers per rating group with more than 60 minutes online in total over the last 30 days. THIS PANEL USES THE RANK AT THE TIME OF EACH SESSION (not the current rank used by the other panels on this page), so it can differ from them; I1+ includes supervisors and administrators (rating 8 and above); observers and C2 are left out. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ranks(sort, rank_group) AS (VALUES (2, 'S1'), (3, 'S2'), (4, 'S3'), (5, 'C1'), (7, 'C3'), (8, 'I1+')),\nper_controller AS (\n  SELECT cid, rank_group, sum(duration_minutes) AS minutes\n  FROM controller_session_ranked\n  WHERE session_start BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY cid, rank_group\n  HAVING sum(duration_minutes) > 60\n)\nSELECT r.rank_group, count(p.cid) AS controllers\nFROM ranks r\nLEFT JOIN per_controller p ON p.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
+        }
+      ],
+      "options": {
+        "xField": "rank_group",
+        "showValue": "always",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Controllers logged on each week, by rating group",
+      "description": "Question E1 (v1 card 116), copied unchanged from ATC: controllers. Definition: per calendar week (UTC), distinct controllers per rating group (S1, S2, S3, C1, C3, I1+) whose sessions that week at that rating total more than 60 minutes. THIS PANEL USES THE RANK AT THE TIME OF EACH SESSION (not the current rank used by the other panels on this page); I1+ includes supervisors and administrators (rating 8 and above); observers and C2 are not shown. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 3,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH bounds AS (\n  SELECT date_trunc('week', min(session_start) AT TIME ZONE 'UTC') AS first_week,\n         date_trunc('week', max(session_start) AT TIME ZONE 'UTC') AS last_week\n  FROM controller_session_ranked\n),\nweeks AS (\n  SELECT g.w AS week_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_week, date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_week, date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 week') AS g(w)\n  WHERE b.first_week IS NOT NULL\n),\nper_controller AS (\n  SELECT m.week_start, s.cid, s.rating\n  FROM weeks m\n  JOIN controller_session_ranked s\n    ON (s.session_start AT TIME ZONE 'UTC') >= m.week_start\n   AND (s.session_start AT TIME ZONE 'UTC') <  m.week_start + interval '1 week'\n  GROUP BY m.week_start, s.cid, s.rating\n  HAVING sum(s.duration_minutes) > 60\n)\nSELECT m.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S1')  AS \"S1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S2')  AS \"S2\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S3')  AS \"S3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C1')  AS \"C1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C3')  AS \"C3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'I1+') AS \"I1+\"\nFROM weeks m\nLEFT JOIN per_controller p ON p.week_start = m.week_start\nGROUP BY m.week_start\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "12M"
+    },
+    {
+      "type": "table",
+      "title": "Hours staffed by current rank (last 30 days)",
+      "description": "Question E2 (new). Definition: hours staffed per rank and the number of different controllers behind them, over the last 30 days. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nsec AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n)\nSELECT r.rank_group AS \"Rank (current)\",\n       count(DISTINCT s.cid) FILTER (WHERE s.secs > 0) AS \"Controllers\",\n       round(coalesce(sum(s.secs), 0) / 3600.0, 1) AS \"Hours staffed\"\nFROM ranks r LEFT JOIN sec s ON s.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Share of ATC hours by current rank (last 30 days)",
+      "description": "Question E3 (new). Definition: each rank's share of all ATC hours staffed in the last 30 days. The share is of ALL staffed hours, so the last row, Other, holds the hours of observers, C2 and unknown ratings and the shares add to 100. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6), ('Other', 7)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nsec AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n),\nby_rank AS (\n  SELECT CASE WHEN rank_group IN ('S1', 'S2', 'S3', 'C1', 'C3', 'I1+') THEN rank_group ELSE 'Other' END AS rank_group, sum(secs) AS secs\n  FROM sec GROUP BY 1\n)\nSELECT r.rank_group AS \"Rank (current)\",\n       round(coalesce(b.secs, 0) / 3600.0, 1) AS \"Hours staffed\",\n       round(100.0 * coalesce(b.secs, 0) / NULLIF((SELECT sum(secs) FROM sec), 0), 1) AS \"Share of ATC hours (%)\"\nFROM ranks r LEFT JOIN by_rank b ON b.rank_group = r.rank_group\nORDER BY r.sort"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Sessions by current rank (last 30 days)",
+      "description": "Question E4 (new). Definition: the number of controller sessions that started in the last 30 days, per rank. A session is a merged controller session (a reconnect within 5 minutes is the same session); no minimum length. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nses AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, s.duration_minutes, c.rank_group\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_start >= now() - interval '30 days' AND s.session_start <= now()\n)\nSELECT r.rank_group AS \"Rank (current)\", count(s.cid) AS \"Sessions\"\nFROM ranks r LEFT JOIN ses s ON s.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Average session length by current rank (last 30 days)",
+      "description": "Question E5 (new). Definition: the average length of the sessions that started in the last 30 days, per rank, in minutes and hours; a rank with no sessions shows no average. Full length of each merged session (a reconnect within 5 minutes is the same session); no minimum length. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nses AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, s.duration_minutes, c.rank_group\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_start >= now() - interval '30 days' AND s.session_start <= now()\n)\nSELECT r.rank_group AS \"Rank (current)\", count(s.cid) AS \"Sessions\",\n       round(avg(s.duration_minutes)::numeric, 1) AS \"Average minutes\",\n       round(avg(s.duration_minutes)::numeric / 60.0, 2) AS \"Average hours\"\nFROM ranks r LEFT JOIN ses s ON s.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 7,
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top 5 positions for each current rank (last 30 days)",
+      "description": "Question E6 (new). Definition: for each rank, the 5 positions (callsigns) it staffed for the most hours in the last 30 days (up to 30 rows; a rank with fewer positions shows fewer). Ties: callsign A to Z. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nsec AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n),\nper AS (\n  SELECT rank_group, callsign, sum(secs) AS secs FROM sec GROUP BY rank_group, callsign HAVING sum(secs) > 0\n), ordered AS (\n  SELECT p.*, row_number() OVER (PARTITION BY p.rank_group ORDER BY p.secs DESC, p.callsign) AS n FROM per p\n)\nSELECT r.rank_group AS \"Rank (current)\", o.n AS \"#\", o.callsign AS \"Position\", round(o.secs / 3600.0, 1) AS \"Hours staffed\"\nFROM ordered o JOIN ranks r ON r.rank_group = o.rank_group\nWHERE o.n <= 5\nORDER BY r.sort, o.n"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 8,
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 12,
+        "h": 12
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top 5 controllers for each current rank (last 30 days)",
+      "description": "Question E7 (new). Definition: for each rank, the 5 controllers with the most hours staffed in the last 30 days (up to 30 rows), with the name from their latest session in the window. Ties: lower CID first. New query, not a copy of the older S1 and S2 top-50 panels (cards 144 and 146), which rank by the rating of each session. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nsec AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n),\nper AS (\n  SELECT rank_group, cid, (array_agg(name ORDER BY session_start DESC))[1] AS name, sum(secs) AS secs\n  FROM sec GROUP BY rank_group, cid HAVING sum(secs) > 0\n), ordered AS (\n  SELECT p.*, row_number() OVER (PARTITION BY p.rank_group ORDER BY p.secs DESC, p.cid) AS n FROM per p\n)\nSELECT r.rank_group AS \"Rank (current)\", o.n AS \"#\", o.name AS \"Controller\", round(o.secs / 3600.0, 1) AS \"Hours staffed\"\nFROM ordered o JOIN ranks r ON r.rank_group = o.rank_group\nWHERE o.n <= 5\nORDER BY r.sort, o.n"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 12,
+        "h": 12
+      }
+    },
+    {
+      "type": "table",
+      "title": "Centre and FSS hours by current rank (last 30 days)",
+      "description": "Question E8 (new). Definition: hours staffed on centre (_CTR) and flight service (_FSS) positions per rank in the last 30 days, with each rank's share of all centre and FSS hours (all controllers, including the left-out ranks, so the shares of the six ranks can add to less than 100). Most hours first. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nsec AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n),\nby_rank AS (\n  SELECT rank_group,\n         sum(secs) FILTER (WHERE callsign ~ '_CTR$') AS ctr, sum(secs) FILTER (WHERE callsign ~ '_FSS$') AS fss\n  FROM sec WHERE callsign ~ '_(CTR|FSS)$' GROUP BY rank_group\n)\nSELECT r.rank_group AS \"Rank (current)\",\n       round(coalesce(b.ctr, 0) / 3600.0, 1) AS \"CTR hours\",\n       round(coalesce(b.fss, 0) / 3600.0, 1) AS \"FSS hours\",\n       round((coalesce(b.ctr, 0) + coalesce(b.fss, 0)) / 3600.0, 1) AS \"CTR + FSS hours\",\n       round(100.0 * (coalesce(b.ctr, 0) + coalesce(b.fss, 0)) / NULLIF((SELECT sum(secs) FROM sec WHERE callsign ~ '_(CTR|FSS)$'), 0), 1) AS \"Share of CTR + FSS hours (%)\"\nFROM ranks r LEFT JOIN by_rank b ON b.rank_group = r.rank_group\nORDER BY coalesce(b.ctr, 0) + coalesce(b.fss, 0) DESC, r.sort"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 10,
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "When S1 controllers are online: hours by weekday and UTC hour (current rank, last 30 days)",
+      "description": "Question E9 (new). Definition: hours staffed by controllers whose current rank is S1, in each UTC clock hour (rows) and weekday (columns), summed over the last 30 days; darker cells are busier. One panel per rank. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'S1' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient"
+            }
+          },
+          "color": {
+            "mode": "continuous-BlPu"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hour (UTC)"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 11,
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 8,
+        "h": 14
+      }
+    },
+    {
+      "type": "table",
+      "title": "When S2 controllers are online: hours by weekday and UTC hour (current rank, last 30 days)",
+      "description": "Question E9 (new). Definition: hours staffed by controllers whose current rank is S2, in each UTC clock hour (rows) and weekday (columns), summed over the last 30 days; darker cells are busier. One panel per rank. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'S2' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient"
+            }
+          },
+          "color": {
+            "mode": "continuous-BlPu"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hour (UTC)"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 12,
+      "gridPos": {
+        "x": 8,
+        "y": 51,
+        "w": 8,
+        "h": 14
+      }
+    },
+    {
+      "type": "table",
+      "title": "When S3 controllers are online: hours by weekday and UTC hour (current rank, last 30 days)",
+      "description": "Question E9 (new). Definition: hours staffed by controllers whose current rank is S3, in each UTC clock hour (rows) and weekday (columns), summed over the last 30 days; darker cells are busier. One panel per rank. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'S3' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient"
+            }
+          },
+          "color": {
+            "mode": "continuous-BlPu"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hour (UTC)"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 13,
+      "gridPos": {
+        "x": 16,
+        "y": 51,
+        "w": 8,
+        "h": 14
+      }
+    },
+    {
+      "type": "table",
+      "title": "When C1 controllers are online: hours by weekday and UTC hour (current rank, last 30 days)",
+      "description": "Question E9 (new). Definition: hours staffed by controllers whose current rank is C1, in each UTC clock hour (rows) and weekday (columns), summed over the last 30 days; darker cells are busier. One panel per rank. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'C1' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient"
+            }
+          },
+          "color": {
+            "mode": "continuous-BlPu"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hour (UTC)"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 14,
+      "gridPos": {
+        "x": 0,
+        "y": 65,
+        "w": 8,
+        "h": 14
+      }
+    },
+    {
+      "type": "table",
+      "title": "When C3 controllers are online: hours by weekday and UTC hour (current rank, last 30 days)",
+      "description": "Question E9 (new). Definition: hours staffed by controllers whose current rank is C3, in each UTC clock hour (rows) and weekday (columns), summed over the last 30 days; darker cells are busier. One panel per rank. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'C3' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient"
+            }
+          },
+          "color": {
+            "mode": "continuous-BlPu"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hour (UTC)"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 15,
+      "gridPos": {
+        "x": 8,
+        "y": 65,
+        "w": 8,
+        "h": 14
+      }
+    },
+    {
+      "type": "table",
+      "title": "When I1+ controllers are online: hours by weekday and UTC hour (current rank, last 30 days)",
+      "description": "Question E9 (new). Definition: hours staffed by controllers whose current rank is I1+, in each UTC clock hour (rows) and weekday (columns), summed over the last 30 days; darker cells are busier. One panel per rank. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'I1+' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient"
+            }
+          },
+          "color": {
+            "mode": "continuous-BlPu"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hour (UTC)"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 16,
+      "gridPos": {
+        "x": 16,
+        "y": 65,
+        "w": 8,
+        "h": 14
+      }
+    },
+    {
+      "type": "table",
+      "title": "Ranks that staffed the latest Monday event (0700-1200Z, current rank)",
+      "description": "Question E10 (new). Definition: per rank, the distinct controllers present at any time between 0700 and 1200 UTC on the most recent Monday whose 0700Z start has passed (before 0700Z on a Monday it shows the Monday before), and the hours they staffed inside that window. The event date is in the last column. A session counts if it overlaps the window. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH mon AS (\n  -- the most recent Monday whose 0700Z start has passed (as the airborne-aircraft panel on the Monday event dashboard)\n  SELECT (date_trunc('day', (now() - interval '7 hours') AT TIME ZONE 'UTC')\n          - (extract(isodow FROM (now() - interval '7 hours') AT TIME ZONE 'UTC')::int - 1) * interval '1 day') AT TIME ZONE 'UTC' AS d\n),\nranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nev AS (\n  SELECT s.cid, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, m.d + interval '12 hours') - greatest(s.session_start, m.d + interval '7 hours')), 0) AS secs\n  FROM mon m JOIN controller_session_ranked s ON s.session_start < m.d + interval '12 hours' AND s.session_end >= m.d + interval '7 hours'\n  JOIN cur c ON c.cid = s.cid\n)\nSELECT r.rank_group AS \"Rank (current)\", count(DISTINCT e.cid) AS \"Controllers present\",\n       round(coalesce(sum(e.secs), 0) / 3600.0, 1) AS \"Hours staffed in the event\",\n       (SELECT to_char(d AT TIME ZONE 'UTC', 'DD-MM-YYYY') FROM mon) AS \"Event date (UTC)\"\nFROM ranks r LEFT JOIN ev e ON e.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 17,
+      "gridPos": {
+        "x": 0,
+        "y": 79,
+        "w": 24,
+        "h": 9
+      }
+    }
+  ]
+}

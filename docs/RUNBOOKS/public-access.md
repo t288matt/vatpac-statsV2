@@ -8,7 +8,7 @@ visitor -> Cloudflare (rate limit, Bot Fight Mode) -> Cloudflare Tunnel (named H
 ```
 
 ## What visitors can and cannot do
-- Each of the 12 dashboards has its own public link (`/public-dashboards/<token>`). Grafana has no index of them; `python3 ops/grafana_public.py --list --public-url https://vpac.mpengor.com` prints them. Each also has a short address (section 1, table).
+- Each of the 17 dashboards has its own public link (`/public-dashboards/<token>`). Grafana has no index of them; `python3 ops/grafana_public.py --list --public-url https://vpac.mpengor.com` prints them. Each also has a short address (section 1, table).
 - A public dashboard runs **only the queries saved on the dashboard**. Visitors cannot send their own SQL, cannot change the time range (each dashboard keeps its own fixed default: 24 hours, 7, 30, 90 or 180 days), cannot edit, and cannot use Explore. Without a login every other API call (`/api/ds/query`, the dashboard and datasource lists) answers 401 (checked 11-10-2026 on a copy of the live Grafana data; SQL sent in the body of a public panel request is ignored).
 - The Departure board panel on "Pilots: online now" is fixed to YSSY: public dashboards do not fill text-box variables, so the airport box was removed. The hidden `go_live` variable is a constant (07-10-2026 21:38 UTC), because public dashboards cannot run variable queries: as a query it showed a blank "Data since" and an "Invalid panel id" toast (fixed 14-10-2026). A public page exposes the dashboard definition, including the SQL text of each panel, the view names and the datasource name. The views hold no secrets, but treat the SQL as public.
 - Panels read views only, through the `grafana_ro` role: SELECT only, 30 s statement limit, at most 10 connections (`db/roles.sql`). The collector uses its own role and connections.
@@ -22,7 +22,7 @@ cd ~/vatpac-statsV2
 python3 ops/grafana_public.py --public-url https://vpac.mpengor.com
 ```
 The script finds Grafana at `GRAFANA_BIND` and `GRAFANA_PORT` from `.env` (on this VM the LAN address, not 127.0.0.1); wait about a minute after a Grafana restart.
-It finds Grafana at `GRAFANA_BIND` and `GRAFANA_PORT` from `.env` (on this VM the LAN address). It is on the VM tree since commit b3189ad (11-10-2026, 20:35 UTC), where it replaced the 10 links once with the stable ones. It reads the admin login from `.env` (never printed), creates a link for every provisioned dashboard with a fixed time range and no annotations, fixes a link whose settings differ, and prints the 10 URLs. It is safe to run again, and should be run after a new dashboard is added. `--list` changes nothing. `--remove` removes every link, which stops public access at once.
+It finds Grafana at `GRAFANA_BIND` and `GRAFANA_PORT` from `.env` (on this VM the LAN address). It is on the VM tree since commit b3189ad (11-10-2026, 20:35 UTC), where it replaced the 10 links once with the stable ones. It reads the admin login from `.env` (never printed), creates a link for every provisioned dashboard with a fixed time range and no annotations, fixes a link whose settings differ, and prints every URL. It is safe to run again, and should be run after a new dashboard is added. `--list` changes nothing. `--remove` removes every link, which stops public access at once.
 
 The links live in Grafana's own database (the `grafana_data` volume): they survive restarts and deploys. After a wiped volume, run the script again: the tokens are stable, so the same links come back. 
 
@@ -39,6 +39,11 @@ The links live in Grafana's own database (the `grafana_data` volume): they survi
 | `/atc-retention` | ATC: retention and reactivation |
 | `/atc-hours` | ATC: position hours |
 | `/pilots` | Pilots: records and totals |
+| `/routes` | Routes and airports |
+| `/aircraft` | Aircraft and airlines |
+| `/atc-positions` | ATC: positions and controllers |
+| `/atc-ranks` | ATC: hours by rank |
+| `/live-events` | Live now and events |
 | `/monday` | Events: Monday event |
 | `/military` | Military: aircraft and routes |
 | `/monthly` | Management: people online |
@@ -135,10 +140,10 @@ http://<VM_LAN_IP>:3300 (alpine/socat). Traefik's own config (traefik.yaml, conf
 Chain: visitor -> Cloudflare -> Cloudflare Tunnel (hostname vpac.mpengor.com -> https://<TRAEFIK_HOST_IP>:443)
        -> Traefik -> vatpac-proxy (this container) -> Grafana on <VM_LAN_IP>:3300 -> public dashboards only.
 
-What visitors can reach: only the 12 public dashboards (links: python3 ops/grafana_public.py --list on the VM) and
+What visitors can reach: only the 17 public dashboards (links: python3 ops/grafana_public.py --list on the VM) and
 Grafana's login page. They cannot send their own queries.
 
-Short addresses: /live /traffic /new-pilots /origins /atc /atc-retention /atc-hours /pilots /monday /military /monthly /health redirect to the
+Short addresses: /live /traffic /new-pilots /origins /atc /atc-retention /atc-hours /pilots /routes /aircraft /atc-positions /atc-ranks /live-events /monday /military /monthly /health redirect to the
 public dashboard links (Traefik labels in docker-compose.yml, generated by ops/grafana_public.py --traefik-labels on the VM;
 the links have fixed tokens, so they only change if the dashboards change). Full description and roll back: docs/RUNBOOKS/public-access.md
 in the vatpac-statsV2 repository (private, GitHub t288matt/vatpac-statsV2).
