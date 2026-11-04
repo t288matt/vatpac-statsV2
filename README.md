@@ -50,13 +50,13 @@ Dashboards (as code in `grafana/dashboards/`): Pilots now, Pilots traffic, Pilot
 
 ## Public read-only access
 
-All ten dashboards can be shown to anyone on the internet, read-only, without a login. Each dashboard has its own public link, with a fixed time range, and a short address such as `https://vpac.mpengor.com/live` that redirects to it; visitors cannot send their own queries, change the time range or edit anything. Anonymous access in Grafana stays off. The links are created by `ops/grafana_public.py`, and traffic reaches Grafana through Cloudflare, a Cloudflare Tunnel and a small forwarder on the owner's Traefik machine. Setup, checks and how to switch it off: [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md); what runs on the Traefik machine (<TRAEFIK_HOST_IP>, outside this repository) is in its section "The Traefik machine". The public address is `https://vpac.mpengor.com` (DNS and Cloudflare are outside this repository).
+All eleven dashboards can be shown to anyone on the internet, read-only, without a login. Each dashboard has its own public link, with a fixed time range, and a short address such as `https://vpac.mpengor.com/live` that redirects to it; visitors cannot send their own queries, change the time range or edit anything. Anonymous access in Grafana stays off. The links are created by `ops/grafana_public.py`, and traffic reaches Grafana through Cloudflare, a Cloudflare Tunnel and a small forwarder on the owner's Traefik machine. Setup, checks and how to switch it off: [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md); what runs on the Traefik machine (<TRAEFIK_HOST_IP>, outside this repository) is in its section "The Traefik machine". The public address is `https://vpac.mpengor.com` (DNS and Cloudflare are outside this repository).
 
 The collector serves `/health` and `/metrics` on port 8080 inside the Docker network only (not published). The database is not published either; the dev overlay (`make dev`) publishes it on `127.0.0.1:55432` only.
 
 ## For dashboard users
 
-Ten dashboards, all in Grafana (folder: dashboard). Times are UTC. What each one shows is in Grafana itself (dashboard and panel descriptions); the exact rule behind every chart is in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md), and the meaning of "flight", "session", "online now" and "airborne minutes" is in [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
+Eleven dashboards, all in Grafana (folder: dashboard). Times are UTC. What each one shows is in Grafana itself (dashboard and panel descriptions); the exact rule behind every chart is in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md), and the meaning of "flight", "session", "online now" and "airborne minutes" is in [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
 
 Charts start empty at go-live (07-10-2026) and fill as data arrives; a flight appears in the flight totals about 8 hours after its last position.
 
