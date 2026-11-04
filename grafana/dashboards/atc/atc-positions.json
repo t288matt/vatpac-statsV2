@@ -1,0 +1,518 @@
+{
+  "uid": "vatpac-atc-positions",
+  "title": "ATC: positions and controllers",
+  "tags": [
+    "vatpac",
+    "atc"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "constant",
+        "hide": 2,
+        "query": "07-10-2026 21:38 UTC",
+        "current": {
+          "text": "07-10-2026 21:38 UTC",
+          "value": "07-10-2026 21:38 UTC"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "07-10-2026 21:38 UTC",
+            "value": "07-10-2026 21:38 UTC"
+          }
+        ]
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no earlier data. All times are UTC. Fixed periods and sizes, stated in each title; the page has no inputs. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, summed. A position is a callsign on the controller whitelist (only whitelisted callsigns are stored)."
+      }
+    },
+    {
+      "id": 2,
+      "type": "barchart",
+      "title": "Top 50 service providers (last 30 days)",
+      "description": "Question D1 (v1 card 108), copied unchanged from ATC: controllers. Definition: the 50 controllers with the most hours online in the last 30 days (sessions that started in the window, full length of each merged session; one row per CID with the latest name; sessions of 0 minutes ignored). Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (array_agg(name ORDER BY session_start DESC))[1] AS controller,\n       round((sum(duration_minutes) / 60.0)::numeric, 1) AS \"Hours online\"\nFROM controller_session_ranked\nWHERE session_start BETWEEN $__timeFrom() AND $__timeTo()\n  AND duration_minutes > 0\nGROUP BY cid\nORDER BY sum(duration_minutes) DESC\nLIMIT 50"
+        }
+      ],
+      "options": {
+        "xField": "controller",
+        "xTickLabelRotation": -45,
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top 15 positions by hours staffed (last 30 days)",
+      "description": "Question D2 (new). Definition: the 15 positions (callsigns) with the most hours staffed in the last 30 days. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Ties: callsign A to Z. A position nobody staffed in the period is not listed (see the never-staffed list). Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH sec AS (\n  SELECT callsign, cid, greatest(extract(epoch FROM least(session_end, now()) - greatest(session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked\n  WHERE session_end >= now() - interval '30 days' AND session_start <= now()\n)\nSELECT callsign AS \"Position\", round(sum(secs) / 3600.0, 1) AS \"Hours staffed\"\nFROM sec\nGROUP BY callsign\nHAVING sum(secs) > 0\nORDER BY sum(secs) DESC, callsign\nLIMIT 15"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 12,
+        "y": 3,
+        "w": 12,
+        "h": 10
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top 15 positions by sessions (last 30 days)",
+      "description": "Question D3 (new). Definition: the 15 positions (callsigns) with the most sessions that started in the last 30 days. A session is a merged controller session (a reconnect within 5 minutes is the same session); there is no minimum length. Ties: callsign A to Z. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT callsign AS \"Position\", count(*) AS \"Sessions\"\nFROM controller_session_ranked\nWHERE session_start >= now() - interval '30 days' AND session_start <= now()\nGROUP BY callsign\nORDER BY count(*) DESC, callsign\nLIMIT 15"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 10
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top 15 positions by different controllers (last 30 days)",
+      "description": "Question D4 (new). Definition: the 15 positions (callsigns) staffed by the most different controllers (distinct CIDs) in sessions that started in the last 30 days. Merged sessions, no minimum length. Ties: callsign A to Z. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT callsign AS \"Position\", count(DISTINCT cid) AS \"Different controllers\"\nFROM controller_session_ranked\nWHERE session_start >= now() - interval '30 days' AND session_start <= now()\nGROUP BY callsign\nORDER BY count(DISTINCT cid) DESC, callsign\nLIMIT 15"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 10
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top 15 airports by ATC hours staffed (last 30 days)",
+      "description": "Question D5 (new). Definition: the 15 airports with the most position-hours in the last 30 days. The airport is the callsign prefix before the first underscore or hyphen (SY for Sydney; AD-W_APP counts for AD); it is the prefix as written on the whitelist, not an ICAO code. Only airport positions count (_TWR, _APP, _DEP, _GND, _DEL); centre (_CTR), flight service (_FSS) and flow management (_FMP) are left out. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Two positions staffed together for 3 hours count as 6. Ties: prefix A to Z. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH sec AS (\n  SELECT callsign, cid, greatest(extract(epoch FROM least(session_end, now()) - greatest(session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked\n  WHERE session_end >= now() - interval '30 days' AND session_start <= now()\n)\nSELECT substring(callsign FROM '^[^_-]+') AS \"Airport (callsign prefix)\", round(sum(secs) / 3600.0, 1) AS \"Position-hours\"\nFROM sec\nWHERE callsign ~ '_(TWR|APP|DEP|GND|DEL)$'\nGROUP BY 1\nHAVING sum(secs) > 0\nORDER BY sum(secs) DESC, 1\nLIMIT 15"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 10
+      }
+    },
+    {
+      "type": "table",
+      "title": "Whitelisted positions never staffed (last 30 days)",
+      "description": "Question D6 (new). Definition: every callsign on the controller whitelist (config/controller_callsigns_list.txt, 254 callsigns when this panel was written; the list is copied into the query and a test fails if it drifts from the file) with no merged session at all overlapping the last 30 days. Listed by position type, then callsign. A position staffed for any length of time is not listed. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH wl(callsign) AS (\n  SELECT unnest(string_to_array('AD-W_APP,AD_APP,AD_DEL,AD_FMP,AD_GND,AD_TWR,AF-N_TWR,AF_GND,AF_TWR,AMB_APP,AMB_DEL,AMB_GND,AMB_TWR,AS_TWR,AV_APP,AV_GND,AV_TWR,AYGA_TWR,AYMD_TWR,AYMH_TWR,AYNZ_APP,AYNZ_TWR,AYPY_APP,AYPY_GND,AYPY_TWR,AYTK_TWR,AY_GND,AY_TWR,BK-C_TWR,BK_GND,BK_TWR,BN-ARA_CTR,BN-ARL_CTR,BN-ASH_CTR,BN-BAR_CTR,BN-BUR_CTR,BN-CNK_CTR,BN-COL_FSS,BN-CVN_CTR,BN-C_APP,BN-DOS_CTR,BN-FLD_FSS,BN-F_APP,BN-GOL_CTR,BN-HWE_CTR,BN-INL_CTR,BN-ISA_CTR,BN-KEN_CTR,BN-KIY_CTR,BN-KPL_CTR,BN-MDE_CTR,BN-MLD_CTR,BN-MNN_CTR,BN-NSA_CTR,BN-N_GND,BN-OCN_CTR,BN-SDY_CTR,BN-STR_CTR,BN-SWY_CTR,BN-S_APP,BN-S_DEP,BN-S_GND,BN-TBP_CTR,BN-TRS_CTR,BN-TRT_CTR,BN-TSN_FSS,BN-WEG_CTR,BN-WIL_CTR,BN-W_TWR,BN_APP,BN_DEL,BN_DEP,BN_FMP,BN_GND,BN_TWR,BRM_GND,BRM_TWR,CB-W_APP,CB_APP,CB_FMP,CB_GND,CB_TWR,CFS_TWR,CG_DEL,CG_GND,CG_TWR,CIN_APP,CIN_DEL,CIN_GND,CIN_TWR,CN_GND,CN_TWR,CS-W_APP,CS_APP,CS_DEL,CS_FMP,CS_GND,CS_TWR,DN-W_APP,DN_APP,DN_DEL,DN_GND,DN_TWR,ED_GND,ED_TWR,EN_GND,EN_TWR,ES_APP,ES_DEL,ES_GND,ES_TWR,GIG_GND,GIG_TWR,HB_APP,HB_GND,HB_TWR,HM_TWR,JT-C_TWR,JT_GND,JT_TWR,KA_GND,KA_TWR,LM_APP,LM_GND,LM_TWR,LT_APP,LT_TWR,MB-W_TWR,MB_GND,MB_TWR,MK_APP,MK_GND,MK_TWR,ML-ASP_CTR,ML-ASW_CTR,ML-AUG_CTR,ML-BIK_CTR,ML-BKE_CTR,ML-BLA_CTR,ML-CRS_CTR,ML-ELW_CTR,ML-ESP_CTR,ML-FOR_CTR,ML-GEL_CTR,ML-GTH_CTR,ML-GUN_CTR,ML-GVE_CTR,ML-HUO_CTR,ML-HYD_CTR,ML-IND_FSS,ML-INE_FSS,ML-INS_FSS,ML-JAR_CTR,ML-KAT_CTR,ML-LEA_CTR,ML-MEK_CTR,ML-MTK_CTR,ML-MUN_CTR,ML-MZI_CTR,ML-NEW_CTR,ML-OLW_CTR,ML-OXL_CTR,ML-PAR_CTR,ML-PIY_CTR,ML-POT_CTR,ML-SNO_CTR,ML-S_DEP,ML-TBD_CTR,ML-WAR_CTR,ML-WOL_CTR,ML-WON_CTR,ML-WRA_CTR,ML-YWE_CTR,ML_APP,ML_DEL,ML_DEP,ML_FMP,ML_GND,ML_TWR,NFFN_APP,NFFN_TWR,NFNA_APP,NFNA_TWR,NVVV_TWR,NWWL_TWR,NWWM_TWR,NWWW_APP,NWWW_TWR,NW_APP,NW_DEL,NW_GND,NW_TWR,OK_APP,OK_DEL,OK_GND,OK_TWR,PE_APP,PE_DEL,PE_GND,PE_TWR,PF-W_TWR,PF_GND,PF_TWR,PH-E_GND,PH_APP,PH_DEL,PH_DEP,PH_FMP,PH_GND,PH_TWR,PKWA_APP,PKWA_GND,PKWA_TWR,RI_GND,RI_TWR,RK_APP,RK_GND,RK_TWR,SG_APP,SG_GND,SG_TWR,SU_GND,SU_TWR,SY-C_DEP,SY-C_GND,SY-DE_APP,SY-D_APP,SY-E_TWR,SY-N_APP,SY-N_DEP,SY-W_GND,SY_APP,SY_DEL,SY_DEP,SY_FMP,SY_GND,SY_TWR,TL_APP,TL_DEL,TL_GND,TL_TWR,TN_APP,TN_DEL,TN_GND,TN_TWR,TW-S_TWR,TW_GND,TW_TWR,WLM-L_APP,WLM_APP,WLM_DEL,WLM_GND,WLM_TWR,WR_TWR', ','))\n)\nSELECT substring(w.callsign FROM '_([A-Z]+)$') AS \"Type\", w.callsign AS \"Position\"\nFROM wl w\nWHERE NOT EXISTS (\n  SELECT 1 FROM controller_session_ranked s\n  WHERE s.callsign = w.callsign AND s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n)\nORDER BY CASE substring(w.callsign FROM '_([A-Z]+)$') WHEN 'CTR' THEN 1 WHEN 'TWR' THEN 2 WHEN 'APP' THEN 3 WHEN 'DEP' THEN 4 WHEN 'GND' THEN 5 WHEN 'DEL' THEN 6 WHEN 'FSS' THEN 7 ELSE 8 END, w.callsign"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 7,
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 12,
+        "h": 10
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "CTR and FSS controllers active (30 days to month end, monthly)",
+      "description": "Question D7 (v1 card 63), copied unchanged from ATC: controllers. Definition: per calendar month (UTC), distinct controllers who started a CTR or FSS session of more than 60 minutes in the 30 days before the end of that month; the latest month is partial; last 12 months. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH bounds AS (\n  SELECT date_trunc('month', min(session_start) AT TIME ZONE 'UTC') AS first_month,\n         date_trunc('month', max(session_start) AT TIME ZONE 'UTC') AS last_month\n  FROM controller_session_ranked\n),\nmonths AS (\n  SELECT g.m AS month_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_month, date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_month, date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 month') AS g(m)\n  WHERE b.first_month IS NOT NULL\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM months m\nLEFT JOIN controller_session_ranked s\n       ON (s.session_start AT TIME ZONE 'UTC') >= m.month_start + interval '1 month' - interval '30 days'\n      AND (s.session_start AT TIME ZONE 'UTC') <  m.month_start + interval '1 month'\n      AND s.duration_minutes > 60\n      AND s.is_ctr_fss\nGROUP BY m.month_start\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "12M"
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Controllers active (30 days to week end, weekly)",
+      "description": "Question D7 (v1 card 137), copied unchanged from ATC: controllers. Definition: per calendar week (UTC), distinct controllers (any position) who started a session of more than 30 minutes in the 30 days before the end of that week; the latest week is partial; last 12 months. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 33,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH bounds AS (\n  SELECT date_trunc('week', min(session_start) AT TIME ZONE 'UTC') AS first_week,\n         date_trunc('week', max(session_start) AT TIME ZONE 'UTC') AS last_week\n  FROM controller_session_ranked\n),\nweeks AS (\n  SELECT g.w AS week_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_week, date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_week, date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 week') AS g(w)\n  WHERE b.first_week IS NOT NULL\n)\nSELECT m.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM weeks m\nLEFT JOIN controller_session_ranked s\n       ON (s.session_start AT TIME ZONE 'UTC') >= m.week_start + interval '1 week' - interval '30 days'\n      AND (s.session_start AT TIME ZONE 'UTC') <  m.week_start + interval '1 week'\n      AND s.duration_minutes > 30\nGROUP BY m.week_start\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "12M"
+    },
+    {
+      "id": 10,
+      "type": "barchart",
+      "title": "Controllers with the longest median session (last 90 days)",
+      "description": "Question D8 (v1 card 153), copied unchanged from ATC: controllers. Definition: per controller (named, 3 or more sessions in the last 90 days, sessions over 0 minutes) the median session length in hours, top 15 longest first. The rating group in the label is the highest rating seen in the window, not the current rank. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH per_controller AS (\n  SELECT cid,\n         name,\n         CASE\n           WHEN MAX(rating) = 2 THEN 'S1'\n           WHEN MAX(rating) = 3 THEN 'S2'\n           WHEN MAX(rating) = 4 THEN 'S3'\n           WHEN MAX(rating) = 5 THEN 'C1'\n           WHEN MAX(rating) = 7 THEN 'C3'\n           WHEN MAX(rating) >= 8 THEN 'I1+'\n           ELSE 'Unknown'\n         END AS rating,\n         ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY session_duration_minutes) / 60.0)::numeric, 2) AS median_hours\n  FROM controller_summaries\n  WHERE cid IS NOT NULL\n    AND name IS NOT NULL\n    AND session_duration_minutes > 0\n    AND session_start_time >= now() - interval '90 days'\n  GROUP BY cid, name\n  HAVING COUNT(*) >= 3\n  ORDER BY median_hours DESC, cid\n  LIMIT 15\n)\nSELECT name || ' (' || cid || ', ' || rating || ')' AS controller,\n       median_hours AS \"Median session (hours)\"\nFROM per_controller\nORDER BY median_hours DESC, cid"
+        }
+      ],
+      "options": {
+        "xField": "controller",
+        "xTickLabelRotation": -45,
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "barchart",
+      "title": "Controllers with the shortest median session (last 90 days)",
+      "description": "Question D8 (v1 card 154), copied unchanged from ATC: controllers. Definition: as the longest-median panel but shortest first, median in minutes, empty names excluded. The rating is the highest rating seen in the window. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 42,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH per_controller AS (\n  SELECT cid,\n         name,\n         MAX(rating) AS rating,\n         ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY session_duration_minutes)::numeric, 2) AS median_minutes\n  FROM controller_summaries\n  WHERE cid IS NOT NULL\n    AND name IS NOT NULL\n    AND name <> ''\n    AND session_duration_minutes > 0\n    AND session_start_time >= now() - interval '90 days'\n  GROUP BY cid, name\n  HAVING COUNT(*) >= 3\n  ORDER BY median_minutes ASC, cid\n  LIMIT 15\n)\nSELECT name || ' (' || cid || ', rating ' || COALESCE(rating::text, '?') || ')' AS controller,\n       median_minutes AS \"Median session (minutes)\"\nFROM per_controller\nORDER BY median_minutes ASC, cid"
+        }
+      ],
+      "options": {
+        "xField": "controller",
+        "xTickLabelRotation": -45,
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "trend",
+      "title": "When are people online on weekdays (last 30 days)",
+      "description": "Question D9 (v1 card 94), copied unchanged from Pilots: online now. Definition: for each UTC clock hour, distinct callsigns online at some point in that hour over the last 30 days, Monday to Friday: pilots (flights with airborne time) and ATC (sessions of at least 20 minutes). The ATC line answers the question; the pilot line comes with the original panel. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 52,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- v1 card 94: callsigns online in each UTC clock hour over the last 30 days.\nWITH flight_hours AS (\n    SELECT f.callsign,\n           generate_series(\n               EXTRACT(HOUR FROM f.logon_time AT TIME ZONE 'UTC')::int,\n               CASE WHEN EXTRACT(HOUR FROM f.end_time AT TIME ZONE 'UTC')::int >= EXTRACT(HOUR FROM f.logon_time AT TIME ZONE 'UTC')::int THEN EXTRACT(HOUR FROM f.end_time AT TIME ZONE 'UTC')::int ELSE EXTRACT(HOUR FROM f.end_time AT TIME ZONE 'UTC')::int + 24 END\n           ) % 24 AS active_hour\n    FROM flight f\n    WHERE f.end_time >= now() - interval '30 days'\n      AND f.airborne_minutes > 0\n      AND EXTRACT(ISODOW FROM f.logon_time AT TIME ZONE 'UTC') BETWEEN 1 AND 5\n      AND f.logon_time IS NOT NULL\n      AND f.end_time IS NOT NULL\n),\natc_hours AS (\n    SELECT cs.callsign,\n           generate_series(\n               EXTRACT(HOUR FROM cs.session_start_time AT TIME ZONE 'UTC')::int,\n               CASE WHEN EXTRACT(HOUR FROM COALESCE(cs.session_end_time, now()) AT TIME ZONE 'UTC')::int >= EXTRACT(HOUR FROM cs.session_start_time AT TIME ZONE 'UTC')::int THEN EXTRACT(HOUR FROM COALESCE(cs.session_end_time, now()) AT TIME ZONE 'UTC')::int ELSE EXTRACT(HOUR FROM COALESCE(cs.session_end_time, now()) AT TIME ZONE 'UTC')::int + 24 END\n           ) % 24 AS active_hour\n    FROM controller_summaries cs\n    WHERE (cs.session_start_time >= now() - interval '30 days'\n           OR cs.session_end_time >= now() - interval '30 days')\n      AND cs.session_duration_minutes >= 20\n      AND EXTRACT(ISODOW FROM cs.session_start_time AT TIME ZONE 'UTC') BETWEEN 1 AND 5\n      AND cs.session_start_time IS NOT NULL\n)\nSELECT COALESCE(fh.active_hour, ah.active_hour)::int AS hour_utc,\n       COALESCE(fh.n, 0) AS \"Pilots (callsigns)\",\n       COALESCE(ah.n, 0) AS \"ATC (callsigns)\"\nFROM (SELECT active_hour, COUNT(DISTINCT callsign) AS n FROM flight_hours GROUP BY active_hour) fh\nFULL OUTER JOIN (SELECT active_hour, COUNT(DISTINCT callsign) AS n FROM atc_hours GROUP BY active_hour) ah\n  ON fh.active_hour = ah.active_hour\nORDER BY 1"
+        }
+      ],
+      "options": {
+        "xField": "hour_utc"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "trend",
+      "title": "When are people online on weekends (last 30 days)",
+      "description": "Question D9 (v1 card 95), copied unchanged from Pilots: online now. Definition: for each UTC clock hour, distinct callsigns online at some point in that hour over the last 30 days, Saturday and Sunday: pilots (flights with airborne time) and ATC (sessions of at least 30 minutes); a session across midnight is not counted after midnight (v1 quirk kept). Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 52,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- v1 card 95: callsigns online in each UTC clock hour over the last 30 days.\nWITH flight_hours AS (\n    SELECT f.callsign,\n           generate_series(\n               EXTRACT(HOUR FROM f.logon_time AT TIME ZONE 'UTC')::int,\n               EXTRACT(HOUR FROM f.end_time AT TIME ZONE 'UTC')::int\n           ) AS active_hour\n    FROM flight f\n    WHERE f.end_time >= now() - interval '30 days'\n      AND f.airborne_minutes > 0\n      AND EXTRACT(ISODOW FROM f.logon_time AT TIME ZONE 'UTC') IN (6, 7)\n      AND f.logon_time IS NOT NULL\n      AND f.end_time IS NOT NULL\n),\natc_hours AS (\n    SELECT cs.callsign,\n           generate_series(\n               EXTRACT(HOUR FROM cs.session_start_time AT TIME ZONE 'UTC')::int,\n               EXTRACT(HOUR FROM COALESCE(cs.session_end_time, now()) AT TIME ZONE 'UTC')::int\n           ) AS active_hour\n    FROM controller_summaries cs\n    WHERE (cs.session_start_time >= now() - interval '30 days'\n           OR cs.session_end_time >= now() - interval '30 days')\n      AND cs.session_duration_minutes >= 30\n      AND EXTRACT(ISODOW FROM cs.session_start_time AT TIME ZONE 'UTC') IN (6, 7)\n      AND cs.session_start_time IS NOT NULL\n)\nSELECT COALESCE(fh.active_hour, ah.active_hour)::int AS hour_utc,\n       COALESCE(fh.n, 0) AS \"Pilots (callsigns)\",\n       COALESCE(ah.n, 0) AS \"ATC (callsigns)\"\nFROM (SELECT active_hour, COUNT(DISTINCT callsign) AS n FROM flight_hours GROUP BY active_hour) fh\nFULL OUTER JOIN (SELECT active_hour, COUNT(DISTINCT callsign) AS n FROM atc_hours GROUP BY active_hour) ah\n  ON fh.active_hour = ah.active_hour\nORDER BY 1"
+        }
+      ],
+      "options": {
+        "xField": "hour_utc"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      }
+    }
+  ]
+}
