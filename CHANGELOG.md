@@ -6,6 +6,12 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## ATC hours staffed by position type (04-11-2026, issue 267 group G; pull request pending, not yet merged or deployed)
+
+- **What is new.** A new dashboard, "ATC: position hours" (its own public link, short address `/atc-hours`), answers "how many hours were CTR, TWR, APP, DEP, GND, DEL, FSS and FMP positions staffed?": a stacked weekly chart per position type, and a table of the eight types for the last 7 days, last 30 days, last full month and since go-live. It is a new dashboard file, so it needs three steps at deploy time: run `python3 ops/grafana_public.py --public-url https://vpac.mpengor.com` on the VM to create its public link, and the owner pastes the new short-address labels into the Traefik helper (`--traefik-labels`). No migration and no image release.
+- **The rule.** Position-hours: merged controller sessions, clipped to the period, summed per type, so two CTR sectors online for 3 hours count as 6. The type is the callsign suffix, so APP and DEP are separate and CTR excludes FSS.
+- **What does not change.** The existing "CTR hours staffed per week" panel is untouched; its CTR figure can differ slightly because it credits a whole session to the week it started and uses the feed's facility code. FMP may often show 0 (not yet checked how it appears in the feed).
+
 ## Images are published automatically after green CI on main (04-11-2026, issue 268; pull request pending, not yet merged or deployed)
 
 - **What changes.** The `release` workflow now also starts by itself when the `ci` workflow finishes successfully for a push to main, so the owner no longer has to click "Run workflow" before `make deploy`. It publishes the commit only if it is still main's tip; a run for an older commit stops with a notice and publishes nothing, so `latest` never moves backwards when two CI runs finish out of order.
