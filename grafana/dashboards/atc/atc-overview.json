@@ -678,6 +678,86 @@
         "overrides": []
       },
       "timeFrom": "12M"
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "ATC hours staffed per week, by position type",
+      "description": "Hours each position type was staffed, per calendar week (UTC). Position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period shown, summed per position type. Two CTR sectors online together for 3 hours count as 6 hours. The type is the callsign suffix (_CTR, _TWR, _APP, _DEP, _GND, _DEL, _FSS, _FMP), not the feed's facility number, so APP and DEP are separate and CTR excludes FSS. All session time counts, with no minimum length; a controller still online counts up to the latest sighting. The CTR line can differ slightly from 'CTR hours staffed per week' above, which credits a whole session to the week it started and uses the feed's facility code.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 84,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH s AS (\n  SELECT substring(callsign FROM '_(CTR|TWR|APP|DEP|GND|DEL|FSS|FMP)$') AS ptype,\n         session_start AT TIME ZONE 'UTC' AS s_from, session_end AT TIME ZONE 'UTC' AS s_to\n  FROM controller_session_ranked\n  WHERE callsign ~ '_(CTR|TWR|APP|DEP|GND|DEL|FSS|FMP)$'\n    AND session_end >= $__timeFrom() AND session_start <= $__timeTo()\n), w AS (\n  SELECT generate_series(date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n                         date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC'), interval '1 week') AS wk\n)\nSELECT w.wk AT TIME ZONE 'UTC' AS time, s.ptype AS metric,\n       round(sum(extract(epoch FROM least(s.s_to, w.wk + interval '1 week') - greatest(s.s_from, w.wk))) / 3600.0, 1) AS \"hours\"\nFROM w JOIN s ON s.s_from < w.wk + interval '1 week' AND s.s_to > w.wk\nGROUP BY 1, 2\nORDER BY 1, 2"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "12M"
+    },
+    {
+      "id": 17,
+      "type": "table",
+      "title": "ATC hours staffed by position type (7 days, 30 days, last full month, since go-live)",
+      "description": "Hours each position type was staffed in fixed windows ending now (7 and 30 days), the last full calendar month (UTC), and since go-live on 07-10-2026. Position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period shown, summed per position type. Two CTR sectors online together for 3 hours count as 6 hours. The type is the callsign suffix (_CTR, _TWR, _APP, _DEP, _GND, _DEL, _FSS, _FMP), not the feed's facility number, so APP and DEP are separate and CTR excludes FSS. All session time counts, with no minimum length; a controller still online counts up to the latest sighting. FMP may often show 0: it has not been checked how it appears in the feed.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 93,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH t(ptype, ord) AS (\n  VALUES ('CTR', 1), ('TWR', 2), ('APP', 3), ('DEP', 4), ('GND', 5), ('DEL', 6), ('FSS', 7), ('FMP', 8)\n), s AS (\n  SELECT substring(callsign FROM '_(CTR|TWR|APP|DEP|GND|DEL|FSS|FMP)$') AS ptype, session_start, session_end\n  FROM controller_session_ranked\n  WHERE callsign ~ '_(CTR|TWR|APP|DEP|GND|DEL|FSS|FMP)$'\n), b AS (\n  SELECT date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS this_month,\n         date_trunc('month', now() AT TIME ZONE 'UTC' - interval '1 month') AT TIME ZONE 'UTC' AS last_month\n)\nSELECT t.ptype AS \"Position type\",\n       round(coalesce(sum(greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '7 days')), 0)) FILTER (WHERE s.session_start IS NOT NULL), 0) / 3600.0, 1) AS \"Last 7 days\",\n       round(coalesce(sum(greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0)) FILTER (WHERE s.session_start IS NOT NULL), 0) / 3600.0, 1) AS \"Last 30 days\",\n       round(coalesce(sum(greatest(extract(epoch FROM least(s.session_end, b.this_month) - greatest(s.session_start, b.last_month)), 0)) FILTER (WHERE s.session_start IS NOT NULL), 0) / 3600.0, 1) AS \"Last full month\",\n       round(coalesce(sum(extract(epoch FROM s.session_end - s.session_start)), 0) / 3600.0, 1) AS \"Since go-live\"\nFROM t CROSS JOIN b LEFT JOIN s USING (ptype)\nGROUP BY t.ptype, t.ord\nORDER BY t.ord"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
     }
   ]
 }
