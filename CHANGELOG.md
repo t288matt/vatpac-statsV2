@@ -6,6 +6,11 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Images are published automatically after green CI on main (04-11-2026, issue 268; pull request pending, not yet merged or deployed)
+
+- **What changes.** The `release` workflow now also starts by itself when the `ci` workflow finishes successfully for a push to main, so the owner no longer has to click "Run workflow" before `make deploy`. It publishes the commit only if it is still main's tip; a run for an older commit stops with a notice and publishes nothing, so `latest` never moves backwards when two CI runs finish out of order.
+- **What does not change.** Nothing deploys by itself: `make deploy` on the VM is still run by hand, and it still refuses to start if the pulled images do not match the checkout. The manual run still works for a rollback or a docs-only tip. No service code changes.
+
 ## Poll duration no longer climbs to 30 seconds and resets (27-10-2026, issue 261; pull request 262, not yet merged or deployed)
 
 - **The cause.** `poll_history.duration_ms` rose from about 300 ms to about 30 s over 29 to 45 hours, then dropped back. Polls start on a fixed 30 s grid, and the 30 s floor between requests (`MIN_REQUEST_GAP_S`) is also 30 s. The floor stamped the moment it woke up from its wait, so every wake that was a few milliseconds late made the next poll wait a few milliseconds longer, until the wait reached the full 30 s and the schedule re-synchronised. The wait was counted in `duration_ms`; nothing was slow on the network or in the database.
