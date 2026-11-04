@@ -1,6 +1,11 @@
 name: release
 
-# Manual publish of commit-tagged images to GHCR (issue 173, P1). Run it from the Actions tab (or `gh workflow run release.yml`)
+# Publish of commit-tagged images to GHCR (issue 173, P1; automatic after green CI on main since issue 268).
+# AUTOMATIC: when the `ci` workflow finishes successfully for a push to main, this workflow publishes that commit, but only if it is
+# still main's tip. If a newer commit has landed, the run publishes nothing (green, with a notice) and the newer commit's own CI
+# run publishes instead, so `latest` never moves backwards when two CI runs finish out of order. Nothing deploys: the owner still
+# runs `make deploy` on the VM by hand. A commit that skips CI (docs only) is not published automatically.
+# MANUAL (still available, e.g. for a rollback): run it from the Actions tab (or `gh workflow run release.yml`)
 # with a commit that is on main and whose CI run on main already passed. Leave `commit` blank to publish whatever main's tip is
 # at the moment the job runs (resolved inside the job, not when you click, so a push to main after you click but before the job
 # starts is still picked up) or give a specific commit (full or short SHA) to publish an older one, e.g. for a rollback. It does
@@ -10,6 +15,10 @@ name: release
 # is never edited per deploy (ADR-031, amended 15-10-2026). There is no semver tag. New packages in a private repository
 # are private by default; do not make them public.
 on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       commit:
@@ -26,21 +35,38 @@ concurrency:
 
 jobs:
   check:
+    # A manual run always goes ahead. An automatic run goes ahead only after a successful ci run for a push (a failed or cancelled
+    # ci run, or one for a pull request, publishes nothing).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
     outputs:
+      publish: ${{ steps.resolve.outputs.publish }}
       sha: ${{ steps.resolve.outputs.sha }}
       short: ${{ steps.resolve.outputs.short }}
     steps:
       - id: resolve
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT: ${{ github.event_name }}
+          AUTO_SHA: ${{ github.event.workflow_run.head_sha }}
           INPUT: ${{ inputs.commit }}
         run: |
           set -eu
-          if [ -z "$INPUT" ]; then
+          if [ "$EVENT" = "workflow_run" ]; then
+            sha="$AUTO_SHA"
+            tip="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+            if [ "$sha" != "$tip" ]; then
+              echo "::notice::$sha is no longer main's tip ($tip), so nothing is published here; the newer commit's own release publishes instead and latest never moves backwards"
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "automatic release: ci passed on main for the tip, $sha"
+          elif [ -z "$INPUT" ]; then
             sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
             echo "no commit given: publishing main's current tip, $sha"
           else
@@ -57,12 +83,14 @@ jobs:
             echo "::error::no successful ci run on main for $sha. Wait for it, or pick a commit whose CI ran (a docs-only commit skips CI)."
             exit 1
           fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "short=${sha:0:7}" >> "$GITHUB_OUTPUT"
           echo "publishing $sha as sha-${sha:0:7}; ci on main passed"
 
   images:
     needs: check   # build and push only; CI is not repeated
+    if: needs.check.outputs.publish == 'true'   # an automatic run for a commit that is no longer main's tip stops at check
     runs-on: ubuntu-latest
     permissions:
       contents: read
