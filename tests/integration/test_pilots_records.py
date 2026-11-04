@@ -92,10 +92,13 @@ def test_a2_ranks_pilots_by_flights_in_thirty_days_and_breaks_ties_by_cid(conn):
     add_flight(conn, 9400003, days_ago=29.9, name="Pilot 9400003")          # inside the window: makes 3 flights for 9400003
     for _ in range(5):
         add_flight(conn, 9400005, days_ago=30.1, name="Too Old")            # outside the window: must not count
-    add_flight(conn, 9400006, days_ago=1, airborne=0, name="Parked Pilot")  # a parked flight still counts
+    add_flight(conn, 9400006, days_ago=1, airborne=0, name="Parked Pilot")      # parked flights are not counted: this pilot is absent
+    add_flight(conn, 9400006, days_ago=1, airborne=None, name="Parked Pilot")
+    add_flight(conn, 9400004, days_ago=1, airborne=0, name="Pilot 9400004")     # parked flights add nothing to a flying pilot (2, not 4)
+    add_flight(conn, 9400004, days_ago=1, airborne=None, name="Pilot 9400004")
     rows = conn.execute(sql_of(MOST_FLIGHTS)).fetchall()
     assert [(r["Pilot"], r["Flights"]) for r in rows] == [
-        ("Busy Pilot", 3), ("Pilot 9400003", 3), ("Pilot 9400004", 2), ("Parked Pilot", 1)]
+        ("Busy Pilot", 3), ("Pilot 9400003", 3), ("Pilot 9400004", 2)]
 
 
 def test_a2_shows_ten_rows_at_most_and_the_latest_name(conn):
@@ -109,15 +112,15 @@ def test_a2_shows_ten_rows_at_most_and_the_latest_name(conn):
 
 
 # ------------------------------------------------------------------ A4: longest flight
-def test_a4_orders_by_airborne_hours_and_skips_old_and_unmeasured_flights(conn):
+def test_a4_orders_by_airborne_hours_and_skips_old_and_parked_flights(conn):
     add_flight(conn, 9402001, days_ago=2, airborne=300, name="Five Hours", callsign="QFA1", dep="YSSY", arr="EGLL")
     add_flight(conn, 9402002, days_ago=3, airborne=612, name="Ten Hours Plus", callsign="QFA2", dep="YPPH", arr="EGLL")
-    add_flight(conn, 9402003, days_ago=4, airborne=None, name="Unmeasured")       # no airborne figure: left out
+    add_flight(conn, 9402003, days_ago=4, airborne=None, name="Unmeasured")       # no airborne figure (parked): left out
     add_flight(conn, 9402004, days_ago=31, airborne=900, name="Too Old")           # finished 31 days ago: left out
-    add_flight(conn, 9402005, days_ago=1, airborne=0, name="Parked")               # 0.0 hours: listed last
+    add_flight(conn, 9402005, days_ago=1, airborne=0, name="Parked")               # 0.0 hours: left out
     rows = conn.execute(sql_of(LONGEST)).fetchall()
-    assert [r["Pilot"] for r in rows] == ["Ten Hours Plus", "Five Hours", "Parked"]
-    assert [float(r["Airborne hours"]) for r in rows] == [10.2, 5.0, 0.0]            # 612 / 60 = 10.2
+    assert [r["Pilot"] for r in rows] == ["Ten Hours Plus", "Five Hours"]
+    assert [float(r["Airborne hours"]) for r in rows] == [10.2, 5.0]            # 612 / 60 = 10.2
     assert (rows[0]["Callsign"], rows[0]["Route"]) == ("QFA2", "YPPH-EGLL")
     end = conn.execute("SELECT end_time FROM flight WHERE cid = 9402002").fetchone()["end_time"]
     assert rows[0]["Finished (UTC)"] == end.astimezone(UTC).strftime("%d-%m-%Y %H:%M")
@@ -140,11 +143,12 @@ def test_a5_counts_flights_by_the_week_they_finished_and_shows_empty_weeks_as_ze
     flight_ending(conn, 9410001, w2 + timedelta(hours=1))                                   # Monday 01:00
     flight_ending(conn, 9410002, w2 + timedelta(days=3))
     flight_ending(conn, 9410003, w2 + timedelta(days=7) - timedelta(minutes=1))             # Sunday 23:59, still the week of w2
-    flight_ending(conn, 9410004, w4 + timedelta(days=1), airborne=0)                        # a parked flight counts
+    flight_ending(conn, 9410004, w4 + timedelta(days=1), airborne=0)                        # parked flights are not counted
+    flight_ending(conn, 9410006, w4 + timedelta(days=2), airborne=None)
     flight_ending(conn, 9410005, w4 + timedelta(days=7))                                    # Monday 00:00 of the next week: not w4
     got = weekly(conn, frm=w2)
-    assert got[w2] == 3 and got[w3] == 0 and got[w4] == 1 and got[monday(1)] == 1
-    assert sum(got.values()) == 5
+    assert got[w2] == 3 and got[w3] == 0 and got[w4] == 0 and got[monday(1)] == 1
+    assert sum(got.values()) == 4
 
 
 def test_a5_the_first_week_is_whole_when_the_range_starts_mid_week(conn):
