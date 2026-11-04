@@ -363,7 +363,7 @@
       "id": 9,
       "type": "table",
       "title": "Latest Monday event attendance (0700-1200Z)",
-      "description": "Question F6 (v1 card 131), ADAPTED from Events: Monday event, not a plain copy (owner brief: only the latest Monday event). Definition: distinct pilot CIDs and distinct controller CIDs present at any time between 0700 and 1200 UTC on the most recent Monday whose 0700Z start has passed (before 0700Z on a Monday it shows the Monday before); sessions overlapping the window count. One row, read from the monday_attendance view as the original panel does. The original panel on Events: Monday event still shows every Monday. Times are UTC.",
+      "description": "Question F6 (v1 card 131), ADAPTED from Events: Monday event, not a plain copy (owner brief: only the latest Monday event). Definition: distinct pilot CIDs and distinct controller CIDs present at any time between 0700 and 1200 UTC on the most recent Monday whose 0700Z start has passed (before 0700Z on a Monday it shows the Monday before); sessions overlapping the window count. One row, read from the monday_attendance view as the original panel does. The original panel on Events: Monday event still shows every Monday. From 0700Z on a Monday the panel switches to that day's event, and the pilot figures are low or zero until about 2000Z because a flight is counted about 8 hours after its last position (controllers are live). Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -397,7 +397,7 @@
       "id": 10,
       "type": "table",
       "title": "Share of YMML-YSSY airborne time flown by local pilots (latest Monday 0700-1200Z)",
-      "description": "Question F7 (v1 card 134), ADAPTED from Events: Monday event, not a plain copy (owner brief: only the latest Monday event). Definition: for the most recent Monday whose 0700Z start has passed (before 0700Z on a Monday it shows the Monday before), the share of airborne minutes on YMML-YSSY and YSSY-YMML flights ending between 0700 and 1200 UTC that were flown by pilots whose home airfield is in the home region (flights with airborne time only), with the airborne hours behind it. One row; the share is empty when there were no such flights. The original panel on Events: Monday event still shows every week. Times are UTC.",
+      "description": "Question F7 (v1 card 134), ADAPTED from Events: Monday event, not a plain copy (owner brief: only the latest Monday event). Definition: for the most recent Monday whose 0700Z start has passed (before 0700Z on a Monday it shows the Monday before), the share of airborne minutes on YMML-YSSY and YSSY-YMML flights ending between 0700 and 1200 UTC that were flown by pilots whose home airfield is in the home region (flights with airborne time only), with the airborne hours behind it. One row; the share is empty when there were no such flights. The original panel on Events: Monday event still shows every week. From 0700Z on a Monday the panel switches to that day's event, and the pilot figures are low or zero until about 2000Z because a flight is counted about 8 hours after its last position (controllers are live). Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"

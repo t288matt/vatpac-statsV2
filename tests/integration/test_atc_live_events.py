@@ -532,3 +532,35 @@ def test_f7_two_mondays_give_only_the_latest(conn):
 def test_f7_with_no_event_flights_shows_the_date_and_no_share(conn):
     rows = run(conn, LIVE, F7)
     assert len(rows) == 1 and rows[0]["Local pilots (%)"] is None and float(rows[0]["Airborne hours"]) == 0.0
+
+
+# ------------------------------------------------------------------ the latest-Monday rule at fixed clock times
+E10 = "Ranks that staffed the latest Monday event (0700-1200Z, current rank)"
+F8 = "Airborne aircraft during the latest Monday event (0700-1200Z, 5-minute slots)"
+
+
+@pytest.mark.parametrize("offset,event_offset_days", [
+    (timedelta(minutes=-1), -7),                    # Sunday 23:59Z: the Monday before is the latest event
+    (timedelta(hours=6, minutes=59), -7),           # Monday 06:59Z: the event has not started, still last Monday's
+    (timedelta(hours=7), 0),                        # Monday 07:00Z: the new event
+    (timedelta(hours=12), 0),                       # Monday 12:00Z: still that event
+])
+def test_latest_monday_rule_with_a_fixed_clock(conn, offset, event_offset_days):
+    """now() in each panel is replaced by a fixed instant, so reverting the '- interval 7 hours' rule fails without waiting for a Monday."""
+    today = datetime.now(UTC)
+    monday = datetime(today.year, today.month, today.day, tzinfo=UTC) - timedelta(days=today.weekday() + 14)   # a Monday two weeks back
+    clock = monday + offset
+    event = monday + timedelta(days=event_offset_days)
+    conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (monday - timedelta(days=35),))   # go-live, so monday_attendance lists these Mondays
+
+    def at_clock(path, title):
+        sql = panel(path, title)["targets"][0]["rawSql"]
+        assert "now()" in sql
+        return conn.execute(sql.replace("now()", f"TIMESTAMPTZ '{clock.isoformat()}'")).fetchall()
+
+    want = event.strftime("%d-%m-%Y")
+    assert {r["Event date (UTC)"] for r in at_clock(RANKS, E10)} == {want}
+    assert [r["Event date (UTC)"] for r in at_clock(LIVE, F6)] == [want]
+    assert [r["Event date (UTC)"] for r in at_clock(LIVE, F7)] == [want]
+    slots = at_clock(LIVE, F8)
+    assert slots and slots[0]["time"] == event + timedelta(hours=7)
