@@ -1,0 +1,513 @@
+{
+  "uid": "vatpac-aircraft-airlines",
+  "title": "Aircraft and airlines",
+  "tags": [
+    "vatpac",
+    "pilots"
+  ],
+  "timezone": "utc",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "go_live",
+        "type": "constant",
+        "hide": 2,
+        "query": "07-10-2026 21:38 UTC",
+        "current": {
+          "text": "07-10-2026 21:38 UTC",
+          "value": "07-10-2026 21:38 UTC"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "07-10-2026 21:38 UTC",
+            "value": "07-10-2026 21:38 UTC"
+          }
+        ]
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Data since ${go_live}.** There is no earlier data, so early periods look thin. All times are UTC. A flight is counted once it has finished (about 8 hours after the pilot's last position; a reconnect within 2 hours on the same flight is one flight). Each panel has a fixed period and a fixed number of rows, stated in its title and description; the page has no inputs. RAAFv flights are found by the flight-plan remarks."
+      },
+      "id": 1
+    },
+    {
+      "id": 2,
+      "type": "piechart",
+      "title": "Most popular aircraft by flights (last 6 months)",
+      "description": "Question C1 (v1 card 90), copied unchanged from Pilots: traffic and aircraft. Definition: flights per aircraft category over the last 6 months. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(aircraft_category, 'Other / uncategorised') AS category,\n       count(*) AS flights,\n       count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.aircraft_icao IS NOT NULL AND f.aircraft_icao <> ''\n  AND f.airborne_minutes > 0\nGROUP BY 1\nORDER BY flights DESC"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^flights$/"
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "180d"
+    },
+    {
+      "id": 3,
+      "type": "piechart",
+      "title": "Most popular aircraft by pilots (last 6 months)",
+      "description": "Question C2 (v1 card 135), copied unchanged from Pilots: traffic and aircraft. Definition: pilots per aircraft category over the last 6 months. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 3,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(aircraft_category, 'Other / uncategorised') AS category,\n       count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.aircraft_icao IS NOT NULL AND f.aircraft_icao <> ''\n  AND f.airborne_minutes > 0\nGROUP BY 1\nORDER BY pilots DESC"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^pilots$/"
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "180d"
+    },
+    {
+      "type": "table",
+      "title": "Most popular aircraft types (last 30 days, top 10)",
+      "description": "Question C3 (new). Definition: the ten aircraft types (the ICAO code on the flight plan, such as A388 or B738) with the most flights that finished in the last 30 days (UTC, ending now), with the number of distinct pilots. Flights with airborne time and a filed aircraft type only; the placeholder type ZZZZ is left out; ties by type code. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT f.aircraft_icao AS \"Aircraft type\", count(*) AS \"Flights\", count(DISTINCT f.cid) AS \"Pilots\"\nFROM flight_ext f\nWHERE f.end_time >= now() - interval '30 days'\n  AND f.airborne_minutes > 0\n  AND f.aircraft_icao IS NOT NULL AND f.aircraft_icao <> ''\n  AND f.aircraft_icao <> 'ZZZZ'\nGROUP BY f.aircraft_icao\nORDER BY count(*) DESC, f.aircraft_icao\nLIMIT 10"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 4
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Most popular airlines (last 30 days)",
+      "description": "Question C4 (v1 card 58), copied unchanged from Pilots: traffic and aircraft. Definition: most popular airlines by flights over the last 30 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(airline_name, airline_prefix) AS airline,\n       count(*) AS flights,\n       count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND airline_prefix IS NOT NULL\nGROUP BY airline_prefix, airline_name\nORDER BY flights DESC, pilots DESC\nLIMIT 10"
+        }
+      ],
+      "options": {
+        "xField": "airline",
+        "showValue": "auto",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "title": "Airlines with the most airborne hours (last 30 days, top 10)",
+      "description": "Question C5 (new). Definition: the ten airlines (callsign of three letters followed by a digit, matched to the airline list) with the most airborne hours over flights that finished in the last 30 days (UTC, ending now), hours to one decimal place, with the number of flights. Airborne hours, not time connected; flights with airborne time only; ties by airline prefix. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(f.airline_name, f.airline_prefix) AS \"Airline\",\n       round((sum(f.airborne_minutes) / 60.0)::numeric, 1) AS \"Airborne hours\",\n       count(*) AS \"Flights\"\nFROM flight_ext f\nWHERE f.end_time >= now() - interval '30 days'\n  AND f.airborne_minutes > 0\n  AND f.airline_prefix IS NOT NULL\nGROUP BY f.airline_prefix, f.airline_name\nORDER BY sum(f.airborne_minutes) DESC, f.airline_prefix\nLIMIT 10"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 6
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Most popular callsigns (last 30 days)",
+      "description": "Question C6 (v1 card 57), copied unchanged from Pilots: traffic and aircraft. Definition: most popular callsigns and routes flown by at least 2 pilots over the last 30 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 22,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT callsign, departure, arrival,\n       count(DISTINCT cid) AS unique_pilots,\n       count(*) AS total_flights\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY callsign, departure, arrival\nHAVING count(DISTINCT cid) >= 2\nORDER BY unique_pilots DESC, total_flights DESC\nLIMIT 10"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "piechart",
+      "title": "Most popular military aircraft (unique pilots, last 7 days)",
+      "description": "Question C7 (v1 card 65), copied unchanged from Military: aircraft and routes. Definition: pilots per military aircraft type over the selected time range (default last 7 days). The window is set to 7d on this page (the source dashboard's default). A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT t.aircraft, t.pilots, t.flights,\n       round(100.0 * t.pilots / sum(t.pilots) OVER (), 2) AS \"% of pilots\"\nFROM (\n  SELECT f.aircraft_icao AS aircraft, count(DISTINCT f.cid) AS pilots, count(*) AS flights\n  FROM flight_ext f\n  JOIN aircraft_type a ON a.icao = f.aircraft_icao\n  WHERE a.in_v1_card65_list\n    AND f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY f.aircraft_icao\n) t\nORDER BY t.pilots DESC, t.flights DESC, t.aircraft"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^pilots$/"
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "7d"
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Most popular RAAFv routes (last month)",
+      "description": "Question C9 (v1 card 78), copied unchanged from Military: aircraft and routes. Definition: most popular RAAFv routes over the last month (UTC). A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT r.route_label AS route,\n       count(*) AS total_flights,\n       count(DISTINCT r.cid) AS unique_pilots,\n       round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS \"% of RAAFv flights\",\n       round(100.0 * count(DISTINCT r.cid) / sum(count(DISTINCT r.cid)) OVER (), 2) AS \"% of RAAFv pilots\"\nFROM (\n  SELECT f.cid, f.route_label,\n         row_number() OVER (PARTITION BY f.session_id ORDER BY f.end_time DESC) AS rn\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\n    AND f.departure <> '' AND f.arrival <> ''\n) r\nWHERE r.rn = 1\nGROUP BY r.route_label\nORDER BY total_flights DESC, unique_pilots DESC\nLIMIT 25"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "1M"
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Highest groundspeeds (last 7 days)",
+      "description": "Question C10 (v1 card 61), copied unchanged from Pilots: traffic and aircraft. Definition: highest peak groundspeeds per callsign over the last 7 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT callsign, pilot, aircraft_icao AS aircraft, departure, arrival,\n       max_gs_kt AS \"Peak groundspeed (kt)\", max_alt_ft AS \"Highest altitude (ft)\", end_time AS \"Flight ended\"\nFROM (\n  SELECT f.callsign, f.name AS pilot, f.aircraft_icao, f.departure, f.arrival, f.max_gs_kt, f.max_alt_ft, f.end_time,\n         row_number() OVER (PARTITION BY f.callsign ORDER BY f.max_gs_kt DESC, f.end_time DESC) AS rn\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.max_gs_kt > 100 AND f.max_gs_kt <= 750\n    AND f.max_alt_ft > 1000\n    AND f.arrival IS NOT NULL AND f.arrival <> ''\n    AND f.aircraft_icao IS NOT NULL\n    AND NOT f.is_military\n    AND COALESCE(f.aircraft_category, '') NOT IN ('Supersonic', 'Business jet', 'Turboprop')\n    AND f.aircraft_icao <> ALL (ARRAY['E135', 'E145', 'E170', 'E175', 'E190', 'E195',\n         'F18H', 'VF35', 'BE90', 'GLF7', 'FAL7', 'FAL8', 'FAL9', 'FAL0',\n         'AT42', 'DH8Q', 'PC21', 'EMB1', 'EMB2', 'EMB3', 'EMB4', 'EMB5'])\n    AND f.aircraft_icao NOT LIKE 'MIG%' AND f.aircraft_icao NOT LIKE 'MIR%'\n    AND f.aircraft_icao NOT LIKE 'F-%' AND f.aircraft_icao NOT LIKE 'SU-%' AND f.aircraft_icao NOT LIKE 'TU-%'\n) ranked\nWHERE rn = 1\nORDER BY max_gs_kt DESC\nLIMIT 20"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "7d"
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Hours flown by RAAFv aircraft per week (last 14 weeks)",
+      "description": "Question C8 (v1 card 66), copied unchanged from Military: aircraft and routes. Definition: airborne hours flown by RAAFv flights per week over the last 98 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('week', f.end_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       round((sum(f.airborne_minutes) / 60.0)::numeric, 1) AS \"RAAFv hours\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "98d"
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Flights flown by RAAFv aircraft per week (last 14 weeks)",
+      "description": "Question C8 (v1 card 184), copied unchanged from Military: aircraft and routes. Definition: rAAFv flights per week over the last 98 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 51,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('week', f.end_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       count(*) AS \"RAAFv flights\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "98d"
+    }
+  ]
+}
