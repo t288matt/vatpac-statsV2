@@ -155,7 +155,17 @@ def test_release_runs_after_green_ci_on_main_and_never_publishes_a_stale_commit(
     assert "workflow_dispatch" in triggers  # rollbacks and docs-only tips are still published by hand
     check = wf["jobs"]["check"]
     assert "workflow_run.conclusion == 'success'" in check["if"] and "workflow_run.event == 'push'" in check["if"]
-    run = " ".join(str(st.get("run", "")) for st in check["steps"])
-    assert 'tip="$(gh api' in run and '[ "$sha" != "$tip" ]' in run and "publish=false" in run  # a stale commit publishes nothing
+    resolve = next(st for st in check["steps"] if st.get("id") == "resolve")
+    # the automatic path reads the commit from the triggering ci run, and the event name from the event itself
+    assert resolve["env"]["AUTO_SHA"] == "${{ github.event.workflow_run.head_sha }}"
+    assert resolve["env"]["EVENT"] == "${{ github.event_name }}"
+    run = resolve["run"]
+    auto, manual, ci_ok, publish = (run.index(x) for x in ('[ "$EVENT" = "workflow_run" ]', '[ -z "$INPUT" ]', "--workflow ci.yml", 'publish=true'))
+    assert auto < manual  # the automatic branch is taken first, so an empty commit input never means "main's tip" for it
+    stale = run[auto:manual]
+    assert 'tip="$(gh api' in stale and '[ "$sha" != "$tip" ]' in stale  # a commit that is not main's tip is not published
+    assert "publish=false" in stale and "exit 0" in stale  # it stops green, without publishing
+    assert ci_ok < publish  # the successful-ci-run check still happens before anything is published
+    assert run.count("publish=true") == 1 and run.count("publish=false") == 1
     assert wf["jobs"]["images"]["if"] == "needs.check.outputs.publish == 'true'"
     assert set(wf["jobs"]["promote"]["needs"]) == {"check", "images"}  # latest still moves only after all four images
