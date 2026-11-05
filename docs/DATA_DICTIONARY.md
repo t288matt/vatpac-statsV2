@@ -194,7 +194,7 @@ Added by migration 20261012000190 (issue 89 phase 1) under a temporary name and 
 | `sample_count` | bigint | no | Positions in the flight; 0 only for carried-over flights. |
 | `written_at` | timestamptz | no | Default `now()`; when the row was written. |
 
-**Imported v1 rows (ADR-035, PROPOSED; built and rehearsed on a throwaway database, NOT loaded into production, so the live table holds none yet).** The one-off loader `ops/v1_import/load.sh` ([import-v1-history.md](RUNBOOKS/import-v1-history.md)) writes finished flights from v1's `flight_summaries` straight into this table. They are told apart from live rows by the key: **`session_id` is negative** (the negative of the v1 row id; live ids come from a bigserial and are positive), and `session_ids` is `ARRAY[session_id]`. `WHERE session_id < 0` is the whole definition of "imported" (the rollback uses it). Column by column, for an imported row:
+**Imported v1 rows (ADR-035, accepted; loaded on 05-11-2026: 73,532 imported flights).** The one-off loader `ops/v1_import/load.sh` ([import-v1-history.md](RUNBOOKS/import-v1-history.md)) wrote finished flights from v1's `flight_summaries` straight into this table. They are told apart from live rows by the key: **`session_id` is negative** (the negative of the v1 row id; live ids come from a bigserial and are positive), and `session_ids` is `ARRAY[session_id]`. `WHERE session_id < 0` is the whole definition of "imported" (the rollback uses it). Column by column, for an imported row:
 
 | Column | Value |
 |---|---|
@@ -209,7 +209,7 @@ Added by migration 20261012000190 (issue 89 phase 1) under a temporary name and 
 | `home_icao` | Parsed from `name` by the collector's rule (a trailing four-capital token). |
 | Other columns | Copied from v1 with the collector's text rules (tab and newline to a space, control characters dropped, blank to NULL, capped at 2000 characters; callsign, departure and arrival also 500 bytes). |
 
-Imported rows are in the range flights completed 24-08-2025 to 06-03-2026 (73,532 rows expected). Because they have no speed or altitude, panels that need `max_gs_kt` or `max_alt_ft` leave them out. How to tell the two kinds apart in a query: `sample_count = 0 AND max_gs_kt IS NULL AND session_id < 0`.
+Imported rows are in the range flights completed 24-08-2025 to 06-03-2026. Because they have no speed or altitude, panels that need `max_gs_kt` or `max_alt_ft` leave them out. How to tell the two kinds apart in a query: `sample_count = 0 AND max_gs_kt IS NULL AND session_id < 0`.
 
 ### controller_session
 One row per controller connection on a whitelisted callsign. Identity `(cid, callsign, logon_time)`. Indexes: primary key; unique `controller_session_identity`; `controller_session_last_seen_idx (last_seen)`.
@@ -226,7 +226,7 @@ One row per controller connection on a whitelisted callsign. Identity `(cid, cal
 | `visual_range` | integer | yes | Feed value. |
 | `first_seen`, `last_seen` | timestamptz | no | First and latest snapshot. CHECK `last_seen >= first_seen`. |
 
-**Imported v1 rows (ADR-035, PROPOSED; built and rehearsed on a throwaway database, NOT loaded into production).** The same loader writes controller sessions from v1's `controller_summaries`. They are told apart by **`id` being negative** (the negative of the v1 row id; live ids are positive). For an imported row: `logon_time` and `first_seen` are v1 `session_start_time` truncated to whole seconds; `last_seen` is v1 `session_end_time`; `frequency_hz` is the first element of v1's `frequencies_used` that is usable (MHz times 1,000,000 as a whole number; `199.998` and junk are skipped; NULL when none is usable, about 700 sessions); `visual_range` is NULL; `rating`, `facility`, `server` and `name` are copied. Only callsigns on the controller whitelist are loaded. The two event tables (`controller_rating_event`, `controller_frequency_event`) get no rows for imported sessions. Range: sessions started 24-08-2025 to 15-03-2026 (11,270 rows expected). v1 holds duplicates from reconnects; `controller_session_merged` combines them under the usual 5 minute rule.
+**Imported v1 rows (ADR-035, accepted; loaded on 05-11-2026: 11,270 imported sessions).** The same loader wrote controller sessions from v1's `controller_summaries`. They are told apart by **`id` being negative** (the negative of the v1 row id; live ids are positive). For an imported row: `logon_time` and `first_seen` are v1 `session_start_time` truncated to whole seconds; `last_seen` is v1 `session_end_time`; `frequency_hz` is the first element of v1's `frequencies_used` that is usable (MHz times 1,000,000 as a whole number; `199.998` and junk are skipped; NULL when none is usable, about 700 sessions); `visual_range` is NULL; `rating`, `facility`, `server` and `name` are copied. Only callsigns on the controller whitelist are loaded. The two event tables (`controller_rating_event`, `controller_frequency_event`) get no rows for imported sessions. Range: sessions started 24-08-2025 to 15-03-2026. v1 holds duplicates from reconnects; `controller_session_merged` combines them under the usual 5 minute rule.
 
 ### controller_rating_event and controller_frequency_event
 Insert-only history, written on the first sighting and whenever the value changes. Primary key `(session_id, observed_at)`; `session_id` is a foreign key to `controller_session.id`.
@@ -371,7 +371,7 @@ DEFINER functions run with owner rights and `search_path = public`, so the colle
 
 ## 7. Known gaps
 
-- The long-window and retention charts have no real history yet: there is no backfill (ADR-011), so 30 to 90 day measures say little until months after go-live (07-10-2026) (ADR-035, proposed and not loaded, would add v1 history for 24-08-2025 to 15-03-2026 and leave a gap with no data from 15-03-2026 to 07-10-2026; see [RUNBOOKS/import-v1-history.md](RUNBOOKS/import-v1-history.md)), and the retention rule that counts every controller as reactivated holds until 60 days of history exist. They are tested on synthetic rows (`tests/integration/test_controller_retention.py`).
+- The long-window and retention charts have no real history yet: there is no backfill (ADR-011), so 30 to 90 day measures say little until months after go-live (07-10-2026) (ADR-035 added v1 history for 24-08-2025 to 15-03-2026 on 05-11-2026, which leaves a gap with no data from 15-03-2026 to 07-10-2026; see [RUNBOOKS/import-v1-history.md](RUNBOOKS/import-v1-history.md)), and the retention rule that counts every controller as reactivated holds until 60 days of history exist. They are tested on synthetic rows (`tests/integration/test_controller_retention.py`).
 - Only `poll_log` and raw `pilot_position` partitions have a retention. Sessions, events, snapshots and `flight_summary` grow without limit (owner decision pending, issue 21).
 - Fifteen of the 22 views have no `COMMENT ON VIEW`; section 4 is their only description. Adding comments is a comment-only migration.
 - Two "online" definitions exist (section 4). They agree at 30 s polling but are separate expressions; a change of cadence logic must touch both.

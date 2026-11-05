@@ -58,7 +58,7 @@ The collector serves `/health` and `/metrics` on port 8080 inside the Docker net
 
 Seventeen dashboards, all in Grafana (folder: dashboard). Times are UTC. What each one shows is in Grafana itself (dashboard and panel descriptions); the exact rule behind every chart is in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md), and the meaning of "flight", "session", "online now" and "airborne minutes" is in [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
 
-Charts start empty at go-live (07-10-2026) and fill as data arrives (The one-off v1 history import of ADR-035 is built but not loaded; if it is loaded, history starts on 24-08-2025 with a gap from 15-03-2026 to 07-10-2026: [docs/RUNBOOKS/import-v1-history.md](docs/RUNBOOKS/import-v1-history.md).); a flight appears in the flight totals about 8 hours after its last position.
+Charts start empty at go-live (07-10-2026) and fill as data arrives (v1 history was loaded on 05-11-2026 under ADR-035, so history starts on 24-08-2025, with a gap from 15-03-2026 to 07-10-2026: [docs/RUNBOOKS/import-v1-history.md](docs/RUNBOOKS/import-v1-history.md).); a flight appears in the flight totals about 8 hours after its last position.
 
 ## Configuration
 
