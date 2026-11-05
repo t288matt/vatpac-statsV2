@@ -10,9 +10,13 @@ set -eu
 out="${1:-}"
 [ -n "$out" ] || { echo "usage: extract.sh OUTPUT_DIR" >&2; exit 2; }
 host="${V1_SSH_HOST:-vatpac}"
+umask 077  # the files hold names and CIDs: owner only (directory 0700, files 0600)
 mkdir -p "$out"
+chmod 700 "$out"
 [ ! -e "$out/SHA256SUMS" ] || { echo "extract.sh: $out/SHA256SUMS exists; the extract is frozen. Use a new folder." >&2; exit 2; }
 cutoff="2026-04-01 00:00:00+00"
+# a failed run leaves no half-written extract (a finished one has SHA256SUMS and is never removed)
+trap 'rc=$?; [ -e "$out/SHA256SUMS" ] || rm -f "$out"/*.part "$out"/v1_flights.csv "$out"/v1_controllers.csv "$out"/EXPECTED_COUNTS; exit $rc' EXIT
 # v1 SQL: stdin is the SQL text, stdout is CSV. -q hides command tags; the three SETs make the session read-only, bounded and UTC.
 v1() {
   { printf '%s\n' "SET default_transaction_read_only = on; SET statement_timeout = '30s'; SET TimeZone = 'UTC';"; cat; } |

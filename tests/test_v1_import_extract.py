@@ -83,3 +83,13 @@ def test_a_failed_or_cut_off_read_leaves_no_checksum_and_no_data_file(tmp_path: 
     p = run(tmp_path, out, mode)
     assert p.returncode != 0
     assert not (out / "SHA256SUMS").exists() and not (out / "v1_flights.csv").exists()
+    assert not list(out.glob("*.part")) and not (out / "EXPECTED_COUNTS").exists()  # no half-written extract is left
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes are not meaningful on Windows")
+def test_the_extract_is_readable_by_its_owner_only(tmp_path: Path) -> None:
+    out = tmp_path / "x"
+    assert run(tmp_path, out).returncode == 0
+    assert (out.stat().st_mode & 0o777) == 0o700
+    for f in out.iterdir():
+        assert (f.stat().st_mode & 0o777) == 0o600, f.name

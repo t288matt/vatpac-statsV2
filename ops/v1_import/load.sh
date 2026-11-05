@@ -6,18 +6,23 @@
 #   sh ops/v1_import/load.sh --expect-db NAME --data-dir DIR              dry run (writes nothing)
 #   sh ops/v1_import/load.sh --expect-db NAME --data-dir DIR --apply      load
 #   sh ops/v1_import/load.sh --expect-db NAME --rollback [--apply]        remove the imported rows (session_id < 0, id < 0)
-#   --allow-rejects   load the loadable rows even though some rows were rejected (default: any reject stops the run)
+#   --allow-rejects   load the loadable rows even though some rows were rejected or already-loaded rows differ from the file (default: either stops the run)
 #   --whitelist FILE  controller callsign list (default config/controller_callsigns_list.txt)
 #
-# --expect-db is required: the run stops if the connected database has a different name. The connection comes from V1_IMPORT_PSQL, a
-# command (run with sh -c) that reads SQL on stdin and connects as the OWNER role (the collector role has no right on flight_summary).
-# Default, on the VM in ~/vatpac-statsV2 (the owner runs it; copy the data directory there first):
+# --expect-db is required, but it is ONLY A TYPO GUARD: it compares the name you typed with current_database() and stops on a
+# mismatch. It does NOT tell a live database from a restored copy of production with the same name, and the load runs as whatever
+# role V1_IMPORT_PSQL connects as (on the VM the container superuser; no narrower role is used, because creating one is a roles.sql
+# change). The only inserts are negative ids; the only deletes (--rollback) are negative ids. Check the target by eye.
+# The connection comes from V1_IMPORT_PSQL, a command (run with sh -c) that reads SQL on stdin and connects as the OWNER role (the
+# collector role has no right on flight_summary). Default, on the VM in ~/vatpac-statsV2 (the owner runs it; copy the data directory there first):
 #   docker compose exec -T db sh -c 'psql -X -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'
 # The CSV files hold names and CIDs: if they are copied to the VM, delete them after the load. (Streaming them from the PC through
 # ssh into the same docker command is possible, but that form has not been rehearsed.)
-# Take a fresh dump first (docs/RUNBOOKS/backup). Never run it against a restored copy of production that tests will empty.
+# Take a fresh dump first. Steps, checks and rollback: docs/RUNBOOKS/import-v1-history.md. Never run it against a restored copy of
+# production that tests will empty.
 # Exit codes: 0 done (or dry run clean); 2 bad arguments, missing or changed files; 3 the database refused (wrong database, rejected
-# rows, a failed check): in that case nothing was written, because the single transaction is rolled back.
+# rows, rows already loaded that differ from the file, a failed check): in that case nothing was written, because the single
+# transaction is rolled back.
 set -eu
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
@@ -33,6 +38,7 @@ while [ $# -gt 0 ]; do
     --apply) apply=true; shift ;;
     --rollback) rollback=true; shift ;;
     --allow-rejects) allow=true; shift ;;
+    -h|--help) sed -n '2,/^set -eu/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown argument $1 (see the header of this file)" ;;
   esac
 done
