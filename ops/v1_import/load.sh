@@ -13,7 +13,11 @@
 # command (run with sh -c) that reads SQL on stdin and connects as the OWNER role (the collector role has no right on flight_summary).
 # Default, on the VM in ~/vatpac-statsV2 (the owner runs it; copy the data directory there first):
 #   docker compose exec -T db sh -c 'psql -X -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'
+# The CSV files hold names and CIDs: if they are copied to the VM, delete them after the load. (Streaming them from the PC through
+# ssh into the same docker command is possible, but that form has not been rehearsed.)
 # Take a fresh dump first (docs/RUNBOOKS/backup). Never run it against a restored copy of production that tests will empty.
+# Exit codes: 0 done (or dry run clean); 2 bad arguments, missing or changed files; 3 the database refused (wrong database, rejected
+# rows, a failed check): in that case nothing was written, because the single transaction is rolled back.
 set -eu
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
