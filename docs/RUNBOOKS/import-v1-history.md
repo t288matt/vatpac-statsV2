@@ -19,7 +19,7 @@ No panel and no dashboard file is changed by this work. After a load:
 - **A gap with no data from 15-03-2026 to 07-10-2026** (about 206 days). It shows as zero or empty; the owner accepted this (ADR-035).
 - **Panels with no time axis count the gap as behaviour:** lapsed 90+ days, reactivated after 60+ days, and retention rate. Controllers who were active in the history and not since will show as lapsed; those who came back after the gap as reactivated.
 - **Imported flights have no speed, altitude or SELCAL data** (`max_gs_kt`, `max_alt_ft` NULL, `remarks` NULL, `sample_count` 0). Records and highest-speed or altitude panels leave them out. Their airborne time is v1's figure (capped at time online), not v3's measurement.
-- **Counts step down at the join.** v1 summarised about 78% of flights and favoured longer ones, so months before 07-10-2026 look smaller on short flights.
+- **Counts at the join.** On the overlap window of 09-10-2026 v1 and v3 flight counts agreed to within about 2% (docs/V1_COMPARISON.md section 12), so no step is expected; check the first weeks after loading anyway.
 - **Rolling 7 and 30 day windows never reach the history.**
 - **End times next to v1 data gaps can be early** (for example 21-12-2025 07:00:58 to 13:20:56). About 1.3% of the flights that could be tested ended just before a window in which v1 stored nothing. The full list of limits is in ADR-035.
 
