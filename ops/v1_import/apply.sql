@@ -95,10 +95,11 @@ SELECT (SELECT count(*) FROM v1_flight_x WHERE reason IS NOT NULL) + (SELECT cou
          WHERE x.reason IS NULL AND (s.cid, s.callsign, s.logon_time, s.last_seen, s.frequency_hz)
                IS DISTINCT FROM (x.cid, x.callsign, x.logon_time, x.last_seen, x.frequency_hz)) AS already_loaded_but_different \gset
 SELECT :rejects AS rejects, :already_loaded_but_different AS already_loaded_but_different;
-SELECT (:rejects > 0 AND NOT :allow_rejects) AS stop \gset
+SELECT ((:rejects > 0 OR :already_loaded_but_different > 0) AND NOT :allow_rejects) AS stop \gset
 \if :stop
-    \echo 'STOP: rejected rows exist. Nothing was written. Read the reasons above; --allow-rejects loads the rest.'
-    DO $$ BEGIN RAISE EXCEPTION 'rejected rows exist; nothing written'; END $$;
+    \echo 'STOP: rejected rows exist, or rows already loaded differ from the file (already_loaded_but_different above). Nothing was written.'
+    \echo 'Read the reasons above; --allow-rejects loads the rest and leaves already-loaded rows as they are.'
+    DO $$ BEGIN RAISE EXCEPTION 'rejected rows, or already-loaded rows that differ from the file; nothing written'; END $$;
 \endif
 
 \echo
@@ -122,12 +123,13 @@ WITH ins AS (
 SELECT count(*) AS controllers_inserted FROM ins \gset
 \timing off
 
--- Checks: every loadable row is now in the table; the live rows are unchanged; the imported total is what we expect.
+-- Checks: every loadable row is now in the table; no live row is gone (the live count may GROW: the collector and the writer keep
+-- committing while this transaction runs, and this script only ever inserts negative ids); the imported total is what we expect.
 SELECT (SELECT count(*) FROM v1_flight_x x WHERE x.reason IS NULL AND NOT EXISTS (SELECT 1 FROM flight_summary s WHERE s.session_id = x.session_id))
      + (SELECT count(*) FROM v1_controller_x x WHERE x.reason IS NULL AND NOT EXISTS (SELECT 1 FROM controller_session s WHERE s.id = x.id)) AS missing,
        (SELECT count(*) FROM flight_summary WHERE session_id >= 0) AS flights_live, (SELECT count(*) FROM flight_summary WHERE session_id < 0) AS flights_imported,
        (SELECT count(*) FROM controller_session WHERE id > 0) AS controllers_live, (SELECT count(*) FROM controller_session WHERE id < 0) AS controllers_imported \gset after_
-SELECT :after_missing = 0 AND :after_flights_live = :before_flights_live AND :after_controllers_live = :before_controllers_live
+SELECT :after_missing = 0 AND :after_flights_live >= :before_flights_live AND :after_controllers_live >= :before_controllers_live
        AND :after_flights_imported = :before_flights_imported + :flights_inserted
        AND :after_controllers_imported = :before_controllers_imported + :controllers_inserted AS checks_ok \gset
 \echo
@@ -137,7 +139,7 @@ SELECT :flights_inserted AS flights_inserted, :controllers_inserted AS controlle
        :after_controllers_live AS controllers_live, :after_controllers_imported AS controllers_imported, :'checks_ok' AS checks_ok;
 \if :checks_ok
 \else
-    DO $$ BEGIN RAISE EXCEPTION 'post-load checks failed (a loadable row is missing, or a live row count changed); nothing committed'; END $$;
+    DO $$ BEGIN RAISE EXCEPTION 'post-load checks failed (a loadable row is missing, or a live row is gone); nothing committed'; END $$;
 \endif
 \echo 'Imported rows by month (flights by end_time, controllers by logon_time, UTC):'
 SELECT to_char(date_trunc('month', m), 'MM-YYYY') AS month, sum(f) AS flights, sum(c) AS controllers FROM (

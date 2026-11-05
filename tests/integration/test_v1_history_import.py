@@ -48,9 +48,24 @@ def files(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, dict[str, lis
     return d, synth.read_rows(d)  # read back from the files, like COPY does
 
 
-def load(dsn: str, conn: Any, data_dir: Path | None, *flags: str, db: str | None = None) -> subprocess.CompletedProcess[str]:
+def load(dsn: str, conn: Any, data_dir: Path | None, *flags: str, db: str | None = None,
+         inject_before: str | None = None, tmp: Path | None = None) -> subprocess.CompletedProcess[str]:
+    """Run load.sh. inject_before: a line prefix in the SQL stream before which ANOTHER session commits a live flight and a live
+    controller session (what the writer and the collector do while the load transaction is open)."""
     name = db or conn.execute("SELECT current_database() AS d").fetchone()["d"]
-    env = {**os.environ, "V1_IMPORT_PSQL": f"psql -X -q -v ON_ERROR_STOP=1 '{dsn}'"}
+    psql = f"psql -X -q -v ON_ERROR_STOP=1 '{dsn}'"
+    if inject_before and tmp:
+        (tmp / "inject.sql").write_text(
+            "INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
+            "logon_time, sample_count) VALUES (987654, now(), now(), 9, 'LIVE9', 'YSSY', 'YMML', ARRAY[987654], now(), 5);\n"
+            "INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen) "
+            "VALUES (extract(epoch FROM clock_timestamp())::bigint, 'ML_APP', "
+            "date_trunc('second', now()), now(), now());\n", encoding="utf-8")
+        script = f"psql -X -q -v ON_ERROR_STOP=1 -f '{(tmp / 'inject.sql').as_posix()}' '{dsn}'\n"
+        (tmp / "inject.sh").write_text(script, encoding="utf-8", newline="\n")
+        bang = "\\\\! sh " + (tmp / "inject.sh").as_posix()  # sed turns two backslashes into one: psql sees a single one
+        psql = f"sed 's|^{inject_before}|{bang}\\n&|' | {psql}"
+    env = {**os.environ, "V1_IMPORT_PSQL": psql}
     cmd = [str(BASH), LOAD.as_posix(), "--expect-db", name, *(["--data-dir", data_dir.as_posix()] if data_dir else []), *flags]
     return subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=120, cwd=REPO)
 
@@ -239,3 +254,31 @@ def test_a_live_session_with_the_same_key_is_a_reject_not_a_silent_skip(conn: An
     p = load(dsn, conn, d, "--apply")
     assert p.returncode != 0 and "held by another session" in p.stdout
     assert counts(conn)["controllers_imported"] == 0
+
+
+def test_a_live_row_committed_during_the_load_does_not_abort_it(conn: Any, dsn: str, files: Any, tmp_path: Path) -> None:
+    d, rows = files
+    p = load(dsn, conn, d, "--apply", inject_before="-- Checks:", tmp=tmp_path)
+    assert p.returncode == 0, p.stdout + p.stderr
+    c = counts(conn)
+    assert (c["flights_imported"], c["flights_live"], c["controllers_live"]) == (len(rows["flights"]), 1, 1)  # the injected rows are there
+    p = load(dsn, conn, None, "--rollback", "--apply", inject_before="WITH d AS (DELETE FROM controller_session", tmp=tmp_path)
+    assert p.returncode == 0, p.stdout + p.stderr
+    c = counts(conn)
+    assert (c["flights_imported"], c["controllers_imported"], c["flights_live"], c["controllers_live"]) == (0, 0, 2, 2)
+
+
+def test_already_loaded_rows_that_differ_from_the_file_stop_the_run(conn: Any, dsn: str, files: Any, tmp_path: Path) -> None:
+    d, rows = files
+    assert load(dsn, conn, d, "--apply").returncode == 0
+    before = dump(conn, "flight_summary", "session_id")
+    edited = tmp_path / "edited"
+    shutil.copytree(d, edited)
+    f = edited / "v1_flights.csv"
+    f.write_text(f.read_text(encoding="utf-8").replace(",90,", ",91,", 1), encoding="utf-8", newline="")  # one flight's time online
+    synth.write_sums(edited)
+    p = load(dsn, conn, edited, "--apply")
+    assert p.returncode != 0 and "already_loaded_but_different" in p.stdout and "STOP" in p.stdout
+    assert dump(conn, "flight_summary", "session_id") == before
+    p = load(dsn, conn, edited, "--apply", "--allow-rejects")  # explicit: the loaded rows stay as they are
+    assert p.returncode == 0 and dump(conn, "flight_summary", "session_id") == before
