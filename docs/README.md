@@ -1,6 +1,6 @@
 # Documentation index
 
-Index of the project documents. Merged work that is not yet deployed is in CHANGELOG.md; documents are updated after each deploy is verified live. The commit production runs is shown by `bash ops/deploy.sh --status`.
+Index of the project documents. Merged work that is not yet deployed is in CHANGELOG.md; documents change in the same branch as the change that makes them wrong (owner decision 22-10-2026). The commit production runs is shown by `bash ops/deploy.sh --status`.
 
 **Status key.** CURRENT: kept up to date, trust it (subject to the notes). HISTORICAL: a dated record of a moment; correct for that date, not maintained, do not edit. OBSOLETE: wrong or superseded; do not use.
 
@@ -33,6 +33,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | [RUNBOOKS/update-reference-files.md](RUNBOOKS/update-reference-files.md) | Changing the airspace polygon or the controller whitelist | Operator | CURRENT |
 | [RUNBOOKS/dashboards.md](RUNBOOKS/dashboards.md) | Adding or changing a Grafana dashboard (dashboards are code) | Engineer | CURRENT |
 | [RUNBOOKS/drop-gate-rehearsal.md](RUNBOOKS/drop-gate-rehearsal.md) | The raw-position drop gate (issue 89 phase 4): what it does and how it was rehearsed; live since 13-10-2026 | Engineer | CURRENT |
+| [RUNBOOKS/import-v1-history.md](RUNBOOKS/import-v1-history.md) | One-off load of v1 history (ADR-035, proposed; built and rehearsed, not loaded): extract, dry run, apply, verify, roll back, delete the CSV files | Operator, owner | CURRENT (not yet run on production) |
 | [RUNBOOKS/run-tests.md](RUNBOOKS/run-tests.md) | Running the checks and tests safely (throwaway Postgres, caps on the VM) | Engineer, agent | CURRENT |
 | [CONFIG_MAP.md](CONFIG_MAP.md) | Every setting (part A) and how v1 settings map to v3 (part B) | Operator, engineer | CURRENT for deployed settings; enforced in part by `ops/check_config_drift.py` |
 | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Tables, views, functions, roles and grants; how to refresh it | Engineer, analyst | CURRENT to migration 160 (checked 09-10-2026); migration 170 (partition drop) is not in it yet |
@@ -41,7 +42,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 
 | File | What it is for | Who reads it | Status |
 |---|---|---|---|
-| [DECISIONS.md](DECISIONS.md) | The ADR log: every design decision with reason and consequence, ADR-001 to ADR-028, plus open decisions | Everyone | CURRENT |
+| [DECISIONS.md](DECISIONS.md) | The ADR log: every design decision with reason and consequence, ADR-001 to ADR-035 (ADR-035, v1 history import, is PROPOSED), plus open decisions | Everyone | CURRENT |
 | [DEFINITIONS.md](DEFINITIONS.md) | What a flight, a session, "online now" and so on mean | Owner, analyst | CURRENT (reviewed 08-10-2026; later changes in ADR-023 to ADR-025) |
 | [CHART_DEFINITIONS.md](CHART_DEFINITIONS.md) | Every v1 chart and what replaced it, with the rule and the test; why charts were dropped | Owner, analyst | CURRENT |
 | [SQL_DEFINITIONS_REFERENCE.sql](SQL_DEFINITIONS_REFERENCE.sql) | Reference text (not applied) of the flight-writer functions and views as they stand after the migrations | Engineer | CURRENT (21-10-2026) |
