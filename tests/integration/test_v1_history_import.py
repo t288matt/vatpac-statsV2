@@ -48,20 +48,28 @@ def files(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, dict[str, lis
     return d, synth.read_rows(d)  # read back from the files, like COPY does
 
 
+LIVE_ROWS_SQL = (
+    "INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time, "
+    "sample_count) SELECT 900000000 + n, now(), now(), 9, 'LIVE9', 'YSSY', 'YMML', ARRAY[900000000 + n], now(), 5 "
+    "FROM (SELECT nextval('controller_session_id_seq') AS n) s;\n"
+    # the key (cid, callsign, logon_time) must be unique per injection: two injections in one second collided on CI (issue 279)
+    "INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen) "
+    "SELECT nextval('controller_session_id_seq') + 3000000000, 'ML_APP', date_trunc('second', now()), now(), now();\n"
+)
+
+
 def load(dsn: str, conn: Any, data_dir: Path | None, *flags: str, db: str | None = None,
-         inject_before: str | None = None, tmp: Path | None = None) -> subprocess.CompletedProcess[str]:
-    """Run load.sh. inject_before: a line prefix in the SQL stream before which ANOTHER session commits a live flight and a live
-    controller session (what the writer and the collector do while the load transaction is open)."""
+         inject_before: str | None = None, tmp: Path | None = None, inject_sql: str = LIVE_ROWS_SQL) -> subprocess.CompletedProcess[str]:
+    """Run load.sh. inject_before: a line prefix in the SQL stream before which ANOTHER session runs inject_sql (by default it commits
+    a live flight and a live controller session, what the writer and the collector do while the load transaction is open). The
+    injection appends one line to tmp/inject.log: "ok", or "FAILED" if its SQL failed (the test then fails, nothing is silent)."""
     name = db or conn.execute("SELECT current_database() AS d").fetchone()["d"]
     psql = f"psql -X -q -v ON_ERROR_STOP=1 '{dsn}'"
     if inject_before and tmp:
-        (tmp / "inject.sql").write_text(
-            "INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
-            "logon_time, sample_count) VALUES (987654, now(), now(), 9, 'LIVE9', 'YSSY', 'YMML', ARRAY[987654], now(), 5);\n"
-            "INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen) "
-            "VALUES (extract(epoch FROM clock_timestamp())::bigint, 'ML_APP', "
-            "date_trunc('second', now()), now(), now());\n", encoding="utf-8")
-        script = f"psql -X -q -v ON_ERROR_STOP=1 -f '{(tmp / 'inject.sql').as_posix()}' '{dsn}'\n"
+        (tmp / "inject.sql").write_text(inject_sql, encoding="utf-8")
+        log = (tmp / "inject.log").as_posix()
+        run = f"psql -X -q -v ON_ERROR_STOP=1 -f '{(tmp / 'inject.sql').as_posix()}' '{dsn}'"
+        script = f"{run} && echo ok >> '{log}' || echo FAILED >> '{log}'\n"
         (tmp / "inject.sh").write_text(script, encoding="utf-8", newline="\n")
         bang = "\\\\! sh " + (tmp / "inject.sh").as_posix()  # sed turns two backslashes into one: psql sees a single one
         psql = f"sed 's|^{inject_before}|{bang}\\n&|' | {psql}"
@@ -256,16 +264,45 @@ def test_a_live_session_with_the_same_key_is_a_reject_not_a_silent_skip(conn: An
     assert counts(conn)["controllers_imported"] == 0
 
 
+def injections(tmp: Path) -> list[str]:
+    return (tmp / "inject.log").read_text(encoding="utf-8").split()
+
+
 def test_a_live_row_committed_during_the_load_does_not_abort_it(conn: Any, dsn: str, files: Any, tmp_path: Path) -> None:
     d, rows = files
     p = load(dsn, conn, d, "--apply", inject_before="-- Checks:", tmp=tmp_path)
     assert p.returncode == 0, p.stdout + p.stderr
+    assert injections(tmp_path) == ["ok"]  # the second session really committed its rows
     c = counts(conn)
     assert (c["flights_imported"], c["flights_live"], c["controllers_live"]) == (len(rows["flights"]), 1, 1)  # the injected rows are there
     p = load(dsn, conn, None, "--rollback", "--apply", inject_before="WITH d AS (DELETE FROM controller_session", tmp=tmp_path)
     assert p.returncode == 0, p.stdout + p.stderr
+    assert injections(tmp_path) == ["ok", "ok"]
     c = counts(conn)
     assert (c["flights_imported"], c["controllers_imported"], c["flights_live"], c["controllers_live"]) == (0, 0, 2, 2)
+
+
+SWAP_SQL = ("DELETE FROM flight_summary WHERE session_id = 7;\nDELETE FROM controller_session WHERE cid = 4242;\n" + LIVE_ROWS_SQL)
+
+
+def test_a_live_row_deleted_while_another_is_added_is_caught(conn: Any, dsn: str, files: Any, tmp_path: Path) -> None:
+    """The live COUNT is the same at the end (one removed, one added); the check compares the ids that existed at the start."""
+    d, _ = files
+    now = datetime.now(UTC).replace(microsecond=0)
+    conn.execute("INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
+                 "logon_time, sample_count) VALUES (7, %s, %s, 9, 'LIVE1', 'YSSY', 'YMML', ARRAY[7], %s, 5)", (now, now, now))
+    conn.execute("INSERT INTO controller_session (cid, callsign, logon_time, first_seen, last_seen) VALUES (4242, 'ML_APP', %s, %s, %s)",
+                 (now, now, now))
+    sql = SWAP_SQL.replace("DELETE FROM controller_session WHERE cid = 4242;" + "\n", "")
+    p = load(dsn, conn, d, "--apply", inject_before="-- Checks:", tmp=tmp_path, inject_sql=sql)
+    assert injections(tmp_path) == ["ok"]
+    assert p.returncode != 0 and "post-load checks failed" in p.stdout + p.stderr
+    c = counts(conn)
+    assert (c["flights_imported"], c["controllers_imported"]) == (0, 0)  # nothing was committed; the live deletion is the other session's
+    sql = "DELETE FROM controller_session WHERE cid = 4242;" + "\n" + LIVE_ROWS_SQL
+    marker = "WITH d AS (DELETE FROM controller_session"
+    p = load(dsn, conn, None, "--rollback", "--apply", inject_before=marker, tmp=tmp_path, inject_sql=sql)
+    assert p.returncode != 0 and "rollback checks failed" in p.stdout + p.stderr
 
 
 def test_already_loaded_rows_that_differ_from_the_file_stop_the_run(conn: Any, dsn: str, files: Any, tmp_path: Path) -> None:
