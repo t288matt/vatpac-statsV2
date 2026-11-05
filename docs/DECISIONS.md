@@ -35,6 +35,7 @@ Only health/metrics endpoints. Dashboards read the database through a read-only 
 
 ## ADR-011 No backfill (07-10-2026)
 Charts start empty at go-live and show "data since <go-live date>".
+Reopened for the two summary tables by ADR-035 (proposed).
 
 ## ADR-012 Watchdog authority (07-10-2026, amended)
 The watchdog alerts and never changes data or config. Container restarts were originally in scope (through a restricted Docker socket proxy), but the owner chose to leave the socket proxy and any Cloudflare configuration out of this repo and to handle them externally later. So: no `docker-socket-proxy` and no `cloudflared` service in the compose file; the watchdog runs alert-only (HTTP health and database checks) unless `DOCKER_HOST_URL` is set to an endpoint provided outside the repo. Crashes are still restarted by Docker's `restart: unless-stopped`; a container that is running but unhealthy is not restarted automatically until that external piece exists.
