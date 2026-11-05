@@ -91,7 +91,7 @@ Then, read-only, to confirm and to confirm the live rows did not change:
 docker compose exec db psql -U vatpac -d vatpac -c "SELECT (SELECT count(*) FROM flight_summary WHERE session_id < 0) AS flights_imported, (SELECT count(*) FROM flight_summary WHERE session_id >= 0) AS flights_live, (SELECT count(*) FROM controller_session WHERE id < 0) AS controllers_imported, (SELECT count(*) FROM controller_session WHERE id > 0) AS controllers_live"
 ```
 
-`flights_live` and `controllers_live` must be at least the first block of the dry run (live rows written meanwhile by the collector or writer may raise them; none may be missing). Open two or three dashboards (a retention panel and a pilots total) and check that history starts 24-08-2025 and the gap shows as empty, as section 0 says. Check the daily checks and the watchdog alerts stay quiet ([daily-checks.md](daily-checks.md), [integrity-checks.md](integrity-checks.md)); the integration test covers the invariant sweep and the drop gate on the throwaway database, not the live one.
+`flights_live` and `controllers_live` must be at least the first block of the dry run (live rows written meanwhile by the collector or writer may raise them). The loader itself checks that every live row present at the start is still present at the end; a missing one aborts the run. Open two or three dashboards (a retention panel and a pilots total) and check that history starts 24-08-2025 and the gap shows as empty, as section 0 says. Check the daily checks and the watchdog alerts stay quiet ([daily-checks.md](daily-checks.md), [integrity-checks.md](integrity-checks.md)); the integration test covers the invariant sweep and the drop gate on the throwaway database, not the live one.
 
 ## 7. Roll back
 
