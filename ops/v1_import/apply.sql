@@ -123,13 +123,14 @@ WITH ins AS (
 SELECT count(*) AS controllers_inserted FROM ins \gset
 \timing off
 
--- Checks: every loadable row is now in the table; no live row is gone (the live count may GROW: the collector and the writer keep
+-- Checks: every loadable row is now in the table; every live row that existed at the start is still there (the live count may GROW: the collector and the writer keep
 -- committing while this transaction runs, and this script only ever inserts negative ids); the imported total is what we expect.
 SELECT (SELECT count(*) FROM v1_flight_x x WHERE x.reason IS NULL AND NOT EXISTS (SELECT 1 FROM flight_summary s WHERE s.session_id = x.session_id))
      + (SELECT count(*) FROM v1_controller_x x WHERE x.reason IS NULL AND NOT EXISTS (SELECT 1 FROM controller_session s WHERE s.id = x.id)) AS missing,
        (SELECT count(*) FROM flight_summary WHERE session_id >= 0) AS flights_live, (SELECT count(*) FROM flight_summary WHERE session_id < 0) AS flights_imported,
-       (SELECT count(*) FROM controller_session WHERE id > 0) AS controllers_live, (SELECT count(*) FROM controller_session WHERE id < 0) AS controllers_imported \gset after_
-SELECT :after_missing = 0 AND :after_flights_live >= :before_flights_live AND :after_controllers_live >= :before_controllers_live
+       (SELECT count(*) FROM controller_session WHERE id > 0) AS controllers_live, (SELECT count(*) FROM controller_session WHERE id < 0) AS controllers_imported,
+       (SELECT count(*) FROM v1_live_flights b WHERE NOT EXISTS (SELECT 1 FROM flight_summary s WHERE s.session_id = b.session_id AND s.start_time = b.start_time)) + (SELECT count(*) FROM v1_live_controllers b WHERE NOT EXISTS (SELECT 1 FROM controller_session s WHERE s.id = b.id)) AS live_missing \gset after_
+SELECT :after_missing = 0 AND :after_live_missing = 0
        AND :after_flights_imported = :before_flights_imported + :flights_inserted
        AND :after_controllers_imported = :before_controllers_imported + :controllers_inserted AS checks_ok \gset
 \echo

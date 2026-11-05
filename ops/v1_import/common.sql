@@ -21,5 +21,9 @@ SELECT (SELECT count(*) FROM flight_summary WHERE session_id >= 0) AS flights_li
        (SELECT count(*) FROM flight_summary WHERE session_id < 0)  AS flights_imported,
        (SELECT count(*) FROM controller_session WHERE id > 0)      AS controllers_live,
        (SELECT count(*) FROM controller_session WHERE id < 0)      AS controllers_imported \gset before_
+-- The live rows that exist now (positive ids). The final check requires every one of them to still be there: a count alone would be
+-- satisfied by one row deleted and another added meanwhile.
+CREATE TEMP TABLE v1_live_flights ON COMMIT DROP AS SELECT session_id, start_time FROM flight_summary WHERE session_id >= 0;
+CREATE TEMP TABLE v1_live_controllers ON COMMIT DROP AS SELECT id FROM controller_session WHERE id > 0;
 SELECT :before_flights_live AS flights_live, :before_flights_imported AS flights_imported,
        :before_controllers_live AS controllers_live, :before_controllers_imported AS controllers_imported;
