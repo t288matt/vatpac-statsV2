@@ -131,7 +131,7 @@ Simplifications that are not drops:
 - Military aircraft are a boolean in the `aircraft_type` lookup instead of a long hard-coded list in each query (card 65). Cards 66 and 78 identify RAAFv flights by the flight-plan remarks, as v1 now does.
 - Airline, aircraft category and pilot home region are lookups (`airline`, `aircraft_type`, `region_map`), seeded by migration `20261007000011_seed_analytics_lookups.sql`. Unlisted codes show as Other or Unknown instead of being silently dropped.
 - Home-region tests use the `home_icao_prefixes` setting (default `Y`) rather than a hard-coded `Y`.
-- No backfill: every chart starts empty at go-live, and each dashboard says "Data since" the first stored snapshot. The 30 to 90 day measures of the controller retention dashboard stay empty or misleading until history accumulates.
+- No backfill: every chart starts empty at go-live (the v1 history import of ADR-035 is built but not loaded; if loaded, see [RUNBOOKS/import-v1-history.md](RUNBOOKS/import-v1-history.md) for what the charts then show), and each dashboard says "Data since" the first stored snapshot. The 30 to 90 day measures of the controller retention dashboard stay empty or misleading until history accumulates.
 
 ## Charts without a v1 SQL in the original snapshot
 
