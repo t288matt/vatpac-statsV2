@@ -29,7 +29,7 @@ All of these before step 2. Stop if any is missing.
 
 1. The owner's explicit go for this load, in the session.
 2. A fresh dump of the target database, taken now (working agreement section 10): `cd ~/vatpac-statsV2 && docker compose exec backup backup.sh once`, then check the new file in `/backups` ([restore.md](restore.md)). The dump is the way back if a check fails after the commit.
-3. The exact target. The loader refuses to run unless the name given with `--expect-db` equals `current_database()`. On the VM the stack's database is `vatpac` unless `POSTGRES_DB` in `.env` says otherwise. Never aim it at a restored copy of production that tests will later empty (the integration tests empty every data table: [run-tests.md](run-tests.md); "Make a local copy of production" in [restore.md](restore.md)).
+3. The exact target. The loader refuses to run unless the name given with `--expect-db` equals `current_database()`. This catches a typo only: it does not tell a restored copy of production from the real thing, and the load runs as the container's superuser. On the VM the stack's database is `vatpac` unless `POSTGRES_DB` in `.env` says otherwise. Never aim it at a restored copy of production that tests will later empty (the integration tests empty every data table: [run-tests.md](run-tests.md); "Make a local copy of production" in [restore.md](restore.md)).
 4. The loader connects as the **owner role** (the `collector` role has no right on `flight_summary`). The default connection is `docker compose exec -T db sh -c 'psql -X -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'`, run from `~/vatpac-statsV2`. To use another connection, set `V1_IMPORT_PSQL` to a command (run with `sh -c`) that reads SQL on stdin.
 5. The collector is healthy and no deploy or restore is running.
 
@@ -62,7 +62,7 @@ On the VM, in `~/vatpac-statsV2`:
 sh ops/v1_import/load.sh --expect-db vatpac --data-dir /path/to/v1_extract
 ```
 
-Everything runs in one transaction that ends in a rollback. It prints, in order: the target (database, role, server version, mode) and the current live and imported counts; the staged counts against `EXPECTED_COUNTS`; the result before writing (rows in file, rejected, already loaded, to insert) with a reason for every rejected row; the timed writes; the checks; and the rows by month. It stops, writing nothing, if the database name differs, a checksum or count differs, or any row is rejected (a rejected row is a row that breaks a rule, for example a callsign not on the whitelist). `--allow-rejects` loads the rest anyway; use it only if the owner has read the reasons. Exit code 0 is clean, 2 is bad arguments or files, 3 is the database refusing (nothing written).
+Everything runs in one transaction that ends in a rollback. It prints, in order: the target (database, role, server version, mode) and the current live and imported counts; the staged counts against `EXPECTED_COUNTS`; the result before writing (rows in file, rejected, already loaded, to insert) with a reason for every rejected row; the timed writes; the checks; and the rows by month. It stops, writing nothing, if the database name differs, a checksum or count differs, or any row is rejected (a rejected row is a row that breaks a rule, for example a callsign not on the whitelist), or a row already loaded differs from the file (a re-run on edited data; the loaded rows are left as they are). `--allow-rejects` loads the rest anyway; use it only if the owner has read the reasons. Exit code 0 is clean, 2 is bad arguments or files, 3 is the database refusing (nothing written).
 
 Read the output with the owner. The numbers must match step 6.
 
@@ -91,7 +91,7 @@ Then, read-only, to confirm and to confirm the live rows did not change:
 docker compose exec db psql -U vatpac -d vatpac -c "SELECT (SELECT count(*) FROM flight_summary WHERE session_id < 0) AS flights_imported, (SELECT count(*) FROM flight_summary WHERE session_id >= 0) AS flights_live, (SELECT count(*) FROM controller_session WHERE id < 0) AS controllers_imported, (SELECT count(*) FROM controller_session WHERE id > 0) AS controllers_live"
 ```
 
-`flights_live` and `controllers_live` must equal the first block of the dry run. Open two or three dashboards (a retention panel and a pilots total) and check that history starts 24-08-2025 and the gap shows as empty, as section 0 says. Check the daily checks and the watchdog alerts stay quiet ([daily-checks.md](daily-checks.md), [integrity-checks.md](integrity-checks.md)); the integration test covers the invariant sweep and the drop gate on the throwaway database, not the live one.
+`flights_live` and `controllers_live` must be at least the first block of the dry run (live rows written meanwhile by the collector or writer may raise them; none may be missing). Open two or three dashboards (a retention panel and a pilots total) and check that history starts 24-08-2025 and the gap shows as empty, as section 0 says. Check the daily checks and the watchdog alerts stay quiet ([daily-checks.md](daily-checks.md), [integrity-checks.md](integrity-checks.md)); the integration test covers the invariant sweep and the drop gate on the throwaway database, not the live one.
 
 ## 7. Roll back
 
