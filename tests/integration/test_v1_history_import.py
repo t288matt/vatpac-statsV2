@@ -28,6 +28,7 @@ from test_restore_sanity import _find_bash  # noqa: E402
 
 BASH = _find_bash()
 LOAD = REPO / "ops" / "v1_import" / "load.sh"
+TABLES = (("flight_summary", "session_id"), ("controller_session", "id"), ("pilot_session", "id"))
 FLIGHT_VIEWS = ("flight", "flight_ext", "movements", "cohorts", "controller_session_merged", "controller_session_ranked",
                 "controller_summaries", "monday_attendance")
 
@@ -92,9 +93,11 @@ def test_the_mapping_matches_the_reference_for_every_row_and_the_month_counts(co
         "SELECT to_char(logon_time AT TIME ZONE 'UTC', 'YYYY-MM') AS m, count(*) AS n FROM controller_session GROUP BY 1").fetchall()}
     assert by_month == synth.SMALL_CONTROLLERS
     # the constant columns of the convention
-    assert conn.execute("SELECT count(*) AS n FROM flight_summary WHERE sample_count <> 0 OR max_gs_kt IS NOT NULL OR max_alt_ft IS NOT NULL "
+    assert conn.execute("SELECT count(*) AS n FROM flight_summary WHERE sample_count <> 0 OR max_gs_kt IS NOT NULL "
+                        "OR max_alt_ft IS NOT NULL "
                         "OR remarks IS NOT NULL OR session_ids <> ARRAY[session_id]").fetchone()["n"] == 0
-    assert conn.execute("SELECT count(*) AS n FROM controller_session WHERE visual_range IS NOT NULL OR first_seen <> logon_time").fetchone()["n"] == 0
+    assert conn.execute("SELECT count(*) AS n FROM controller_session "
+                        "WHERE visual_range IS NOT NULL OR first_seen <> logon_time").fetchone()["n"] == 0
 
 
 def test_a_second_run_inserts_nothing_and_touches_nothing(conn: Any, dsn: str, files: Any) -> None:
@@ -123,16 +126,17 @@ def test_rollback_restores_the_starting_rows_exactly(conn: Any, dsn: str, files:
     d, _ = files
     World(conn)  # live-style rows: pilot sessions, positions, three live flights, a live controller session
     now = datetime.now(UTC).replace(microsecond=0)
-    conn.execute("INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time, "
+    conn.execute("INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, "
+                 "logon_time, "
                  "sample_count) VALUES (7, %s, %s, 9, 'LIVE1', 'YSSY', 'YMML', ARRAY[7], %s, 5)", (now, now, now))
-    start = {t: dump(conn, t, o) for t, o in (("flight_summary", "session_id"), ("controller_session", "id"), ("pilot_session", "id"))}
+    start = {t: dump(conn, t, o) for t, o in TABLES}
     start_counts = counts(conn)
     assert load(dsn, conn, d, "--apply").returncode == 0
     assert counts(conn)["flights_imported"] > 0
     p = load(dsn, conn, None, "--rollback", "--apply")
     assert p.returncode == 0, p.stdout + p.stderr
     assert counts(conn) == start_counts
-    assert {t: dump(conn, t, o) for t, o in (("flight_summary", "session_id"), ("controller_session", "id"), ("pilot_session", "id"))} == start
+    assert {t: dump(conn, t, o) for t, o in TABLES} == start
     assert load(dsn, conn, None, "--rollback", "--apply").returncode == 0  # a second rollback deletes nothing and does not fail
     assert counts(conn) == start_counts
 

@@ -123,7 +123,8 @@ def edge_controllers() -> list[dict[str, Any]]:
         _ctrl(t + 6, cid=1_600_010, session_start_time=s, session_end_time=s + timedelta(hours=2)),
         _ctrl(t + 7, cid=1_600_010, session_start_time=s + timedelta(hours=1, seconds=30, microseconds=500_000),
               session_end_time=s + timedelta(hours=3)),
-        _ctrl(t + 8, cid=1_600_011, session_start_time=utc(2025, 9, 21, 1, 2, 10, 999_999), session_end_time=utc(2025, 9, 21, 2, 2, 10, 500_000)),
+        _ctrl(t + 8, cid=1_600_011, session_start_time=utc(2025, 9, 21, 1, 2, 10, 999_999),
+              session_end_time=utc(2025, 9, 21, 2, 2, 10, 500_000)),
         _ctrl(t + 9, cid=1_600_012, name="N" * 3000, server="AUS\x01TRALIA", callsign="SY_TWR"),
         _ctrl(t + 10, cid=1_600_013, name=None, rating=None, facility=None, server=None, frequencies_used=["121.700"]),
         _ctrl(t + 11, cid=1_600_014, frequencies_used=["0.000", "junk", "132.050"]),
@@ -154,7 +155,8 @@ def whitelist_callsigns(path: Path | None = None) -> list[str]:
     return sorted({ln.split(",")[0].strip() for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.startswith("#")})
 
 
-def generate(out: Path, flights: dict[str, int], controllers: dict[str, int], seed: int = 279, edge: bool = True) -> dict[str, list[dict[str, Any]]]:
+def generate(out: Path, flights: dict[str, int], controllers: dict[str, int], seed: int = 279,
+             edge: bool = True) -> dict[str, list[dict[str, Any]]]:
     """Write v1_flights.csv, v1_controllers.csv, EXPECTED_COUNTS and SHA256SUMS to `out`; the edge rows count towards the
     monthly totals (they sit in 09-2025). Returns the rows."""
     rng = random.Random(seed)
@@ -267,7 +269,8 @@ def expected_flight(r: dict[str, Any]) -> dict[str, Any]:
     callsign = _text(r["callsign"])
     return {
         "session_id": -r["id"], "session_ids": [-r["id"]], "cid": r["cid"],
-        "callsign": _indexed(callsign.strip()) if callsign else None, "departure": _plan_airport(r["departure"]), "arrival": _plan_airport(r["arrival"]),
+        "callsign": _indexed(callsign.strip()) if callsign else None,
+        "departure": _plan_airport(r["departure"]), "arrival": _plan_airport(r["arrival"]),
         "logon_time": r["logon_time"].replace(microsecond=0), "name": name, "home_icao": model.home_icao(name),
         "server": _text(r["server"]), "flight_rules": _text(r["flight_rules"]), "route": _text(r["route"]), "deptime": _text(r["deptime"]),
         "aircraft_icao": aircraft.strip().upper() if aircraft else None, "aircraft_faa": _text(r["aircraft_faa"]),
@@ -281,7 +284,7 @@ def first_frequency_hz(freqs: list[Any]) -> int | None:
     for f in freqs:
         hz = model.parse_frequency_hz(str(f))  # None for 199.998, zero and junk
         if hz is not None:
-            return hz
+            return int(hz)
     return None
 
 
