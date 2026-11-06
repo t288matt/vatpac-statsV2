@@ -30,6 +30,9 @@ RESTYLED = {
     "events/monday-events.json",
     "management/management.json",
     "monitoring/collector-health.json",
+    "demographics/pilot-origins.json",
+    "military/military.json",
+    "pilots/pilot-onboarding.json",
 }
 
 # Panels whose colours come from Grafana's classic palette because the number of slices or series is not known when the
