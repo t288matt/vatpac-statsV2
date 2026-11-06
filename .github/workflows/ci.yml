@@ -181,6 +181,7 @@ jobs:
         with:
           python-version: "3.14"
       - run: python grafana/validate_dashboards.py
+      - run: python ops/dashboard_nav.py --check
 
   compose-config:
     runs-on: ubuntu-latest

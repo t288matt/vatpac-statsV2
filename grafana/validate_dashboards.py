@@ -131,7 +131,7 @@ def main() -> int:
             errors.append(f"{rel}: dashboard timezone must be 'utc'")
         if not any(p.get("type") == "text" and "${go_live}" in p.get("options", {}).get("content", "")
                    for p in dash.get("panels", [])):
-            errors.append(f"{rel}: missing the 'Data since ${{go_live}}' text panel")
+            errors.append(f"{rel}: missing the 'Live data since ${{go_live}}' banner text panel")
 
         ids: set[int] = set()
         for p in dash.get("panels", []):
