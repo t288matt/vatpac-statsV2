@@ -83,10 +83,57 @@
           "rawSql": "SELECT route_label AS route, departure, arrival, count(*) AS flights, count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.departure <> f.arrival\n  AND NOT f.is_zzzz\n  AND NOT (f.dep_is_home AND f.arr_is_home)\nGROUP BY route_label, departure, arrival\nORDER BY flights DESC, route\nLIMIT 10"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "flights"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -117,10 +164,57 @@
           "rawSql": "SELECT route_label AS route, departure, arrival, count(*) AS flights, count(DISTINCT cid) AS pilots\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.departure <> f.arrival\n  AND NOT f.is_zzzz\n  AND f.dep_is_home AND f.arr_is_home\nGROUP BY route_label, departure, arrival\nORDER BY flights DESC, route\nLIMIT 10"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "flights"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -151,9 +245,28 @@
           "rawSql": "SELECT route_label AS route,\n       count(DISTINCT cid) AS pilots,\n       count(*) AS flights,\n       round(avg(duration_minutes)::numeric, 1) AS \"Average duration (min)\",\n       min(end_time) AS \"First flight\",\n       max(end_time) AS \"Latest flight\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.flight_rules = 'V'\n  AND f.departure <> f.arrival\n  AND NOT f.is_zzzz\nGROUP BY route_label\nHAVING count(DISTINCT cid) >= 3\nORDER BY pilots DESC, flights DESC\nLIMIT 10"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       }
     },
@@ -185,10 +298,57 @@
           "rawSql": "SELECT (array_agg(f.name ORDER BY f.end_time DESC))[1] AS pilot,\n       count(DISTINCT route_label) AS unique_routes,\n       count(*) AS total_flights\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.duration_minutes > 60\n  AND NOT f.is_zzzz\nGROUP BY f.cid\nORDER BY unique_routes DESC, total_flights DESC\nLIMIT 10"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unique_routes"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "timeFrom": "14d"
     },
@@ -223,15 +383,69 @@
       "options": {
         "xField": "airport",
         "stacking": "normal",
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "departures"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "arrivals"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -262,10 +476,57 @@
           "rawSql": "SELECT airport,\n       count(*) FILTER (WHERE movement_type = 'departure') AS departures,\n       count(*) FILTER (WHERE movement_type = 'arrival') AS arrivals,\n       count(*) AS total_movements\nFROM movements\nWHERE movement_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY airport\nORDER BY total_movements, airport\nLIMIT 20"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_movements"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -298,15 +559,69 @@
       ],
       "options": {
         "xField": "airline",
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "flights"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pilots"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -337,10 +652,57 @@
           "rawSql": "SELECT callsign, departure, arrival,\n       count(DISTINCT cid) AS unique_pilots,\n       count(*) AS total_flights\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY callsign, departure, arrival\nHAVING count(DISTINCT cid) >= 2\nORDER BY unique_pilots DESC, total_flights DESC\nLIMIT 10"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unique_pilots"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -379,19 +741,28 @@
         },
         "pieType": "donut",
         "legend": {
+          "showLegend": true,
           "displayMode": "table",
           "placement": "right",
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sortBy": "Value",
+          "sortDesc": true
         },
         "tooltip": {
-          "mode": "single"
-        }
+          "mode": "single",
+          "sort": "desc"
+        },
+        "displayLabels": []
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
         "overrides": []
       },
       "timeFrom": "180d"
@@ -432,19 +803,28 @@
         },
         "pieType": "donut",
         "legend": {
+          "showLegend": true,
           "displayMode": "table",
           "placement": "right",
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sortBy": "Value",
+          "sortDesc": true
         },
         "tooltip": {
-          "mode": "single"
-        }
+          "mode": "single",
+          "sort": "desc"
+        },
+        "displayLabels": []
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
         "overrides": []
       },
       "timeFrom": "180d"
@@ -477,9 +857,28 @@
           "rawSql": "SELECT callsign, pilot, aircraft_icao AS aircraft, departure, arrival,\n       max_gs_kt AS \"Peak groundspeed (kt)\", max_alt_ft AS \"Highest altitude (ft)\", end_time AS \"Flight ended\"\nFROM (\n  SELECT f.callsign, f.name AS pilot, f.aircraft_icao, f.departure, f.arrival, f.max_gs_kt, f.max_alt_ft, f.end_time,\n         row_number() OVER (PARTITION BY f.callsign ORDER BY f.max_gs_kt DESC, f.end_time DESC) AS rn\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.max_gs_kt > 100 AND f.max_gs_kt <= 750\n    AND f.max_alt_ft > 1000\n    AND f.arrival IS NOT NULL AND f.arrival <> ''\n    AND f.aircraft_icao IS NOT NULL\n    AND NOT f.is_military\n    AND COALESCE(f.aircraft_category, '') NOT IN ('Supersonic', 'Business jet', 'Turboprop')\n    AND f.aircraft_icao <> ALL (ARRAY['E135', 'E145', 'E170', 'E175', 'E190', 'E195',\n         'F18H', 'VF35', 'BE90', 'GLF7', 'FAL7', 'FAL8', 'FAL9', 'FAL0',\n         'AT42', 'DH8Q', 'PC21', 'EMB1', 'EMB2', 'EMB3', 'EMB4', 'EMB5'])\n    AND f.aircraft_icao NOT LIKE 'MIG%' AND f.aircraft_icao NOT LIKE 'MIR%'\n    AND f.aircraft_icao NOT LIKE 'F-%' AND f.aircraft_icao NOT LIKE 'SU-%' AND f.aircraft_icao NOT LIKE 'TU-%'\n) ranked\nWHERE rn = 1\nORDER BY max_gs_kt DESC\nLIMIT 20"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       },
       "timeFrom": "7d"
@@ -512,10 +911,57 @@
           "rawSql": "SELECT (f.start_time AT TIME ZONE 'UTC')::date AS flight_date,\n       trim(to_char(f.start_time AT TIME ZONE 'UTC', 'Day')) AS day_name,\n       count(*) AS total_flights\nFROM flight_ext f\nWHERE f.start_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1, 2\nORDER BY total_flights DESC, flight_date DESC\nLIMIT 5"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_flights"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "timeFrom": "180d"
     },
@@ -547,10 +993,57 @@
           "rawSql": "SELECT (f.logon_time AT TIME ZONE 'UTC')::date AS member_date,\n       trim(to_char(f.logon_time AT TIME ZONE 'UTC', 'Day')) AS day_name,\n       count(DISTINCT f.cid) AS unique_pilots,\n       row_number() OVER (ORDER BY count(DISTINCT f.cid) DESC, (f.logon_time AT TIME ZONE 'UTC')::date DESC) AS rank\nFROM flight f\nWHERE f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1, 2\nORDER BY unique_pilots DESC, member_date DESC\nLIMIT 10"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unique_pilots"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "timeFrom": "180d"
     },
@@ -590,10 +1083,11 @@
           ],
           "fields": ""
         },
-        "colorMode": "value",
+        "colorMode": "none",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
       "fieldConfig": {
         "defaults": {
@@ -603,10 +1097,14 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "#3AA0DD",
                 "value": null
               }
             ]
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
           }
         },
         "overrides": []
@@ -642,11 +1140,55 @@
       ],
       "options": {
         "showHeader": true,
-        "cellHeight": "sm"
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
       },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_enroute_hours"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       }
     }
   ]
