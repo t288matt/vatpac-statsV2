@@ -28,6 +28,10 @@ docker compose ps metabase metabase-db          # both healthy
 curl -fsS http://127.0.0.1:3400/api/health      # {"status":"ok"}
 ```
 
+### Who can reach it (the owner decides)
+
+By default `METABASE_BIND` is `127.0.0.1`: only the VM itself can open port 3400. To let the LAN reach it, the owner sets `METABASE_BIND` in `.env` to the VM's LAN address (not `0.0.0.0` if the VM has a public interface; Docker publishes ports around ufw, see deploy-to-vm.md section 5) and runs `docker compose up -d metabase`; setting it back to `127.0.0.1` closes it again. `METABASE_SITE_URL` should then be the address people type. Public access (a proxy or tunnel) is a separate owner decision and not part of this change.
+
 ## 3. First-run set-up (the owner does this; passwords are entered by the owner only)
 
 Open `http://<the VM's LAN address>:3400/`, choose the language, and create the admin account (a strong password, kept in the owner's password manager). Tell Metabase not to share usage data. Then add the data:
@@ -39,6 +43,8 @@ Open `http://<the VM's LAN address>:3400/`, choose the language, and create the 
 5. Create further accounts for the people who need them (Admin settings, People). Anyone who can log in can run SQL on the views (section 8).
 
 ## 4. What Metabase may and may not see
+
+Public sharing and embedding are switched off in the compose file (`MB_ENABLE_PUBLIC_SHARING` and `MB_ENABLE_EMBEDDING` are `false`), because the `flight` view holds names and VATSIM ids; Grafana allows no public links to such queries either. Metabase's own connection pool to the vatpac database is capped at 8 (`MB_JDBC_DATA_WAREHOUSE_MAX_CONNECTION_POOL_SIZE`), under the role's limit of 10.
 
 `metabase_ro` has what `grafana_ro` has and no more: SELECT on every view and materialized view in `public` (re-granted on every deploy, so new views appear) and on the six lookup tables; no base table (`pilot_session`, `pilot_position`, `controller_session`, `flight_summary`, `poll_log` and the rest); no INSERT, UPDATE, DELETE, TRUNCATE or DDL; cannot create in `public`; connection limit 10, `statement_timeout` 30 s, `default_transaction_read_only = on`, `work_mem` 16 MB, JIT off, time zone UTC. A person can switch the read-only default off in their own session, so the real guard is that the role has no write privileges, which the tests check with the default switched off (`tests/integration/test_metabase_ro.py`).
 

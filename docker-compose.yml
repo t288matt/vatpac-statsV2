@@ -217,6 +217,11 @@ services:
       # encrypts the saved database connection details in the application database; keep it with the backups
       MB_ENCRYPTION_SECRET_KEY: ${METABASE_ENCRYPTION_KEY:?set METABASE_ENCRYPTION_KEY in .env}
       MB_SITE_URL: ${METABASE_SITE_URL:-http://localhost:3400}
+      # no public links and no embedding: the flight view holds pilot names and VATSIM ids, and Grafana allows no public links to such queries
+      MB_ENABLE_PUBLIC_SHARING: "false"
+      MB_ENABLE_EMBEDDING: "false"
+      # metabase_ro is limited to 10 connections; keep Metabase's pool for it below that (setting jdbc-data-warehouse-max-connection-pool-size)
+      MB_JDBC_DATA_WAREHOUSE_MAX_CONNECTION_POOL_SIZE: "8"
       MB_ANON_TRACKING_ENABLED: "false"
       MB_CHECK_FOR_UPDATES: "false"
       MB_SEND_EMAIL_ON_FIRST_LOGIN_FROM_NEW_DEVICE: "false"

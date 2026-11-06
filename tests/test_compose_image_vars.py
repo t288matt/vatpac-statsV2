@@ -22,6 +22,13 @@ def _services() -> dict:
     return yaml.safe_load((REPO / "docker-compose.yml").read_text(encoding="utf-8"))["services"]
 
 
+def test_metabase_has_no_public_sharing_or_embedding_and_a_pool_below_the_role_limit() -> None:
+    """Issue 288: the flight view holds names and VATSIM ids, so no public links or embedding; metabase_ro has 10 connections."""
+    env = _services()["metabase"]["environment"]
+    assert env["MB_ENABLE_PUBLIC_SHARING"] == "false" and env["MB_ENABLE_EMBEDDING"] == "false"
+    assert int(env["MB_JDBC_DATA_WAREHOUSE_MAX_CONNECTION_POOL_SIZE"]) < 10
+
+
 def _resolve(image: str, prefix: str, tag: str) -> str:
     return image.replace("${VATPAC_IMAGE_PREFIX:-}", prefix).replace("${VATPAC_IMAGE_TAG:-latest}", tag or "latest")
 

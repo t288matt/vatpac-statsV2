@@ -216,8 +216,9 @@ def test_a_failing_metabase_dump_never_changes_the_vatpac_backup(tmp_path: Path)
 
 
 def test_a_failing_vatpac_dump_does_not_stop_the_metabase_dump_but_keeps_the_exit_status(tmp_path: Path) -> None:
-    r, backups = _run(tmp_path, "fail", old=0, **MB)
+    r, backups = _run(tmp_path, "big", old=0, PGHOST="vathost", FAKE_FAIL_HOST="vathost", **MB)  # only the vatpac host fails
     assert r.returncode != 0 and "FAILED pg_dump" in r.stdout
+    assert len(_mb_dumps(backups)) == 1 and not _new_dumps(backups)
 
 
 def test_metabase_rotation_keeps_the_newest_three_and_only_deletes_old_ones(tmp_path: Path) -> None:
