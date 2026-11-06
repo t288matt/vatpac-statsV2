@@ -14,7 +14,8 @@ nav = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(nav)
 
 FILES = sorted((REPO / "grafana" / "dashboards").glob("*/*.json"))
-LINK = re.compile(r"\[[^\]]+\]\(([^)]*)\)")
+ANCHOR = re.compile(r"<a\b([^>]*)>")
+EXACT = re.compile(r' href="/([a-z-]+)" target="_top"')
 
 
 def top_panel(f: Path) -> dict:
@@ -29,14 +30,17 @@ def test_every_dashboard_has_the_current_strip_and_the_files_are_in_step() -> No
     assert nav.problems() == []
 
 
-def test_strip_links_only_to_known_short_paths_without_a_query_string() -> None:
-    known = {f"/{n}" for n in nav.SHORT_NAMES.values()}
+def test_strip_links_are_bare_short_paths_that_open_in_the_top_window() -> None:
+    """Without target="_top" Grafana's in-page router handles the click and shows Page not found (issue 284)."""
+    known = set(nav.SHORT_NAMES.values())
     for f in FILES:
         first = nav.split(top_panel(f)["options"]["content"])[0]
-        links = LINK.findall(first)
-        assert len(links) == 16, f.name  # every other dashboard, not itself
-        for target in links:
-            assert target in known and "?" not in target and "#" not in target, (f.name, target)
+        anchors = ANCHOR.findall(first)
+        assert len(anchors) == 16, f.name  # every other dashboard, not itself
+        assert "](" not in first, f.name  # no Markdown links: they lack target="_top"
+        for attrs in anchors:
+            m = EXACT.fullmatch(attrs)
+            assert m and m.group(1) in known, (f.name, attrs)  # no query string, no other attribute, a known short path
 
 
 def test_current_page_is_bold_and_not_linked() -> None:
@@ -44,7 +48,7 @@ def test_current_page_is_bold_and_not_linked() -> None:
         d = json.loads(f.read_text(encoding="utf-8"))
         first = nav.split(d["panels"][0]["options"]["content"])[0]
         here = nav.SHORT_NAMES[d["uid"]]
-        assert f"(/{here})" not in first and first.count("**") == 2, f.name
+        assert f'href="/{here}"' not in first and first.count("**") == 2, f.name
 
 
 def test_top_panel_is_tall_enough_and_no_panel_overlaps_it() -> None:
@@ -64,7 +68,8 @@ def test_check_catches_a_missing_stale_or_query_string_strip(tmp_path: Path, mon
     victim = tmp_path / "atc" / "atc-overview.json"
     d = json.loads(victim.read_text(encoding="utf-8"))
     good = d["panels"][0]["options"]["content"]
-    for bad in (nav.split(good)[1], good.replace("(/live)", "(/live?x=1)"), good.replace("(/live)", "(/gone)")):
+    for bad in (nav.split(good)[1], good.replace('href="/live"', 'href="/live?x=1"'), good.replace('href="/live"', 'href="/gone"'),
+                good.replace('href="/live" target="_top"', 'href="/live"'), good.replace('<a href="/live" target="_top">Live now</a>', "[Live now](/live)")):
         d["panels"][0]["options"]["content"] = bad
         victim.write_text(json.dumps(d), encoding="utf-8")
         assert any("atc-overview.json" in p for p in nav.problems())
