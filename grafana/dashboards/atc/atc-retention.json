@@ -106,10 +106,11 @@
           ],
           "fields": ""
         },
-        "colorMode": "value",
+        "colorMode": "none",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
       "fieldConfig": {
         "defaults": {
@@ -117,10 +118,14 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "#3AA0DD",
                 "value": null
               }
             ]
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
           }
         },
         "overrides": []
@@ -162,10 +167,11 @@
           ],
           "fields": ""
         },
-        "colorMode": "value",
+        "colorMode": "none",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
       "fieldConfig": {
         "defaults": {
@@ -173,10 +179,14 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "yellow",
+                "color": "#3AA0DD",
                 "value": null
               }
             ]
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
           }
         },
         "overrides": []
@@ -218,10 +228,11 @@
           ],
           "fields": ""
         },
-        "colorMode": "value",
+        "colorMode": "none",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
       "fieldConfig": {
         "defaults": {
@@ -229,10 +240,14 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "orange",
+                "color": "#3AA0DD",
                 "value": null
               }
             ]
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
           }
         },
         "overrides": []
@@ -274,10 +289,11 @@
           ],
           "fields": ""
         },
-        "colorMode": "value",
+        "colorMode": "none",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
       "fieldConfig": {
         "defaults": {
@@ -285,10 +301,14 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "#3AA0DD",
                 "value": null
               }
             ]
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
           }
         },
         "overrides": []
@@ -330,10 +350,11 @@
           ],
           "fields": ""
         },
-        "colorMode": "value",
+        "colorMode": "none",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
       "fieldConfig": {
         "defaults": {
@@ -341,10 +362,14 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#3AA0DD",
                 "value": null
               }
             ]
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
           }
         },
         "overrides": []
@@ -363,7 +388,7 @@
         "x": 20,
         "y": 8,
         "w": 4,
-        "h": 6
+        "h": 4
       },
       "targets": [
         {
@@ -386,7 +411,7 @@
           ],
           "fields": ""
         },
-        "showThresholdMarkers": true
+        "showThresholdMarkers": false
       },
       "fieldConfig": {
         "defaults": {
@@ -397,18 +422,14 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "#3AA0DD",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 65
-              },
-              {
-                "color": "green",
-                "value": 85
               }
             ]
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
           }
         },
         "overrides": []
@@ -448,21 +469,30 @@
           "calcs": [],
           "fields": "/^controller_count$/"
         },
-        "pieType": "pie",
+        "pieType": "donut",
         "legend": {
+          "showLegend": true,
           "displayMode": "table",
           "placement": "right",
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sortBy": "Value",
+          "sortDesc": true
         },
         "tooltip": {
-          "mode": "single"
-        }
+          "mode": "single",
+          "sort": "desc"
+        },
+        "displayLabels": []
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
         "overrides": []
       }
     },
@@ -494,9 +524,28 @@
           "rawSql": "-- S1 Cohort Retention (v1 card 173)\nWITH cohort_definition AS (\n    SELECT\n        cid,\n        DATE_TRUNC('month', MIN(session_start_time)) as cohort_month,\n        MIN(session_start_time) as first_session\n    FROM controller_summaries\n    GROUP BY cid\n    HAVING MIN(session_start_time) >= NOW() - INTERVAL '12 months'\n),\ns1_cohorts AS (\n    SELECT cd.*\n    FROM cohort_definition cd\n    WHERE EXISTS (\n        SELECT 1 FROM controller_summaries cs\n        WHERE cs.cid = cd.cid\n          AND cs.session_start_time = cd.first_session\n          AND cs.rating = 2\n    )\n),\ncohort_retention AS (\n    SELECT\n        cd.cohort_month,\n        cd.cid,\n        cd.first_session,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '30 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '25 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '35 days'\n            )\n        ELSE NULL END as active_day_30,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '60 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '55 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '65 days'\n            )\n        ELSE NULL END as active_day_60,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '90 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '85 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '95 days'\n            )\n        ELSE NULL END as active_day_90\n    FROM s1_cohorts cd\n),\ncohort_stats AS (\n    SELECT\n        cohort_month,\n        COUNT(*) as cohort_size,\n        ROUND(SUM(CASE WHEN active_day_30 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_30 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_30,\n        ROUND(SUM(CASE WHEN active_day_60 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_60 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_60,\n        ROUND(SUM(CASE WHEN active_day_90 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_90 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_90\n    FROM cohort_retention\n    GROUP BY cohort_month\n)\nSELECT TO_CHAR(cohort_month, 'YYYY-MM') AS cohort, cohort_size,\n       retention_rate_30 AS \"Day 30 (%)\", retention_rate_60 AS \"Day 60 (%)\", retention_rate_90 AS \"Day 90 (%)\"\nFROM cohort_stats\nORDER BY cohort"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       }
     },
@@ -528,9 +577,28 @@
           "rawSql": "SELECT * FROM (\nWITH controller_activity AS (\n    SELECT \n        cid,\n        MAX(name) as name,\n        CASE \n            WHEN MAX(rating) = 2 THEN 'S1'\n            WHEN MAX(rating) = 3 THEN 'S2'\n            WHEN MAX(rating) = 4 THEN 'S3'\n            WHEN MAX(rating) = 5 THEN 'C1'\n            WHEN MAX(rating) = 7 THEN 'C3'\n            WHEN MAX(rating) >= 8 THEN 'I1+'\n        END as rank_group,\n        MIN(session_start_time) as first_session,\n        MAX(session_start_time) as last_session,\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') as sessions_last_30d,\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days' \n                          AND session_duration_minutes < 18) as short_sessions_last_30d,\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '90 days' \n                          AND session_start_time < NOW() - INTERVAL '30 days') as sessions_30_90d_ago,\n        -- Real earlier activity: at least one session before the 90-day window (a brand-new controller has none)\n        COUNT(*) FILTER (WHERE session_start_time < NOW() - INTERVAL '90 days') as sessions_before_90d,\n        SUM(session_duration_minutes) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') as total_minutes_since_return,\n        MAX(session_duration_minutes) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') as longest_session_minutes\n    FROM controller_summaries\n    GROUP BY cid\n)\nSELECT \n    cid,\n    name,\n    rank_group,\n    first_session::date as first_session,\n    last_session::date as last_session,\n    sessions_last_30d as recent_sessions,\n    ROUND(total_minutes_since_return / 60.0, 1) as hours_last_30d,\n    longest_session_minutes\nFROM controller_activity\nWHERE sessions_last_30d >= 1          -- Currently active\n  AND sessions_30_90d_ago = 0         -- Was NOT active 30-90 days ago (60+ day gap)\n  AND sessions_before_90d >= 1       -- Had real activity before the gap (not a brand-new controller)\n  AND sessions_last_30d = short_sessions_last_30d  -- ALL sessions are < 18 minutes\nORDER BY last_session DESC\n) q LIMIT 500"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       }
     },
@@ -562,9 +630,28 @@
           "rawSql": "SELECT * FROM (\n-- List of Reactivated Controllers (EXACT SAME LOGIC as count query)\nWITH controller_activity AS (\n    SELECT \n        cid,\n        MAX(name) as name,\n        CASE \n            WHEN MAX(rating) = 2 THEN 'S1'\n            WHEN MAX(rating) = 3 THEN 'S2'\n            WHEN MAX(rating) = 4 THEN 'S3'\n            WHEN MAX(rating) = 5 THEN 'C1'\n            WHEN MAX(rating) = 7 THEN 'C3'\n            WHEN MAX(rating) >= 8 THEN 'I1+'\n        END as rank_group,\n        MIN(session_start_time) as first_session,\n        MAX(session_start_time) as last_session,\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') as sessions_last_30d,\n        COUNT(*) FILTER (WHERE session_start_time >= NOW() - INTERVAL '90 days' \n                          AND session_start_time < NOW() - INTERVAL '30 days') as sessions_30_90d_ago,\n        -- Real earlier activity: at least one session before the 90-day window (a brand-new controller has none)\n        COUNT(*) FILTER (WHERE session_start_time < NOW() - INTERVAL '90 days') as sessions_before_90d,\n        SUM(session_duration_minutes) FILTER (WHERE session_start_time >= NOW() - INTERVAL '30 days') as total_minutes_since_return\n    FROM controller_summaries\n    GROUP BY cid\n)\nSELECT \n    cid,\n    name,\n    rank_group,\n    first_session::date as first_session,\n    last_session::date as last_session,\n    sessions_last_30d as recent_sessions,\n    ROUND(total_minutes_since_return / 60.0, 1) as hours_last_30d\nFROM controller_activity\nWHERE sessions_last_30d >= 1          -- Currently active\n  AND sessions_30_90d_ago = 0         -- Was NOT active 30-90 days ago (60+ day gap)\n  AND sessions_before_90d >= 1       -- Had real activity before the gap (not a brand-new controller)\nORDER BY last_session DESC\n) q LIMIT 500"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       }
     },
@@ -596,10 +683,74 @@
           "rawSql": "SELECT * FROM (\n-- Most Lapsed Controllers (30+ days inactive, sorted by days lapsed)\nWITH controller_last_session AS (\n    SELECT \n        cid,\n        MAX(name) as name,\n        CASE \n            WHEN MAX(rating) = 2 THEN 'S1'\n            WHEN MAX(rating) = 3 THEN 'S2'\n            WHEN MAX(rating) = 4 THEN 'S3'\n            WHEN MAX(rating) = 5 THEN 'C1'\n            WHEN MAX(rating) = 7 THEN 'C3'\n            WHEN MAX(rating) >= 8 THEN 'I1+'\n        END AS rank_group,\n        MAX(session_start_time) as last_session,\n        MIN(session_start_time) as first_session,\n        COUNT(*) as total_sessions,\n        SUM(session_duration_minutes) as total_minutes\n    FROM controller_summaries\n    GROUP BY cid\n)\nSELECT \n    cid,\n    name,\n    rank_group,\n    last_session::date as last_active,\n    EXTRACT(DAY FROM NOW() - last_session)::INTEGER as days_since_last_session,\n    first_session::date as first_ever_session,\n    total_sessions,\n    ROUND(total_minutes / 60.0, 1) as total_hours_ever,\n    -- Lapse category\n    CASE \n        WHEN EXTRACT(DAY FROM NOW() - last_session) >= 90 THEN 'Lost (90+ days)'\n        WHEN EXTRACT(DAY FROM NOW() - last_session) >= 60 THEN 'At Risk (60-89 days)'\n        WHEN EXTRACT(DAY FROM NOW() - last_session) >= 30 THEN 'Lapsing (30-59 days)'\n        ELSE 'Recent (0-29 days)'\n    END as lapse_category\nFROM controller_last_session\nWHERE EXTRACT(DAY FROM NOW() - last_session) >= 30  -- 30+ days inactive\nORDER BY days_since_last_session DESC  -- Most lapsed first\n) q LIMIT 500"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lapse_category"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Recent (0-29 days)": {
+                        "text": "Recent (0-29 days)",
+                        "color": "#1FAF8A",
+                        "index": 0
+                      },
+                      "Lapsing (30-59 days)": {
+                        "text": "Lapsing (30-59 days)",
+                        "color": "#3AA0DD",
+                        "index": 1
+                      },
+                      "At Risk (60-89 days)": {
+                        "text": "At Risk (60-89 days)",
+                        "color": "#E69F00",
+                        "index": 2
+                      },
+                      "Lost (90+ days)": {
+                        "text": "Lost (90+ days)",
+                        "color": "#CC79A7",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "pill"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -630,10 +781,69 @@
           "rawSql": "SELECT * FROM (\n-- Engagement Matrix: Frequency vs Duration (FIXED - No Duplicates)\nWITH controller_metrics AS (\n    SELECT \n        cid,\n        MAX(name) as name,  -- Use MAX to avoid grouping issues\n        CASE \n            WHEN MAX(rating) = 2 THEN 'S1'\n            WHEN MAX(rating) = 3 THEN 'S2'\n            WHEN MAX(rating) = 4 THEN 'S3'\n            WHEN MAX(rating) = 5 THEN 'C1'\n            WHEN MAX(rating) = 7 THEN 'C3'\n            WHEN MAX(rating) >= 8 THEN 'I1+'\n        END AS rank_group,\n        COUNT(*) AS session_frequency,  -- X-axis\n        ROUND(AVG(session_duration_minutes) / 60.0, 2) AS avg_session_duration_hours,  -- Y-axis\n        ROUND(SUM(session_duration_minutes) / 60.0, 1) AS total_hours  -- Bubble size\n    FROM controller_summaries\n    WHERE session_start_time >= NOW() - INTERVAL '90 days'\n    GROUP BY cid  -- ONLY group by cid to avoid duplicates\n)\nSELECT \n    cid,\n    name,\n    rank_group,\n    session_frequency,\n    avg_session_duration_hours,\n    total_hours,\n    CASE \n        WHEN session_frequency >= 12 AND avg_session_duration_hours >= 1.5 THEN 'Super Engaged'\n        WHEN session_frequency < 12 AND avg_session_duration_hours >= 1.5 THEN 'Casual but Committed'\n        WHEN session_frequency >= 12 AND avg_session_duration_hours < 1.5 THEN 'Frequent but Brief'\n        ELSE 'At Risk'\n    END AS engagement_quadrant,\n    CASE \n        WHEN session_frequency < 4 AND avg_session_duration_hours < 1.5 THEN 'High Risk'\n        WHEN session_frequency < 10 AND avg_session_duration_hours < 1.5 THEN 'Medium Risk'\n        ELSE 'Low Risk'\n    END AS risk_of_lapsing,\n    -- Numeric field for coloring\n    CASE \n        WHEN session_frequency >= 12 AND avg_session_duration_hours >= 1.5 THEN 4  -- Super Engaged = Green\n        WHEN session_frequency < 12 AND avg_session_duration_hours >= 1.5 THEN 3  -- Casual = Light Green\n        WHEN session_frequency >= 8 AND avg_session_duration_hours < 1.5 THEN 2  -- Frequent Brief = Yellow\n        ELSE 1  -- At Risk = Red\n    END AS color_value\nFROM controller_metrics\nORDER BY total_hours DESC\n) q LIMIT 500"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "risk_of_lapsing"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Low Risk": {
+                        "text": "Low Risk",
+                        "color": "#1FAF8A",
+                        "index": 0
+                      },
+                      "Medium Risk": {
+                        "text": "Medium Risk",
+                        "color": "#E69F00",
+                        "index": 1
+                      },
+                      "High Risk": {
+                        "text": "High Risk",
+                        "color": "#CC79A7",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "pill"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -666,28 +876,85 @@
       ],
       "options": {
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "bars",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
             "fillOpacity": 70,
-            "lineWidth": 1
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
+              "options": "reactivations"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_active_controllers"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
               "options": "lapsed"
             },
             "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CC79A7"
+                }
+              },
               {
                 "id": "custom.drawStyle",
                 "value": "line"
