@@ -1,6 +1,6 @@
 # Runbook: add or change a dashboard
 
-Last reviewed: 11-10-2026. Dashboards are code: JSON files in git, loaded by Grafana from a read-only mount. Edits made in the Grafana web interface are not saved (`allowUiUpdates: false`, viewers cannot edit) and are lost on restart; every change goes through the files.
+Last reviewed: 06-11-2026. Dashboards are code: JSON files in git, loaded by Grafana from a read-only mount. Edits made in the Grafana web interface are not saved (`allowUiUpdates: false`, viewers cannot edit) and are lost on restart; every change goes through the files.
 
 ## Where things are
 
@@ -24,7 +24,7 @@ Last reviewed: 11-10-2026. Dashboards are code: JSON files in git, loaded by Gra
 
 1. **Write the query against the views** in `psql` first. On the VM: `docker compose exec db psql -U vatpac -d vatpac`. The query must also work as `grafana_ro`, which sees views only. Mind cost: Grafana's statement timeout is 30 seconds, and the panels run every 30 to 60 seconds. Avoid reading `pilot_position` (it is not exposed); use `flight`, `flight_ext` and the other views.
 2. **If a view is missing**, add a new numbered migration in `db/migrations/` (file name `<timestamp>_description.sql` in the same 14-digit style, later than the latest, with `-- migrate:up` and a `-- migrate:down` stub that says it is forward-only). Never edit an applied migration. Every view in `public` is granted to `grafana_ro` the next time the `migrate` job runs `db/roles.sql`, so no grant line is needed. Document the view in [../DATA_DICTIONARY.md](../DATA_DICTIONARY.md).
-3. **Edit the dashboard JSON**: copy a similar panel in the same file, give it the next unused `id` and a free `gridPos`, then set `title`, `description`, `fieldConfig` and `targets[0].rawSql` (`"format": "table"` for tables and stats, `"time_series"` for time series, with a column named `time`). Keep the JSON valid (the validator reports the file and panel on error).
+3. **Edit the dashboard JSON**: copy a similar panel in the same file, give it the next unused `id` and a free `gridPos`, then set `title`, `description`, `fieldConfig` and `targets[0].rawSql` (`"format": "table"` for tables and stats, `"time_series"` for time series, with a column named `time`). A panel can set its own window with `timeFrom` (pilots-now: `1h` on the three stat cards, `24h` and `7d` on its two line charts); without it the panel follows the dashboard's time range. Keep the JSON valid (the validator reports the file and panel on error).
 4. **Update the documentation in the same commit:** the row in [../CHART_DEFINITIONS.md](../CHART_DEFINITIONS.md) (v1 card, definition, source view, panel file and title, difference from v1, status, test) and the summary counts if a card moved between KEPT, CHANGED and DROPPED; the "why these charts were dropped" notes in the same file if a chart is dropped.
 5. **Test it** (next section), commit, and deploy ([deploy-to-vm.md](deploy-to-vm.md)). A JSON-only change needs no rebuild or restart; Grafana picks it up within 30 seconds.
 
@@ -33,7 +33,7 @@ Last reviewed: 11-10-2026. Dashboards are code: JSON files in git, loaded by Gra
 Without a database (anywhere, fast):
 
 ```sh
-python grafana/validate_dashboards.py     # expect RESULT: OK (0 errors); one known warning is printed for the controller activity trends panel
+python grafana/validate_dashboards.py     # expect RESULT: OK (0 errors); it prints a WARNING for each panel with no time range, now() or live view (a new warning means a new panel to check)
 ```
 
 Against synthetic data, on a throwaway database named `*_test` (see [run-tests.md](run-tests.md)): the integration tests load the dashboard JSON, take the panel's `rawSql`, replace `$__timeFrom()` and `$__timeTo()`, insert synthetic flights or sessions and assert on the result. To cover a new or changed panel, add a test in `tests/integration/` beside the existing ones (for example `tests/integration/test_card_90.py`, which reuses `run_panel` and `add_flight` from `tests/integration/test_pilots_t14.py`). The marker is `@pytest.mark.integration`.

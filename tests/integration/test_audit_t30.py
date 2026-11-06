@@ -553,11 +553,24 @@ def test_departure_board_airborne_starts_at_60_kt(conn) -> None:
 def test_pilots_online_now_shows_the_newest_snapshot(conn) -> None:
     """Mutant P18 (ORDER BY ... ASC): the 'now' tile must read the newest snapshot, not the oldest."""
     now = datetime.now(timezone.utc)
-    conn.execute("INSERT INTO network_snapshot VALUES (%s,3,0,30,0)", (now - timedelta(hours=1),))
+    conn.execute("INSERT INTO network_snapshot VALUES (%s,3,0,30,0)", (now - timedelta(hours=2),))
     conn.execute("INSERT INTO network_snapshot VALUES (%s,7,0,70,0)", (now - timedelta(seconds=10),))
+    conn.execute("INSERT INTO network_snapshot VALUES (%s,5,0,25,0)", (now - timedelta(minutes=30),))   # a second one, inside the hour, different values
     pn = p14.TRAFFIC.parent / "pilots-now.json"
-    assert _run(conn, pn, "Pilots online now (in region)")[0]["Pilots"] == 7
-    assert _run(conn, pn, "Pilots online now (network-wide)")[0]["Pilots"] == 70
+
+    def rows_of(title: str) -> list[dict]:
+        # Issue 280: the card is a one-hour time series and Grafana reduces it to its LAST value (calcs lastNotNull), so the
+        # rows must be ascending by time and the last row the newest snapshot. The 2-hour-old snapshot is outside the window.
+        sql = _panel(pn, title)["targets"][0]["rawSql"].replace(
+            "$__timeFilter(observed_at)", "observed_at BETWEEN now() - interval '1 hour' AND now()")
+        return conn.execute(sql).fetchall()
+
+    for title, field, want in (("Pilots in the region now", "Pilots in the region", [5, 7]),
+                               ("Pilots on the whole network now", "Pilots on the network", [25, 70])):
+        got = rows_of(title)
+        assert [r[field] for r in got] == want
+        assert [r["time"] for r in got] == sorted(r["time"] for r in got)
+    assert [float(r["Region share"]) for r in rows_of("Region share of the network")] == [20.0, 10.0]
 
 
 # ------------------------------------------------------------------ ATC panels
