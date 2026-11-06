@@ -1156,6 +1156,10 @@
                 "value": {
                   "type": "pill"
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 210
               }
             ]
           }
