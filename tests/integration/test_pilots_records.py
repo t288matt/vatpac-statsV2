@@ -66,10 +66,6 @@ def test_dashboard_has_the_catalogue_questions_and_no_inputs():
     assert all("Definition" in p["description"] for p in d["panels"] if p.get("description"))
 
 
-RESTYLED = {("pilots/pilots-now.json", "When are people online on weekdays (last 30 days)"),
-            ("pilots/pilots-now.json", "When are people online on weekends (last 30 days)")}
-
-
 @pytest.mark.parametrize("title,src", [
     ("Which member spent the most time online? (last 7 days)", "pilots/pilots-traffic.json"),      # A1, card 155
     ("Pilots with the most diverse routes (last 14 days)", "pilots/pilots-traffic.json"),           # A3, card 46
@@ -84,8 +80,6 @@ def test_copied_panels_run_the_same_sql_and_window_as_their_source(title, src):
     theirs = next(p for p in panels(DASH / src) if p.get("title") == title)
     assert mine["targets"][0]["rawSql"] == theirs["targets"][0]["rawSql"]
     assert mine.get("timeFrom") == theirs.get("timeFrom")
-    if (src, title) in RESTYLED:
-        return          # issue 280: restyled on pilots-now (bar chart); the query and the window must stay the same
     assert mine["type"] == theirs["type"]
 
 

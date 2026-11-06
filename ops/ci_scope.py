@@ -31,8 +31,10 @@ DASHBOARD_ONLY_TESTS = (
     "tests/test_chart_definitions_tests.py",
     "tests/test_pilots_now_look.py",
     "tests/test_phase3_switch.py",
+    "tests/test_dashboards_look.py",
+    "tests/test_dashboards_sql_unchanged.py",
 )
-# What the dashboards scope runs. The unit list is the five above plus the Grafana tooling test, which walks every dashboard
+# What the dashboards scope runs. The unit list is the seven above plus the Grafana tooling test, which walks every dashboard
 # file. The integration list is every integration test that runs dashboard SQL against the views (grafana_ro); editing one is
 # full, because most of them test more than dashboards. tests/test_ci_scope.py fails if a test that reads the dashboards is
 # missing from these lists.
