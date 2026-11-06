@@ -1,6 +1,6 @@
 # Runbook: add or change a dashboard
 
-Last reviewed: 07-11-2026. Dashboards are code: JSON files in git, loaded by Grafana from a read-only mount. Edits made in the Grafana web interface are not saved (`allowUiUpdates: false`, viewers cannot edit) and are lost on restart; every change goes through the files.
+Last reviewed: 06-11-2026. Dashboards are code: JSON files in git, loaded by Grafana from a read-only mount. Edits made in the Grafana web interface are not saved (`allowUiUpdates: false`, viewers cannot edit) and are lost on restart; every change goes through the files.
 
 ## Where things are
 
