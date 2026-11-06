@@ -48,11 +48,11 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 2
+        "h": 5
       },
       "options": {
         "mode": "markdown",
-        "content": "**Data since ${go_live}.** There is no earlier data. All times are UTC."
+        "content": "Pilots: [Live now](/live) · [Traffic](/traffic) · [New pilots](/new-pilots) · [Origins](/origins) · [Records](/pilots) · [Routes](/routes) · [Aircraft](/aircraft) · **Military** | ATC: [Overview](/atc) · [Retention](/atc-retention) · [Hours](/atc-hours) · [Positions](/atc-positions) · [Ranks](/atc-ranks) | Events: [Live events](/live-events) · [Monday events](/monday) | Management: [Monthly](/monthly) · [Health](/health)\n\n**Live data since ${go_live}; earlier history was imported.** Flights from 24-08-2025 to 06-03-2026 and controller sessions from 24-08-2025 to 15-03-2026 come from the previous system (no speed, altitude or SELCAL for imported flights). There are no flights after 06-03-2026 and no controller sessions after 15-03-2026 until ${go_live}. Panels for the last 7 or 30 days and the live tables show current data only. All times are UTC."
       }
     },
     {
@@ -66,7 +66,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 2,
+        "y": 5,
         "w": 12,
         "h": 10
       },
@@ -118,7 +118,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 2,
+        "y": 5,
         "w": 12,
         "h": 10
       },
@@ -153,7 +153,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 15,
         "w": 24,
         "h": 9
       },
@@ -194,7 +194,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 24,
         "w": 24,
         "h": 10
       },
@@ -229,7 +229,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 34,
         "w": 12,
         "h": 10
       },
@@ -264,7 +264,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 31,
+        "y": 34,
         "w": 12,
         "h": 10
       },
@@ -317,7 +317,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 41,
+        "y": 44,
         "w": 24,
         "h": 9
       },
