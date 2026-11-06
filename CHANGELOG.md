@@ -6,6 +6,12 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Look of Live events, Monday events, Monthly and Collector health (07-11-2026, issue 280, batch 3; pull request pending, not yet merged, not deployed)
+
+- **What is new.** Four more pages have the "Pilots: online now" look: plain stat cards (Collector health keeps its green, amber and red limits, now in the fixed colours, with red `#D55E00` added to the checker's palette), tables with in-cell bars where the columns share a scale, a status pill on the month column, time series and the monthly bar chart with a gradient and legend table, and a donut with a legend table. The Departure board, Busiest days tables and Monday airborne chart match their sources.
+- **What did not change.** No panel's query, format, time window or column names (`tests/test_dashboards_sql_unchanged.py`). The copy check still compares query, format and window; two entries in its list of not-yet-restyled sources remain for the ATC overview card and the Pilot origins donut.
+- **Known limits.** The Collector health text wording said orange; it now says amber.
+
 ## Look of Traffic, Routes, Aircraft and Pilots records (07-11-2026, issue 280; pull request pending, not yet merged, not deployed)
 
 - **What is new.** Four more pages have the "Pilots: online now" look: in-cell bars on ranked tables, single-colour horizontal ranked bars with values, time series with a gradient and a legend table, donuts with a legend table, and the two hours-online charts as bar charts instead of the old trend panel. A shared checker (`grafana/look_rules.py`, run by `grafana/validate_dashboards.py`) keeps the look from drifting, and the look conventions are written in [docs/RUNBOOKS/dashboards.md](docs/RUNBOOKS/dashboards.md).

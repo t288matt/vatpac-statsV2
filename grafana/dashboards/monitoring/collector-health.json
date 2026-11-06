@@ -93,8 +93,15 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false,
+        "percentChangeColorMode": "same_as_value",
+        "wideLayout": false,
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -103,18 +110,21 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#1FAF8A",
                 "value": null
               },
               {
-                "color": "orange",
+                "color": "#E69F00",
                 "value": 60
               },
               {
-                "color": "red",
+                "color": "#D55E00",
                 "value": 300
               }
             ]
+          },
+          "color": {
+            "mode": "thresholds"
           }
         },
         "overrides": []
@@ -158,8 +168,15 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false,
+        "percentChangeColorMode": "same_as_value",
+        "wideLayout": false,
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -168,18 +185,21 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#1FAF8A",
                 "value": null
               },
               {
-                "color": "orange",
+                "color": "#E69F00",
                 "value": 60
               },
               {
-                "color": "red",
+                "color": "#D55E00",
                 "value": 300
               }
             ]
+          },
+          "color": {
+            "mode": "thresholds"
           }
         },
         "overrides": []
@@ -223,8 +243,15 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false,
+        "percentChangeColorMode": "same_as_value",
+        "wideLayout": false,
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -233,18 +260,21 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#1FAF8A",
                 "value": null
               },
               {
-                "color": "orange",
+                "color": "#E69F00",
                 "value": 900
               },
               {
-                "color": "red",
+                "color": "#D55E00",
                 "value": 3600
               }
             ]
+          },
+          "color": {
+            "mode": "thresholds"
           }
         },
         "overrides": []
@@ -288,8 +318,15 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false,
+        "percentChangeColorMode": "same_as_value",
+        "wideLayout": false,
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -298,18 +335,21 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#1FAF8A",
                 "value": null
               },
               {
-                "color": "orange",
+                "color": "#E69F00",
                 "value": 3600
               },
               {
-                "color": "red",
+                "color": "#D55E00",
                 "value": 21600
               }
             ]
+          },
+          "color": {
+            "mode": "thresholds"
           }
         },
         "overrides": []
@@ -353,8 +393,15 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false,
+        "percentChangeColorMode": "same_as_value",
+        "wideLayout": false,
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -364,18 +411,21 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#1FAF8A",
                 "value": null
               },
               {
-                "color": "orange",
+                "color": "#E69F00",
                 "value": 1
               },
               {
-                "color": "red",
+                "color": "#D55E00",
                 "value": 5
               }
             ]
+          },
+          "color": {
+            "mode": "thresholds"
           }
         },
         "overrides": []
@@ -417,10 +467,17 @@
           ],
           "fields": ""
         },
-        "colorMode": "value",
+        "colorMode": "none",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false,
+        "percentChangeColorMode": "same_as_value",
+        "wideLayout": false,
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -429,10 +486,14 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "#3AA0DD",
                 "value": null
               }
             ]
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
           }
         },
         "overrides": []
@@ -476,8 +537,15 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false,
+        "percentChangeColorMode": "same_as_value",
+        "wideLayout": false,
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -485,18 +553,21 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#1FAF8A",
                 "value": null
               },
               {
-                "color": "orange",
+                "color": "#E69F00",
                 "value": 1
               },
               {
-                "color": "red",
+                "color": "#D55E00",
                 "value": 20
               }
             ]
+          },
+          "color": {
+            "mode": "thresholds"
           }
         },
         "overrides": []
@@ -506,7 +577,7 @@
       "id": 9,
       "type": "stat",
       "title": "Rejected values (last 24 hours)",
-      "description": "Feed values dropped or cut in the last 24 hours: implausible speeds or altitudes, unreadable numbers, malformed entries and over-long text. Orange at 5,000.",
+      "description": "Feed values dropped or cut in the last 24 hours: implausible speeds or altitudes, unreadable numbers, malformed entries and over-long text. Amber at 5,000.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -540,8 +611,15 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false,
+        "percentChangeColorMode": "same_as_value",
+        "wideLayout": false,
+        "orientation": "auto",
+        "text": {
+          "valueSize": 40
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -549,14 +627,17 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#1FAF8A",
                 "value": null
               },
               {
-                "color": "orange",
+                "color": "#E69F00",
                 "value": 5000
               }
             ]
+          },
+          "color": {
+            "mode": "thresholds"
           }
         },
         "overrides": []
@@ -590,17 +671,90 @@
           "rawSql": "SELECT $__timeGroupAlias(polled_at, $__interval),\n       count(*) FILTER (WHERE status = 'ok') AS \"ok\",\n       count(*) FILTER (WHERE status = 'skipped_unchanged') AS \"skipped_unchanged\",\n       count(*) FILTER (WHERE status = 'error') AS \"error\"\nFROM poll_history\nWHERE $__timeFilter(polled_at)\nGROUP BY 1\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#1FAF8A"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ok"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1FAF8A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "skipped_unchanged"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8A97B2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#D55E00"
+                }
+              }
+            ]
+          }
+        ]
       },
       "interval": "5m"
     },
@@ -632,17 +786,75 @@
           "rawSql": "SELECT $__timeGroupAlias(polled_at, $__interval),\n       sum(pilots_kept) AS \"Pilot rows\",\n       sum(controllers_kept) AS \"Controller rows\"\nFROM poll_history\nWHERE $__timeFilter(polled_at)\n  AND status = 'ok'\nGROUP BY 1\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pilot rows"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Controller rows"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          }
+        ]
       },
       "interval": "5m"
     },
@@ -674,18 +886,76 @@
           "rawSql": "SELECT $__timeGroupAlias(polled_at, $__interval),\n       avg(duration_ms) AS \"Average (ms)\",\n       max(duration_ms) AS \"Maximum (ms)\"\nFROM poll_history\nWHERE $__timeFilter(polled_at)\n  AND duration_ms IS NOT NULL\nGROUP BY 1\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           },
           "unit": "ms"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Average (ms)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Maximum (ms)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          }
+        ]
       },
       "interval": "5m"
     },
@@ -717,9 +987,28 @@
           "rawSql": "SELECT polled_at, http_status, duration_ms, error\nFROM poll_history\nWHERE status = 'error'\nORDER BY polled_at DESC\nLIMIT 20"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       }
     },
@@ -751,9 +1040,28 @@
           "rawSql": "SELECT * FROM data_freshness"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       }
     }
