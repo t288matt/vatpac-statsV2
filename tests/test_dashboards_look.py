@@ -28,5 +28,13 @@ def test_the_rules_catch_a_stray_colour_a_bare_table_and_a_trend_panel() -> None
     assert any("change arrow" in e for e in lr.check_panel("x", no_window))
 
 
+def test_named_and_short_or_alpha_colours_are_caught() -> None:
+    for bad in ("red", "#f00", "#3AA0DD80"):
+        panel = {"type": "stat", "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": bad}}}}
+        assert any("not in the fixed palette" in e for e in lr.check_panel("x", panel)), bad
+    steps = {"type": "stat", "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": None}]}}}}
+    assert any("not in the fixed palette" in e for e in lr.check_panel("x", steps))
+
+
 def test_a_dashboard_that_is_not_restyled_yet_is_not_checked() -> None:
     assert lr.check_dashboard("atc/atc-overview.json", {"panels": [{"type": "trend"}]}) == []

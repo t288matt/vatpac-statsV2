@@ -136,6 +136,13 @@ def test_copied_panels_run_the_same_sql_and_window_as_their_source(path, title, 
     assert mine.get("options") == theirs.get("options") and mine.get("fieldConfig") == theirs.get("fieldConfig")
 
 
+def test_every_restyled_exemption_still_differs_from_its_copy():
+    """Issue 280: an entry in RESTYLED is only allowed while a copy really differs from its source; remove it once they match again."""
+    for src, title in sorted(RESTYLED):
+        differs = [path for path, t, s in COPIES if (s, t) == (src, title)
+                   and any(panel(path, title).get(k) != panel(DASH / src, title).get(k) for k in ("type", "options", "fieldConfig"))]
+        assert differs, f"stale RESTYLED entry: {src}: {title}"
+
 def test_the_whitelist_copied_into_d6_and_f3_is_the_whitelist_file():
     """The whitelist lives in a file, not in the database, so D6 and F3 carry a copy; any drift fails here."""
     want = whitelist()

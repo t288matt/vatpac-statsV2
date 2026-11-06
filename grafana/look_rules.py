@@ -6,7 +6,6 @@ afterwards. The rules are about type, options and field settings. They never loo
 """
 from __future__ import annotations
 
-from collections.abc import Iterator
 from typing import Any
 
 # The fixed colours (colour-blind safe, legible on the dark and the light theme), taken from "Pilots: online now".
@@ -28,19 +27,22 @@ CLASSIC_PALETTE_TYPES = {"piechart"}
 
 
 def _colours(node: Any) -> list[str]:
-    """Every fixed colour (#rrggbb) used anywhere below ``node``."""
-    return [s for s in _strings(node) if len(s) == 7 and s.startswith("#")]
-
-
-def _strings(node: Any) -> Iterator[str]:
+    """Every colour used below ``node``: any string that starts with '#', and any string value of a `fixedColor` or `color` key
+    (so a named colour such as "red", or a short or alpha hex such as "#f00", is found too)."""
+    out: list[str] = []
     if isinstance(node, str):
-        yield node
+        if node.startswith("#"):
+            out.append(node)
     elif isinstance(node, dict):
-        for v in node.values():
-            yield from _strings(v)
+        for key, value in node.items():
+            if key in ("fixedColor", "color") and isinstance(value, str):
+                out.append(value)
+            else:
+                out += _colours(value)
     elif isinstance(node, list):
-        for v in node:
-            yield from _strings(v)
+        for value in node:
+            out += _colours(value)
+    return out
 
 
 def check_panel(label: str, p: dict[str, Any]) -> list[str]:

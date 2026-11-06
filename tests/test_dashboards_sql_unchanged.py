@@ -1,9 +1,10 @@
 """Issue 280: a look change never changes what a panel asks the database.
 
 `tests/fixtures/dashboard_sql_baseline.json` holds, for every panel of every dashboard, a SHA-256 of its queries (`rawSql` and
-`format` of each target) and its `timeFrom`, taken from `main` before the restyle of each dashboard. A restyle (type, options,
-fieldConfig, transformations, layout) leaves these hashes alone. A query change needs the owner's explicit yes for that panel;
-the same pull request then regenerates the baseline for it (`python tests/test_dashboards_sql_unchanged.py --write`) and says so.
+`format` of each target) and its `timeFrom`, `timeShift`, `interval` and `maxDataPoints`, taken from `main` before the restyle of
+each dashboard (panels nested in a collapsed row included). A restyle (type, options, fieldConfig, transformations, layout) leaves these
+hashes alone. A query change needs the owner's explicit yes for that panel; the same pull request then regenerates the
+baseline for it (`python tests/test_dashboards_sql_unchanged.py --write`) and says so.
 """
 from __future__ import annotations
 
@@ -18,14 +19,20 @@ BASELINE = REPO / "tests" / "fixtures" / "dashboard_sql_baseline.json"
 
 
 def digest(panel: dict) -> str:
-    parts = [json.dumps([[t.get("rawSql"), t.get("format")] for t in panel.get("targets", [])]), str(panel.get("timeFrom"))]
+    parts = [json.dumps([[t.get("rawSql"), t.get("format")] for t in panel.get("targets", [])])]
+    parts += [str(panel.get(k)) for k in ("timeFrom", "timeShift", "interval", "maxDataPoints")]
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:16]
+
+
+def walk(panels: list[dict]) -> list[dict]:
+    """Every panel, including those nested in a collapsed row."""
+    return [q for p in panels for q in [p, *walk(p.get("panels", []))]]
 
 
 def current() -> dict[str, dict[str, str]]:
     out: dict[str, dict[str, str]] = {}
     for path in sorted(DASHBOARDS.glob("*/*.json")):
-        panels = json.loads(path.read_text(encoding="utf-8"))["panels"]
+        panels = walk(json.loads(path.read_text(encoding="utf-8"))["panels"])
         out[f"{path.parent.name}/{path.name}"] = {str(p["id"]): digest(p) for p in panels if p.get("targets")}
     return out
 
