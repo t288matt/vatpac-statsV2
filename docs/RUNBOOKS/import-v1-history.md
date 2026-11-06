@@ -1,6 +1,6 @@
 # Runbook: load v1 history into v3 (one-off)
 
-**Status (05-11-2026): built and rehearsed on a throwaway database; NOT loaded into production.** The design is ADR-035 in [../DECISIONS.md](../DECISIONS.md), still PROPOSED; issue 279. Nothing here may be run against production without the owner's explicit go. The load is High tier (it writes data tables and is hard to undo), and the go covers one run.
+**Status (05-11-2026): used.** The load ran on the live database on 05-11-2026 (13:00 UTC; 73,532 flights and 11,270 controller sessions) after a fresh dump and a clean dry run. The design is ADR-035 in [../DECISIONS.md](../DECISIONS.md), accepted; issue 279. This page stays as the runbook for a repeat or a rollback. Nothing here may be run against production without the owner's explicit go. The load is High tier (it writes data tables and is hard to undo), and the go covers one run.
 
 What it does: copies v1's two summary tables into v3, nothing else.
 
