@@ -35,7 +35,7 @@ Only health/metrics endpoints. Dashboards read the database through a read-only 
 
 ## ADR-011 No backfill (07-10-2026)
 Charts start empty at go-live and show "data since <go-live date>".
-Reopened for the two summary tables by ADR-035 (proposed).
+Reopened for the two summary tables by ADR-035 (accepted; loaded 05-11-2026).
 
 ## ADR-012 Watchdog authority (07-10-2026, amended)
 The watchdog alerts and never changes data or config. Container restarts were originally in scope (through a restricted Docker socket proxy), but the owner chose to leave the socket proxy and any Cloudflare configuration out of this repo and to handle them externally later. So: no `docker-socket-proxy` and no `cloudflared` service in the compose file; the watchdog runs alert-only (HTTP health and database checks) unless `DOCKER_HOST_URL` is set to an endpoint provided outside the repo. Crashes are still restarted by Docker's `restart: unless-stopped`; a container that is running but unhealthy is not restarted automatically until that external piece exists.
@@ -192,7 +192,7 @@ Scope: the retention and watchdog keys moved first (issue 21); the collector tun
 Trade-off: changing a policy value needs a pull request and a deploy, not an edit of `.env`; for an emergency the VM uses a git-ignored `docker-compose.override.yml` (it keeps the working tree clean for deploys), removed once the pull request is deployed.
 Amends ADR-026 items 1 and 6 only in where the values live (values unchanged: 180 days, 5 GB).
 
-## ADR-035 Load v1 history from the two v1 summary tables into `flight_summary` and `controller_session` (05-11-2026, issue 279, PROPOSED: owner decisions of 05-11-2026 recorded, design review and the owner's go still to come)
+## ADR-035 Load v1 history from the two v1 summary tables into `flight_summary` and `controller_session` (05-11-2026, issue 279, ACCEPTED and loaded 05-11-2026)
 Context: ADR-011 (no backfill, 07-10-2026) and T22 (08-10-2026) left the dashboards empty before go-live, so retention, cohort, month-on-month and all-time panels are thin. T22 said the decision could be reopened. v1 still holds summaries from 24-08-2025. Read-only profile of v1 on 05-11-2026, for the range chosen below: 73,532 rows in `flight_summaries` (24-08-2025 to 06-03-2026) and 11,270 in `controller_summaries` (24-08-2025 to 15-03-2026); v1 has no summaries for 04-2026 to 06-2026 and almost none for 09-2026.
 Decision (owner, 05-11-2026):
 1. Reopen ADR-011 for these two tables only. Source: v1 `flight_summaries` and `controller_summaries`. Target: `flight_summary` and `controller_session`. No raw positions are read (raw positions are temporary data; the summary is the record). `pilot_session`, `pilot_position` and the event tables get no rows.
@@ -211,4 +211,5 @@ Known limits, controllers (same checks): end times are cleaner. 91.3% of the 11,
 Gap in the panels (owner, 05-11-2026): no panel is changed. The gap from 15-03-2026 to 07-10-2026 shows as zero data. Panels with no time axis (lapsed 90+ days, reactivated after 60+ days, retention rate) will count the gap as behaviour; this is accepted.
 Method (to be confirmed at design review): a one-off, re-runnable script in `ops/`, not a migration; staging tables, then one transaction of `INSERT ... ON CONFLICT DO NOTHING` (the controller key is `(cid, callsign, logon_time)`; flights are keyed by the negative id); rehearsed on a throwaway database with synthetic rows, never on a copy of production; Behaviour preserved section; a fresh dump before the load; the owner's explicit go for the load (one go).
 Risk tier: High (writes to production data tables).
-Supersedes ADR-011 and T22 for this scope once the owner accepts it. Status PROPOSED until the independent design review is back and the owner confirms.
+Supersedes ADR-011 and T22 for this scope once the owner accepts it. Status was PROPOSED until the independent design review was back and the owner confirmed.
+Status update 05-11-2026: ACCEPTED by the owner's decision to load. After a fresh dump and a clean dry run (0 rejects), `ops/v1_import/load.sh --expect-db vatpac --apply` committed 73,532 flights and 11,270 controller sessions into the live database between 13:00:03 and 13:00:12 UTC; the live rows were untouched. The limits above stand.
