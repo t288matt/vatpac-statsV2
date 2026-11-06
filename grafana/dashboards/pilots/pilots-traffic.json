@@ -48,11 +48,11 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 2
+        "h": 4
       },
       "options": {
         "mode": "markdown",
-        "content": "**Data since ${go_live}.** There is no earlier data. All times are UTC."
+        "content": "Pilots: [Live now](/live) · **Traffic** · [New pilots](/new-pilots) · [Origins](/origins) · [Records](/pilots) · [Routes](/routes) · [Aircraft](/aircraft) · [Military](/military) | ATC: [Overview](/atc) · [Retention](/atc-retention) · [Hours](/atc-hours) · [Positions](/atc-positions) · [Ranks](/atc-ranks) | Events: [Live events](/live-events) · [Monday events](/monday) | Management: [Monthly](/monthly) · [Health](/health)\n\n**Live data since ${go_live}; earlier history was imported.** Flight and controller summaries from 24-08-2025 to 15-03-2026 were imported from the previous system (imported flights have no speed, altitude or SELCAL). There is no data from 15-03-2026 to ${go_live}. Panels for the last 7 or 30 days, and the live tables, show current data only. All times are UTC."
       }
     },
     {
@@ -66,7 +66,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 2,
+        "y": 4,
         "w": 12,
         "h": 9
       },
@@ -100,7 +100,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 2,
+        "y": 4,
         "w": 12,
         "h": 9
       },
@@ -134,7 +134,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 11,
+        "y": 13,
         "w": 12,
         "h": 9
       },
@@ -168,7 +168,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 11,
+        "y": 13,
         "w": 12,
         "h": 9
       },
@@ -203,7 +203,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 20,
+        "y": 22,
         "w": 12,
         "h": 9
       },
@@ -245,7 +245,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 20,
+        "y": 22,
         "w": 12,
         "h": 9
       },
@@ -279,7 +279,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 29,
+        "y": 31,
         "w": 12,
         "h": 9
       },
@@ -320,7 +320,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 29,
+        "y": 31,
         "w": 12,
         "h": 9
       },
@@ -354,7 +354,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 38,
+        "y": 40,
         "w": 12,
         "h": 10
       },
@@ -407,7 +407,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 38,
+        "y": 40,
         "w": 12,
         "h": 10
       },
@@ -460,7 +460,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 50,
         "w": 24,
         "h": 10
       },
@@ -495,7 +495,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 58,
+        "y": 60,
         "w": 12,
         "h": 7
       },
@@ -530,7 +530,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 58,
+        "y": 60,
         "w": 12,
         "h": 7
       },
@@ -565,7 +565,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 65,
+        "y": 67,
         "w": 8,
         "h": 5
       },
@@ -623,7 +623,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 70,
+        "y": 72,
         "w": 12,
         "h": 10
       },

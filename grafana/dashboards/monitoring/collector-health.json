@@ -48,11 +48,11 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 2
+        "h": 4
       },
       "options": {
         "mode": "markdown",
-        "content": "**Data since ${go_live}.** There is no earlier data. All times are UTC."
+        "content": "Pilots: [Live now](/live) · [Traffic](/traffic) · [New pilots](/new-pilots) · [Origins](/origins) · [Records](/pilots) · [Routes](/routes) · [Aircraft](/aircraft) · [Military](/military) | ATC: [Overview](/atc) · [Retention](/atc-retention) · [Hours](/atc-hours) · [Positions](/atc-positions) · [Ranks](/atc-ranks) | Events: [Live events](/live-events) · [Monday events](/monday) | Management: [Monthly](/monthly) · **Health**\n\n**Data since ${go_live}.** This page measures the current collector only; imported history is not part of it. All times are UTC."
       }
     },
     {
@@ -66,7 +66,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 2,
+        "y": 4,
         "w": 4,
         "h": 4
       },
@@ -131,7 +131,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 2,
+        "y": 4,
         "w": 4,
         "h": 4
       },
@@ -196,7 +196,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 2,
+        "y": 4,
         "w": 4,
         "h": 4
       },
@@ -261,7 +261,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 2,
+        "y": 4,
         "w": 4,
         "h": 4
       },
@@ -326,7 +326,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 2,
+        "y": 4,
         "w": 4,
         "h": 4
       },
@@ -392,7 +392,7 @@
       },
       "gridPos": {
         "x": 20,
-        "y": 2,
+        "y": 4,
         "w": 4,
         "h": 4
       },
@@ -449,7 +449,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 6,
+        "y": 8,
         "w": 4,
         "h": 4
       },
@@ -513,7 +513,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 6,
+        "y": 8,
         "w": 4,
         "h": 4
       },
@@ -573,7 +573,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 16,
         "w": 12,
         "h": 8
       },
@@ -615,7 +615,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 14,
+        "y": 16,
         "w": 12,
         "h": 8
       },
@@ -657,7 +657,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 22,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -700,7 +700,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 22,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -734,7 +734,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 32,
         "w": 24,
         "h": 6
       },

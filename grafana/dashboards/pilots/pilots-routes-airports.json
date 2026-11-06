@@ -47,11 +47,11 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 3
+        "h": 5
       },
       "options": {
         "mode": "markdown",
-        "content": "**Data since ${go_live}.** There is no earlier data, so early periods look thin. All times are UTC. A flight is counted once it has finished (about 8 hours after the pilot's last position; a reconnect within 2 hours on the same flight is one flight). Each panel has a fixed period and a fixed number of rows, stated in its title and description; the page has no inputs. Airports means home-region airports (code starting with Y by default)."
+        "content": "Pilots: [Live now](/live) · [Traffic](/traffic) · [New pilots](/new-pilots) · [Origins](/origins) · [Records](/pilots) · **Routes** · [Aircraft](/aircraft) · [Military](/military) | ATC: [Overview](/atc) · [Retention](/atc-retention) · [Hours](/atc-hours) · [Positions](/atc-positions) · [Ranks](/atc-ranks) | Events: [Live events](/live-events) · [Monday events](/monday) | Management: [Monthly](/monthly) · [Health](/health)\n\n**Live data since ${go_live}; earlier history was imported.** Flight and controller summaries from 24-08-2025 to 15-03-2026 were imported from the previous system (imported flights have no speed, altitude or SELCAL). There is no data from 15-03-2026 to ${go_live}. Panels for the last 7 or 30 days, and the live tables, show current data only. All times are UTC. A flight is counted once it has finished (about 8 hours after the pilot's last position; a reconnect within 2 hours on the same flight is one flight). Each panel has a fixed period and a fixed number of rows, stated in its title and description; the page has no inputs. Airports means home-region airports (code starting with Y by default)."
       },
       "id": 1
     },
@@ -66,7 +66,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 3,
+        "y": 5,
         "w": 12,
         "h": 9
       },
@@ -100,7 +100,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 3,
+        "y": 5,
         "w": 12,
         "h": 9
       },
@@ -134,7 +134,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 14,
         "w": 12,
         "h": 9
       },
@@ -168,7 +168,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 12,
+        "y": 14,
         "w": 12,
         "h": 9
       },
@@ -209,7 +209,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 23,
         "w": 12,
         "h": 9
       },
@@ -243,7 +243,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 21,
+        "y": 23,
         "w": 12,
         "h": 9
       },
@@ -277,7 +277,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 32,
         "w": 12,
         "h": 9
       },
@@ -311,7 +311,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 30,
+        "y": 32,
         "w": 12,
         "h": 9
       },
@@ -345,7 +345,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 39,
+        "y": 41,
         "w": 24,
         "h": 9
       },
@@ -380,7 +380,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 50,
         "w": 8,
         "h": 10
       },
@@ -432,7 +432,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 48,
+        "y": 50,
         "w": 8,
         "h": 10
       },
@@ -484,7 +484,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 48,
+        "y": 50,
         "w": 8,
         "h": 10
       },
