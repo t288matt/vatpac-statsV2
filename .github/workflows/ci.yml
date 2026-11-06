@@ -3,8 +3,10 @@ name: ci
 on:
   push:
     branches: [main, dev]
-    # Skip runs for changes that only touch prose. Order matters: a later pattern overrides an earlier one, so the
-    # docs that tests read (and everything else outside docs/) still run CI. docs-secret-scan.yml still scans prose.
+    # A push always runs the FULL suite (the scope job below never narrows a push), so the main CI that release.yml and
+    # ci-failure-issue read keeps its meaning (issue 290). Pushes that only touch prose skip this workflow, as before: order
+    # matters, a later pattern overrides an earlier one, so the docs that tests read (and everything outside docs/) still run CI.
+    # docs-secret-scan.yml still scans those prose pushes.
     paths:
       - '**'
       - '!*.md'
@@ -15,17 +17,8 @@ on:
       - 'docs/DATA_DICTIONARY.md'
       - 'docs/DEFINITIONS.md'
   pull_request:
-    # Skip runs for changes that only touch prose. Order matters: a later pattern overrides an earlier one, so the
-    # docs that tests read (and everything else outside docs/) still run CI. docs-secret-scan.yml still scans prose.
-    paths:
-      - '**'
-      - '!*.md'
-      - '!docs/**'
-      - 'docs/RUNBOOKS/**'
-      - 'docs/reference/**'
-      - 'docs/CHART_DEFINITIONS.md'
-      - 'docs/DATA_DICTIONARY.md'
-      - 'docs/DEFINITIONS.md'
+    # No path filter (issue 290). The scope job classifies the changed paths (ops/ci_scope.py) and ci-result always reports, so
+    # a required check never waits on a workflow that did not start. A prose-only pull request runs the secret scan only.
   workflow_call:  # reusable; release.yml no longer calls it (it checks the commit's main CI run instead, issue 173)
 
 permissions:
@@ -40,7 +33,34 @@ env:
   MYPY_VERSION: "1.14.1"
 
 jobs:
+  # How much of the suite this run needs: docs, dashboards or full (ops/ci_scope.py; rules and tests in tests/test_ci_scope.py).
+  # Only a pull request can be narrowed, and only by an exact classification. A push, a failed diff, an unknown path, a mix, or
+  # a change to .github/ or the script itself is full.
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Classify the changed paths
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          scope=full
+          if [ "$EVENT" = pull_request ] && git fetch --no-tags --depth=1 origin "$BASE_SHA" \
+             && git diff -z --name-status -M "$BASE_SHA" HEAD > "$RUNNER_TEMP/changes.z"; then
+            scope="$(python3 ops/ci_scope.py < "$RUNNER_TEMP/changes.z")" || scope=full
+            echo "Changed paths:"; tr '\0' '\n' < "$RUNNER_TEMP/changes.z" | sed 's/^/  /'
+          fi
+          case "$scope" in docs|dashboards|full) ;; *) scope=full ;; esac
+          echo "scope=$scope" >> "$GITHUB_OUTPUT"
+          echo "CI scope: $scope (event: $EVENT)" | tee -a "$GITHUB_STEP_SUMMARY"
+
   lint:
+    needs: scope
+    if: needs.scope.outputs.scope == 'full'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,13 +86,15 @@ jobs:
         run: >
           mypy --strict --ignore-missing-imports
           ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py
-          ops/check_panels.py ops/grafana_public.py ops/grafana_api.py ops/env_file.py
+          ops/check_panels.py ops/grafana_public.py ops/grafana_api.py ops/env_file.py ops/ci_scope.py
       - name: shell syntax (ops scripts)
         run: |
           for f in ops/*.sh ops/migrate/*.sh; do [ "$f" = ops/deploy.sh ] || [ "$f" = ops/stale_issues.sh ] || sh -n "$f"; done
           for f in ops/backup/*.sh ops/deploy.sh ops/stale_issues.sh; do bash -n "$f"; done
 
   unit-tests:
+    needs: scope
+    if: needs.scope.outputs.scope != 'docs'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,11 +109,24 @@ jobs:
           if [ -f collector/requirements-dev.txt ]; then pip install -r collector/requirements-dev.txt; fi
           pip install pytest pyyaml==6.0.2
       - name: pytest (unit; integration tests need Postgres and are marked)
+        if: needs.scope.outputs.scope == 'full'
         env:
           PYTHONPATH: collector/src
         run: pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv
+      # Dashboards scope: the same command on the dashboard test files only (the list lives in ops/ci_scope.py, and
+      # tests/test_ci_scope.py fails if a test that reads the dashboards is missing from it). Nothing is deselected.
+      - name: pytest (unit, dashboards scope)
+        if: needs.scope.outputs.scope == 'dashboards'
+        env:
+          PYTHONPATH: collector/src
+        run: |
+          read -r -a targets <<< "$(python ops/ci_scope.py tests unit)"
+          [ "${#targets[@]}" -gt 0 ]   # an empty list would run more than intended; stop instead
+          pytest -q -m "not integration" "${targets[@]}"
 
   integration-tests:
+    needs: scope
+    if: needs.scope.outputs.scope != 'docs'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -144,6 +179,7 @@ jobs:
       # VATPAC_TEST_STRICT=1: a missing database or ANY skipped test fails the run (tests/integration/conftest.py), so a
       # green result cannot hide tests that did not run.
       - name: pytest (integration)
+        if: needs.scope.outputs.scope == 'full'
         env:
           PYTHONPATH: collector/src
           VATPAC_TEST_STRICT: "1"
@@ -154,6 +190,7 @@ jobs:
       # (production is UTC and grafana_ro is pinned to UTC, so only the tests' own connection moves). This is what
       # catches SQL that stopped converting to UTC (issue #51, mutants U03, U05, U07 in the test audit). It adds about a minute.
       - name: pytest (integration, session time zone Australia/Sydney)
+        if: needs.scope.outputs.scope == 'full'
         env:
           PYTHONPATH: collector/src
           VATPAC_TEST_STRICT: "1"
@@ -161,8 +198,35 @@ jobs:
           VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test?options=-c%20TimeZone%3DAustralia/Sydney
           VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
         run: pytest tests/integration -m integration -q
+      # Dashboards scope: the integration tests that run dashboard SQL against the views, on the same database, built the same
+      # way, in strict mode and in both time zone passes. Collector, migration and role tests are not run here.
+      - name: pytest (integration, dashboards scope)
+        if: needs.scope.outputs.scope == 'dashboards'
+        env:
+          PYTHONPATH: collector/src
+          VATPAC_TEST_STRICT: "1"
+          VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test
+          VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
+        run: |
+          read -r -a targets <<< "$(python ops/ci_scope.py tests integration)"
+          [ "${#targets[@]}" -gt 0 ]   # an empty list would run more than intended; stop instead
+          pytest "${targets[@]}" -m integration -q
+      - name: pytest (integration, dashboards scope, session time zone Australia/Sydney)
+        if: needs.scope.outputs.scope == 'dashboards'
+        env:
+          PYTHONPATH: collector/src
+          VATPAC_TEST_STRICT: "1"
+          VATPAC_TEST_EXPECT_TZ: Australia/Sydney
+          VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test?options=-c%20TimeZone%3DAustralia/Sydney
+          VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
+        run: |
+          read -r -a targets <<< "$(python ops/ci_scope.py tests integration)"
+          [ "${#targets[@]}" -gt 0 ]   # an empty list would run more than intended; stop instead
+          pytest "${targets[@]}" -m integration -q
 
   config-drift:
+    needs: scope
+    if: needs.scope.outputs.scope != 'docs'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -174,6 +238,8 @@ jobs:
         run: python ops/check_config_drift.py
 
   dashboards:
+    needs: scope
+    if: needs.scope.outputs.scope != 'docs'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -184,6 +250,8 @@ jobs:
       - run: python ops/dashboard_nav.py --check
 
   compose-config:
+    needs: scope
+    if: needs.scope.outputs.scope == 'full'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -215,6 +283,8 @@ jobs:
           fi
 
   size-budget:
+    needs: scope
+    if: needs.scope.outputs.scope != 'docs'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -238,7 +308,8 @@ jobs:
 
   image-build:
     runs-on: ubuntu-latest
-    needs: [compose-config]
+    needs: [scope, compose-config]
+    if: needs.scope.outputs.scope == 'full'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -246,3 +317,17 @@ jobs:
         run: |
           sh ops/gen_env.sh "$RUNNER_TEMP/ci.env"
           docker compose --env-file "$RUNNER_TEMP/ci.env" build
+
+  # The one check to require in branch protection. It always runs (even when a job above failed, was cancelled or was skipped),
+  # and it fails unless every job the scope needs succeeded; a job may be skipped only when the scope says it is not needed
+  # (ops/ci_scope.py verify, tested in tests/test_ci_scope.py). A skipped job is never read as a pass.
+  ci-result:
+    needs: [scope, lint, unit-tests, integration-tests, config-drift, dashboards, compose-config, size-budget, secret-scan, image-build]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Every job the scope needs must have succeeded
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 ops/ci_scope.py verify

@@ -143,7 +143,7 @@ Until 14-10-2026 the production VM was deployed by copying the tree with `git ar
 
 ## 8. Size and quality gates
 
-The collector package has a hard size budget of 1800 physical lines with no module over 300 (ADR-014, ADR-022), checked in CI by `ops/check_size_budget.py`. CI also runs ruff, mypy, the unit tests, the integration tests against a Postgres service, the config-drift and dashboard checks, `docker compose config`, image builds, a fixture PII check and a secret scan (`.github/workflows/ci.yml`).
+The collector package has a hard size budget of 1800 physical lines with no module over 300 (ADR-014, ADR-022), checked in CI by `ops/check_size_budget.py`. CI also runs ruff, mypy, the unit tests, the integration tests against a Postgres service, the config-drift and dashboard checks, `docker compose config`, image builds, a fixture PII check and a secret scan (`.github/workflows/ci.yml`). A pull request that changes only dashboard JSON runs a lighter set, and one that changes only prose runs the secret scan only; everything else, and every push to `main`, runs the full suite ([run-tests.md](RUNBOOKS/run-tests.md) section 1c).
 
 ## 9. Related documents
 
