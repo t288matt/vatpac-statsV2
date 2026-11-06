@@ -48,11 +48,11 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 3
+        "h": 5
       },
       "options": {
         "mode": "markdown",
-        "content": "**Data since ${go_live}.** There is no earlier data. All times are UTC. **Rank here is the controller's CURRENT rank**, the latest rating seen for each CID, so every controller counts once. The older ATC panels use the rank held at the time of each session, so totals on this page will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (rating 8 and above). Left out: observers, C2 (not in use) and unknown ratings. Hours are merged-session time with no minimum session length, for the last 30 days."
+        "content": "Pilots: [Live now](/live) · [Traffic](/traffic) · [New pilots](/new-pilots) · [Origins](/origins) · [Records](/pilots) · [Routes](/routes) · [Aircraft](/aircraft) · [Military](/military) | ATC: [Overview](/atc) · [Retention](/atc-retention) · [Hours](/atc-hours) · [Positions](/atc-positions) · **Ranks** | Events: [Live events](/live-events) · [Monday events](/monday) | Management: [Monthly](/monthly) · [Health](/health)\n\n**Live data since ${go_live}; earlier history was imported.** Flight and controller summaries from 24-08-2025 to 15-03-2026 were imported from the previous system (imported flights have no speed, altitude or SELCAL). There is no data from 15-03-2026 to ${go_live}. Panels for the last 7 or 30 days, and the live tables, show current data only. All times are UTC. **Rank here is the controller's CURRENT rank**, the latest rating seen for each CID, so every controller counts once. The older ATC panels use the rank held at the time of each session, so totals on this page will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (rating 8 and above). Left out: observers, C2 (not in use) and unknown ratings. Hours are merged-session time with no minimum session length, for the last 30 days."
       }
     },
     {
@@ -66,7 +66,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 3,
+        "y": 5,
         "w": 12,
         "h": 9
       },
@@ -106,7 +106,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 3,
+        "y": 5,
         "w": 12,
         "h": 9
       },
@@ -166,7 +166,7 @@
       "id": 4,
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 14,
         "w": 12,
         "h": 9
       }
@@ -200,7 +200,7 @@
       "id": 5,
       "gridPos": {
         "x": 12,
-        "y": 12,
+        "y": 14,
         "w": 12,
         "h": 9
       }
@@ -234,7 +234,7 @@
       "id": 6,
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 23,
         "w": 12,
         "h": 9
       }
@@ -268,7 +268,7 @@
       "id": 7,
       "gridPos": {
         "x": 12,
-        "y": 21,
+        "y": 23,
         "w": 12,
         "h": 9
       }
@@ -302,7 +302,7 @@
       "id": 8,
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 32,
         "w": 12,
         "h": 12
       }
@@ -336,7 +336,7 @@
       "id": 9,
       "gridPos": {
         "x": 12,
-        "y": 30,
+        "y": 32,
         "w": 12,
         "h": 12
       }
@@ -370,7 +370,7 @@
       "id": 10,
       "gridPos": {
         "x": 0,
-        "y": 42,
+        "y": 44,
         "w": 24,
         "h": 9
       }
@@ -436,7 +436,7 @@
       "id": 11,
       "gridPos": {
         "x": 0,
-        "y": 51,
+        "y": 53,
         "w": 8,
         "h": 14
       }
@@ -502,7 +502,7 @@
       "id": 12,
       "gridPos": {
         "x": 8,
-        "y": 51,
+        "y": 53,
         "w": 8,
         "h": 14
       }
@@ -568,7 +568,7 @@
       "id": 13,
       "gridPos": {
         "x": 16,
-        "y": 51,
+        "y": 53,
         "w": 8,
         "h": 14
       }
@@ -634,7 +634,7 @@
       "id": 14,
       "gridPos": {
         "x": 0,
-        "y": 65,
+        "y": 67,
         "w": 8,
         "h": 14
       }
@@ -700,7 +700,7 @@
       "id": 15,
       "gridPos": {
         "x": 8,
-        "y": 65,
+        "y": 67,
         "w": 8,
         "h": 14
       }
@@ -766,7 +766,7 @@
       "id": 16,
       "gridPos": {
         "x": 16,
-        "y": 65,
+        "y": 67,
         "w": 8,
         "h": 14
       }
@@ -800,7 +800,7 @@
       "id": 17,
       "gridPos": {
         "x": 0,
-        "y": 79,
+        "y": 81,
         "w": 24,
         "h": 9
       }

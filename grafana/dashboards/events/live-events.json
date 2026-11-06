@@ -50,11 +50,11 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 3
+        "h": 5
       },
       "options": {
         "mode": "markdown",
-        "content": "**Data since ${go_live}.** There is no earlier data. All times are UTC. The live panels (online now, who is controlling, the departure board) show the latest snapshot and refresh every minute; the event panels cover the Monday event window, 0700-1200Z. Panels without a period of their own use the page's fixed 180 days; the page has no inputs."
+        "content": "Pilots: [Live now](/live) · [Traffic](/traffic) · [New pilots](/new-pilots) · [Origins](/origins) · [Records](/pilots) · [Routes](/routes) · [Aircraft](/aircraft) · [Military](/military) | ATC: [Overview](/atc) · [Retention](/atc-retention) · [Hours](/atc-hours) · [Positions](/atc-positions) · [Ranks](/atc-ranks) | Events: **Live events** · [Monday events](/monday) | Management: [Monthly](/monthly) · [Health](/health)\n\n**Live data since ${go_live}; earlier history was imported.** Flight and controller summaries from 24-08-2025 to 15-03-2026 were imported from the previous system (imported flights have no speed, altitude or SELCAL). There is no data from 15-03-2026 to ${go_live}. Panels for the last 7 or 30 days, and the live tables, show current data only. All times are UTC. The live panels (online now, who is controlling, the departure board) show the latest snapshot and refresh every minute; the event panels cover the Monday event window, 0700-1200Z. Panels without a period of their own use the page's fixed 180 days; the page has no inputs."
       }
     },
     {
@@ -68,7 +68,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 3,
+        "y": 5,
         "w": 6,
         "h": 4
       },
@@ -125,7 +125,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 3,
+        "y": 5,
         "w": 6,
         "h": 4
       },
@@ -200,7 +200,7 @@
       "id": 4,
       "gridPos": {
         "x": 12,
-        "y": 3,
+        "y": 5,
         "w": 12,
         "h": 8
       }
@@ -234,7 +234,7 @@
       "id": 5,
       "gridPos": {
         "x": 0,
-        "y": 7,
+        "y": 9,
         "w": 12,
         "h": 8
       }
@@ -268,7 +268,7 @@
       "id": 6,
       "gridPos": {
         "x": 12,
-        "y": 11,
+        "y": 13,
         "w": 12,
         "h": 10
       }
@@ -284,7 +284,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 17,
         "w": 12,
         "h": 10
       },
@@ -318,7 +318,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 27,
         "w": 12,
         "h": 9
       },
@@ -370,7 +370,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 21,
+        "y": 23,
         "w": 12,
         "h": 9
       },
@@ -404,7 +404,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 36,
         "w": 12,
         "h": 9
       },
@@ -438,7 +438,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 30,
+        "y": 32,
         "w": 12,
         "h": 9
       },
@@ -479,7 +479,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 43,
+        "y": 45,
         "w": 12,
         "h": 9
       },
@@ -514,7 +514,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 39,
+        "y": 41,
         "w": 12,
         "h": 9
       },
@@ -568,7 +568,7 @@
       "id": 14,
       "gridPos": {
         "x": 12,
-        "y": 48,
+        "y": 50,
         "w": 12,
         "h": 9
       }
