@@ -165,13 +165,7 @@
         "graphMode": "none",
         "textMode": "value",
         "justifyMode": "auto",
-        "showPercentChange": false,
-        "percentChangeColorMode": "same_as_value",
-        "wideLayout": false,
-        "orientation": "auto",
-        "text": {
-          "valueSize": 40
-        }
+        "showPercentChange": false
       },
       "fieldConfig": {
         "defaults": {
@@ -180,14 +174,14 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "#1FAF8A",
+                "color": "#3AA0DD",
                 "value": null
               }
             ]
           },
           "color": {
             "mode": "fixed",
-            "fixedColor": "#1FAF8A"
+            "fixedColor": "#3AA0DD"
           }
         },
         "overrides": []
