@@ -6,7 +6,12 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
-## Look of Traffic, Routes, Aircraft and Pilots records (07-11-2026, issue 280; pull request pending, not yet merged, not deployed)
+## Look of the five ATC pages (06-11-2026, issue 280, batch 2; pull request pending, not yet merged, not deployed)
+
+- **What is new.** ATC overview, positions, hours by rank, position hours and retention have the "Pilots: online now" look: in-cell bars on ranked tables, single-colour horizontal ranked bars with values, time series with a gradient and a legend table, a donut with a legend table, plain stat cards (no sparkline or arrow), a blue heat table for the hours-by-weekday tables, status pills on the lapse and risk columns, and the two hours-online charts as bar charts instead of the old trend panel. The retention gauge is one fixed blue. The retention gauge no longer overlaps the cohort table (layout only).
+- **What did not change.** No panel's query, format, time window or column names; the baseline test passes unchanged.
+
+## Look of Traffic, Routes, Aircraft and Pilots records (06-11-2026, issue 280; pull request pending, not yet merged, not deployed)
 
 - **What is new.** Four more pages have the "Pilots: online now" look: in-cell bars on ranked tables, single-colour horizontal ranked bars with values, time series with a gradient and a legend table, donuts with a legend table, and the two hours-online charts as bar charts instead of the old trend panel. A shared checker (`grafana/look_rules.py`, run by `grafana/validate_dashboards.py`) keeps the look from drifting, and the look conventions are written in [docs/RUNBOOKS/dashboards.md](docs/RUNBOOKS/dashboards.md).
 - **What did not change.** No panel's query, format, time window or column names. `tests/test_dashboards_sql_unchanged.py` compares every panel on every dashboard with a baseline taken before the change. The other pages (ATC, events, monthly, health, origins, military, new pilots) are restyled in later batches.
