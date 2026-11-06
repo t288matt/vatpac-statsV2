@@ -37,4 +37,4 @@ def test_named_and_short_or_alpha_colours_are_caught() -> None:
 
 
 def test_a_dashboard_that_is_not_restyled_yet_is_not_checked() -> None:
-    assert lr.check_dashboard("atc/atc-overview.json", {"panels": [{"type": "trend"}]}) == []
+    assert lr.check_dashboard("not-in-the-set/example.json", {"panels": [{"type": "trend"}]}) == []

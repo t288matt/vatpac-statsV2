@@ -85,14 +85,36 @@
       ],
       "options": {
         "xField": "controller",
-        "xTickLabelRotation": -45,
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
         "overrides": []
       }
     },
@@ -117,10 +139,57 @@
           "rawSql": "WITH sec AS (\n  SELECT callsign, cid, greatest(extract(epoch FROM least(session_end, now()) - greatest(session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked\n  WHERE session_end >= now() - interval '30 days' AND session_start <= now()\n)\nSELECT callsign AS \"Position\", round(sum(secs) / 3600.0, 1) AS \"Hours staffed\"\nFROM sec\nGROUP BY callsign\nHAVING sum(secs) > 0\nORDER BY sum(secs) DESC, callsign\nLIMIT 15"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hours staffed"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "id": 3,
       "gridPos": {
@@ -151,10 +220,57 @@
           "rawSql": "SELECT callsign AS \"Position\", count(*) AS \"Sessions\"\nFROM controller_session_ranked\nWHERE session_start >= now() - interval '30 days' AND session_start <= now()\nGROUP BY callsign\nORDER BY count(*) DESC, callsign\nLIMIT 15"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sessions"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "id": 4,
       "gridPos": {
@@ -185,10 +301,57 @@
           "rawSql": "SELECT callsign AS \"Position\", count(DISTINCT cid) AS \"Different controllers\"\nFROM controller_session_ranked\nWHERE session_start >= now() - interval '30 days' AND session_start <= now()\nGROUP BY callsign\nORDER BY count(DISTINCT cid) DESC, callsign\nLIMIT 15"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Different controllers"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "id": 5,
       "gridPos": {
@@ -219,10 +382,57 @@
           "rawSql": "WITH sec AS (\n  SELECT callsign, cid, greatest(extract(epoch FROM least(session_end, now()) - greatest(session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked\n  WHERE session_end >= now() - interval '30 days' AND session_start <= now()\n)\nSELECT substring(callsign FROM '^[^_-]+') AS \"Airport (callsign prefix)\", round(sum(secs) / 3600.0, 1) AS \"Position-hours\"\nFROM sec\nWHERE callsign ~ '_(TWR|APP|DEP|GND|DEL)$'\nGROUP BY 1\nHAVING sum(secs) > 0\nORDER BY sum(secs) DESC, 1\nLIMIT 15"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Position-hours"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "id": 6,
       "gridPos": {
@@ -253,9 +463,28 @@
           "rawSql": "WITH wl(callsign) AS (\n  SELECT unnest(string_to_array('AD-W_APP,AD_APP,AD_DEL,AD_FMP,AD_GND,AD_TWR,AF-N_TWR,AF_GND,AF_TWR,AMB_APP,AMB_DEL,AMB_GND,AMB_TWR,AS_TWR,AV_APP,AV_GND,AV_TWR,AYGA_TWR,AYMD_TWR,AYMH_TWR,AYNZ_APP,AYNZ_TWR,AYPY_APP,AYPY_GND,AYPY_TWR,AYTK_TWR,AY_GND,AY_TWR,BK-C_TWR,BK_GND,BK_TWR,BN-ARA_CTR,BN-ARL_CTR,BN-ASH_CTR,BN-BAR_CTR,BN-BUR_CTR,BN-CNK_CTR,BN-COL_FSS,BN-CVN_CTR,BN-C_APP,BN-DOS_CTR,BN-FLD_FSS,BN-F_APP,BN-GOL_CTR,BN-HWE_CTR,BN-INL_CTR,BN-ISA_CTR,BN-KEN_CTR,BN-KIY_CTR,BN-KPL_CTR,BN-MDE_CTR,BN-MLD_CTR,BN-MNN_CTR,BN-NSA_CTR,BN-N_GND,BN-OCN_CTR,BN-SDY_CTR,BN-STR_CTR,BN-SWY_CTR,BN-S_APP,BN-S_DEP,BN-S_GND,BN-TBP_CTR,BN-TRS_CTR,BN-TRT_CTR,BN-TSN_FSS,BN-WEG_CTR,BN-WIL_CTR,BN-W_TWR,BN_APP,BN_DEL,BN_DEP,BN_FMP,BN_GND,BN_TWR,BRM_GND,BRM_TWR,CB-W_APP,CB_APP,CB_FMP,CB_GND,CB_TWR,CFS_TWR,CG_DEL,CG_GND,CG_TWR,CIN_APP,CIN_DEL,CIN_GND,CIN_TWR,CN_GND,CN_TWR,CS-W_APP,CS_APP,CS_DEL,CS_FMP,CS_GND,CS_TWR,DN-W_APP,DN_APP,DN_DEL,DN_GND,DN_TWR,ED_GND,ED_TWR,EN_GND,EN_TWR,ES_APP,ES_DEL,ES_GND,ES_TWR,GIG_GND,GIG_TWR,HB_APP,HB_GND,HB_TWR,HM_TWR,JT-C_TWR,JT_GND,JT_TWR,KA_GND,KA_TWR,LM_APP,LM_GND,LM_TWR,LT_APP,LT_TWR,MB-W_TWR,MB_GND,MB_TWR,MK_APP,MK_GND,MK_TWR,ML-ASP_CTR,ML-ASW_CTR,ML-AUG_CTR,ML-BIK_CTR,ML-BKE_CTR,ML-BLA_CTR,ML-CRS_CTR,ML-ELW_CTR,ML-ESP_CTR,ML-FOR_CTR,ML-GEL_CTR,ML-GTH_CTR,ML-GUN_CTR,ML-GVE_CTR,ML-HUO_CTR,ML-HYD_CTR,ML-IND_FSS,ML-INE_FSS,ML-INS_FSS,ML-JAR_CTR,ML-KAT_CTR,ML-LEA_CTR,ML-MEK_CTR,ML-MTK_CTR,ML-MUN_CTR,ML-MZI_CTR,ML-NEW_CTR,ML-OLW_CTR,ML-OXL_CTR,ML-PAR_CTR,ML-PIY_CTR,ML-POT_CTR,ML-SNO_CTR,ML-S_DEP,ML-TBD_CTR,ML-WAR_CTR,ML-WOL_CTR,ML-WON_CTR,ML-WRA_CTR,ML-YWE_CTR,ML_APP,ML_DEL,ML_DEP,ML_FMP,ML_GND,ML_TWR,NFFN_APP,NFFN_TWR,NFNA_APP,NFNA_TWR,NVVV_TWR,NWWL_TWR,NWWM_TWR,NWWW_APP,NWWW_TWR,NW_APP,NW_DEL,NW_GND,NW_TWR,OK_APP,OK_DEL,OK_GND,OK_TWR,PE_APP,PE_DEL,PE_GND,PE_TWR,PF-W_TWR,PF_GND,PF_TWR,PH-E_GND,PH_APP,PH_DEL,PH_DEP,PH_FMP,PH_GND,PH_TWR,PKWA_APP,PKWA_GND,PKWA_TWR,RI_GND,RI_TWR,RK_APP,RK_GND,RK_TWR,SG_APP,SG_GND,SG_TWR,SU_GND,SU_TWR,SY-C_DEP,SY-C_GND,SY-DE_APP,SY-D_APP,SY-E_TWR,SY-N_APP,SY-N_DEP,SY-W_GND,SY_APP,SY_DEL,SY_DEP,SY_FMP,SY_GND,SY_TWR,TL_APP,TL_DEL,TL_GND,TL_TWR,TN_APP,TN_DEL,TN_GND,TN_TWR,TW-S_TWR,TW_GND,TW_TWR,WLM-L_APP,WLM_APP,WLM_DEL,WLM_GND,WLM_TWR,WR_TWR', ','))\n)\nSELECT substring(w.callsign FROM '_([A-Z]+)$') AS \"Type\", w.callsign AS \"Position\"\nFROM wl w\nWHERE NOT EXISTS (\n  SELECT 1 FROM controller_session_ranked s\n  WHERE s.callsign = w.callsign AND s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n)\nORDER BY CASE substring(w.callsign FROM '_([A-Z]+)$') WHEN 'CTR' THEN 1 WHEN 'TWR' THEN 2 WHEN 'APP' THEN 3 WHEN 'DEP' THEN 4 WHEN 'GND' THEN 5 WHEN 'DEL' THEN 6 WHEN 'FSS' THEN 7 ELSE 8 END, w.callsign COLLATE \"C\""
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       },
       "id": 7,
@@ -294,14 +523,40 @@
           "rawSql": "WITH bounds AS (\n  SELECT date_trunc('month', min(session_start) AT TIME ZONE 'UTC') AS first_month,\n         date_trunc('month', max(session_start) AT TIME ZONE 'UTC') AS last_month\n  FROM controller_session_ranked\n),\nmonths AS (\n  SELECT g.m AS month_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_month, date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_month, date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 month') AS g(m)\n  WHERE b.first_month IS NOT NULL\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM months m\nLEFT JOIN controller_session_ranked s\n       ON (s.session_start AT TIME ZONE 'UTC') >= m.month_start + interval '1 month' - interval '30 days'\n      AND (s.session_start AT TIME ZONE 'UTC') <  m.month_start + interval '1 month'\n      AND s.duration_minutes > 60\n      AND s.is_ctr_fss\nGROUP BY m.month_start\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": []
@@ -336,14 +591,40 @@
           "rawSql": "WITH bounds AS (\n  SELECT date_trunc('week', min(session_start) AT TIME ZONE 'UTC') AS first_week,\n         date_trunc('week', max(session_start) AT TIME ZONE 'UTC') AS last_week\n  FROM controller_session_ranked\n),\nweeks AS (\n  SELECT g.w AS week_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_week, date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_week, date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 week') AS g(w)\n  WHERE b.first_week IS NOT NULL\n)\nSELECT m.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM weeks m\nLEFT JOIN controller_session_ranked s\n       ON (s.session_start AT TIME ZONE 'UTC') >= m.week_start + interval '1 week' - interval '30 days'\n      AND (s.session_start AT TIME ZONE 'UTC') <  m.week_start + interval '1 week'\n      AND s.duration_minutes > 30\nGROUP BY m.week_start\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": []
@@ -380,14 +661,36 @@
       ],
       "options": {
         "xField": "controller",
-        "xTickLabelRotation": -45,
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
         "overrides": []
       }
     },
@@ -421,20 +724,42 @@
       ],
       "options": {
         "xField": "controller",
-        "xTickLabelRotation": -45,
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
         "overrides": []
       }
     },
     {
       "id": 12,
-      "type": "trend",
+      "type": "barchart",
       "title": "When are people online on weekdays (last 30 days)",
       "description": "Question D9 (v1 card 94), copied unchanged from Pilots: online now. Definition: for each UTC clock hour, distinct callsigns online at some point in that hour over the last 30 days, Monday to Friday: pilots (flights with airborne time) and ATC (sessions of at least 20 minutes). The ATC line answers the question; the pilot line comes with the original panel. Times are UTC.",
       "datasource": {
@@ -461,21 +786,100 @@
         }
       ],
       "options": {
-        "xField": "hour_utc"
+        "orientation": "vertical",
+        "xField": "Hour (UTC)",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "showValue": "never",
+        "stacking": "none",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
           "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
           }
         },
-        "overrides": []
-      }
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pilots (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ATC (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "hour_utc",
+                "Pilots (callsigns)",
+                "ATC (callsigns)"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "hour_utc": "Hour (UTC)"
+            }
+          }
+        }
+      ]
     },
     {
       "id": 13,
-      "type": "trend",
+      "type": "barchart",
       "title": "When are people online on weekends (last 30 days)",
       "description": "Question D9 (v1 card 95), copied unchanged from Pilots: online now. Definition: for each UTC clock hour, distinct callsigns online at some point in that hour over the last 30 days, Saturday and Sunday: pilots (flights with airborne time) and ATC (sessions of at least 30 minutes); a session across midnight is not counted after midnight (v1 quirk kept). Times are UTC.",
       "datasource": {
@@ -502,17 +906,96 @@
         }
       ],
       "options": {
-        "xField": "hour_utc"
+        "orientation": "vertical",
+        "xField": "Hour (UTC)",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "showValue": "never",
+        "stacking": "none",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#E69F00"
+          },
+          "decimals": 0,
+          "unit": "none",
           "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
           }
         },
-        "overrides": []
-      }
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pilots (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ATC (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "hour_utc",
+                "Pilots (callsigns)",
+                "ATC (callsigns)"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "hour_utc": "Hour (UTC)"
+            }
+          }
+        }
+      ]
     }
   ]
 }
