@@ -48,11 +48,11 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 5
+        "h": 6
       },
       "options": {
         "mode": "markdown",
-        "content": "Pilots: [Live now](/live) · [Traffic](/traffic) · [New pilots](/new-pilots) · [Origins](/origins) · [Records](/pilots) · [Routes](/routes) · [Aircraft](/aircraft) · [Military](/military) | ATC: [Overview](/atc) · [Retention](/atc-retention) · [Hours](/atc-hours) · **Positions** · [Ranks](/atc-ranks) | Events: [Live events](/live-events) · [Monday events](/monday) | Management: [Monthly](/monthly) · [Health](/health)\n\n**Live data since ${go_live}; earlier history was imported.** Flight and controller summaries from 24-08-2025 to 15-03-2026 were imported from the previous system (imported flights have no speed, altitude or SELCAL). There is no data from 15-03-2026 to ${go_live}. Panels for the last 7 or 30 days, and the live tables, show current data only. All times are UTC. Fixed periods and sizes, stated in each title; the page has no inputs. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, summed. A position is a callsign on the controller whitelist (only whitelisted callsigns are stored)."
+        "content": "Pilots: [Live now](/live) · [Traffic](/traffic) · [New pilots](/new-pilots) · [Origins](/origins) · [Records](/pilots) · [Routes](/routes) · [Aircraft](/aircraft) · [Military](/military) | ATC: [Overview](/atc) · [Retention](/atc-retention) · [Hours](/atc-hours) · **Positions** · [Ranks](/atc-ranks) | Events: [Live events](/live-events) · [Monday events](/monday) | Management: [Monthly](/monthly) · [Health](/health)\n\n**Live data since ${go_live}; earlier history was imported.** Flights and controller sessions from 24-08-2025 to 15-03-2026 come from the previous system (no speed, altitude or SELCAL for imported flights). There is no data from 15-03-2026 to ${go_live}. Panels for the last 7 or 30 days and the live tables show current data only. All times are UTC. Fixed periods and sizes, stated in each title; the page has no inputs. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, summed. A position is a callsign on the controller whitelist (only whitelisted callsigns are stored)."
       }
     },
     {
@@ -66,7 +66,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 5,
+        "y": 6,
         "w": 12,
         "h": 10
       },
@@ -125,7 +125,7 @@
       "id": 3,
       "gridPos": {
         "x": 12,
-        "y": 5,
+        "y": 6,
         "w": 12,
         "h": 10
       }
@@ -159,7 +159,7 @@
       "id": 4,
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 16,
         "w": 12,
         "h": 10
       }
@@ -193,7 +193,7 @@
       "id": 5,
       "gridPos": {
         "x": 12,
-        "y": 15,
+        "y": 16,
         "w": 12,
         "h": 10
       }
@@ -227,7 +227,7 @@
       "id": 6,
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 26,
         "w": 12,
         "h": 10
       }
@@ -261,7 +261,7 @@
       "id": 7,
       "gridPos": {
         "x": 12,
-        "y": 25,
+        "y": 26,
         "w": 12,
         "h": 10
       }
@@ -277,7 +277,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 36,
         "w": 12,
         "h": 9
       },
@@ -319,7 +319,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 35,
+        "y": 36,
         "w": 12,
         "h": 9
       },
@@ -361,7 +361,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 44,
+        "y": 45,
         "w": 12,
         "h": 10
       },
@@ -402,7 +402,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 44,
+        "y": 45,
         "w": 12,
         "h": 10
       },
@@ -443,7 +443,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 54,
+        "y": 55,
         "w": 12,
         "h": 9
       },
@@ -484,7 +484,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 54,
+        "y": 55,
         "w": 12,
         "h": 9
       },

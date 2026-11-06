@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # grafana_public impor
 from grafana_public import SHORT_NAMES  # noqa: E402
 
 DASHBOARDS = Path(__file__).resolve().parents[1] / "grafana" / "dashboards"
-NAV_ROWS = 2  # rows the strip adds to the top text panel (a one-line banner panel is 2 rows tall, so 4 with the strip)
+NAV_ROWS = 3  # rows the strip adds to the top text panel (a banner-only panel is 2 or 3 rows tall, so 5 or 6 with the strip)
 
 # group label -> [(short address, display name)]; the short address must be a value in SHORT_NAMES
 GROUPS: dict[str, list[tuple[str, str]]] = {
