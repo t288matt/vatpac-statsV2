@@ -1,6 +1,6 @@
 # Runbook: run the tests and checks
 
-Last reviewed: 21-10-2026 (section 1b); the rest 10-10-2026. The unit tests are `collector/tests` and `tests` outside `tests/integration`; the integration tests are `tests/integration` (counts are deliberately not quoted here, because they go stale; section 4 gives the command that prints the current ones, and a report quotes what the run printed; the integration tests include `test_watchdog_flap.py`, whose role tests need `watchdog_ro`: CI creates it from the migrate script). GitHub Actions runs all of them on every push to `main` and `dev` and on pull requests (`.github/workflows/ci.yml`); the owner reads the result on GitHub. The integration job runs the whole suite twice on the same database: once as it is, once with the test connection set to the `Australia/Sydney` time zone (section 5), and both passes run in strict mode (section 5). The sections below are for running them yourself.
+Last reviewed: 21-10-2026 (section 1b); the rest 10-10-2026. The unit tests are `collector/tests` and `tests` outside `tests/integration`; the integration tests are `tests/integration` (counts are deliberately not quoted here, because they go stale; section 4 gives the command that prints the current ones, and a report quotes what the run printed; the integration tests include `test_watchdog_flap.py`, whose role tests need `watchdog_ro`: CI creates it from the migrate script). GitHub Actions runs all of them on every push to `main` and `dev` and, for a pull request, according to what the pull request changes (section 1c; `.github/workflows/ci.yml`); the owner reads the result on GitHub. The integration job runs the whole suite twice on the same database: once as it is, once with the test connection set to the `Australia/Sydney` time zone (section 5), and both passes run in strict mode (section 5). The sections below are for running them yourself.
 
 > **Never run `db/roles.sql` by hand against the live database or the VM's Postgres container.** Roles are cluster-wide: running it with throwaway passwords resets the live `grafana_ro`, `collector` and `backup_ro` passwords and the stack stops working until `docker compose up -d` re-applies the real ones. It is safe only in a throwaway container (section 3).
 >
@@ -20,10 +20,23 @@ ruff check --config ops/ruff.toml ops          # lint of the ops scripts
 # the ops tooling tests run with the unit tests above: tests/test_deploy_script.py (deploy.sh, including the stale-checkout refusal), tests/test_env_readers.py (the shell and Python .env readers must agree) and tests/test_grafana_public.py (the shared Grafana client)
 cd collector && ruff check . && mypy src       # lint and strict typing of the collector
 # strict typing of the watchdog and ops scripts (the exact list is in .github/workflows/ci.yml; the watchdog needs the two audit files on its path)
-mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py ops/check_panels.py ops/grafana_public.py ops/grafana_api.py ops/env_file.py
+mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py ops/check_panels.py ops/grafana_public.py ops/grafana_api.py ops/env_file.py ops/ci_scope.py
 ```
 
 `make test`, `make drift`, `make size` and `make lint` wrap the same commands. On Windows without `make`, run the commands above. Set up the Python environment once: `python -m venv collector/.venv`, then `collector/.venv/bin/pip install pytest -r collector/requirements.txt` (Windows: `collector\.venv\Scripts\pip`).
+
+## 1c. What CI runs for which pull request (issue 290, 06-11-2026)
+
+A pull request runs a `scope` job first. It lists the changed paths (`git diff -z --name-status -M`, renames and deletes included) and `ops/ci_scope.py` classifies each one; the most expensive class wins. A push to `main` or `dev` is always the full suite.
+
+| Changed paths | Scope | What runs |
+|---|---|---|
+| Only `grafana/dashboards/<group>/*.json`, `docs/CHART_DEFINITIONS.md`, and the five dashboard-only tests (`test_dashboard_descriptions.py`, `test_dashboard_nav.py`, `test_chart_definitions_tests.py`, `test_pilots_now_look.py`, `test_phase3_switch.py`) | `dashboards` | `scope`, `secret-scan`, `config-drift`, `dashboards` (validator and nav check), `size-budget`, `unit-tests` on the dashboard test files, `integration-tests` on the dashboard SQL tests (strict, both time zone passes) |
+| Only root `*.md` and `docs/**` other than the full-suite docs below | `docs` | `scope` and `secret-scan` |
+| `docs/RUNBOOKS/**`, `docs/reference/**`, `docs/DATA_DICTIONARY.md`, `docs/DEFINITIONS.md`, `docs/CONFIG_MAP.md`, root `SPEC.md` (tests read them) | `full` | everything |
+| `collector/`, `db/`, `ops/` (including `ops/ci_scope.py`), `.github/`, `docker-compose*.yml`, `Makefile`, any other test file, `grafana/validate_dashboards.py`, `grafana/provisioning/`, anything not named above, any mix with these, an empty or unreadable change list | `full` | everything, as before |
+
+The scope job classifies with the base branch's copy of `ops/ci_scope.py` and forces `full` itself when `.github/` or the script is in the change, so a pull request cannot loosen its own filter. `ci-result` is the one check to require: it always runs, and it fails unless every job the scope needs succeeded (a job may be skipped only when the scope does not need it). The lists of dashboard tests are in `ops/ci_scope.py`; `tests/test_ci_scope.py` fails when a test that reads the dashboards is missing from them. Nothing is deselected or skipped inside a scope. To see the answer for your own branch: `git diff -z --name-status -M origin/main | python ops/ci_scope.py`. To run the dashboards-scope tests yourself: `python -m pytest -q -m "not integration" $(python ops/ci_scope.py tests unit)`, and, with the section 1b database, `python -m pytest $(python ops/ci_scope.py tests integration) -m integration -q`.
 
 ## 1b. Integration tests on the PC with Docker Desktop (works since 13-10-2026; the same database as CI)
 
