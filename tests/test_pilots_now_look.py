@@ -32,6 +32,9 @@ def test_pilots_now_time_windows_are_set_on_the_panels() -> None:
     assert PANELS["Pilots online over the last 7 days"]["timeFrom"] == "7d"
     for title in ("Pilots in the region now", "Pilots on the whole network now", "Region share of the network"):
         assert PANELS[title]["timeFrom"] == "1h" and "$__timeFilter(observed_at)" in sqls(title)[0]
+    for title in ("Pilots in the region now", "Pilots on the whole network now", "Region share of the network"):
+        assert PANELS[title]["options"]["reduceOptions"]["calcs"] == ["lastNotNull"]       # the card shows the newest row
+        assert sqls(title)[0].rstrip().endswith("ORDER BY 1")                              # ascending, so the last row is the newest
     assert PANELS["Pilots in the region now"]["options"]["showPercentChange"] is True      # change against one hour ago
     assert PANELS["Region share of the network"]["options"]["showPercentChange"] is False  # a percentage of a percentage: no arrow
 

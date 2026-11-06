@@ -116,14 +116,20 @@ COPIES = [  # (dashboard, title, source file)
 ]
 
 
+RESTYLED = {("pilots/pilots-now.json", "When are people online on weekdays (last 30 days)"),
+            ("pilots/pilots-now.json", "When are people online on weekends (last 30 days)"),
+            ("pilots/pilots-now.json", "Departure board")}
+
+
 @pytest.mark.parametrize("path,title,src", COPIES)
 def test_copied_panels_run_the_same_sql_and_window_as_their_source(path, title, src):
     mine, theirs = panel(path, title), panel(DASH / src, title)
     assert mine["targets"][0]["rawSql"] == theirs["targets"][0]["rawSql"]
     assert mine["targets"][0]["format"] == theirs["targets"][0]["format"]
-    if src == "pilots/pilots-now.json":
-        return          # issue 280: pilots-now has the new look (chart type, transformations); only the query must stay the same
-    assert mine.get("timeFrom") == theirs.get("timeFrom") and mine["type"] == theirs["type"]
+    assert mine.get("timeFrom") == theirs.get("timeFrom")
+    if (src, title) in RESTYLED:
+        return          # issue 280: restyled on pilots-now (chart type, options, fieldConfig); query, format and window must stay the same
+    assert mine["type"] == theirs["type"]
     assert mine.get("options") == theirs.get("options") and mine.get("fieldConfig") == theirs.get("fieldConfig")
 
 
