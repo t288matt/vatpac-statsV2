@@ -1,5 +1,5 @@
 #!/bin/bash
-# Silent-issue check (issue 104, owner decision 11-10-2026). Read-only: git log and `gh issue list`; writes nothing anywhere.
+# Silent-issue check (CI scope proof, issue 290; issue 104, owner decision 11-10-2026). Read-only: git log and `gh issue list`; writes nothing anywhere.
 #   bash ops/stale_issues.sh                    commits on origin/main since the last release marker (read over ssh, like deploy.sh --status)
 #   bash ops/stale_issues.sh --since <sha|date> commits since that commit, or since that date (anything `git log --since` accepts)
 #   bash ops/stale_issues.sh --range <a>..<b>   exactly that commit range (used by deploy.sh --mark)

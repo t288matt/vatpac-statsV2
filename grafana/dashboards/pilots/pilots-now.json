@@ -59,7 +59,7 @@
       "id": 2,
       "type": "stat",
       "title": "Pilots in the region now",
-      "description": "Pilots connected inside the VATPAC region in the latest network snapshot (v1 card 68, How many pilots online?). The arrow is the change compared with one hour ago.",
+      "description": "Pilots connected inside the VATPAC region in the latest network snapshot (v1 card 68, How many pilots online?). The arrow is the change compared with one hour earlier.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
