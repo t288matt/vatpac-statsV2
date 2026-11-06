@@ -9,7 +9,9 @@ GROUPS below. To add a dashboard: add it to SHORT_NAMES, add it to a group here,
     python ops/dashboard_nav.py            rewrite the strip in every dashboard file (idempotent)
     python ops/dashboard_nav.py --check    change nothing; exit 1 if any strip is missing or out of step (run in CI)
 
-Links are bare short paths such as /live with NO query string: the Traefik redirect rule does not match one. Standard library only.
+Links are HTML anchors with a bare short path and NO query string (the Traefik redirect rule does not match one):
+<a href="/live" target="_top">Live now</a>. target="_top" is needed: without it Grafana's in-page router handles the click, never
+asks Traefik, and shows Page not found (issue 284). Standard library only.
 """
 from __future__ import annotations
 
@@ -39,7 +41,7 @@ def strip(uid: str) -> str:
     here = SHORT_NAMES[uid]
     parts = []
     for group, items in GROUPS.items():
-        links = [f"**{name}**" if path == here else f"[{name}](/{path})" for path, name in items]
+        links = [f"**{name}**" if path == here else f'<a href="/{path}" target="_top">{name}</a>' for path, name in items]
         parts.append(f"{group}: " + " · ".join(links))
     return " | ".join(parts)
 
