@@ -19,6 +19,8 @@ sys.path.insert(0, str(REPO / "ops"))
 import ci_scope as cs  # noqa: E402
 
 DASH = "grafana/dashboards/pilots/pilots-now.json"
+UNIT_RUN = 'read -r -a targets <<< "$(python ops/ci_scope.py tests unit)"\n[ "${#targets[@]}" -gt 0 ]   # an empty list would run more than intended; stop instead\npytest -q -m "not integration" "${targets[@]}"\n'  # noqa: E501
+INTEG_RUN = 'read -r -a targets <<< "$(python ops/ci_scope.py tests integration)"\n[ "${#targets[@]}" -gt 0 ]   # an empty list would run more than intended; stop instead\npytest "${targets[@]}" -m integration -q\n'  # noqa: E501
 
 
 def z(*entries: tuple[str, ...]) -> bytes:
@@ -41,6 +43,8 @@ def z(*entries: tuple[str, ...]) -> bytes:
     ("docs/reference/v1_metabase_cards.json", "full"),
     ("docs/DATA_DICTIONARY.md", "full"),
     ("docs/DEFINITIONS.md", "full"),
+    ("docs/CONFIG_MAP.md", "full"),               # tests read it
+    ("SPEC.md", "full"),                          # tests read it, so it is not prose-only
     ("collector/src/vatpac/store.py", "full"),
     ("db/migrations/20261101000000_x.sql", "full"),
     ("ops/check_size_budget.py", "full"),
@@ -246,6 +250,8 @@ def test_the_dashboards_scope_steps_use_the_scope_and_the_full_steps_are_untouch
         by_scope[st["if"].split("'")[1]] = by_scope.get(st["if"].split("'")[1], 0) + 1
     assert by_scope == {"full": 3, "dashboards": 3}   # unit once and integration twice (two time zones), for each scope
     full_runs = {st["run"] for st in steps if "'full'" in st["if"]}
+    dash_runs = sorted(st["run"] for st in steps if "'dashboards'" in st["if"])
+    assert dash_runs == sorted([UNIT_RUN, INTEG_RUN, INTEG_RUN])   # exact text: widening them to all of tests/ fails
     assert full_runs == {'pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv',
                          "pytest tests/integration -m integration -q"}
 
@@ -256,3 +262,18 @@ def test_no_pytest_command_deselects_or_skips_anything() -> None:
             run = st.get("run", "")
             if "pytest" in run:
                 assert not re.search(r"--deselect|--ignore=tests/integration|\s-k\s|--co|-p no:|skip", run), (name, run)
+
+
+def test_the_scope_step_cannot_be_loosened_by_the_pull_request_itself() -> None:
+    step = next(st for st in CI["jobs"]["scope"]["steps"] if st.get("id") == "scope")["run"]
+    assert 'git show "$BASE_SHA:ops/ci_scope.py"' in step   # the base branch's script classifies
+    assert "python3 ops/ci_scope.py" not in step            # never the pull request's copy
+    assert "grep -zqE" in step and ".github/" in step and "ci_scope" in step   # shell-side force to full
+    assert "cat -v" in step   # changed file names are printed escaped
+    pat = r"^(\.github/|ops/ci_scope\.py$)"   # the shell-side guard, run for real on a NUL list
+
+    def forced(data: bytes) -> bool:
+        return subprocess.run(["grep", "-zqE", pat], input=data, check=False).returncode == 0
+
+    assert forced(z(("M", "ops/ci_scope.py"))) and forced(z(("M", ".github/workflows/ci.yml")))
+    assert forced(z(("R100", "docs/a.md", ".github/x"))) and not forced(z(("M", DASH), ("M", "docs/x.md")))
