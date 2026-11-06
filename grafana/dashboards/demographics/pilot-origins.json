@@ -91,19 +91,28 @@
         },
         "pieType": "donut",
         "legend": {
+          "showLegend": true,
           "displayMode": "table",
           "placement": "right",
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sortBy": "Value",
+          "sortDesc": true
         },
         "tooltip": {
-          "mode": "single"
-        }
+          "mode": "single",
+          "sort": "desc"
+        },
+        "displayLabels": []
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
         "overrides": []
       }
     },
@@ -143,19 +152,28 @@
         },
         "pieType": "donut",
         "legend": {
+          "showLegend": true,
           "displayMode": "table",
           "placement": "right",
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sortBy": "Value",
+          "sortDesc": true
         },
         "tooltip": {
-          "mode": "single"
-        }
+          "mode": "single",
+          "sort": "desc"
+        },
+        "displayLabels": []
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
         "overrides": []
       }
     },
@@ -195,19 +213,28 @@
         },
         "pieType": "donut",
         "legend": {
+          "showLegend": true,
           "displayMode": "table",
           "placement": "right",
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sortBy": "Value",
+          "sortDesc": true
         },
         "tooltip": {
-          "mode": "single"
-        }
+          "mode": "single",
+          "sort": "desc"
+        },
+        "displayLabels": []
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
         "overrides": []
       }
     },
@@ -241,15 +268,69 @@
       ],
       "options": {
         "xField": "cohort",
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "flights"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pilots"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -288,19 +369,28 @@
         },
         "pieType": "donut",
         "legend": {
+          "showLegend": true,
           "displayMode": "table",
           "placement": "right",
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sortBy": "Value",
+          "sortDesc": true
         },
         "tooltip": {
-          "mode": "single"
-        }
+          "mode": "single",
+          "sort": "desc"
+        },
+        "displayLabels": []
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
         "overrides": []
       },
       "timeFrom": "24h"
@@ -337,7 +427,10 @@
         "xField": "label",
         "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
         }
       },
       "fieldConfig": {
@@ -346,8 +439,16 @@
             "scaleDistribution": {
               "type": "log",
               "log": 10
-            }
-          }
+            },
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0
         },
         "overrides": []
       },

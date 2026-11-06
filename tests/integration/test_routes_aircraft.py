@@ -87,14 +87,9 @@ COPIES = [
 ]
 
 
-# Source panels not yet restyled (issue 280); only type, options and fieldConfig of the copy may differ. Remove a name when its source page is restyled.
-RESTYLED = {("demographics/pilot-origins.json", "Where pilots currently online come from"),
-            ("demographics/pilot-origins.json", "Who flies most in Australian airspace: flights by home region (last 30 days)"),
-            ("demographics/pilot-origins.json", "Who spends most time in Australian airspace: airborne hours by home region (last 30 days)"),
-            ("military/military.json", "Most popular military aircraft (unique pilots, last 7 days)"),
-            ("military/military.json", "Hours flown by RAAFv aircraft per week (last 14 weeks)"),
-            ("military/military.json", "Flights flown by RAAFv aircraft per week (last 14 weeks)"),
-            ("military/military.json", "Most popular RAAFv routes (last month)")}
+# Source panels not yet restyled (issue 280); only type, options and fieldConfig of the copy may differ. Empty since batch 4, when the last source
+# pages (Pilot origins, Military) were restyled; add a (source, title) pair here only while a copy is restyled ahead of its source.
+RESTYLED: set[tuple[str, str]] = set()
 
 
 @pytest.mark.parametrize("path,title,src", COPIES)
@@ -104,7 +99,7 @@ def test_copied_panels_run_the_same_sql_window_and_display_as_their_source(path,
     assert [t.get("format") for t in mine["targets"]] == [t.get("format") for t in theirs["targets"]]
     assert window(path, mine) == window(DASH / src, theirs)          # the source dashboard's default range, kept
     if (src, title) in RESTYLED:
-        return          # issue 280, batch 1: restyled here, the source page follows in batch 4; query, format and window were compared above
+        return          # issue 280, batch 1: restyled ahead of its source; query, format and window were compared above
     assert mine["type"] == theirs["type"] and mine["options"] == theirs["options"] and mine["fieldConfig"] == theirs["fieldConfig"]
 
 
