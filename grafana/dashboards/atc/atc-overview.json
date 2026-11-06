@@ -91,10 +91,11 @@
           ],
           "fields": ""
         },
-        "colorMode": "value",
+        "colorMode": "none",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center"
+        "textMode": "value",
+        "justifyMode": "auto",
+        "showPercentChange": false
       },
       "fieldConfig": {
         "defaults": {
@@ -103,10 +104,14 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "#3AA0DD",
                 "value": null
               }
             ]
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
           }
         },
         "overrides": []
@@ -140,14 +145,41 @@
           "rawSql": "SELECT $__timeGroupAlias(observed_at, $__interval),\n       avg(controllers_in_region) AS \"Controllers\"\nFROM network_history\nWHERE $__timeFilter(observed_at)\nGROUP BY 1\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": []
@@ -182,47 +214,29 @@
           "rawSql": "SELECT callsign, name, cid, rank_group AS rating, frequency_mhz AS \"Frequency (MHz)\",\n       logon_time AS \"Logged on\", hours_online AS \"Hours online\"\nFROM controller_online_now\nORDER BY callsign"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Frequency (MHz)"
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
             },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 2
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Logged on"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "time: YYYY-MM-DD HH:mm"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Hours online"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 2
-              }
-            ]
+            "inspect": false,
+            "filterable": false
           }
-        ]
+        },
+        "overrides": []
       }
     },
     {
@@ -257,11 +271,35 @@
         "xField": "rank_group",
         "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
         "overrides": []
       }
     },
@@ -293,17 +331,145 @@
           "rawSql": "WITH bounds AS (\n  SELECT date_trunc('week', min(session_start) AT TIME ZONE 'UTC') AS first_week,\n         date_trunc('week', max(session_start) AT TIME ZONE 'UTC') AS last_week\n  FROM controller_session_ranked\n),\nweeks AS (\n  SELECT g.w AS week_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_week, date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_week, date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 week') AS g(w)\n  WHERE b.first_week IS NOT NULL\n),\nper_controller AS (\n  SELECT m.week_start, s.cid, s.rating\n  FROM weeks m\n  JOIN controller_session_ranked s\n    ON (s.session_start AT TIME ZONE 'UTC') >= m.week_start\n   AND (s.session_start AT TIME ZONE 'UTC') <  m.week_start + interval '1 week'\n  GROUP BY m.week_start, s.cid, s.rating\n  HAVING sum(s.duration_minutes) > 60\n)\nSELECT m.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S1')  AS \"S1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S2')  AS \"S2\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S3')  AS \"S3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C1')  AS \"C1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C3')  AS \"C3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'I1+') AS \"I1+\"\nFROM weeks m\nLEFT JOIN per_controller p ON p.week_start = m.week_start\nGROUP BY m.week_start\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "S1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "S2"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "S3"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1FAF8A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "C1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CC79A7"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "C3"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8A97B2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "I1+"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              }
+            ]
+          }
+        ]
       },
       "timeFrom": "12M"
     },
@@ -335,14 +501,41 @@
           "rawSql": "WITH bounds AS (\n  SELECT date_trunc('month', min(session_start) AT TIME ZONE 'UTC') AS first_month,\n         date_trunc('month', max(session_start) AT TIME ZONE 'UTC') AS last_month\n  FROM controller_session_ranked\n),\nmonths AS (\n  SELECT g.m AS month_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_month, date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_month, date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 month') AS g(m)\n  WHERE b.first_month IS NOT NULL\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM months m\nLEFT JOIN controller_session_ranked s\n       ON (s.session_start AT TIME ZONE 'UTC') >= m.month_start + interval '1 month' - interval '30 days'\n      AND (s.session_start AT TIME ZONE 'UTC') <  m.month_start + interval '1 month'\n      AND s.duration_minutes > 60\n      AND s.is_ctr_fss\nGROUP BY m.month_start\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": []
@@ -377,14 +570,41 @@
           "rawSql": "WITH bounds AS (\n  SELECT date_trunc('week', min(session_start) AT TIME ZONE 'UTC') AS first_week,\n         date_trunc('week', max(session_start) AT TIME ZONE 'UTC') AS last_week\n  FROM controller_session_ranked\n),\nweeks AS (\n  SELECT g.w AS week_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_week, date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_week, date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 week') AS g(w)\n  WHERE b.first_week IS NOT NULL\n)\nSELECT m.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT s.cid) AS \"Controllers\"\nFROM weeks m\nLEFT JOIN controller_session_ranked s\n       ON (s.session_start AT TIME ZONE 'UTC') >= m.week_start + interval '1 week' - interval '30 days'\n      AND (s.session_start AT TIME ZONE 'UTC') <  m.week_start + interval '1 week'\n      AND s.duration_minutes > 30\nGROUP BY m.week_start\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": []
@@ -421,14 +641,37 @@
       ],
       "options": {
         "xField": "controller",
-        "xTickLabelRotation": -45,
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
         "overrides": []
       }
     },
@@ -462,14 +705,37 @@
       ],
       "options": {
         "xField": "controller",
-        "xTickLabelRotation": -45,
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
         "overrides": []
       }
     },
@@ -503,14 +769,37 @@
       ],
       "options": {
         "xField": "controller",
-        "xTickLabelRotation": -45,
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
         "overrides": []
       }
     },
@@ -544,14 +833,37 @@
       ],
       "options": {
         "xField": "controller",
-        "xTickLabelRotation": -45,
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
         "overrides": []
       }
     },
@@ -585,14 +897,37 @@
       ],
       "options": {
         "xField": "controller",
-        "xTickLabelRotation": -45,
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
         "overrides": []
       }
     },
@@ -626,14 +961,37 @@
       ],
       "options": {
         "xField": "controller",
-        "xTickLabelRotation": -45,
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
         "overrides": []
       }
     },
@@ -665,14 +1023,41 @@
           "rawSql": "SELECT date_trunc('week', session_start AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       round(sum(duration_minutes) / 60.0, 1) AS \"CTR hours\"\nFROM controller_session_ranked\nWHERE facility = 6\n  AND session_start BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": []

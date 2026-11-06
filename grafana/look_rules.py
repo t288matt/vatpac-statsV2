@@ -19,6 +19,11 @@ RESTYLED = {
     "pilots/pilots-routes-airports.json",
     "pilots/pilots-aircraft-airlines.json",
     "pilots/pilots-records.json",
+    "atc/atc-overview.json",
+    "atc/atc-positions.json",
+    "atc/atc-ranks.json",
+    "atc/atc-position-hours.json",
+    "atc/atc-retention.json",
 }
 
 # Panels whose colours come from Grafana's classic palette because the number of slices or series is not known when the

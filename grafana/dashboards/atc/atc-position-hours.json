@@ -83,10 +83,57 @@
           "rawSql": "WITH t(ptype, ord) AS (\n  VALUES ('CTR', 1), ('TWR', 2), ('APP', 3), ('DEP', 4), ('GND', 5), ('DEL', 6), ('FSS', 7), ('FMP', 8)\n), s AS (\n  SELECT substring(callsign FROM '_(CTR|TWR|APP|DEP|GND|DEL|FSS|FMP)$') AS ptype, session_start, session_end\n  FROM controller_session_ranked\n  WHERE callsign ~ '_(CTR|TWR|APP|DEP|GND|DEL|FSS|FMP)$'\n), b AS (\n  SELECT date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS this_month,\n         date_trunc('month', now() AT TIME ZONE 'UTC' - interval '1 month') AT TIME ZONE 'UTC' AS last_month\n)\nSELECT t.ptype AS \"Position type\",\n       round(coalesce(sum(greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '7 days')), 0)) FILTER (WHERE s.session_start IS NOT NULL), 0) / 3600.0, 1) AS \"Last 7 days\",\n       round(coalesce(sum(greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0)) FILTER (WHERE s.session_start IS NOT NULL), 0) / 3600.0, 1) AS \"Last 30 days\",\n       round(coalesce(sum(greatest(extract(epoch FROM least(s.session_end, b.this_month) - greatest(s.session_start, b.last_month)), 0)) FILTER (WHERE s.session_start IS NOT NULL), 0) / 3600.0, 1) AS \"Last full month\",\n       round(coalesce(sum(extract(epoch FROM s.session_end - s.session_start)), 0) / 3600.0, 1) AS \"Since go-live\"\nFROM t CROSS JOIN b LEFT JOIN s USING (ptype)\nGROUP BY t.ptype, t.ord\nORDER BY t.ord"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Since go-live"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -117,21 +164,181 @@
           "rawSql": "WITH s AS (\n  SELECT substring(callsign FROM '_(CTR|TWR|APP|DEP|GND|DEL|FSS|FMP)$') AS ptype,\n         session_start AT TIME ZONE 'UTC' AS s_from, session_end AT TIME ZONE 'UTC' AS s_to\n  FROM controller_session_ranked\n  WHERE callsign ~ '_(CTR|TWR|APP|DEP|GND|DEL|FSS|FMP)$'\n    AND session_end >= date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AND session_start <= $__timeTo()\n), w AS (\n  SELECT generate_series(date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n                         date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC'), interval '1 week') AS wk\n)\nSELECT w.wk AT TIME ZONE 'UTC' AS time, s.ptype AS metric,\n       round(sum(extract(epoch FROM least(s.s_to, w.wk + interval '1 week') - greatest(s.s_from, w.wk))) / 3600.0, 1) AS \"hours\"\nFROM w JOIN s ON s.s_from < w.wk + interval '1 week' AND s.s_to > w.wk\nGROUP BY 1, 2\nORDER BY 1, 2"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "bars",
+            "lineInterpolation": "smooth",
             "lineWidth": 1,
-            "fillOpacity": 60,
+            "fillOpacity": 70,
+            "gradientMode": "opacity",
             "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
             "stacking": {
               "mode": "normal",
               "group": "A"
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CTR"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "APP"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "TWR"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1FAF8A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GND"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CC79A7"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DEP"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8A97B2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "FSS"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 35
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DEL"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 35
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "FMP"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1FAF8A"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 35
+              }
+            ]
+          }
+        ]
       },
       "timeFrom": "12M"
     }
