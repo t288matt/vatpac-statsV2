@@ -9,7 +9,9 @@ GROUPS below. To add a dashboard: add it to SHORT_NAMES, add it to a group here,
     python ops/dashboard_nav.py            rewrite the strip in every dashboard file (idempotent)
     python ops/dashboard_nav.py --check    change nothing; exit 1 if any strip is missing or out of step (run in CI)
 
-Links are bare short paths such as /live with NO query string: the Traefik redirect rule does not match one. Standard library only.
+Links are each dashboard's stable public address, /public-dashboards/<token> (token from stable_token in grafana_public.py), with NO
+query string. A short path such as /traffic does NOT work here: a click inside Grafana is handled by its in-page router, which never
+reaches Traefik, so it shows Page not found (issue 284). Short paths are for typed or bookmarked use. Standard library only.
 """
 from __future__ import annotations
 
@@ -18,7 +20,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # grafana_public imports env_file from this folder
-from grafana_public import SHORT_NAMES  # noqa: E402
+from grafana_public import SHORT_NAMES, stable_token  # noqa: E402
 
 DASHBOARDS = Path(__file__).resolve().parents[1] / "grafana" / "dashboards"
 NAV_ROWS = 3  # rows the strip adds to the top text panel (a banner-only panel is 2 or 3 rows tall, so 5 or 6 with the strip)
@@ -37,9 +39,10 @@ GROUPS: dict[str, list[tuple[str, str]]] = {
 def strip(uid: str) -> str:
     """The strip for one dashboard: group labels in plain text, links to the others, the current page bold."""
     here = SHORT_NAMES[uid]
+    token = {name: stable_token(u) for u, name in SHORT_NAMES.items()}
     parts = []
     for group, items in GROUPS.items():
-        links = [f"**{name}**" if path == here else f"[{name}](/{path})" for path, name in items]
+        links = [f"**{name}**" if path == here else f"[{name}](/public-dashboards/{token[path]})" for path, name in items]
         parts.append(f"{group}: " + " · ".join(links))
     return " | ".join(parts)
 
