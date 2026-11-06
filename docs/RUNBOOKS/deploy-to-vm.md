@@ -279,6 +279,10 @@ Steps (all from `~/vatpac-statsV2` on the VM, after the `git archive` copy of th
 
 Runbook for the checks themselves: [integrity-checks.md](integrity-checks.md).
 
+## 4g. Special case: the Metabase container (issue 288; not yet deployed)
+
+The first deploy of a commit that contains the `metabase` and `metabase-db` services needs three new lines in `.env` before `docker compose up` (compose and `migrate` refuse to start without them): `METABASE_RO_PASSWORD`, `METABASE_DB_PASSWORD`, `METABASE_ENCRYPTION_KEY`, plus `METABASE_BIND` for LAN access. The owner is told the exact names first and adds them; values are never printed. The `metabase` image is pulled by `docker compose pull` (about 0.5 GB of disk) and the container may use up to 1.8 GB of memory (the VM had about 4.5 GB free on 06-11-2026). `migrate` creates the role `metabase_ro`; nothing existing is altered. After the deploy: `docker compose ps` shows `metabase` and `metabase-db` healthy, then the owner does the first-run set-up. Everything is in [metabase.md](metabase.md).
+
 ## 5. Network exposure and firewall
 Only Grafana is published, and by default **only on loopback**: `127.0.0.1:${GRAFANA_PORT:-3300}`. The database is not published. To reach Grafana from the LAN, opt in explicitly in `.env`:
 ```sh

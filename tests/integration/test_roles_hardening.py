@@ -103,7 +103,7 @@ def test_reapplying_roles_never_shows_permission_denied(dsn: str, conn, tmp_path
     psql = shutil.which("psql")
     if psql is None:
         pytest.skip("psql binary not available")
-    for r in ("collector", "grafana_ro", "backup_ro", "watchdog_ro"):
+    for r in ("collector", "grafana_ro", "metabase_ro", "backup_ro", "watchdog_ro"):
         if not _role(conn, r):
             pytest.skip(f"role {r} not created")
     roles_sql = Path(os.environ.get("ROLES_SQL_PATH", REPO / "db" / "roles.sql"))
@@ -111,7 +111,7 @@ def test_reapplying_roles_never_shows_permission_denied(dsn: str, conn, tmp_path
     wd_sql.write_text(_watchdog_block(), encoding="utf-8")
     # the scripts reset the passwords: remember the hashes and put them back afterwards so the other tests can still log in
     hashes = {r["rolname"]: r["rolpassword"] for r in conn.execute(
-        "SELECT rolname, rolpassword FROM pg_authid WHERE rolname IN ('collector','grafana_ro','backup_ro','watchdog_ro')").fetchall()}
+        "SELECT rolname, rolpassword FROM pg_authid WHERE rolname IN ('collector','grafana_ro','metabase_ro','backup_ro','watchdog_ro')").fetchall()}
     collector = Hammer(dsn, "collector", ["SELECT count(*) FROM pilot_session", "SELECT count(*) FROM poll_log",
                                           "INSERT INTO app_setting (key, value) VALUES ('race_probe','1') "
                                           "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"])
@@ -124,7 +124,7 @@ def test_reapplying_roles_never_shows_permission_denied(dsn: str, conn, tmp_path
         for _ in range(25):
             common = [psql, dsn, "-X", "-q", "-v", "ON_ERROR_STOP=1"]
             r1 = subprocess.run(common + ["-v", "grafana_ro_password=tmp1", "-v", "collector_password=tmp2",
-                                          "-v", "backup_password=tmp3", "-f", str(roles_sql)], capture_output=True, text=True, timeout=120)
+                                          "-v", "backup_password=tmp3", "-v", "metabase_ro_password=tmp5", "-f", str(roles_sql)], capture_output=True, text=True, timeout=120)
             assert r1.returncode == 0, r1.stderr
             r2 = subprocess.run(common + ["-v", "wd_pw=tmp4", "-f", str(wd_sql)], capture_output=True, text=True, timeout=120)
             assert r2.returncode == 0, r2.stderr

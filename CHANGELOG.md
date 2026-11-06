@@ -6,6 +6,11 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Metabase beside Grafana (06-11-2026, issue 288; not yet merged or deployed)
+
+- **What is new.** A Metabase container (open-source image, exact version `v0.64.5.4`) for ad-hoc questions, with its own small database, a new read-only database role `metabase_ro` (the same views and limits as `grafana_ro`) and a nightly dump of Metabase's settings next to the main backup. It is published on the LAN port 3400 only when `METABASE_BIND` is set; no public access. Grafana is unchanged and stays.
+- **What a deploy needs.** Three new secrets in `.env` (`METABASE_RO_PASSWORD`, `METABASE_DB_PASSWORD`, `METABASE_ENCRYPTION_KEY`), the owner's go, a fresh dump first. Runbook: [docs/RUNBOOKS/metabase.md](docs/RUNBOOKS/metabase.md).
+
 ## Pilots: online now, new look (06-11-2026, issue 280; pull request 287, not yet merged or deployed)
 
 - **What is new.** The dashboard "Pilots: online now" (short address `/live`) has a new look built from Grafana's own options: three stat cards (pilots in the region, pilots on the network, the region's share) with a change against one hour ago on the first two, a 24 hour and a 7 day chart of pilots online, weekday and weekend bar charts of when people are online, one small panel for controllers by hour, a busiest-hours table, and a departure board with status pills and speed and altitude bars. The navigation strip is unchanged.

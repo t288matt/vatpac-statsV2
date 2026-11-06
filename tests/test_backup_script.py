@@ -20,6 +20,7 @@ pytestmark = pytest.mark.skipif(BASH is None, reason="bash not available")
 FAKE_PG_DUMP = """#!/bin/sh
 # usage: pg_dump -Fc --no-password -f FILE
 while [ $# -gt 0 ]; do [ "$1" = "-f" ] && out="$2"; shift; done
+[ -n "$FAKE_FAIL_HOST" ] && [ "$PGHOST" = "$FAKE_FAIL_HOST" ] && { echo "pg_dump: error: password authentication failed" >&2; exit 1; }
 case "$FAKE_DUMP" in
   fail) echo "pg_dump: error: connection refused" >&2; exit 1 ;;
   junk) echo "this is not a dump" > "$out" ;;
@@ -186,3 +187,48 @@ def test_a_rejected_dump_is_never_counted_as_good(tmp_path: Path) -> None:
     r, backups = _run(tmp_path, "good", old=2, BACKUP_MIN_KEEP="3")
     assert r.returncode == 0, r.stdout
     assert len(list(backups.glob("*.dump"))) == 3, "the two old good dumps must survive: only 3 good dumps exist"
+
+
+# ---- issue 288: the Metabase application database is dumped beside the vatpac dump, as *.mbdump
+MB = {"METABASE_PGHOST": "mbhost", "FAKE_PAD": "3000", "BACKUP_MIN_FIRST_BYTES": "1"}
+
+
+def _mb_dumps(backups: Path) -> list[Path]:
+    return sorted(backups.glob("metabase_*.mbdump"))
+
+
+def test_metabase_dump_is_off_unless_its_host_is_set(tmp_path: Path) -> None:
+    r, backups = _run(tmp_path, "big", old=0, FAKE_PAD="3000", BACKUP_MIN_FIRST_BYTES="1")
+    assert r.returncode == 0 and not _mb_dumps(backups)
+
+
+def test_metabase_dump_is_kept_and_never_matches_the_vatpac_dump_pattern(tmp_path: Path) -> None:
+    r, backups = _run(tmp_path, "big", old=0, **MB)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert len(_mb_dumps(backups)) == 1 and len(_new_dumps(backups)) == 1
+    assert not any(p.name.startswith("metabase_") for p in backups.glob("*.dump")), "the vatpac checks and the watchdog glob *.dump"
+
+
+def test_a_failing_metabase_dump_never_changes_the_vatpac_backup(tmp_path: Path) -> None:
+    r, backups = _run(tmp_path, "big", old=0, FAKE_FAIL_HOST="mbhost", **MB)
+    assert r.returncode == 0 and "FAILED metabase dump" in r.stdout
+    assert len(_new_dumps(backups)) == 1 and (backups / ".last_success").exists() and not _mb_dumps(backups)
+
+
+def test_a_failing_vatpac_dump_does_not_stop_the_metabase_dump_but_keeps_the_exit_status(tmp_path: Path) -> None:
+    r, backups = _run(tmp_path, "fail", old=0, **MB)
+    assert r.returncode != 0 and "FAILED pg_dump" in r.stdout
+
+
+def test_metabase_rotation_keeps_the_newest_three_and_only_deletes_old_ones(tmp_path: Path) -> None:
+    backups = tmp_path / "backups"
+    backups.mkdir(parents=True)
+    for i in range(5):
+        f = backups / f"metabase_2020010{i + 1}T000000Z.mbdump"
+        f.write_text("old")
+        aged = time.time() - (40 - i) * 86400
+        os.utime(f, (aged, aged))
+    r, _ = _run(tmp_path, "big", old=0, **MB)
+    assert r.returncode == 0
+    names = [p.name for p in _mb_dumps(backups)]
+    assert len(names) == 3 and "metabase_20200105T000000Z.mbdump" in names and "metabase_20200104T000000Z.mbdump" in names, names

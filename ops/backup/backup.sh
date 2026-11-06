@@ -6,6 +6,9 @@
 # Connection comes from the standard PG* environment variables (the read-only role backup_ro).
 # BACKUP_REMOTE (optional): a shell command run after each successful backup with BACKUP_FILE set to
 # the new dump (off-box copy, e.g. rclone/rsync). Its failure is logged, never fatal.
+# Metabase (issue 288): when METABASE_PGHOST is set, its small application database is also dumped to
+# metabase_<stamp>.mbdump (never *.dump, so the vatpac checks, size rule, rotation and watchdog never see it). Its failure is
+# logged and never changes the result of the vatpac backup.
 set -euo pipefail
 
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
@@ -72,6 +75,34 @@ take_backup() {
   return 0
 }
 
+# take_metabase_backup : dump the Metabase application database (a few MB), validate it, keep the newest MIN_KEEP and anything younger
+# than RETENTION_DAYS. Off (returns 0) unless METABASE_PGHOST is set. A failed dump leaves older ones untouched.
+take_metabase_backup() {
+  [ -n "${METABASE_PGHOST:-}" ] || return 0
+  local stamp file tmp rc=0 f n=0
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  file="${BACKUP_DIR}/metabase_${stamp}.mbdump"
+  tmp="${file}.partial"
+  log "starting ${file}"
+  PGHOST="$METABASE_PGHOST" PGUSER="${METABASE_PGUSER:-metabase}" PGPASSWORD="${METABASE_PGPASSWORD:-}" PGDATABASE="${METABASE_PGDATABASE:-metabase}"     timeout -k 30 "$DUMP_TIMEOUT_S" pg_dump -Fc --no-password -f "$tmp" || rc=$?
+  if [ "$rc" -eq 0 ]; then timeout -k 30 "$VALIDATE_TIMEOUT_S" pg_restore -l "$tmp" > /dev/null || rc=$?; fi
+  if [ "$rc" -eq 0 ] && [ "$(stat -c %s "$tmp")" -lt 1024 ]; then rc=1; fi
+  if [ "$rc" -ne 0 ] || ! mv "$tmp" "$file"; then
+    rm -f "$tmp"
+    log "FAILED metabase dump (rc=${rc}); older metabase dumps untouched"
+    return 1
+  fi
+  log "ok metabase $(du -h "$file" | cut -f1)"
+  while read -r f; do
+    [ -n "$f" ] || continue
+    n=$((n + 1))
+    if [ "$n" -gt "$MIN_KEEP" ] && [ -n "$(find "$f" -mtime +"$RETENTION_DAYS")" ]; then rm -f "$f" && log "rotated out ${f}"; fi
+  done < <(find "$BACKUP_DIR" -maxdepth 1 -name 'metabase_*.mbdump' -printf '%T@ %p
+' | sort -rn | cut -d' ' -f2-)
+  find "$BACKUP_DIR" -maxdepth 1 -name 'metabase_*.mbdump.partial' -mmin +120 -delete || true
+  return 0
+}
+
 # check_content DUMP : prints the reason and returns 1 when the dump is too small or lacks data for a key table.
 # The previous good dump is the newest *.dump; rejected dumps are named *.rejected and so never count.
 check_content() {
@@ -135,19 +166,24 @@ seconds_until_next() {
 
 case "${1:-loop}" in
   once)
-    take_backup
+    rc=0
+    take_backup || rc=$?
+    take_metabase_backup || true   # logs its own failure; never changes the exit status of the vatpac backup
+    exit "$rc"
     ;;
   loop)
     touch "${BACKUP_DIR}/.loop_started"   # the container healthcheck tolerates the first 24 h
     if [ -z "$(find "$BACKUP_DIR" -maxdepth 1 -name '*.dump' -mmin -1440 -print -quit)" ]; then
       log "no backup in the last 24 h; taking one now"
       take_backup || log "start-up backup failed; will retry at ${BACKUP_TIME_UTC} UTC"
+      take_metabase_backup || true
     fi
     while true; do
       wait_s="$(seconds_until_next)"
       log "next backup in ${wait_s}s (${BACKUP_TIME_UTC} UTC)"
       sleep "$wait_s"
       take_backup || log "backup failed; will retry tomorrow (watchdog alerts at 26 h)"
+      take_metabase_backup || true
       if [ "$RESTORE_TEST_DAY" != "0" ] && [ "$(date -u +%u)" = "$RESTORE_TEST_DAY" ]; then
         restore-test.sh || log "restore test FAILED"
       fi

@@ -40,6 +40,7 @@ sh ops/check_env.sh    # rejects blank, change-me*, shorter than 16 characters, 
 | `GRAFANA_RO_PASSWORD` | Database role `grafana_ro` (read-only, used by Grafana) |
 | `BACKUP_DB_PASSWORD` | Database role `backup_ro` (read-only, used by pg_dump) |
 | `WATCHDOG_DB_PASSWORD` | Database role `watchdog_ro` (read-only, used by the watchdog) |
+| `METABASE_RO_PASSWORD`, `METABASE_DB_PASSWORD`, `METABASE_ENCRYPTION_KEY` | Metabase (issue 288, [RUNBOOKS/metabase.md](RUNBOOKS/metabase.md)): the read-only role `metabase_ro`, Metabase's own database, and the key that encrypts its saved connection. `sh ops/gen_env.sh` generates them; compose refuses to start without them |
 | `GRAFANA_ADMIN_PASSWORD` | Grafana admin login; applies only on Grafana's FIRST start |
 
 **Worth reviewing before the first start:**

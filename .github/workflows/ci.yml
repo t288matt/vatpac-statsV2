@@ -129,13 +129,14 @@ jobs:
           GRAFANA_RO_PASSWORD: ci-grafana-ro-pw
           COLLECTOR_DB_PASSWORD: ci-collector-pw
           BACKUP_DB_PASSWORD: ci-backup-pw
+          METABASE_RO_PASSWORD: ci-metabase-ro-pw
           WATCHDOG_DB_PASSWORD: ci-watchdog-pw
         run: |
           psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE vatpac_test"
           docker build -q -t vatpac-migrate-ci -f ops/migrate/Dockerfile .
           docker run --rm --network host --add-host db:127.0.0.1 \
             -e POSTGRES_USER -e POSTGRES_PASSWORD -e POSTGRES_DB \
-            -e GRAFANA_RO_PASSWORD -e COLLECTOR_DB_PASSWORD -e BACKUP_DB_PASSWORD -e WATCHDOG_DB_PASSWORD \
+            -e GRAFANA_RO_PASSWORD -e COLLECTOR_DB_PASSWORD -e BACKUP_DB_PASSWORD -e METABASE_RO_PASSWORD -e WATCHDOG_DB_PASSWORD \
             -v "$PWD/db:/db:ro" vatpac-migrate-ci
       - name: Install
         run: |
@@ -149,6 +150,7 @@ jobs:
           VATPAC_TEST_STRICT: "1"
           VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test
           VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
+          VATPAC_TEST_METABASE_RO_DSN: postgresql://metabase_ro:ci-metabase-ro-pw@localhost:5432/vatpac_test
         run: pytest tests/integration -m integration -q
       # Second pass, same database and same tests, but the test connection's session time zone is Australia/Sydney
       # (production is UTC and grafana_ro is pinned to UTC, so only the tests' own connection moves). This is what
@@ -160,6 +162,7 @@ jobs:
           VATPAC_TEST_EXPECT_TZ: Australia/Sydney
           VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test?options=-c%20TimeZone%3DAustralia/Sydney
           VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
+          VATPAC_TEST_METABASE_RO_DSN: postgresql://metabase_ro:ci-metabase-ro-pw@localhost:5432/vatpac_test
         run: pytest tests/integration -m integration -q
 
   config-drift:

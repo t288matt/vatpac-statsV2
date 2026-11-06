@@ -140,7 +140,7 @@ def test_policy_keys_option_prints_the_names(capsys: pytest.CaptureFixture[str],
 
 # ------------------------------------------------------------------ ops/check_env.sh warnings
 SECRETS = ("POSTGRES_PASSWORD", "GRAFANA_RO_PASSWORD", "GRAFANA_ADMIN_PASSWORD", "WATCHDOG_DB_PASSWORD",
-           "COLLECTOR_DB_PASSWORD", "BACKUP_DB_PASSWORD")
+           "COLLECTOR_DB_PASSWORD", "BACKUP_DB_PASSWORD", "METABASE_RO_PASSWORD", "METABASE_DB_PASSWORD", "METABASE_ENCRYPTION_KEY")
 needs_sh = pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
 
 

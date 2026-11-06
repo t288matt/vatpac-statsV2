@@ -12,8 +12,8 @@ The rule (ADR-034, 19-10-2026, issue 21): `.env` holds secrets and values that d
 
 | Group | Keys | Lives in | Value | Status |
 |---|---|---|---|---|
-| Secrets | `POSTGRES_PASSWORD`, `GRAFANA_RO_PASSWORD`, `COLLECTOR_DB_PASSWORD`, `BACKUP_DB_PASSWORD`, `WATCHDOG_DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, `TELEGRAM_BOT_TOKEN`, `UPTIME_KUMA_PUSH_URL` | `.env` only | Per machine, never in git | Already so |
-| Machine-specific | `GRAFANA_PORT`, `GRAFANA_BIND`, `GRAFANA_ROOT_URL`, `GRAFANA_COOKIE_SECURE`, `BACKUP_REMOTE`, `BACKUP_EXTRA_APT_PACKAGES`, `VATPAC_VERSION`, `VATPAC_IMAGE_PREFIX`, `TELEGRAM_CHAT_ID` | `.env` only | Per machine | Already so |
+| Secrets | `POSTGRES_PASSWORD`, `GRAFANA_RO_PASSWORD`, `COLLECTOR_DB_PASSWORD`, `BACKUP_DB_PASSWORD`, `WATCHDOG_DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, `METABASE_RO_PASSWORD`, `METABASE_DB_PASSWORD`, `METABASE_ENCRYPTION_KEY`, `TELEGRAM_BOT_TOKEN`, `UPTIME_KUMA_PUSH_URL` | `.env` only | Per machine, never in git | Already so |
+| Machine-specific | `GRAFANA_PORT`, `GRAFANA_BIND`, `GRAFANA_ROOT_URL`, `GRAFANA_COOKIE_SECURE`, `METABASE_PORT`, `METABASE_BIND`, `METABASE_SITE_URL`, `BACKUP_REMOTE`, `BACKUP_EXTRA_APT_PACKAGES`, `VATPAC_VERSION`, `VATPAC_IMAGE_PREFIX`, `TELEGRAM_CHAT_ID` | `.env` only | Per machine | Already so |
 | Debug toggle | `LOG_LEVEL` | `.env`, with the default `INFO` in compose | `INFO` | Already so |
 | Retention policy | `POSITION_RETENTION_DAYS`, `BACKUP_RETENTION_DAYS`, `BACKUP_MIN_KEEP`, `ARCHIVE_COMPACT_KEEP_DAYS`, `ARCHIVE_FULL_KEEP_DAYS`, `ARCHIVE_ANOMALY_KEEP_DAYS`, `ARCHIVE_MAX_MB` | Literals in `docker-compose.yml` | 180, 14, 3, 30, 7, 90, 1024 | Moved 19-10-2026 (issue 21) |
 | Watchdog thresholds | `WATCHDOG_DB_MAX_GB`, `WATCHDOG_DISK_PCT`, `WATCHDOG_DISK_PATHS`, `WATCHDOG_BACKUP_MAX_HOURS`, `WATCHDOG_RESTORE_TEST_MAX_DAYS`, `WATCHDOG_INTERVAL_SECONDS`, `WATCHDOG_WARN_SECONDS`, `WATCHDOG_PAGE_SECONDS`, `WATCHDOG_CONFIRM_CYCLES`, `WATCHDOG_INTEGRITY_INTERVAL_HOURS`, `WATCHDOG_CROSSCHECK_INTERVAL_DAYS`, `WATCHDOG_CROSSCHECK_SAMPLES` | Literals in `docker-compose.yml` | 5 GB for the database limit; the rest as listed in A1 | Moved 19-10-2026 (issue 21) |
@@ -46,6 +46,10 @@ Run `docker compose up -d backup`, open the pull request that changes the litera
 | `COLLECTOR_DB_PASSWORD` | none, **required** | migrate, collector | Password of the role `collector` (DML on its tables only). |
 | `BACKUP_DB_PASSWORD` | none, **required** | migrate, backup | Password of the read-only role `backup_ro` used by `pg_dump`. |
 | `WATCHDOG_DB_PASSWORD` | none, **required** | migrate, watchdog | Password of the read-only role `watchdog_ro`. |
+| `METABASE_RO_PASSWORD` | none, **required** | migrate | Password of the read-only role `metabase_ro` (set on every `migrate` run); the owner types it into Metabase once ([RUNBOOKS/metabase.md](RUNBOOKS/metabase.md)). |
+| `METABASE_DB_PASSWORD` | none, **required** | metabase, metabase-db, backup | Password of Metabase's own small database (not the vatpac database). Read by Postgres at first initialisation only. |
+| `METABASE_ENCRYPTION_KEY` | none, **required** | metabase | Encrypts the saved connection details inside Metabase's database. Keep it with `.env`; a restored Metabase needs it. |
+| `METABASE_PORT`, `METABASE_BIND`, `METABASE_SITE_URL` | `3400`, `127.0.0.1`, `http://localhost:3400` | metabase | Published port, interface (set to the VM's LAN address for LAN access; never a public proxy without an owner decision) and the address people type. |
 | `GRAFANA_ADMIN_USER` | `admin` | grafana | Admin login. |
 | `GRAFANA_ADMIN_PASSWORD` | none, **required** | grafana | Admin password. |
 | `GRAFANA_PORT` | `3300` | grafana | Host port mapped to Grafana's 3000. |

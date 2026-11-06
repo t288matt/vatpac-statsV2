@@ -3,12 +3,13 @@
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
 --        -v grafana_ro_password="$GRAFANA_RO_PASSWORD" \
 --        -v collector_password="$COLLECTOR_DB_PASSWORD" \
---        -v backup_password="$BACKUP_DB_PASSWORD" -f db/roles.sql
+--        -v backup_password="$BACKUP_DB_PASSWORD" --        -v metabase_ro_password="$METABASE_RO_PASSWORD" -f db/roles.sql
 --
 -- Safe to re-run (every deploy): it re-applies the grants so objects added by later migrations are
 -- picked up. Roles:
 --   grafana_ro  SELECT on views, materialized views and lookup tables only; no base tables, no writes,
 --               statement timeout, at most 10 connections.
+--   metabase_ro the same rights and limits as grafana_ro, for Metabase ad-hoc questions (issue 288).
 --   collector   the application role: SELECT, INSERT, UPDATE on the tables the collector writes (DELETE on poll_log only), USAGE on sequences, EXECUTE
 --               on the maintenance functions. No DDL (the partition functions are SECURITY DEFINER), no
 --               table access to flight_summary (it only EXECUTEs the writer) or views, not a superuser.
@@ -17,6 +18,10 @@
 \if :{?grafana_ro_password}
 \else
     DO $$ BEGIN RAISE EXCEPTION 'psql variable grafana_ro_password is not set'; END $$;
+\endif
+\if :{?metabase_ro_password}
+\else
+    DO $$ BEGIN RAISE EXCEPTION 'psql variable metabase_ro_password is not set'; END $$;
 \endif
 \if :{?collector_password}
 \else
@@ -71,6 +76,48 @@ BEGIN
         SELECT schemaname, matviewname FROM pg_matviews WHERE schemaname = 'public'
     LOOP
         EXECUTE format('GRANT SELECT ON %I.%I TO grafana_ro', r.schemaname, r.name);
+    END LOOP;
+END
+$$;
+
+-- ---------------------------------------------------------------------------------------------
+-- metabase_ro
+-- ---------------------------------------------------------------------------------------------
+SELECT format('CREATE ROLE metabase_ro LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE', :'metabase_ro_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'metabase_ro')
+\gexec
+
+SELECT format('ALTER ROLE metabase_ro PASSWORD %L', :'metabase_ro_password')
+\gexec
+
+ALTER ROLE metabase_ro CONNECTION LIMIT 10;
+ALTER ROLE metabase_ro SET default_transaction_read_only = on;
+ALTER ROLE metabase_ro SET statement_timeout = '30s';
+ALTER ROLE metabase_ro SET work_mem = '16MB';
+-- JIT compilation adds about 1 s to a query over many partitions and gains nothing on these small result sets (issue #109).
+ALTER ROLE metabase_ro SET jit = off;
+-- Pin the session time zone so date_trunc / ::date in dashboard SQL (retention panels) never depend on the
+-- server default (T27 item 4).
+ALTER ROLE metabase_ro SET timezone = 'UTC';
+
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM metabase_ro;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM metabase_ro;
+REVOKE CREATE ON SCHEMA public FROM metabase_ro;
+GRANT USAGE ON SCHEMA public TO metabase_ro;
+
+-- Lookups (same as grafana_ro).
+GRANT SELECT ON controller_rating, facility, pilot_rating, airline, aircraft_type, region_map TO metabase_ro;
+
+-- Every view and materialized view in public is intended for Grafana and Metabase alike (same list as grafana_ro).
+DO $$
+DECLARE r record;
+BEGIN
+    FOR r IN
+        SELECT schemaname, viewname AS name FROM pg_views WHERE schemaname = 'public'
+        UNION ALL
+        SELECT schemaname, matviewname FROM pg_matviews WHERE schemaname = 'public'
+    LOOP
+        EXECUTE format('GRANT SELECT ON %I.%I TO metabase_ro', r.schemaname, r.name);
     END LOOP;
 END
 $$;

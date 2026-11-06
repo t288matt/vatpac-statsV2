@@ -35,7 +35,7 @@ docker network create vatpac-pgtest
 docker run -d --name vatpac-pgtest-db --network vatpac-pgtest --network-alias db -p 54329:5432   -e POSTGRES_PASSWORD=ci-superuser-pw -e POSTGRES_DB=vatpac_test postgres:16
 # every time migrations change (and the first time): apply them with the production migrate image
 docker build -q -t vatpac-migrate-ci -f ops/migrate/Dockerfile .
-MSYS_NO_PATHCONV=1 docker run --rm --network vatpac-pgtest   -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=ci-superuser-pw -e POSTGRES_DB=vatpac_test   -e GRAFANA_RO_PASSWORD=ci-grafana-ro-pw -e COLLECTOR_DB_PASSWORD=ci-collector-pw -e BACKUP_DB_PASSWORD=ci-backup-pw   -e WATCHDOG_DB_PASSWORD=ci-watchdog-pw -v "$(pwd -W)/db:/db:ro" vatpac-migrate-ci
+MSYS_NO_PATHCONV=1 docker run --rm --network vatpac-pgtest   -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=ci-superuser-pw -e POSTGRES_DB=vatpac_test   -e GRAFANA_RO_PASSWORD=ci-grafana-ro-pw -e COLLECTOR_DB_PASSWORD=ci-collector-pw -e BACKUP_DB_PASSWORD=ci-backup-pw -e METABASE_RO_PASSWORD=ci-metabase-ro-pw   -e WATCHDOG_DB_PASSWORD=ci-watchdog-pw -v "$(pwd -W)/db:/db:ro" vatpac-migrate-ci
 # run the tests (libpq must be findable by Python: the PostgreSQL 17 client that is installed on the PC has it)
 export PATH="$PATH:/c/Program Files/PostgreSQL/17/bin" PYTHONPATH=collector/src
 export VATPAC_TEST_DSN='postgresql://postgres:ci-superuser-pw@localhost:54329/vatpac_test'
@@ -98,7 +98,7 @@ This also runs the role tests, because the throwaway container has its own clust
 docker run -d --name vp-test -p 127.0.0.1:55436:5432 -e POSTGRES_PASSWORD=x postgres:16-bookworm
 docker exec vp-test psql -U postgres -c "CREATE DATABASE vatpac_test"
 for f in db/migrations/*.sql; do sed '/^-- migrate:down/,$d' "$f" | docker exec -i vp-test psql -U postgres -d vatpac_test -v ON_ERROR_STOP=1 -q; done
-docker exec -i vp-test psql -U postgres -d vatpac_test -v ON_ERROR_STOP=1 -v grafana_ro_password=testpw -v collector_password=cpw -v backup_password=bpw -q < db/roles.sql
+docker exec -i vp-test psql -U postgres -d vatpac_test -v ON_ERROR_STOP=1 -v grafana_ro_password=testpw -v collector_password=cpw -v backup_password=bpw -v metabase_ro_password=mpw -q < db/roles.sql
 # watchdog_ro is created by ops/migrate/migrate.sh, not roles.sql: run its SQL block too (the watchdog role tests skip without it)
 sed -n "/<<'SQL'/,/^SQL$/p" ops/migrate/migrate.sh | sed '1d;$d' | docker exec -i vp-test psql -U postgres -d vatpac_test -X -q -v ON_ERROR_STOP=1 -v wd_pw=wpw
 export VATPAC_TEST_DSN=postgresql://postgres:x@127.0.0.1:55436/vatpac_test
