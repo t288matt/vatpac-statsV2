@@ -1,6 +1,6 @@
 # Runbook: add or change a dashboard
 
-Last reviewed: 06-11-2026. Dashboards are code: JSON files in git, loaded by Grafana from a read-only mount. Edits made in the Grafana web interface are not saved (`allowUiUpdates: false`, viewers cannot edit) and are lost on restart; every change goes through the files.
+Last reviewed: 07-11-2026. Dashboards are code: JSON files in git, loaded by Grafana from a read-only mount. Edits made in the Grafana web interface are not saved (`allowUiUpdates: false`, viewers cannot edit) and are lost on restart; every change goes through the files.
 
 ## Where things are
 
@@ -18,7 +18,23 @@ Last reviewed: 06-11-2026. Dashboards are code: JSON files in git, loaded by Gra
 - Unique panel ids; every non-text panel uses the data source with uid `vatpac` and has a non-empty `rawSql`; give every panel a description (a warning otherwise). Say which v1 card it reproduces.
 - Queries read only allow-listed relations: the views created in `db/migrations/` and the six lookup tables (`controller_rating`, `facility`, `pilot_rating`, `airline`, `aircraft_type`, `region_map`). Base tables such as `pilot_session` or `poll_log` are refused, and `grafana_ro` has no access to them anyway. The list of views is in [../DATA_DICTIONARY.md](../DATA_DICTIONARY.md).
 - No hard-coded dates, no `DISTINCT ON`, and every query must parse as PostgreSQL (needs `pip install sqlglot`; without it the SQL is not parsed and the script says so).
+- Dashboards listed in `RESTYLED` in `grafana/look_rules.py` also follow the look conventions below; the validator fails on a colour outside the palette, a bare table, a time series without a legend table, a ranked bar without values, a change arrow with no time window to compare against, or a `trend` panel. `tests/test_dashboards_look.py` runs the same rules.
 - Use UTC explicitly, and Grafana's time macros (`$__timeFrom()`, `$__timeTo()`, `$__timeFilter(col)`) or `now()` so the chart follows the time range.
+
+## Look conventions (issue 280, the "Pilots: online now" look)
+
+One look on every page, so a restyle changes `type`, `options` and `fieldConfig` and never a query. The pages restyled so far are listed in `RESTYLED` in `grafana/look_rules.py` (today: Live now, Traffic, Routes, Aircraft, Pilots records); the remaining pages follow in later batches.
+
+- **Colours:** fixed, never by theme. Blue `#3AA0DD` (first series and every single-colour chart), amber `#E69F00` (second series), green `#1FAF8A`, pink `#CC79A7`, grey `#8A97B2`. The one exception is a donut, which has one colour per slice and an unknown number of slices, so it uses Grafana's classic palette (`color.mode` `palette-classic`).
+- **Tables:** `cellHeight` `md`, no footer. The main count column of a ranked table is an in-cell bar (`custom.cellOptions` type `gauge`, mode `basic`, value as text, minimum 0, blue). Grafana scales the bar against the largest value of any number column in the table, so a table that mixes scales (minutes beside counts, groundspeed beside altitude, percentages beside counts) gets no bar, and the bar goes on the largest column. Status columns are pills with the fixed colours (see the departure board on Live now). Column names come from the query and are not renamed here.
+- **Ranked bar charts:** horizontal, values shown, one fixed colour per series, legend only when there are two or more series. Hours-of-day charts stay vertical without values (24 bars) and use the Live now settings; the `trend` panel type is not used.
+- **Time series:** smooth line (or bars for per-week counts), opacity gradient, no points, legend as a table with last, max, min and mean.
+- **Donuts:** donut with a legend table (value and percent) on the right, largest first. A donut or a ranked bar is added or removed only on the owner's decision for that panel.
+- **Stat cards:** a plain card (no sparkline, no arrow, fixed colour) unless the query returns a series to compare; the arrow shows only where it compares a real earlier value (the first two cards on Live now, "vs 1 hour ago").
+- **Text:** panel 1 (navigation strip and banner) is generated and does not change; no generated headline sentences.
+- **Do not change a query in a look change.** `tests/test_dashboards_sql_unchanged.py` compares a hash of every panel's `rawSql`, `format` and `timeFrom` with `tests/fixtures/dashboard_sql_baseline.json`. A query change needs the owner's explicit yes for that panel; the same pull request then rewrites the baseline with `python tests/test_dashboards_sql_unchanged.py --write` and says so.
+- **Copies:** a panel that is a copy of a panel on another dashboard is restyled with its source. While a copy's page is not yet restyled, `RESTYLED` in `tests/integration/test_atc_live_events.py` and `tests/integration/test_pilots_records.py` names the restyled source panel; the tests still compare query, format and window for every copy. Remove a name from `RESTYLED` when the copy's page is restyled.
+- What Grafana cannot do on a public dashboard (do not attempt): sidebar or menu, Share button, visitor theme switch, per-card toggles or refresh, donut centre total, card shadow or radius, hiding the title bar, monospace figures, sparklines that do not overlap the number.
 
 ## Add or change a panel
 

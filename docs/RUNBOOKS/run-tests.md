@@ -31,7 +31,7 @@ A pull request runs a `scope` job first. It lists the changed paths (`git diff -
 
 | Changed paths | Scope | What runs |
 |---|---|---|
-| Only `grafana/dashboards/<group>/*.json`, `docs/CHART_DEFINITIONS.md`, and the five dashboard-only tests (`test_dashboard_descriptions.py`, `test_dashboard_nav.py`, `test_chart_definitions_tests.py`, `test_pilots_now_look.py`, `test_phase3_switch.py`) | `dashboards` | `scope`, `secret-scan`, `config-drift`, `dashboards` (validator and nav check), `size-budget`, `unit-tests` on the dashboard test files, `integration-tests` on the dashboard SQL tests (strict, both time zone passes) |
+| Only `grafana/dashboards/<group>/*.json`, `docs/CHART_DEFINITIONS.md`, and the seven dashboard-only tests (`test_dashboard_descriptions.py`, `test_dashboard_nav.py`, `test_chart_definitions_tests.py`, `test_pilots_now_look.py`, `test_phase3_switch.py`, `test_dashboards_look.py`, `test_dashboards_sql_unchanged.py`) | `dashboards` | `scope`, `secret-scan`, `config-drift`, `dashboards` (validator and nav check), `size-budget`, `unit-tests` on the dashboard test files, `integration-tests` on the dashboard SQL tests (strict, both time zone passes) |
 | Only root `*.md` and `docs/**` other than the full-suite docs below | `docs` | `scope` and `secret-scan` |
 | `docs/RUNBOOKS/**`, `docs/reference/**`, `docs/DATA_DICTIONARY.md`, `docs/DEFINITIONS.md`, `docs/CONFIG_MAP.md`, root `SPEC.md` (tests read them) | `full` | everything |
 | `collector/`, `db/`, `ops/` (including `ops/ci_scope.py`), `.github/`, `docker-compose*.yml`, `Makefile`, any other test file, `grafana/validate_dashboards.py`, `grafana/provisioning/`, anything not named above, any mix with these, an empty or unreadable change list | `full` | everything, as before |
