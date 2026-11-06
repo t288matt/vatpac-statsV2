@@ -19,7 +19,7 @@ def test_rejected_values_description_covers_everything_the_counter_counts():
 
 
 def test_rejected_values_threshold_is_above_one_persistent_condition_per_day():
-    # One over-length name is counted every poll: 2,880 a day at 30 s polling, so an orange step at 100 would trip on it.
+    # One over-length name is counted every poll: 2,880 a day at 30 s polling, so an amber step at 100 would trip on it.
     steps = _panel("Rejected values")["fieldConfig"]["defaults"]["thresholds"]["steps"]
-    orange = next(s["value"] for s in steps if s["color"] == "orange")
-    assert orange > 2880
+    amber = next(s["value"] for s in steps if s["color"] == "#E69F00")
+    assert amber > 2880

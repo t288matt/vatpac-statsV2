@@ -10,7 +10,9 @@ from typing import Any
 
 # The fixed colours (colour-blind safe, legible on the dark and the light theme), taken from "Pilots: online now".
 BLUE, AMBER, GREEN, PINK, GREY = "#3AA0DD", "#E69F00", "#1FAF8A", "#CC79A7", "#8A97B2"
-PALETTE = {BLUE, AMBER, GREEN, PINK, GREY}
+# Red for "bad" on status cards and the error series (vermillion from the same colour-blind-safe family), added in batch 3.
+RED = "#D55E00"
+PALETTE = {BLUE, AMBER, GREEN, PINK, GREY, RED}
 
 # Dashboards that have the new look (path under grafana/dashboards). Add a batch's files here in the same pull request.
 RESTYLED = {
@@ -24,6 +26,10 @@ RESTYLED = {
     "atc/atc-ranks.json",
     "atc/atc-position-hours.json",
     "atc/atc-retention.json",
+    "events/live-events.json",
+    "events/monday-events.json",
+    "management/management.json",
+    "monitoring/collector-health.json",
 }
 
 # Panels whose colours come from Grafana's classic palette because the number of slices or series is not known when the

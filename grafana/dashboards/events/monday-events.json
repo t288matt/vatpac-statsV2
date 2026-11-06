@@ -83,17 +83,76 @@
           "rawSql": "SELECT win_start AS time, pilot_cids AS \"Pilots\", controller_cids AS \"Controllers\"\nFROM monday_attendance\nWHERE win_start BETWEEN $__timeFrom() AND $__timeTo()\nORDER BY win_start"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "bars",
-            "fillOpacity": 70,
+            "lineInterpolation": "smooth",
             "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
             "barAlignment": 0
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pilots"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Controllers"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -124,20 +183,63 @@
           "rawSql": "SELECT (date_trunc('week', f.end_time AT TIME ZONE 'UTC')) AT TIME ZONE 'UTC' AS time,\n       round(100.0 * COALESCE(sum(f.airborne_minutes) FILTER (WHERE f.pilot_is_local), 0)\n             / NULLIF(sum(f.airborne_minutes), 0), 1) AS \"Local pilots (%)\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND extract(isodow FROM f.end_time AT TIME ZONE 'UTC') = 1\n  AND (f.end_time AT TIME ZONE 'UTC')::time >= time '07:00'\n  AND (f.end_time AT TIME ZONE 'UTC')::time < time '12:00'\n  AND ((f.departure = 'YMML' AND f.arrival = 'YSSY') OR (f.departure = 'YSSY' AND f.arrival = 'YMML'))\n  AND f.airborne_minutes > 0\nGROUP BY 1\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "line",
+            "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "showPoints": "always",
-            "fillOpacity": 10
-          }
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Local pilots (%)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -168,17 +270,60 @@
           "rawSql": "WITH mon AS (\n  -- The most recent Monday whose 0700Z start has passed: 7 hours back from now, so Monday 00:00 to 06:59Z still shows last Monday\n  SELECT (date_trunc('day', (now() - interval '7 hours') AT TIME ZONE 'UTC')\n          - (extract(isodow FROM (now() - interval '7 hours') AT TIME ZONE 'UTC')::int - 1) * interval '1 day') AT TIME ZONE 'UTC' AS d\n),\nslots AS (\n  SELECT mon.d + interval '7 hours' + n * interval '5 minutes' AS slot\n  FROM mon CROSS JOIN generate_series(0, 59) AS n\n),\nsamples AS (\n  SELECT s.observed_at, s.session_id\n  FROM pilot_sample s\n  WHERE s.observed_at >= (SELECT d FROM mon) + interval '7 hours'\n    AND s.observed_at <  (SELECT d FROM mon) + interval '12 hours'\n    AND s.alt_ft > 1000\n)\nSELECT sl.slot AS time,\n       count(DISTINCT sa.session_id) AS \"Airborne aircraft\"\nFROM slots sl\nLEFT JOIN samples sa\n       ON sa.observed_at >= sl.slot AND sa.observed_at < sl.slot + interval '5 minutes'\nWHERE sl.slot <= now()\nGROUP BY sl.slot\nORDER BY sl.slot"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "line",
+            "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "showPoints": "auto",
-            "fillOpacity": 10
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Airborne aircraft"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       }
     }
   ]
