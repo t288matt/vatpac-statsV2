@@ -187,7 +187,6 @@
             "mode": "fixed",
             "fixedColor": "#3AA0DD"
           },
-          "decimals": 0,
           "custom": {
             "drawStyle": "bars",
             "lineInterpolation": "smooth",

@@ -106,7 +106,6 @@
             "mode": "fixed",
             "fixedColor": "#3AA0DD"
           },
-          "decimals": 0,
           "unit": "none",
           "custom": {
             "fillOpacity": 85,
@@ -170,7 +169,6 @@
             "mode": "fixed",
             "fixedColor": "#3AA0DD"
           },
-          "decimals": 0,
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "smooth",

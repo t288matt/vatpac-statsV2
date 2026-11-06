@@ -422,14 +422,21 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "#3AA0DD",
+                "color": "#CC79A7",
                 "value": null
+              },
+              {
+                "color": "#E69F00",
+                "value": 65
+              },
+              {
+                "color": "#1FAF8A",
+                "value": 85
               }
             ]
           },
           "color": {
-            "mode": "fixed",
-            "fixedColor": "#3AA0DD"
+            "mode": "thresholds"
           }
         },
         "overrides": []
@@ -897,7 +904,6 @@
             "mode": "fixed",
             "fixedColor": "#3AA0DD"
           },
-          "decimals": 0,
           "custom": {
             "drawStyle": "bars",
             "lineInterpolation": "smooth",
