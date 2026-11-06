@@ -100,10 +100,26 @@
       ],
       "options": {
         "showHeader": true,
-        "cellHeight": "sm"
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       }
     },
@@ -137,26 +153,38 @@
       ],
       "options": {
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
           "custom": {
             "drawStyle": "bars",
-            "fillOpacity": 70,
+            "lineInterpolation": "smooth",
             "lineWidth": 1,
-            "barAlignment": 0,
-            "axisPlacement": "auto",
+            "fillOpacity": 70,
+            "gradientMode": "opacity",
             "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            }
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -169,6 +197,13 @@
               {
                 "id": "displayName",
                 "value": "Pilots who logged on"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
               }
             ]
           },
@@ -181,6 +216,13 @@
               {
                 "id": "displayName",
                 "value": "Never flew that month"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
               }
             ]
           },
@@ -217,6 +259,13 @@
               {
                 "id": "custom.showPoints",
                 "value": "always"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1FAF8A"
+                }
               }
             ]
           },
@@ -269,22 +318,38 @@
       ],
       "options": {
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
           "custom": {
             "drawStyle": "line",
+            "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "fillOpacity": 0,
-            "showPoints": "always",
-            "axisPlacement": "auto"
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -297,6 +362,13 @@
               {
                 "id": "displayName",
                 "value": "Pilots who flew"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
               }
             ]
           },
@@ -309,6 +381,13 @@
               {
                 "id": "displayName",
                 "value": "Lapsed from previous month"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
               }
             ]
           },
@@ -329,6 +408,13 @@
               {
                 "id": "custom.axisPlacement",
                 "value": "right"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1FAF8A"
+                }
               }
             ]
           },
