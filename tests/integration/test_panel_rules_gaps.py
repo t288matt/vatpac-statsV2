@@ -95,7 +95,7 @@ def test_online_over_time_averages_each_five_minute_bin(conn) -> None:
     snapshot(conn, base + timedelta(seconds=70), 20, 6, 200, 60)          # same bin: averages
     snapshot(conn, base + timedelta(seconds=310), 30, 8, 300, 80)         # next bin
     snapshot(conn, base - timedelta(seconds=10), 99, 99, 99, 99)          # before the dashboard range: ignored
-    rows = run(conn, "Pilots online over time", base, base + timedelta(hours=1))
+    rows = run(conn, "Pilots online over the last 24 hours", base, base + timedelta(hours=1))
     assert [(r["time"], float(r["In region"]), float(r["Network-wide"])) for r in rows] == [
         (base, 15.0, 150.0), (base + timedelta(minutes=5), 30.0, 300.0)]
     rows = run(conn, "Controllers online over time", base, base + timedelta(hours=1))
