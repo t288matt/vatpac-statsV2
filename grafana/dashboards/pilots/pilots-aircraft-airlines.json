@@ -47,11 +47,11 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 3
+        "h": 6
       },
       "options": {
         "mode": "markdown",
-        "content": "**Data since ${go_live}.** There is no earlier data, so early periods look thin. All times are UTC. A flight is counted once it has finished (about 8 hours after the pilot's last position; a reconnect within 2 hours on the same flight is one flight). Each panel has a fixed period and a fixed number of rows, stated in its title and description; the page has no inputs. RAAFv flights are found by the flight-plan remarks."
+        "content": "Pilots: [Live now](/live) · [Traffic](/traffic) · [New pilots](/new-pilots) · [Origins](/origins) · [Records](/pilots) · [Routes](/routes) · **Aircraft** · [Military](/military) | ATC: [Overview](/atc) · [Retention](/atc-retention) · [Hours](/atc-hours) · [Positions](/atc-positions) · [Ranks](/atc-ranks) | Events: [Live events](/live-events) · [Monday events](/monday) | Management: [Monthly](/monthly) · [Health](/health)\n\n**Live data since ${go_live}; earlier history was imported.** Flights from 24-08-2025 to 06-03-2026 and controller sessions from 24-08-2025 to 15-03-2026 come from the previous system (no speed, altitude or SELCAL for imported flights). There are no flights after 06-03-2026 and no controller sessions after 15-03-2026 until ${go_live}. Panels for the last 7 or 30 days and the live tables show current data only. All times are UTC. A flight is counted once it has finished (about 8 hours after the pilot's last position; a reconnect within 2 hours on the same flight is one flight). Each panel has a fixed period and a fixed number of rows, stated in its title and description; the page has no inputs. RAAFv flights are found by the flight-plan remarks."
       },
       "id": 1
     },
@@ -66,7 +66,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 3,
+        "y": 6,
         "w": 12,
         "h": 10
       },
@@ -119,7 +119,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 3,
+        "y": 6,
         "w": 12,
         "h": 10
       },
@@ -171,7 +171,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 13,
+        "y": 16,
         "w": 12,
         "h": 9
       },
@@ -206,7 +206,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 13,
+        "y": 16,
         "w": 12,
         "h": 9
       },
@@ -246,7 +246,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 22,
+        "y": 25,
         "w": 12,
         "h": 9
       },
@@ -281,7 +281,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 22,
+        "y": 25,
         "w": 12,
         "h": 9
       },
@@ -315,7 +315,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 34,
         "w": 12,
         "h": 10
       },
@@ -368,7 +368,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 31,
+        "y": 34,
         "w": 12,
         "h": 10
       },
@@ -403,7 +403,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 41,
+        "y": 44,
         "w": 24,
         "h": 10
       },
@@ -438,7 +438,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 51,
+        "y": 54,
         "w": 12,
         "h": 9
       },
@@ -479,7 +479,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 51,
+        "y": 54,
         "w": 12,
         "h": 9
       },
