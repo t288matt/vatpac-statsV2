@@ -118,10 +118,10 @@ COPIES = [  # (dashboard, title, source file)
 
 RESTYLED = {("pilots/pilots-now.json", "When are people online on weekdays (last 30 days)"),
             ("pilots/pilots-now.json", "When are people online on weekends (last 30 days)"),
-            ("pilots/pilots-now.json", "Departure board"),
-            # issue 280, batch 1 (Traffic restyled; the copy on Live now and events follows in a later batch). The query, format and window are still compared.
-            ("pilots/pilots-traffic.json", "Busiest days by flights (last 6 months)"),
-            ("pilots/pilots-traffic.json", "Busiest days by pilots online (last 6 months)")}
+            # issue 280, batch 3: the copies on Live events are restyled; their sources (batch 2: ATC overview, batch 4: Pilot origins) follow.
+            # The query, format and window are still compared. Remove an entry when its source page is restyled to match.
+            ("atc/atc-overview.json", "Controllers online now"),
+            ("demographics/pilot-origins.json", "Where pilots currently online come from")}
 
 
 @pytest.mark.parametrize("path,title,src", COPIES)

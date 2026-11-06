@@ -100,27 +100,44 @@
       ],
       "options": {
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "bars",
-            "fillOpacity": 70,
+            "lineInterpolation": "smooth",
             "lineWidth": 1,
-            "barAlignment": 0,
+            "fillOpacity": 70,
+            "gradientMode": "opacity",
             "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false,
+            "barAlignment": 0,
             "stacking": {
               "mode": "none"
             }
-          },
-          "decimals": 0
+          }
         },
         "overrides": [
           {
@@ -132,6 +149,13 @@
               {
                 "id": "displayName",
                 "value": "Pilots with Y in name"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
               }
             ]
           },
@@ -144,6 +168,13 @@
               {
                 "id": "displayName",
                 "value": "All pilots"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1FAF8A"
+                }
               }
             ]
           },
@@ -156,6 +187,13 @@
               {
                 "id": "displayName",
                 "value": "Controllers"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
               }
             ]
           }
@@ -192,10 +230,12 @@
       ],
       "options": {
         "xField": "month",
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
+          "showLegend": false,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi",
@@ -204,7 +244,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "decimals": 2
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0
+          }
         },
         "overrides": [
           {
