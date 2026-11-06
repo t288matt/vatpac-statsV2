@@ -51,8 +51,15 @@ jobs:
           scope=full
           if [ "$EVENT" = pull_request ] && git fetch --no-tags --depth=1 origin "$BASE_SHA" \
              && git diff -z --name-status -M "$BASE_SHA" HEAD > "$RUNNER_TEMP/changes.z"; then
-            scope="$(python3 ops/ci_scope.py < "$RUNNER_TEMP/changes.z")" || scope=full
-            echo "Changed paths:"; tr '\0' '\n' < "$RUNNER_TEMP/changes.z" | sed 's/^/  /'
+            # Classify with the BASE branch's copy of the script, never the pull request's own, so a pull request cannot loosen
+            # its own filter. A change to .github/ or to the script is forced to full here as well, independent of any Python.
+            if grep -zqE '^(\.github/|ops/ci_scope\.py$)' "$RUNNER_TEMP/changes.z"; then
+              scope=full
+            elif git show "$BASE_SHA:ops/ci_scope.py" > "$RUNNER_TEMP/base_ci_scope.py"; then
+              scope="$(python3 "$RUNNER_TEMP/base_ci_scope.py" < "$RUNNER_TEMP/changes.z")" || scope=full
+            fi
+            # File names are untrusted text: escape control characters and indent every line so none can start a workflow command.
+            echo "Changed paths:"; tr '\0' '\n' < "$RUNNER_TEMP/changes.z" | cat -v | sed 's/^/  /'
           fi
           case "$scope" in docs|dashboards|full) ;; *) scope=full ;; esac
           echo "scope=$scope" >> "$GITHUB_OUTPUT"

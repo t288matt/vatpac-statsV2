@@ -50,7 +50,7 @@ INTEGRATION_TARGETS = tuple(
 
 # Docs under docs/ that CI has always run for (tests read them, or they are procedure): not prose-only.
 FULL_DOCS_DIRS = ("docs/RUNBOOKS/", "docs/reference/")
-FULL_DOCS_FILES = ("docs/DATA_DICTIONARY.md", "docs/DEFINITIONS.md")
+FULL_DOCS_FILES = ("docs/DATA_DICTIONARY.md", "docs/DEFINITIONS.md", "docs/CONFIG_MAP.md", "SPEC.md")
 DASHBOARD_DOCS = ("docs/CHART_DEFINITIONS.md",)  # test_chart_definitions_tests.py reads it against the dashboards
 
 # Jobs of ci.yml. The dashboards scope needs these; full needs all of them; docs needs the secret scan only.
