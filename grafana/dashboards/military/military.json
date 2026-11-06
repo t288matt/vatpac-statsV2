@@ -91,19 +91,28 @@
         },
         "pieType": "donut",
         "legend": {
+          "showLegend": true,
           "displayMode": "table",
           "placement": "right",
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sortBy": "Value",
+          "sortDesc": true
         },
         "tooltip": {
-          "mode": "single"
-        }
+          "mode": "single",
+          "sort": "desc"
+        },
+        "displayLabels": []
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
         "overrides": []
       }
     },
@@ -135,9 +144,28 @@
           "rawSql": "SELECT r.route_label AS route,\n       count(*) AS total_flights,\n       count(DISTINCT r.cid) AS unique_pilots,\n       round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS \"% of RAAFv flights\",\n       round(100.0 * count(DISTINCT r.cid) / sum(count(DISTINCT r.cid)) OVER (), 2) AS \"% of RAAFv pilots\"\nFROM (\n  SELECT f.cid, f.route_label,\n         row_number() OVER (PARTITION BY f.session_id ORDER BY f.end_time DESC) AS rn\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\n    AND f.departure <> '' AND f.arrival <> ''\n) r\nWHERE r.rn = 1\nGROUP BY r.route_label\nORDER BY total_flights DESC, unique_pilots DESC\nLIMIT 25"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       },
       "timeFrom": "1M"
@@ -170,13 +198,40 @@
           "rawSql": "SELECT date_trunc('week', f.end_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       round((sum(f.airborne_minutes) / 60.0)::numeric, 1) AS \"RAAFv hours\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\nGROUP BY 1\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
           "custom": {
             "drawStyle": "bars",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
             "fillOpacity": 70,
-            "lineWidth": 1
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": []
@@ -211,9 +266,28 @@
           "rawSql": "SELECT DISTINCT f.callsign, f.cid, f.name,\n       upper(btrim(f.aircraft_icao)) AS aircraft_type,\n       f.departure, f.arrival, f.remarks, f.logon_time\nFROM flight f\nWHERE f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\n  AND f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\nORDER BY f.logon_time DESC, f.callsign\nLIMIT 500"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       },
       "timeFrom": "7d"
@@ -246,9 +320,28 @@
           "rawSql": "SELECT COALESCE(NULLIF(f.aircraft_icao, ''), '(none)') AS aircraft_type,\n       count(DISTINCT f.session_id) AS total_flights,\n       round(sum(COALESCE(f.airborne_minutes, 0))) AS total_airborne_minutes,\n       round(sum(COALESCE(f.airborne_minutes, 0)) / 60.0, 2) AS total_airborne_hours,\n       round(avg(COALESCE(f.airborne_minutes, 0)) / 60.0, 2) AS avg_airborne_hours_per_flight\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\nGROUP BY 1\nORDER BY total_airborne_hours DESC, aircraft_type\nLIMIT 50"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       },
       "timeFrom": "30d"
@@ -287,21 +380,30 @@
           "calcs": [],
           "fields": "/^Flights$/"
         },
-        "pieType": "pie",
+        "pieType": "donut",
         "legend": {
+          "showLegend": true,
           "displayMode": "table",
           "placement": "right",
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sortBy": "Value",
+          "sortDesc": true
         },
         "tooltip": {
-          "mode": "single"
-        }
+          "mode": "single",
+          "sort": "desc"
+        },
+        "displayLabels": []
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
         "overrides": []
       },
       "timeFrom": "30d"
@@ -334,13 +436,41 @@
           "rawSql": "SELECT date_trunc('week', f.end_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       count(*) AS \"RAAFv flights\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\nGROUP BY 1\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "bars",
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
             "fillOpacity": 70,
-            "lineWidth": 1
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": []

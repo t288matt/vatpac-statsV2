@@ -6,7 +6,13 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
-## Look of Live events, Monday events, Monthly and Collector health (07-11-2026, issue 280, batch 3; pull request pending, not yet merged, not deployed)
+## Look of Pilot origins, Military and Pilot onboarding (06-11-2026, issue 280, batch 4; pull request pending, not yet merged, not deployed)
+
+- **What is new.** The last three pages have the "Pilots: online now" look, so every page now matches: donuts with a legend table (the RAAFv aircraft pie is now a donut), the cohort chart as horizontal bars with values, the log-scale chart in one blue, time series with a gradient and a legend table (the two onboarding charts keep their percentage line on the right-hand axis, now in fixed colours), and tables with the larger row height. The tables here mix counts with minutes or percentages, so none has an in-cell bar. The Pilot origins and Military panels that copy a panel on Routes and Aircraft now match their copies, and the copy check no longer has any not-yet-restyled source.
+- **What did not change.** No panel's query, format, time window or column names (`tests/test_dashboards_sql_unchanged.py`).
+- **One correction.** The weekly RAAFv hours chart on Aircraft (and its source on Military) no longer forces whole numbers; the query returns hours to one decimal place.
+
+## Look of Live events, Monday events, Monthly and Collector health (06-11-2026, issue 280, batch 3; pull request pending, not yet merged, not deployed)
 
 - **What is new.** Four more pages have the "Pilots: online now" look: plain stat cards (Collector health keeps its green, amber and red limits, now in the fixed colours, with red `#D55E00` added to the checker's palette), tables with in-cell bars where the columns share a scale, a status pill on the month column, time series and the monthly bar chart with a gradient and legend table, and a donut with a legend table. The Departure board, Busiest days tables and Monday airborne chart match their sources.
 - **What did not change.** No panel's query, format, time window or column names (`tests/test_dashboards_sql_unchanged.py`). The copy check still compares query, format and window; one entry in its list of not-yet-restyled sources remains, for the Pilot origins donut (batch 4).
