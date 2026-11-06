@@ -87,11 +87,34 @@
         "xField": "rank_group",
         "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "orientation": "horizontal",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
         "overrides": []
       }
     },
@@ -123,17 +146,144 @@
           "rawSql": "WITH bounds AS (\n  SELECT date_trunc('week', min(session_start) AT TIME ZONE 'UTC') AS first_week,\n         date_trunc('week', max(session_start) AT TIME ZONE 'UTC') AS last_week\n  FROM controller_session_ranked\n),\nweeks AS (\n  SELECT g.w AS week_start\n  FROM bounds b\n  CROSS JOIN generate_series(\n         greatest(b.first_week, date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC')),\n         least(b.last_week, date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC')),\n         interval '1 week') AS g(w)\n  WHERE b.first_week IS NOT NULL\n),\nper_controller AS (\n  SELECT m.week_start, s.cid, s.rating\n  FROM weeks m\n  JOIN controller_session_ranked s\n    ON (s.session_start AT TIME ZONE 'UTC') >= m.week_start\n   AND (s.session_start AT TIME ZONE 'UTC') <  m.week_start + interval '1 week'\n  GROUP BY m.week_start, s.cid, s.rating\n  HAVING sum(s.duration_minutes) > 60\n)\nSELECT m.week_start AT TIME ZONE 'UTC' AS time,\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S1')  AS \"S1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S2')  AS \"S2\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'S3')  AS \"S3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C1')  AS \"C1\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'C3')  AS \"C3\",\n       count(DISTINCT p.cid) FILTER (WHERE rank_group_of(p.rating) = 'I1+') AS \"I1+\"\nFROM weeks m\nLEFT JOIN per_controller p ON p.week_start = m.week_start\nGROUP BY m.week_start\nORDER BY 1"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 28,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "S1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "S2"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "S3"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1FAF8A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "C1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CC79A7"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "C3"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8A97B2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "I1+"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              }
+            ]
+          }
+        ]
       },
       "timeFrom": "12M"
     },
@@ -158,9 +308,28 @@
           "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nsec AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n)\nSELECT r.rank_group AS \"Rank (current)\",\n       count(DISTINCT s.cid) FILTER (WHERE s.secs > 0) AS \"Controllers\",\n       round(coalesce(sum(s.secs), 0) / 3600.0, 1) AS \"Hours staffed\"\nFROM ranks r LEFT JOIN sec s ON s.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       },
       "id": 4,
@@ -192,9 +361,28 @@
           "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6), ('Other', 7)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nsec AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n),\nby_rank AS (\n  SELECT CASE WHEN rank_group IN ('S1', 'S2', 'S3', 'C1', 'C3', 'I1+') THEN rank_group ELSE 'Other' END AS rank_group, sum(secs) AS secs\n  FROM sec GROUP BY 1\n)\nSELECT r.rank_group AS \"Rank (current)\",\n       round(coalesce(b.secs, 0) / 3600.0, 1) AS \"Hours staffed\",\n       round(100.0 * coalesce(b.secs, 0) / NULLIF((SELECT sum(secs) FROM sec), 0), 1) AS \"Share of ATC hours (%)\"\nFROM ranks r LEFT JOIN by_rank b ON b.rank_group = r.rank_group\nORDER BY r.sort"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       },
       "id": 5,
@@ -226,10 +414,57 @@
           "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nses AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, s.duration_minutes, c.rank_group\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_start >= now() - interval '30 days' AND s.session_start <= now()\n)\nSELECT r.rank_group AS \"Rank (current)\", count(s.cid) AS \"Sessions\"\nFROM ranks r LEFT JOIN ses s ON s.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sessions"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "id": 6,
       "gridPos": {
@@ -260,9 +495,28 @@
           "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nses AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, s.duration_minutes, c.rank_group\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_start >= now() - interval '30 days' AND s.session_start <= now()\n)\nSELECT r.rank_group AS \"Rank (current)\", count(s.cid) AS \"Sessions\",\n       round(avg(s.duration_minutes)::numeric, 1) AS \"Average minutes\",\n       round(avg(s.duration_minutes)::numeric / 60.0, 2) AS \"Average hours\"\nFROM ranks r LEFT JOIN ses s ON s.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       },
       "id": 7,
@@ -294,10 +548,57 @@
           "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nsec AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n),\nper AS (\n  SELECT rank_group, callsign, sum(secs) AS secs FROM sec GROUP BY rank_group, callsign HAVING sum(secs) > 0\n), ordered AS (\n  SELECT p.*, row_number() OVER (PARTITION BY p.rank_group ORDER BY p.secs DESC, p.callsign) AS n FROM per p\n)\nSELECT r.rank_group AS \"Rank (current)\", o.n AS \"#\", o.callsign AS \"Position\", round(o.secs / 3600.0, 1) AS \"Hours staffed\"\nFROM ordered o JOIN ranks r ON r.rank_group = o.rank_group\nWHERE o.n <= 5\nORDER BY r.sort, o.n"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hours staffed"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "id": 8,
       "gridPos": {
@@ -328,10 +629,57 @@
           "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nsec AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n),\nper AS (\n  SELECT rank_group, cid, (array_agg(name ORDER BY session_start DESC))[1] AS name, sum(secs) AS secs\n  FROM sec GROUP BY rank_group, cid HAVING sum(secs) > 0\n), ordered AS (\n  SELECT p.*, row_number() OVER (PARTITION BY p.rank_group ORDER BY p.secs DESC, p.cid) AS n FROM per p\n)\nSELECT r.rank_group AS \"Rank (current)\", o.n AS \"#\", o.name AS \"Controller\", round(o.secs / 3600.0, 1) AS \"Hours staffed\"\nFROM ordered o JOIN ranks r ON r.rank_group = o.rank_group\nWHERE o.n <= 5\nORDER BY r.sort, o.n"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hours staffed"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "id": 9,
       "gridPos": {
@@ -362,9 +710,28 @@
           "rawSql": "WITH ranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nsec AS (\n  SELECT s.cid, s.callsign, s.name, s.session_start, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, now()) - greatest(s.session_start, now() - interval '30 days')), 0) AS secs\n  FROM controller_session_ranked s JOIN cur c ON c.cid = s.cid\n  WHERE s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n),\nby_rank AS (\n  SELECT rank_group,\n         sum(secs) FILTER (WHERE callsign ~ '_CTR$') AS ctr, sum(secs) FILTER (WHERE callsign ~ '_FSS$') AS fss\n  FROM sec WHERE callsign ~ '_(CTR|FSS)$' GROUP BY rank_group\n)\nSELECT r.rank_group AS \"Rank (current)\",\n       round(coalesce(b.ctr, 0) / 3600.0, 1) AS \"CTR hours\",\n       round(coalesce(b.fss, 0) / 3600.0, 1) AS \"FSS hours\",\n       round((coalesce(b.ctr, 0) + coalesce(b.fss, 0)) / 3600.0, 1) AS \"CTR + FSS hours\",\n       round(100.0 * (coalesce(b.ctr, 0) + coalesce(b.fss, 0)) / NULLIF((SELECT sum(secs) FROM sec WHERE callsign ~ '_(CTR|FSS)$'), 0), 1) AS \"Share of CTR + FSS hours (%)\"\nFROM ranks r LEFT JOIN by_rank b ON b.rank_group = r.rank_group\nORDER BY coalesce(b.ctr, 0) + coalesce(b.fss, 0) DESC, r.sort"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       },
       "id": 10,
@@ -396,17 +763,30 @@
           "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'S1' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
+            "align": "auto",
             "cellOptions": {
               "type": "color-background",
               "mode": "gradient"
-            }
+            },
+            "inspect": false,
+            "filterable": false
           },
           "color": {
-            "mode": "continuous-BlPu"
+            "mode": "continuous-blues"
           }
         },
         "overrides": [
@@ -420,13 +800,6 @@
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "auto"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "text"
                 }
               }
             ]
@@ -462,17 +835,30 @@
           "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'S2' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
+            "align": "auto",
             "cellOptions": {
               "type": "color-background",
               "mode": "gradient"
-            }
+            },
+            "inspect": false,
+            "filterable": false
           },
           "color": {
-            "mode": "continuous-BlPu"
+            "mode": "continuous-blues"
           }
         },
         "overrides": [
@@ -486,13 +872,6 @@
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "auto"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "text"
                 }
               }
             ]
@@ -528,17 +907,30 @@
           "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'S3' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
+            "align": "auto",
             "cellOptions": {
               "type": "color-background",
               "mode": "gradient"
-            }
+            },
+            "inspect": false,
+            "filterable": false
           },
           "color": {
-            "mode": "continuous-BlPu"
+            "mode": "continuous-blues"
           }
         },
         "overrides": [
@@ -552,13 +944,6 @@
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "auto"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "text"
                 }
               }
             ]
@@ -594,17 +979,30 @@
           "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'C1' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
+            "align": "auto",
             "cellOptions": {
               "type": "color-background",
               "mode": "gradient"
-            }
+            },
+            "inspect": false,
+            "filterable": false
           },
           "color": {
-            "mode": "continuous-BlPu"
+            "mode": "continuous-blues"
           }
         },
         "overrides": [
@@ -618,13 +1016,6 @@
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "auto"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "text"
                 }
               }
             ]
@@ -660,17 +1051,30 @@
           "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'C3' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
+            "align": "auto",
             "cellOptions": {
               "type": "color-background",
               "mode": "gradient"
-            }
+            },
+            "inspect": false,
+            "filterable": false
           },
           "color": {
-            "mode": "continuous-BlPu"
+            "mode": "continuous-blues"
           }
         },
         "overrides": [
@@ -684,13 +1088,6 @@
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "auto"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "text"
                 }
               }
             ]
@@ -726,17 +1123,30 @@
           "rawSql": "WITH cur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\ns AS (\n  SELECT r.session_start, r.session_end\n  FROM controller_session_ranked r JOIN cur c ON c.cid = r.cid\n  WHERE c.rank_group = 'I1+' AND r.session_end >= now() - interval '30 days' AND r.session_start <= now()\n), h AS (\n  SELECT hs FROM generate_series(date_trunc('hour', now() - interval '30 days'), date_trunc('hour', now()), interval '1 hour') AS g(hs)\n), a AS (\n  SELECT extract(isodow FROM h.hs AT TIME ZONE 'UTC')::int AS dow, extract(hour FROM h.hs AT TIME ZONE 'UTC')::int AS hr,\n         greatest(extract(epoch FROM least(s.session_end, h.hs + interval '1 hour', now()) - greatest(s.session_start, h.hs, now() - interval '30 days')), 0) AS secs\n  FROM h JOIN s ON s.session_start < h.hs + interval '1 hour' AND s.session_end > h.hs\n)\nSELECT g.hr AS \"Hour (UTC)\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 1), 0) / 3600.0, 1) AS \"Mon\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 2), 0) / 3600.0, 1) AS \"Tue\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 3), 0) / 3600.0, 1) AS \"Wed\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 4), 0) / 3600.0, 1) AS \"Thu\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 5), 0) / 3600.0, 1) AS \"Fri\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 6), 0) / 3600.0, 1) AS \"Sat\",\n       round(coalesce(sum(a.secs) FILTER (WHERE a.dow = 7), 0) / 3600.0, 1) AS \"Sun\"\nFROM generate_series(0, 23) AS g(hr) LEFT JOIN a ON a.hr = g.hr\nGROUP BY g.hr\nORDER BY g.hr"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
+            "align": "auto",
             "cellOptions": {
               "type": "color-background",
               "mode": "gradient"
-            }
+            },
+            "inspect": false,
+            "filterable": false
           },
           "color": {
-            "mode": "continuous-BlPu"
+            "mode": "continuous-blues"
           }
         },
         "overrides": [
@@ -750,13 +1160,6 @@
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "auto"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "text"
                 }
               }
             ]
@@ -792,9 +1195,28 @@
           "rawSql": "WITH mon AS (\n  -- the most recent Monday whose 0700Z start has passed (as the airborne-aircraft panel on the Monday event dashboard)\n  SELECT (date_trunc('day', (now() - interval '7 hours') AT TIME ZONE 'UTC')\n          - (extract(isodow FROM (now() - interval '7 hours') AT TIME ZONE 'UTC')::int - 1) * interval '1 day') AT TIME ZONE 'UTC' AS d\n),\nranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nev AS (\n  SELECT s.cid, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, m.d + interval '12 hours') - greatest(s.session_start, m.d + interval '7 hours')), 0) AS secs\n  FROM mon m JOIN controller_session_ranked s ON s.session_start < m.d + interval '12 hours' AND s.session_end >= m.d + interval '7 hours'\n  JOIN cur c ON c.cid = s.cid\n)\nSELECT r.rank_group AS \"Rank (current)\", count(DISTINCT e.cid) AS \"Controllers present\",\n       round(coalesce(sum(e.secs), 0) / 3600.0, 1) AS \"Hours staffed in the event\",\n       (SELECT to_char(d AT TIME ZONE 'UTC', 'DD-MM-YYYY') FROM mon) AS \"Event date (UTC)\"\nFROM ranks r LEFT JOIN ev e ON e.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       },
       "id": 17,

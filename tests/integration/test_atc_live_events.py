@@ -116,11 +116,12 @@ COPIES = [  # (dashboard, title, source file)
 ]
 
 
-RESTYLED = {("pilots/pilots-now.json", "When are people online on weekdays (last 30 days)"),
+RESTYLED = {
+            # issue 280, batch 2: the two copies on ATC positions plot Pilots AND ATC with a legend and two colours; Live now plots Pilots only (its transformation drops the ATC column), so options and fieldConfig differ on purpose. The query, format and window are still compared.
+            ("pilots/pilots-now.json", "When are people online on weekdays (last 30 days)"),
             ("pilots/pilots-now.json", "When are people online on weekends (last 30 days)"),
-            # issue 280, batch 3: the copies on Live events are restyled; their sources (batch 2: ATC overview, batch 4: Pilot origins) follow.
-            # The query, format and window are still compared. Remove an entry when its source page is restyled to match.
-            ("atc/atc-overview.json", "Controllers online now"),
+            # issue 280, batch 3: the copy on Live events is restyled; its source (batch 4: Pilot origins) follows. The query, format and window are still compared.
+            # Remove the entry when the source page is restyled to match.
             ("demographics/pilot-origins.json", "Where pilots currently online come from")}
 
 

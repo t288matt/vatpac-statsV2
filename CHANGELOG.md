@@ -9,10 +9,15 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 ## Look of Live events, Monday events, Monthly and Collector health (07-11-2026, issue 280, batch 3; pull request pending, not yet merged, not deployed)
 
 - **What is new.** Four more pages have the "Pilots: online now" look: plain stat cards (Collector health keeps its green, amber and red limits, now in the fixed colours, with red `#D55E00` added to the checker's palette), tables with in-cell bars where the columns share a scale, a status pill on the month column, time series and the monthly bar chart with a gradient and legend table, and a donut with a legend table. The Departure board, Busiest days tables and Monday airborne chart match their sources.
-- **What did not change.** No panel's query, format, time window or column names (`tests/test_dashboards_sql_unchanged.py`). The copy check still compares query, format and window; two entries in its list of not-yet-restyled sources remain for the ATC overview card and the Pilot origins donut.
+- **What did not change.** No panel's query, format, time window or column names (`tests/test_dashboards_sql_unchanged.py`). The copy check still compares query, format and window; one entry in its list of not-yet-restyled sources remains, for the Pilot origins donut (batch 4).
 - **Known limits.** The Collector health text wording said orange; it now says amber.
 
-## Look of Traffic, Routes, Aircraft and Pilots records (07-11-2026, issue 280; pull request pending, not yet merged, not deployed)
+## Look of the five ATC pages (06-11-2026, issue 280, batch 2; pull request pending, not yet merged, not deployed)
+
+- **What is new.** ATC overview, positions, hours by rank, position hours and retention have the "Pilots: online now" look: in-cell bars on ranked tables, single-colour horizontal ranked bars with values, time series with a gradient and a legend table, a donut with a legend table, plain stat cards (no sparkline or arrow), a blue heat table for the hours-by-weekday tables, status pills on the lapse and risk columns, and the two hours-online charts as bar charts instead of the old trend panel. The retention gauge is one fixed blue. The retention gauge no longer overlaps the cohort table (layout only).
+- **What did not change.** No panel's query, format, time window or column names; the baseline test passes unchanged.
+
+## Look of Traffic, Routes, Aircraft and Pilots records (06-11-2026, issue 280; pull request pending, not yet merged, not deployed)
 
 - **What is new.** Four more pages have the "Pilots: online now" look: in-cell bars on ranked tables, single-colour horizontal ranked bars with values, time series with a gradient and a legend table, donuts with a legend table, and the two hours-online charts as bar charts instead of the old trend panel. A shared checker (`grafana/look_rules.py`, run by `grafana/validate_dashboards.py`) keeps the look from drifting, and the look conventions are written in [docs/RUNBOOKS/dashboards.md](docs/RUNBOOKS/dashboards.md).
 - **What did not change.** No panel's query, format, time window or column names. `tests/test_dashboards_sql_unchanged.py` compares every panel on every dashboard with a baseline taken before the change. The other pages (ATC, events, monthly, health, origins, military, new pilots) are restyled in later batches.
