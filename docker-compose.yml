@@ -169,8 +169,9 @@ services:
 
   # Metabase (issue 288, docs/RUNBOOKS/metabase.md): ad-hoc questions beside Grafana. It reads the vatpac database only as
   # the read-only role metabase_ro (the same views as grafana_ro); its own settings live in metabase-db, never in the vatpac db.
-  # Image policy exception to ADR-032: Metabase publishes no bare-major tag and a new version migrates the application
-  # database in a way a downgrade cannot undo, so the tag is an exact version, changed only on purpose (runbook "Upgrade").
+  # Image: metabase/metabase:v0.64.x floats on patch releases inside the 0.64 line (Docker Hub publishes no bare-major tag; checked
+  # 06-11-2026; owner decision, ADR-032 amendment). A new Metabase version migrates its own database and cannot be rolled back:
+  # take a dump and a volume copy BEFORE any `docker compose pull` (docs/RUNBOOKS/metabase.md, "Upgrade").
   metabase-db:
     image: postgres:16-bookworm
     restart: unless-stopped
@@ -193,7 +194,7 @@ services:
     networks: [metabase]
 
   metabase:
-    image: metabase/metabase:v0.64.5.4
+    image: metabase/metabase:v0.64.x
     restart: unless-stopped
     logging: *logging
     mem_limit: 1792m  # 1536m measured 1.43 GiB used at idle with -Xmx1g (06-11-2026 throwaway), too little headroom

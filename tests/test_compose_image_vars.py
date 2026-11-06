@@ -106,10 +106,10 @@ def test_release_matrix_names_equal_the_compose_services_using_vatpac_stats_imag
 # Third-party images float on the loosest tag their registry actually publishes (ADR-032, issue 176; amended
 # 18-10-2026): never `latest`, never an exact patch. Postgres floats on the bare major; Grafana has no such tag on
 # Docker Hub (confirmed 18-10-2026: "manifest unknown" for grafana/grafana:12), so it floats on MAJOR.MINOR instead.
-# Metabase (issue 288) is the one exact pin: it publishes no bare-major tag and an upgrade migrates its application database
-# irreversibly, so the version changes only on purpose (docs/RUNBOOKS/metabase.md). Its own database is the db image.
+# Metabase (issue 288) publishes no bare-major tag either; `v0.64.x` (patch releases inside the 0.64 line) is the loosest floating
+# tag that does not jump to a new release line (docs/DECISIONS.md, ADR-032 amendment of 06-11-2026). Its own database is the db image.
 EXPECTED_THIRD_PARTY = {"db": "postgres:16-bookworm", "grafana": "grafana/grafana:12.4",
-                        "metabase-db": "postgres:16-bookworm", "metabase": "metabase/metabase:v0.64.5.4"}
+                        "metabase-db": "postgres:16-bookworm", "metabase": "metabase/metabase:v0.64.x"}
 
 
 def _from_lines(dockerfile: str) -> list[str]:
@@ -144,9 +144,7 @@ def test_no_third_party_image_is_latest_or_more_precise_than_it_should_be() -> N
     for image in images:
         tag = image.rsplit(":", 1)[-1]
         assert tag != "latest", image
-        if image.startswith("metabase/metabase:"):
-            assert re.fullmatch(r"v\d+\.\d+\.\d+\.\d+", tag), image  # an exact version, never a floating .x tag
-        elif image.startswith("grafana/grafana:"):
+        if image.startswith("grafana/grafana:"):
             assert re.fullmatch(r"\d+\.\d+", tag), image  # MAJOR.MINOR only, e.g. 12.4
         else:
             assert not re.match(r"^\d+\.\d+", tag), image  # 16.15, 12.4.12, 2.36.0 and so on

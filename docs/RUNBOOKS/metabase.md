@@ -6,14 +6,14 @@ Added by issue 288 (owner instruction 06-11-2026). Metabase is for ad-hoc questi
 
 | Piece | What it is |
 |---|---|
-| `metabase` service | `metabase/metabase:v0.64.5.4` (the open-source image), memory cap 1792 MB (`-Xmx1g` for the Java heap), 1.5 CPUs, `restart: unless-stopped`, healthcheck on `/api/health`. Published on `METABASE_BIND`:`METABASE_PORT` (default `127.0.0.1:3400`). No proxy label, so it is not reachable from outside the LAN; making it public is a separate owner decision. |
+| `metabase` service | `metabase/metabase:v0.64.x (floating)` (the open-source image), memory cap 1792 MB (`-Xmx1g` for the Java heap), 1.5 CPUs, `restart: unless-stopped`, healthcheck on `/api/health`. Published on `METABASE_BIND`:`METABASE_PORT` (default `127.0.0.1:3400`). No proxy label, so it is not reachable from outside the LAN; making it public is a separate owner decision. |
 | `metabase-db` service | `postgres:16-bookworm` with a 256 MB cap and the named volume `metabase_db_data`. It holds Metabase's own settings, users, saved questions and the saved connection. It is not the vatpac database and is on a private network (`vatpac-metabase`, no outside route) shared only with `metabase` and `backup`. |
 | role `metabase_ro` | Created by `db/roles.sql` (run by the `migrate` job, never by hand): the same rights and limits as `grafana_ro`. |
 | backup | The `backup` service also dumps `metabase-db` to `metabase_<UTC stamp>.mbdump` in the `backups` volume (section 5). |
 
 Secrets, all in `.env` only (generate with `sh ops/gen_env.sh`, check with `sh ops/check_env.sh`): `METABASE_RO_PASSWORD` (the database role), `METABASE_DB_PASSWORD` (the application database), `METABASE_ENCRYPTION_KEY` (encrypts the saved connection details). Settings: `METABASE_PORT` (3400), `METABASE_BIND`, `METABASE_SITE_URL`. See [../CONFIG_MAP.md](../CONFIG_MAP.md).
 
-Image policy: ADR-032 floats third-party images, but Metabase publishes no bare-major tag, and a new Metabase version migrates its application database in a way a downgrade cannot undo. So the tag is an exact version, changed only on purpose (section 7).
+Image policy (owner decision 06-11-2026, ADR-032 amendment): the tag floats on patch releases inside the 0.64 line (`v0.64.x`), the loosest tag Docker Hub publishes that does not jump to a new release line. The catch: Metabase migrates its own application database on the first start of a newer version, and that cannot be undone. So a `docker compose pull` is never run without the backup in section 7.
 
 Licence: the image is Metabase's open-source edition (AGPL). Used internally on the LAN it needs no licence purchase; embedding it in a public product or using the enterprise features would be a separate decision.
 
@@ -77,9 +77,18 @@ docker compose exec backup sh -c '
 
 Then rename (`ALTER DATABASE metabase RENAME TO metabase_old; ALTER DATABASE metabase_new RENAME TO metabase;` from `docker compose exec backup sh -c 'PGPASSWORD="$METABASE_PGPASSWORD" psql -h metabase-db -U metabase -d postgres'`) and `docker compose start metabase`. If the volume is lost entirely: `docker compose up -d metabase-db`, wait until healthy, `pg_restore` into the empty `metabase` database with `--clean --if-exists --no-owner`, then start `metabase`. If there is no usable dump at all, Metabase simply starts empty and the owner repeats section 3; no vatpac data is lost. The restore was rehearsed on a throwaway (section 9).
 
-## 7. Upgrade
+## 7. Upgrade (and the backup that comes BEFORE every `docker compose pull`)
 
-Metabase migrates its application database on the first start of a newer version, and the migration cannot be undone. So: take a fresh dump (`docker compose exec backup backup.sh once`), copy the volume (`docker run --rm -v vatpac_metabase_db_data:/d -v "$PWD":/o alpine tar czf /o/metabase_db_pre_upgrade.tgz -C /d .`, keep it until the new version is confirmed), read the release notes, rehearse the new tag on a throwaway first (section 9), then edit the tag in `docker-compose.yml` (and `EXPECTED_THIRD_PARTY` in `tests/test_compose_image_vars.py`), `docker compose pull metabase`, `docker compose up -d metabase`, and check `/api/health` and one saved question. To go back after a failed upgrade: stop `metabase`, restore the pre-upgrade `.mbdump` or volume copy (section 6), put the old tag back, start.
+The image floats (`v0.64.x`), so any `docker compose pull` can bring a newer Metabase, and its first start migrates the application database in a way that cannot be undone. This applies to a deploy that pulls as much as to a deliberate upgrade. Before the pull:
+
+1. Fresh dump: `docker compose exec backup backup.sh once`, then check the new `metabase_*.mbdump` in `/backups`.
+2. Volume copy: `docker run --rm -v vatpac_metabase_db_data:/d -v "$PWD":/o alpine tar czf /o/metabase_db_pre_pull.tgz -C /d .` (keep it until the new version is confirmed).
+3. Note the running image digest for rollback: `docker image ls --digests metabase/metabase` (write down the line; it also names the version: `docker compose exec metabase curl -s http://127.0.0.1:3000/api/session/properties` shows `version`).
+4. Read the release notes; for a bigger step, rehearse the new image on a throwaway first (section 9).
+
+Then `docker compose pull metabase`, `docker compose up -d metabase`, check `/api/health` and one saved question. A move to the next release line (`v0.65.x`) is an edit of the tag in `docker-compose.yml` and of `EXPECTED_THIRD_PARTY` in `tests/test_compose_image_vars.py`.
+
+To go back after a bad upgrade: `docker compose stop metabase metabase-db`, restore the pre-pull volume copy (or the `.mbdump`, section 6) because the old image cannot read a migrated database, then start the old image by its digest (`image: metabase/metabase@sha256:<digest>` in a local `docker-compose.override.yml`, removed afterwards) and `docker compose up -d metabase`.
 
 ## 8. Roll back (remove Metabase)
 

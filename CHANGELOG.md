@@ -8,7 +8,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 ## Metabase beside Grafana (06-11-2026, issue 288; not yet merged or deployed)
 
-- **What is new.** A Metabase container (open-source image, exact version `v0.64.5.4`) for ad-hoc questions, with its own small database, a new read-only database role `metabase_ro` (the same views and limits as `grafana_ro`) and a nightly dump of Metabase's settings next to the main backup. It is published on the LAN port 3400 only when `METABASE_BIND` is set; no public access. Grafana is unchanged and stays.
+- **What is new.** A Metabase container (open-source image, floating tag `v0.64.x`: patch updates arrive with `docker compose pull`; back up first, see the runbook) for ad-hoc questions, with its own small database, a new read-only database role `metabase_ro` (the same views and limits as `grafana_ro`) and a nightly dump of Metabase's settings next to the main backup. It is published on the LAN port 3400 only when `METABASE_BIND` is set; no public access. Grafana is unchanged and stays.
 - **What a deploy needs.** Three new secrets in `.env` (`METABASE_RO_PASSWORD`, `METABASE_DB_PASSWORD`, `METABASE_ENCRYPTION_KEY`), the owner's go, a fresh dump first. Runbook: [docs/RUNBOOKS/metabase.md](docs/RUNBOOKS/metabase.md).
 
 ## Pilots: online now, new look (06-11-2026, issue 280; pull request 287, not yet merged or deployed)
