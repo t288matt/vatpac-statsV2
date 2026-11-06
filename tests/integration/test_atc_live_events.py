@@ -120,12 +120,9 @@ RESTYLED = {
             # issue 280, batch 2: the two copies on ATC positions plot Pilots AND ATC with a legend and two colours; Live now plots Pilots only (its transformation drops the ATC column), so options and fieldConfig differ on purpose. The query, format and window are still compared.
             ("pilots/pilots-now.json", "When are people online on weekdays (last 30 days)"),
             ("pilots/pilots-now.json", "When are people online on weekends (last 30 days)"),
-            ("pilots/pilots-now.json", "Departure board"),
-            # issue 280, batch 1 (Traffic restyled; the copy on Live now and events follows in a later batch). The query, format and window are still compared.
-            ("pilots/pilots-traffic.json", "Busiest days by flights (last 6 months)"),
-            ("pilots/pilots-traffic.json", "Busiest days by pilots online (last 6 months)"),
-            # issue 280, batch 2 (ATC overview restyled; the copy on Live now and events follows in batch 3).
-            ("atc/atc-overview.json", "Controllers online now")}
+            # issue 280, batch 3: the copy on Live events is restyled; its source (batch 4: Pilot origins) follows. The query, format and window are still compared.
+            # Remove the entry when the source page is restyled to match.
+            ("demographics/pilot-origins.json", "Where pilots currently online come from")}
 
 
 @pytest.mark.parametrize("path,title,src", COPIES)
