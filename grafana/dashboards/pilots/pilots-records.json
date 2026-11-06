@@ -85,11 +85,55 @@
       ],
       "options": {
         "showHeader": true,
-        "cellHeight": "sm"
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
       },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_enroute_hours"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -119,10 +163,57 @@
           "rawSql": "SELECT (array_agg(f.name ORDER BY f.end_time DESC))[1] AS \"Pilot\",\n       count(*) AS \"Flights\"\nFROM flight_ext f\nWHERE f.end_time >= now() - interval '30 days'\n  AND f.airborne_minutes > 0\nGROUP BY f.cid\nORDER BY count(*) DESC, f.cid\nLIMIT 10"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Flights"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "id": 3
     },
@@ -154,10 +245,57 @@
           "rawSql": "SELECT (array_agg(f.name ORDER BY f.end_time DESC))[1] AS pilot,\n       count(DISTINCT route_label) AS unique_routes,\n       count(*) AS total_flights\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.duration_minutes > 60\n  AND NOT f.is_zzzz\nGROUP BY f.cid\nORDER BY unique_routes DESC, total_flights DESC\nLIMIT 10"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unique_routes"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "timeFrom": "14d"
     },
@@ -188,10 +326,57 @@
           "rawSql": "SELECT f.name AS \"Pilot\", f.callsign AS \"Callsign\", f.route_label AS \"Route\",\n       round(f.airborne_minutes / 60.0, 1) AS \"Airborne hours\",\n       to_char(f.end_time AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') AS \"Finished (UTC)\"\nFROM flight_ext f\nWHERE f.end_time >= now() - interval '30 days'\n  AND f.airborne_minutes > 0\nORDER BY f.airborne_minutes DESC, f.end_time DESC, f.session_id\nLIMIT 10"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Airborne hours"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "id": 5
     },
@@ -222,14 +407,41 @@
           "rawSql": "WITH w AS (\n  SELECT generate_series(date_trunc('week', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n                         date_trunc('week', $__timeTo()::timestamptz AT TIME ZONE 'UTC'), interval '1 week') AS wk\n)\nSELECT w.wk AT TIME ZONE 'UTC' AS time, count(f.session_id) AS \"flights\"\nFROM w\nLEFT JOIN flight_ext f ON f.airborne_minutes > 0 AND f.end_time >= w.wk AT TIME ZONE 'UTC' AND f.end_time < (w.wk + interval '1 week') AT TIME ZONE 'UTC'\nGROUP BY w.wk\nORDER BY w.wk"
         }
       ],
-      "options": {},
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "min",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
           "custom": {
             "drawStyle": "bars",
+            "lineInterpolation": "smooth",
             "lineWidth": 1,
-            "fillOpacity": 60,
-            "showPoints": "never"
+            "fillOpacity": 70,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
           }
         },
         "overrides": []
@@ -269,7 +481,10 @@
         "xField": "label",
         "showValue": "always",
         "legend": {
-          "showLegend": false
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
         }
       },
       "fieldConfig": {
@@ -278,8 +493,16 @@
             "scaleDistribution": {
               "type": "log",
               "log": 10
-            }
-          }
+            },
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0
         },
         "overrides": []
       },
@@ -312,9 +535,28 @@
           "rawSql": "WITH w(label, ord, since) AS (\n  VALUES ('Last 7 days', 1, now() - interval '7 days'), ('Last 30 days', 2, now() - interval '30 days'), ('Since go-live', 3, NULL::timestamptz)\n)\nSELECT w.label AS \"Period\",\n       count(f.session_id) AS \"Flights with airborne time\",\n       round(avg(f.airborne_minutes), 1) AS \"Average airborne minutes\",\n       round(avg(f.airborne_minutes) / 60.0, 2) AS \"Average airborne hours\"\nFROM w\nLEFT JOIN flight_ext f ON f.airborne_minutes > 0 AND (w.since IS NULL OR f.end_time >= w.since)\nGROUP BY w.label, w.ord\nORDER BY w.ord"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
         "overrides": []
       },
       "id": 8
@@ -347,10 +589,57 @@
           "rawSql": "SELECT (f.start_time AT TIME ZONE 'UTC')::date AS flight_date,\n       trim(to_char(f.start_time AT TIME ZONE 'UTC', 'Day')) AS day_name,\n       count(*) AS total_flights\nFROM flight_ext f\nWHERE f.start_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1, 2\nORDER BY total_flights DESC, flight_date DESC\nLIMIT 5"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_flights"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "timeFrom": "180d"
     },
@@ -382,16 +671,63 @@
           "rawSql": "SELECT (f.logon_time AT TIME ZONE 'UTC')::date AS member_date,\n       trim(to_char(f.logon_time AT TIME ZONE 'UTC', 'Day')) AS day_name,\n       count(DISTINCT f.cid) AS unique_pilots,\n       row_number() OVER (ORDER BY count(DISTINCT f.cid) DESC, (f.logon_time AT TIME ZONE 'UTC')::date DESC) AS rank\nFROM flight f\nWHERE f.logon_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY 1, 2\nORDER BY unique_pilots DESC, member_date DESC\nLIMIT 10"
         }
       ],
-      "options": {},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unique_pilots"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          }
+        ]
       },
       "timeFrom": "180d"
     },
     {
       "id": 11,
-      "type": "trend",
+      "type": "barchart",
       "title": "When are people online on weekdays (last 30 days)",
       "description": "Question A9 (v1 card 94), copied unchanged from Pilots: online now. Definition: for each UTC clock hour, the number of distinct callsigns online at some point in that hour over the last 30 days, Monday to Friday (by the day the flight or session started): pilots with airborne time, and ATC sessions of at least 20 minutes. A count over the whole period, not an average of people online at once. Times are UTC.",
       "datasource": {
@@ -418,21 +754,100 @@
         }
       ],
       "options": {
-        "xField": "hour_utc"
+        "orientation": "vertical",
+        "xField": "Hour (UTC)",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "showValue": "never",
+        "stacking": "none",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
           "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
           }
         },
-        "overrides": []
-      }
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pilots (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ATC (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "hour_utc",
+                "Pilots (callsigns)",
+                "ATC (callsigns)"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "hour_utc": "Hour (UTC)"
+            }
+          }
+        }
+      ]
     },
     {
       "id": 12,
-      "type": "trend",
+      "type": "barchart",
       "title": "When are people online on weekends (last 30 days)",
       "description": "Question A9 (v1 card 95), copied unchanged from Pilots: online now. Definition: for each UTC clock hour, the number of distinct callsigns online at some point in that hour over the last 30 days, Saturday and Sunday: pilots with airborne time, and ATC sessions of at least 30 minutes. A flight or session that crosses midnight is not counted in the hours after midnight (as v1). A count over the whole period, not an average. Times are UTC.",
       "datasource": {
@@ -459,17 +874,96 @@
         }
       ],
       "options": {
-        "xField": "hour_utc"
+        "orientation": "vertical",
+        "xField": "Hour (UTC)",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "showValue": "never",
+        "stacking": "none",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#E69F00"
+          },
+          "decimals": 0,
+          "unit": "none",
           "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
           }
         },
-        "overrides": []
-      }
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pilots (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3AA0DD"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ATC (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E69F00"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "hour_utc",
+                "Pilots (callsigns)",
+                "ATC (callsigns)"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "hour_utc": "Hour (UTC)"
+            }
+          }
+        }
+      ]
     }
   ]
 }

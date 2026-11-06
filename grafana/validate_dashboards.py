@@ -19,6 +19,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # so `python grafana/validate_dashboards.py` and an import both find look_rules
+from look_rules import check_dashboard  # noqa: E402  (issue 280: the shared look of the restyled dashboards)
+
 HERE = Path(__file__).resolve().parent
 DASHBOARDS = HERE / "dashboards"
 
@@ -132,6 +135,8 @@ def main() -> int:
         if not any(p.get("type") == "text" and "${go_live}" in p.get("options", {}).get("content", "")
                    for p in dash.get("panels", [])):
             errors.append(f"{rel}: missing the 'Live data since ${{go_live}}' banner text panel")
+
+        errors += check_dashboard(path.relative_to(DASHBOARDS).as_posix(), dash)
 
         ids: set[int] = set()
         for p in dash.get("panels", []):
