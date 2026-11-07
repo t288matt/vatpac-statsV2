@@ -6,6 +6,11 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## The Departure board lists each flight once (07-11-2026, issue 285; pull request pending, not yet merged, not deployed)
+
+- **What is new.** The view `pilot_latest` (read by both Departure boards and, through `pilot_online_now`, the three "Where pilots currently online come from" charts) now keeps one row per flight, the most recent logon of that pilot and callsign, instead of one row per logon (migration `20261107000010`). A reconnect or relog no longer shows the flight twice, sometimes as both ON GROUND and LOGGED OFF. On 07-11-2026 the live data had 17 such pairs (for example DLH1112 three times).
+- **What did not change.** The view's columns, their order and types, the 3 hour window, and no panel query. Pilot counts per region are by distinct pilot and do not move. `online_now` and `network_history` do not read this view.
+
 ## Look of Pilot origins, Military and Pilot onboarding (06-11-2026, issue 280, batch 4; pull request pending, not yet merged, not deployed)
 
 - **What is new.** The last three pages have the "Pilots: online now" look, so every page now matches: donuts with a legend table (the RAAFv aircraft pie is now a donut), the cohort chart as horizontal bars with values, the log-scale chart in one blue, time series with a gradient and a legend table (the two onboarding charts keep their percentage line on the right-hand axis, now in fixed colours), and tables with the larger row height. The tables here mix counts with minutes or percentages, so none has an in-cell bar. The Pilot origins and Military panels that copy a panel on Routes and Aircraft now match their copies, and the copy check no longer has any not-yet-restyled source.
