@@ -5,13 +5,16 @@ SET LOCAL lock_timeout = '5s';   -- fail fast instead of queueing behind a long 
 -- same flight, sometimes ON GROUND and LOGGED OFF at once. Owner decision 06-11-2026 and 07-11-2026: fix it in the view, never by
 -- hiding rows in the panel query.
 --
--- New rule: of the rows the view already returned, keep one per (cid, callsign): the highest last_seen, ties broken by the highest
--- session id (DISTINCT ON). Only an older session of the same cid and callsign can disappear; every column, its order and its type
+-- New rule: of the rows the view already returned, keep one per (cid, callsign, departure): the highest last_seen, ties broken by
+-- the highest session id (DISTINCT ON). A round trip under one callsign (YSSY-YMML, then YMML-YSSY) keeps both legs; a quick repeat
+-- of the same route (same cid, callsign and departure) shows only the newest. The planned departure time is NOT in the key, so a
+-- flight plan refiled with a new time still collapses. Basing the board on the flight view instead (option B) is a possible later
+-- refinement. Only an older session of the same cid, callsign and departure can disappear; every column, its order and its type
 -- is unchanged, and so is the 3 hour window, the position lookup and is_online (CREATE OR REPLACE VIEW, so the grants stay).
 -- pilot_online_now reads this view and every panel on it counts DISTINCT cid, so an online-now count changes only where one pilot
--- had two online sessions of one callsign. online_now and network_history do not read this view and are not touched.
+-- had two online sessions of one callsign and departure. online_now and network_history do not read this view and are not touched.
 CREATE OR REPLACE VIEW pilot_latest AS
-SELECT DISTINCT ON (ps.cid, ps.callsign)
+SELECT DISTINCT ON (ps.cid, ps.callsign, upper(btrim(ps.departure)))
        ps.id AS session_id, ps.cid, ps.callsign, ps.name, ps.home_icao, ps.server,
        upper(btrim(ps.departure)) AS departure, upper(btrim(ps.arrival)) AS arrival,
        upper(btrim(ps.aircraft_icao)) AS aircraft_icao, ps.flight_rules, ps.deptime,
@@ -31,10 +34,10 @@ CROSS JOIN LATERAL (
   LIMIT 1
 ) p
 WHERE ps.last_seen >= now() - interval '3 hours'
-ORDER BY ps.cid, ps.callsign, ps.last_seen DESC, ps.id DESC;
+ORDER BY ps.cid, ps.callsign, upper(btrim(ps.departure)), ps.last_seen DESC, ps.id DESC;
 
 COMMENT ON VIEW pilot_latest IS
-  'Latest known position of each flight (cid and callsign) seen in the last 3 hours: the most recent logon only (highest last_seen, then highest session id). Issue 285.';
+  'Latest known position of each flight seen in the last 3 hours: one row per cid, callsign and departure, the most recent logon only (highest last_seen, then highest session id). Issue 285.';
 
 -- migrate:down
 -- Forward-only project: no automatic rollback (the previous definition is in migration 20261007000010).

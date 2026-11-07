@@ -8,8 +8,8 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 ## The Departure board lists each flight once (07-11-2026, issue 285; pull request pending, not yet merged, not deployed)
 
-- **What is new.** The view `pilot_latest` (read by both Departure boards and, through `pilot_online_now`, the three "Where pilots currently online come from" charts) now keeps one row per flight, the most recent logon of that pilot and callsign, instead of one row per logon (migration `20261107000010`). A reconnect or relog no longer shows the flight twice, sometimes as both ON GROUND and LOGGED OFF. On 07-11-2026 the live data had 17 such pairs (for example DLH1112 three times).
-- **What did not change.** The view's columns, their order and types, the 3 hour window, and no panel query. Pilot counts per region are by distinct pilot and do not move. `online_now` and `network_history` do not read this view.
+- **What is new.** The view `pilot_latest` (read by both Departure boards and, through `pilot_online_now`, the three "Where pilots currently online come from" charts) now keeps one row per flight, the most recent logon of that pilot, callsign and departure airport, instead of one row per logon; a round trip under one callsign keeps both legs, and the planned departure time is not part of the key (migration `20261107000010`). A reconnect or relog no longer shows the flight twice, sometimes as both ON GROUND and LOGGED OFF. On 07-11-2026 the live data had 17 such pairs (for example DLH1112 three times).
+- **What did not change.** If a pilot's newest logon has no position yet, the older logon still shows. The view's columns, their order and types, the 3 hour window, and no panel query. Pilot counts per region are by distinct pilot and do not move. `online_now` and `network_history` do not read this view.
 
 ## Look of Pilot origins, Military and Pilot onboarding (06-11-2026, issue 280, batch 4; pull request pending, not yet merged, not deployed)
 
