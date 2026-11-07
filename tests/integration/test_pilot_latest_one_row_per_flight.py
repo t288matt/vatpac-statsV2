@@ -1,4 +1,4 @@
-"""Issue #285: pilot_latest has one row per flight (cid and callsign), the most recent logon, not one row per logon.
+"""Issue #285: pilot_latest has one row per cid, callsign and departure, the most recent logon, not one row per logon.
 
 The old definition (migration 20261007000010) is kept below as a temporary view so the tests compare old and new on the same rows.
 """
@@ -77,7 +77,7 @@ def test_a_different_callsign_or_pilot_is_never_hidden(conn: Any, old: None) -> 
     one = _logons(conn, t, BASE + 3, 600, callsign="ALPHA1")
     two = _logons(conn, t, BASE + 3, 20, callsign="BRAVO2")        # same pilot, another flight
     other = _logons(conn, t, BASE + 4, 600, callsign="ALPHA1")     # another pilot, same callsign
-    assert _ids(conn, "pilot_latest") >= {*one, *two, *other}
+    assert {r["session_id"] for r in conn.execute("SELECT session_id FROM pilot_latest WHERE cid IN (%s, %s)", (BASE + 3, BASE + 4)).fetchall()} == {*one, *two, *other}
 
 
 def test_old_against_new_only_older_sessions_of_the_same_flight_disappear(conn: Any, old: None) -> None:
@@ -126,3 +126,46 @@ def test_the_departure_board_lists_a_flight_once(conn: Any) -> None:
     sql = panel(REPO / "grafana" / "dashboards" / "pilots" / "pilots-now.json", "Departure board")["targets"][0]["rawSql"]
     rows = [r for r in conn.execute(sql).fetchall() if r["Flight"] == f"TEST{BASE + 20}"]
     assert len(rows) == 1 and rows[0]["Status"] == "AIRBORNE"
+
+
+def _set_departure(conn: Any, sid: int, dep: str) -> None:
+    conn.execute("UPDATE pilot_session SET departure = %s WHERE id = %s", (dep, sid))
+
+
+def test_a_round_trip_under_one_callsign_keeps_both_legs(conn: Any) -> None:
+    t = set_up_clock(conn)
+    out, back = _logons(conn, t, BASE + 30, 3000, 0)
+    _set_departure(conn, out, "YSSY")
+    _set_departure(conn, back, "YMML")
+    rows = conn.execute("SELECT session_id FROM pilot_latest WHERE cid = %s", (BASE + 30,)).fetchall()
+    assert {r["session_id"] for r in rows} == {out, back}
+
+
+def test_three_logons_of_the_same_route_give_the_newest_only(conn: Any) -> None:
+    t = set_up_clock(conn)
+    ids = _logons(conn, t, BASE + 31, 3000, 1500, 0)
+    rows = conn.execute("SELECT session_id FROM pilot_latest WHERE cid = %s", (BASE + 31,)).fetchall()
+    assert [r["session_id"] for r in rows] == [ids[-1]]
+
+
+def test_a_refiled_departure_time_still_collapses(conn: Any) -> None:
+    t = set_up_clock(conn)
+    first, second = _logons(conn, t, BASE + 32, 3000, 0)
+    conn.execute("UPDATE pilot_session SET deptime = '0100' WHERE id = %s", (first,))
+    conn.execute("UPDATE pilot_session SET deptime = '0230' WHERE id = %s", (second,))
+    rows = conn.execute("SELECT session_id FROM pilot_latest WHERE cid = %s", (BASE + 32,)).fetchall()
+    assert [r["session_id"] for r in rows] == [second]
+
+
+def test_a_newest_logon_with_no_position_in_the_window_leaves_the_older_one_showing(conn: Any) -> None:
+    """Pins the edge case: the rule ranks only rows that have a position in the 3 hour window."""
+    t = set_up_clock(conn)
+    (older,) = _logons(conn, t, BASE + 33, 600)
+    newest = conn.execute(
+        "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
+        "VALUES (%s, %s, %s, %s, %s, 'YSSY', 'YMML') RETURNING id",
+        (BASE + 33, f"TEST{BASE + 33}", t.replace(microsecond=0), t, t),
+    ).fetchone()["id"]
+    assert newest > older
+    rows = conn.execute("SELECT session_id FROM pilot_latest WHERE cid = %s", (BASE + 33,)).fetchall()
+    assert [r["session_id"] for r in rows] == [older]
