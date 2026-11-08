@@ -845,6 +845,10 @@
             },
             "properties": [
               {
+                "id": "unit",
+                "value": "short"
+              },
+              {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
@@ -977,6 +981,10 @@
               "options": "ATC (callsigns)"
             },
             "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
               {
                 "id": "color",
                 "value": {

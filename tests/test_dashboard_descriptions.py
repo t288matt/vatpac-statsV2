@@ -45,6 +45,8 @@ def test_when_are_people_online_draws_atc_on_a_right_hand_axis():
         over = next(o for o in p["fieldConfig"]["overrides"] if o["matcher"]["options"] == "ATC (callsigns)")
         props = {x["id"]: x["value"] for x in over["properties"]}
         assert props["custom.axisPlacement"] == "right", where
+        # Grafana keys a y scale by unit: a different unit from the pilots series makes ATC a separate scale (issue 308)
+        assert props["unit"] == "short" and p["fieldConfig"]["defaults"]["unit"] == "none", where
         assert props["custom.axisLabel"] == "ATC callsigns" and props["custom.axisSoftMin"] == 0, where
         assert p["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "Pilot callsigns", where
         assert p["fieldConfig"]["defaults"]["custom"]["axisSoftMin"] == 0, where
@@ -56,6 +58,7 @@ def test_busiest_days_panels_cover_five_years():
     assert len(found) == 6
     for where, p in found:
         assert p["timeFrom"] == "1825d" and p["title"].endswith("(last 5 years)"), where
+        assert "180" not in p.get("description", "") and "6 months" not in p.get("description", ""), where
 
 
 def test_longest_flights_panel_is_gone_and_the_layout_has_no_gap():

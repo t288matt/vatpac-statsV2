@@ -49,3 +49,21 @@ def test_every_test_named_in_the_document_exists() -> None:
     named = set(re.findall(r"`(test_[a-z0-9_]+)`", DOC))
     assert len(named) > 80
     assert sorted(named - have) == []
+
+
+def test_summary_counts_match_the_table_rows() -> None:
+    """The status counts and the total under "Summary" are recounted from the rows of the rebuilt and dropped tables."""
+    def rows(start: str, end: str) -> list[list[str]]:
+        lines = DOC.split("\n")
+        a = next(i for i, ln in enumerate(lines) if ln.startswith(start))
+        b = next(i for i, ln in enumerate(lines) if i > a and ln.startswith(end))
+        return [[c.strip() for c in ln.strip().strip("|").split(" | ")] for ln in lines[a:b] if re.match(r"\| \d+ ", ln)]
+
+    rebuilt = [re.sub(r" \(.*", "", r[5]) for r in rows("## v1 cards rebuilt", "## Cards added after")]
+    dropped = rows("## v1 cards dropped", "### Why these charts")
+    want = {"KEPT": rebuilt.count("KEPT"), "CHANGED": rebuilt.count("CHANGED"), "UNVERIFIED": rebuilt.count("UNVERIFIED"), "DROPPED": len(dropped)}
+    assert set(rebuilt) <= {"KEPT", "CHANGED", "UNVERIFIED"}
+    assert all(r[3] == "DROPPED" for r in dropped)
+    got = {m.group(1): int(m.group(2)) for m in re.finditer(r"^\| (KEPT|CHANGED|UNVERIFIED|DROPPED|Total) \| (\d+) \|$", DOC, re.M)}
+    assert {k: got[k] for k in want} == want
+    assert got["Total"] == sum(want.values())

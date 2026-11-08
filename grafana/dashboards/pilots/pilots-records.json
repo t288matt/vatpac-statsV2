@@ -484,7 +484,7 @@
       "id": 9,
       "type": "table",
       "title": "Busiest days by flights (last 5 years)",
-      "description": "Question A7 (v1 card 128), copied unchanged from Pilots: traffic and aircraft. Definition: the five UTC dates with the most flights, by the date the flight started, over the last 5 years (180 days). A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Question A7 (v1 card 128), copied unchanged from Pilots: traffic and aircraft. Definition: the five UTC dates with the most flights, by the date the flight started, over the last 5 years. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -566,7 +566,7 @@
       "id": 10,
       "type": "table",
       "title": "Busiest days by pilots online (last 5 years)",
-      "description": "Question A8 (v1 card 129), copied unchanged from Pilots: traffic and aircraft. Definition: the ten UTC dates with the most distinct pilots, by the date the pilot logged on, over the last 5 years (180 days), with weekday and rank. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Question A8 (v1 card 129), copied unchanged from Pilots: traffic and aircraft. Definition: the ten UTC dates with the most distinct pilots, by the date the pilot logged on, over the last 5 years, with weekday and rank. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -732,6 +732,10 @@
             },
             "properties": [
               {
+                "id": "unit",
+                "value": "short"
+              },
+              {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
@@ -864,6 +868,10 @@
               "options": "ATC (callsigns)"
             },
             "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
               {
                 "id": "color",
                 "value": {
