@@ -77,18 +77,11 @@ def test_vfr_routes_panel_is_only_on_traffic_not_on_routes_and_airports() -> Non
     assert [t for t in titles("pilots-traffic.json") if t.startswith(title)] == [title + " (last 30 days)"]
 
 
-def test_live_events_has_none_of_the_four_panels_removed_in_issue_322() -> None:
-    """Issue 322: these four left events/live-events.json only; panels of the same names on other dashboards stay."""
-    gone = {"Pilots online now (in region)", "Controllers online now", "Who is controlling now",
-            "Whitelisted positions staffed and open now, by type"}
-    panels = walk(json.loads((DASHBOARDS / "events" / "live-events.json").read_text(encoding="utf-8"))["panels"])
-    assert gone & {str(p.get("title")) for p in panels} == set()
-    other = walk(json.loads((DASHBOARDS / "atc" / "atc-overview.json").read_text(encoding="utf-8"))["panels"])
-    assert "Controllers online now" in {str(p.get("title")) for p in other}      # the ATC: controllers panel stays
-    boxes = sorted((p["gridPos"]["x"], p["gridPos"]["y"], p["gridPos"]["w"], p["gridPos"]["h"]) for p in panels)
-    for i, (x, y, w, h) in enumerate(boxes):                                     # no overlap
-        for x2, y2, w2, h2 in boxes[i + 1:]:
-            assert x + w <= x2 or x2 + w2 <= x or y + h <= y2 or y2 + h2 <= y, (boxes[i], (x2, y2, w2, h2))
+def test_the_live_now_and_events_dashboard_is_gone() -> None:
+    """Issue 323: events/live-events.json (uid vatpac-live-events, /live-events) was deleted; Live now (/live) is Pilots: online now."""
+    assert not (DASHBOARDS / "events" / "live-events.json").exists()
+    uids = {json.loads(p.read_text(encoding="utf-8"))["uid"] for p in DASHBOARDS.glob("*/*.json")}
+    assert "vatpac-live-events" not in uids and "vatpac-pilots-now" in uids
 
 
 if __name__ == "__main__":
