@@ -591,10 +591,32 @@
             "gradientMode": "none",
             "lineWidth": 0,
             "axisSoftMin": 0,
-            "axisPlacement": "auto"
+            "axisPlacement": "auto",
+            "axisLabel": "Pilot callsigns"
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ATC (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "ATC callsigns"
+              },
+              {
+                "id": "custom.axisSoftMin",
+                "value": 0
+              }
+            ]
+          }
+        ]
       },
       "transformations": [
         {
@@ -679,10 +701,32 @@
             "gradientMode": "none",
             "lineWidth": 0,
             "axisSoftMin": 0,
-            "axisPlacement": "auto"
+            "axisPlacement": "auto",
+            "axisLabel": "Pilot callsigns"
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ATC (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "ATC callsigns"
+              },
+              {
+                "id": "custom.axisSoftMin",
+                "value": 0
+              }
+            ]
+          }
+        ]
       },
       "transformations": [
         {

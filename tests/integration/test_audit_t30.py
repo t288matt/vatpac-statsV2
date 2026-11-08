@@ -501,7 +501,7 @@ def test_busiest_days_shows_five_rows(conn) -> None:
     """Mutant P25 (top 5 -> top 50)."""
     for i in range(7):
         p14.add_flight(conn, 9860080 + i, days_ago=1 + i)
-    assert len(_run(conn, p14.TRAFFIC, "Busiest days by flights (last 6 months)")) == 5
+    assert len(_run(conn, p14.TRAFFIC, "Busiest days by flights (last 5 years)")) == 5
 
 
 def test_servers_panel_counts_home_region_pilots_only(conn) -> None:
@@ -582,14 +582,14 @@ def test_controllers_logged_on_needs_more_than_sixty_minutes(conn) -> None:
     assert rows["S1"] == 1
 
 
-def test_top_50_providers_includes_short_sessions_and_stops_at_fifty(conn) -> None:
-    """Mutants P07 (zero-length filter becomes 600 minutes) and P06 (limit 50 -> 5)."""
-    title = "Top 50 service providers (last 30 days)"
+def test_top_30_providers_includes_short_sessions_and_stops_at_thirty(conn) -> None:
+    """Mutants P07 (zero-length filter becomes 600 minutes) and P06 (limit 30 -> 5). Limit 50 until issue 302."""
+    title = "Top 30 service providers (last 30 days)"
     atc15.add(conn, 9880100, atc15.days_ago(3), 5)
     assert len(atc15.run(conn, title)) == 1
-    for i in range(51):
+    for i in range(31):
         atc15.add(conn, 9881000 + i, atc15.days_ago(3), 10 + i)
-    assert len(atc15.run(conn, title)) == 50
+    assert len(atc15.run(conn, title)) == 30
 
 
 def test_card_63_exactly_sixty_minutes_does_not_count(conn) -> None:

@@ -23,6 +23,7 @@ DASHBOARD = REPO / "grafana" / "dashboards" / "atc" / "atc-position-hours.json"
 WEEKLY = "ATC hours staffed per week, by position type"
 TABLE = "ATC hours staffed by position type (7 days, 30 days, last full month, since go-live)"
 TYPES = ["CTR", "TWR", "APP", "DEP", "GND", "DEL", "FSS", "FMP"]
+TABLE_ORDER = ["CTR", "FSS", "APP", "DEP", "TWR", "GND", "DEL", "FMP"]   # highest rating first (issue 303)
 WINDOWS = ["Last 7 days", "Last 30 days", "Last full month", "Since go-live"]
 
 
@@ -120,7 +121,7 @@ def test_table_has_eight_fixed_rows_and_a_type_with_no_sessions_shows_zero(conn)
     now = datetime.now(UTC)
     add(conn, 9300501, "TEST_CTR", now - timedelta(days=2), 90)
     rows = table(conn)
-    assert list(rows) == TYPES                       # always the eight, in this order
+    assert list(rows) == TABLE_ORDER                # always the eight, highest rating first (issue 303)
     assert float(rows["FMP"]["Last 7 days"]) == 0.0 and float(rows["FMP"]["Since go-live"]) == 0.0
     assert float(rows["CTR"]["Last 7 days"]) == 1.5
 
