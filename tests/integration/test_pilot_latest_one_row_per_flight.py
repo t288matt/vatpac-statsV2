@@ -8,9 +8,8 @@ from datetime import datetime
 from typing import Any, Iterator
 
 import pytest
-from conftest import REPO
 
-from helpers import CID, make_session, panel, session_ending, set_up_clock
+from helpers import CID, make_session, session_ending, set_up_clock
 
 pytestmark = pytest.mark.integration
 
@@ -119,13 +118,12 @@ def test_online_now_counts_one_pilot_once_and_other_counts_do_not_move(conn: Any
     assert conn.execute("SELECT count(DISTINCT cid) AS n FROM pilot_latest_old WHERE is_online").fetchone()["n"] == 2
 
 
-def test_the_departure_board_lists_a_flight_once(conn: Any) -> None:
-    """The exact panel SQL, unchanged: a relog no longer gives ON GROUND and LOGGED OFF for the same flight."""
+def test_pilot_latest_lists_a_flight_once_after_a_relog(conn: Any) -> None:
+    """The view itself (the Departure board that used to read it is gone): a relog gives one row, the online one."""
     t = set_up_clock(conn)
     _logons(conn, t, BASE + 20, 3000, 0)
-    sql = panel(REPO / "grafana" / "dashboards" / "pilots" / "pilots-now.json", "Departure board")["targets"][0]["rawSql"]
-    rows = [r for r in conn.execute(sql).fetchall() if r["Flight"] == f"TEST{BASE + 20}"]
-    assert len(rows) == 1 and rows[0]["Status"] == "AIRBORNE"
+    rows = conn.execute("SELECT is_online FROM pilot_latest WHERE cid = %s", (BASE + 20,)).fetchall()
+    assert [r["is_online"] for r in rows] == [True]
 
 
 def _set_departure(conn: Any, sid: int, dep: str) -> None:

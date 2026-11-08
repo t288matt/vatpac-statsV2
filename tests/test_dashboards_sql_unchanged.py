@@ -51,6 +51,39 @@ def test_no_panel_without_a_baseline_entry() -> None:
     assert not new, "panel has no baseline entry (add it with --write in the same pull request): " + ", ".join(new)
 
 
+REMOVED = {  # owner-removed panels (title fragment, lower case): a panel with this title must not come back on any dashboard
+    "departure board": "issues 305 and 313",
+    "quietest home-region airports": "issue 314",
+    "whitelisted positions never staffed": "issue 320",
+    "top 5 positions for each current rank": "issue 321",
+    "top 5 controllers for each current rank": "issue 321",
+}
+
+
+def test_owner_removed_panels_have_not_come_back() -> None:
+    back = [f"{p['title']} ({f})" for f in sorted(DASHBOARDS.glob("*/*.json"))
+            for p in walk(json.loads(f.read_text(encoding="utf-8"))["panels"])
+            if any(frag in str(p.get("title", "")).lower() for frag in REMOVED)]
+    assert back == [], "removed by the owner, see " + ", ".join(REMOVED.values()) + ": " + ", ".join(back)
+
+
+def test_vfr_routes_panel_is_only_on_traffic_not_on_routes_and_airports() -> None:
+    """Issue 317: the copy on Routes and airports was removed; the panel on Traffic and aircraft stays."""
+    title = "Most popular VFR routes"
+
+    def titles(name: str) -> list[str]:
+        return [str(p.get("title")) for p in walk(json.loads((DASHBOARDS / "pilots" / name).read_text(encoding="utf-8"))["panels"])]
+    assert [t for t in titles("pilots-routes-airports.json") if t.startswith(title)] == []
+    assert [t for t in titles("pilots-traffic.json") if t.startswith(title)] == [title + " (last 30 days)"]
+
+
+def test_the_live_now_and_events_dashboard_is_gone() -> None:
+    """Issue 323: events/live-events.json (uid vatpac-live-events, /live-events) was deleted; Live now (/live) is Pilots: online now."""
+    assert not (DASHBOARDS / "events" / "live-events.json").exists()
+    uids = {json.loads(p.read_text(encoding="utf-8"))["uid"] for p in DASHBOARDS.glob("*/*.json")}
+    assert "vatpac-live-events" not in uids and "vatpac-pilots-now" in uids
+
+
 if __name__ == "__main__":
     if "--write" in sys.argv:
         BASELINE.parent.mkdir(exist_ok=True)

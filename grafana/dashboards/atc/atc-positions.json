@@ -52,7 +52,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · **Positions** · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: <a href=\"/live-events\" target=\"_top\">Live events</a> · <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/health\" target=\"_top\">Health</a>\n\nAll times are UTC. Figures cover VATPAC airspace. Fixed periods and sizes, stated in each title; the page has no inputs. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, summed. A position is a callsign on the controller whitelist (only whitelisted callsigns are stored)."
+        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · **Positions** · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/health\" target=\"_top\">Health</a>\n\nAll times are UTC. Figures cover VATPAC airspace. Fixed periods and sizes, stated in each title; the page has no inputs. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, summed. A position is a callsign on the controller whitelist (only whitelisted callsigns are stored)."
       }
     },
     {
@@ -438,60 +438,7 @@
       "gridPos": {
         "x": 0,
         "y": 26,
-        "w": 12,
-        "h": 10
-      }
-    },
-    {
-      "type": "table",
-      "title": "Whitelisted positions never staffed (last 30 days)",
-      "description": "Question D6 (new). Definition: every callsign on the controller whitelist (config/controller_callsigns_list.txt, 254 callsigns when this panel was written; the list is copied into the query and a test fails if it drifts from the file) with no merged session at all overlapping the last 30 days. Listed by position type, then callsign. A position staffed for any length of time is not listed. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "WITH wl(callsign) AS (\n  SELECT unnest(string_to_array('AD-W_APP,AD_APP,AD_DEL,AD_FMP,AD_GND,AD_TWR,AF-N_TWR,AF_GND,AF_TWR,AMB_APP,AMB_DEL,AMB_GND,AMB_TWR,AS_TWR,AV_APP,AV_GND,AV_TWR,AYGA_TWR,AYMD_TWR,AYMH_TWR,AYNZ_APP,AYNZ_TWR,AYPY_APP,AYPY_GND,AYPY_TWR,AYTK_TWR,AY_GND,AY_TWR,BK-C_TWR,BK_GND,BK_TWR,BN-ARA_CTR,BN-ARL_CTR,BN-ASH_CTR,BN-BAR_CTR,BN-BUR_CTR,BN-CNK_CTR,BN-COL_FSS,BN-CVN_CTR,BN-C_APP,BN-DOS_CTR,BN-FLD_FSS,BN-F_APP,BN-GOL_CTR,BN-HWE_CTR,BN-INL_CTR,BN-ISA_CTR,BN-KEN_CTR,BN-KIY_CTR,BN-KPL_CTR,BN-MDE_CTR,BN-MLD_CTR,BN-MNN_CTR,BN-NSA_CTR,BN-N_GND,BN-OCN_CTR,BN-SDY_CTR,BN-STR_CTR,BN-SWY_CTR,BN-S_APP,BN-S_DEP,BN-S_GND,BN-TBP_CTR,BN-TRS_CTR,BN-TRT_CTR,BN-TSN_FSS,BN-WEG_CTR,BN-WIL_CTR,BN-W_TWR,BN_APP,BN_DEL,BN_DEP,BN_FMP,BN_GND,BN_TWR,BRM_GND,BRM_TWR,CB-W_APP,CB_APP,CB_FMP,CB_GND,CB_TWR,CFS_TWR,CG_DEL,CG_GND,CG_TWR,CIN_APP,CIN_DEL,CIN_GND,CIN_TWR,CN_GND,CN_TWR,CS-W_APP,CS_APP,CS_DEL,CS_FMP,CS_GND,CS_TWR,DN-W_APP,DN_APP,DN_DEL,DN_GND,DN_TWR,ED_GND,ED_TWR,EN_GND,EN_TWR,ES_APP,ES_DEL,ES_GND,ES_TWR,GIG_GND,GIG_TWR,HB_APP,HB_GND,HB_TWR,HM_TWR,JT-C_TWR,JT_GND,JT_TWR,KA_GND,KA_TWR,LM_APP,LM_GND,LM_TWR,LT_APP,LT_TWR,MB-W_TWR,MB_GND,MB_TWR,MK_APP,MK_GND,MK_TWR,ML-ASP_CTR,ML-ASW_CTR,ML-AUG_CTR,ML-BIK_CTR,ML-BKE_CTR,ML-BLA_CTR,ML-CRS_CTR,ML-ELW_CTR,ML-ESP_CTR,ML-FOR_CTR,ML-GEL_CTR,ML-GTH_CTR,ML-GUN_CTR,ML-GVE_CTR,ML-HUO_CTR,ML-HYD_CTR,ML-IND_FSS,ML-INE_FSS,ML-INS_FSS,ML-JAR_CTR,ML-KAT_CTR,ML-LEA_CTR,ML-MEK_CTR,ML-MTK_CTR,ML-MUN_CTR,ML-MZI_CTR,ML-NEW_CTR,ML-OLW_CTR,ML-OXL_CTR,ML-PAR_CTR,ML-PIY_CTR,ML-POT_CTR,ML-SNO_CTR,ML-S_DEP,ML-TBD_CTR,ML-WAR_CTR,ML-WOL_CTR,ML-WON_CTR,ML-WRA_CTR,ML-YWE_CTR,ML_APP,ML_DEL,ML_DEP,ML_FMP,ML_GND,ML_TWR,NFFN_APP,NFFN_TWR,NFNA_APP,NFNA_TWR,NVVV_TWR,NWWL_TWR,NWWM_TWR,NWWW_APP,NWWW_TWR,NW_APP,NW_DEL,NW_GND,NW_TWR,OK_APP,OK_DEL,OK_GND,OK_TWR,PE_APP,PE_DEL,PE_GND,PE_TWR,PF-W_TWR,PF_GND,PF_TWR,PH-E_GND,PH_APP,PH_DEL,PH_DEP,PH_FMP,PH_GND,PH_TWR,PKWA_APP,PKWA_GND,PKWA_TWR,RI_GND,RI_TWR,RK_APP,RK_GND,RK_TWR,SG_APP,SG_GND,SG_TWR,SU_GND,SU_TWR,SY-C_DEP,SY-C_GND,SY-DE_APP,SY-D_APP,SY-E_TWR,SY-N_APP,SY-N_DEP,SY-W_GND,SY_APP,SY_DEL,SY_DEP,SY_FMP,SY_GND,SY_TWR,TL_APP,TL_DEL,TL_GND,TL_TWR,TN_APP,TN_DEL,TN_GND,TN_TWR,TW-S_TWR,TW_GND,TW_TWR,WLM-L_APP,WLM_APP,WLM_DEL,WLM_GND,WLM_TWR,WR_TWR', ','))\n)\nSELECT substring(w.callsign FROM '_([A-Z]+)$') AS \"Type\", w.callsign AS \"Position\"\nFROM wl w\nWHERE NOT EXISTS (\n  SELECT 1 FROM controller_session_ranked s\n  WHERE s.callsign = w.callsign AND s.session_end >= now() - interval '30 days' AND s.session_start <= now()\n)\nORDER BY CASE substring(w.callsign FROM '_([A-Z]+)$') WHEN 'CTR' THEN 1 WHEN 'TWR' THEN 2 WHEN 'APP' THEN 3 WHEN 'DEP' THEN 4 WHEN 'GND' THEN 5 WHEN 'DEL' THEN 6 WHEN 'FSS' THEN 7 ELSE 8 END, w.callsign COLLATE \"C\""
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "md",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "fields": ""
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          }
-        },
-        "overrides": []
-      },
-      "id": 7,
-      "gridPos": {
-        "x": 12,
-        "y": 26,
-        "w": 12,
+        "w": 24,
         "h": 10
       }
     },
@@ -635,7 +582,7 @@
       "id": 10,
       "type": "barchart",
       "title": "Controllers with the longest median session (last 90 days)",
-      "description": "Question D8 (v1 card 153), copied unchanged from ATC: controllers. Definition: per controller (named, 3 or more sessions in the last 90 days, sessions over 0 minutes) the median session length in hours, top 15 longest first. The rating group in the label is the highest rating seen in the window, not the current rank. Times are UTC.",
+      "description": "Question D8 (v1 card 153), copied unchanged from ATC: controllers. Definition: per controller (named, 3 or more sessions in the last 90 days, sessions of 5 minutes or more) the median session length in hours, top 15 longest first. The rating group in the label is the highest rating seen in the window, not the current rank. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -656,7 +603,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH per_controller AS (\n  SELECT cid,\n         COALESCE((ARRAY_AGG(name ORDER BY session_start_time DESC NULLS LAST)\n                  FILTER (WHERE name IS NOT NULL AND name <> ''))[1], cid::text) AS name,\n         CASE\n           WHEN MAX(rating) = 2 THEN 'S1'\n           WHEN MAX(rating) = 3 THEN 'S2'\n           WHEN MAX(rating) = 4 THEN 'S3'\n           WHEN MAX(rating) = 5 THEN 'C1'\n           WHEN MAX(rating) = 7 THEN 'C3'\n           WHEN MAX(rating) >= 8 THEN 'I1+'\n           ELSE 'Unknown'\n         END AS rating,\n         ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY session_duration_minutes) / 60.0)::numeric, 2) AS median_hours\n  FROM controller_summaries\n  WHERE cid IS NOT NULL\n    AND session_duration_minutes > 0\n    AND session_start_time >= now() - interval '90 days'\n  GROUP BY cid\n  HAVING COUNT(*) >= 3\n  ORDER BY median_hours DESC, cid\n  LIMIT 15\n)\nSELECT name || ' (' || cid || ', ' || rating || ')' AS controller,\n       median_hours AS \"Median session (hours)\"\nFROM per_controller\nORDER BY median_hours DESC, cid"
+          "rawSql": "WITH per_controller AS (\n  SELECT cid,\n         COALESCE((ARRAY_AGG(name ORDER BY session_start_time DESC NULLS LAST)\n                  FILTER (WHERE name IS NOT NULL AND name <> ''))[1], cid::text) AS name,\n         CASE\n           WHEN MAX(rating) = 2 THEN 'S1'\n           WHEN MAX(rating) = 3 THEN 'S2'\n           WHEN MAX(rating) = 4 THEN 'S3'\n           WHEN MAX(rating) = 5 THEN 'C1'\n           WHEN MAX(rating) = 7 THEN 'C3'\n           WHEN MAX(rating) >= 8 THEN 'I1+'\n           ELSE 'Unknown'\n         END AS rating,\n         ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY session_duration_minutes) / 60.0)::numeric, 2) AS median_hours\n  FROM controller_summaries\n  WHERE cid IS NOT NULL\n    AND session_duration_minutes >= 5\n    AND session_start_time >= now() - interval '90 days'\n  GROUP BY cid\n  HAVING COUNT(*) >= 3\n  ORDER BY median_hours DESC, cid\n  LIMIT 15\n)\nSELECT name || ' (' || cid || ', ' || rating || ')' AS controller,\n       median_hours AS \"Median session (hours)\"\nFROM per_controller\nORDER BY median_hours DESC, cid"
         }
       ],
       "options": {
@@ -698,7 +645,7 @@
       "id": 11,
       "type": "barchart",
       "title": "Controllers with the shortest median session (last 90 days)",
-      "description": "Question D8 (v1 card 154), copied unchanged from ATC: controllers. Definition: as the longest-median panel but shortest first, median in minutes, empty names excluded. The rating is the highest rating seen in the window. Times are UTC.",
+      "description": "Question D8 (v1 card 154), copied unchanged from ATC: controllers. Definition: sessions shorter than 5 minutes are ignored; as the longest-median panel but shortest first, median in minutes, empty names excluded. The rating is the highest rating seen in the window. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -719,7 +666,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH per_controller AS (\n  SELECT cid,\n         COALESCE((ARRAY_AGG(name ORDER BY session_start_time DESC NULLS LAST)\n                  FILTER (WHERE name IS NOT NULL AND name <> ''))[1], cid::text) AS name,\n         CASE\n           WHEN MAX(rating) = 2 THEN 'S1'\n           WHEN MAX(rating) = 3 THEN 'S2'\n           WHEN MAX(rating) = 4 THEN 'S3'\n           WHEN MAX(rating) = 5 THEN 'C1'\n           WHEN MAX(rating) = 7 THEN 'C3'\n           WHEN MAX(rating) >= 8 THEN 'I1+'\n           ELSE 'Unknown'\n         END AS rating,\n         ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY session_duration_minutes)::numeric, 2) AS median_minutes\n  FROM controller_summaries\n  WHERE cid IS NOT NULL\n    AND session_duration_minutes > 0\n    AND session_start_time >= now() - interval '90 days'\n  GROUP BY cid\n  HAVING COUNT(*) >= 3\n  ORDER BY median_minutes ASC, cid\n  LIMIT 15\n)\nSELECT name || ' (' || cid || ', ' || rating || ')' AS controller,\n       median_minutes AS \"Median session (minutes)\"\nFROM per_controller\nORDER BY median_minutes ASC, cid"
+          "rawSql": "WITH per_controller AS (\n  SELECT cid,\n         COALESCE((ARRAY_AGG(name ORDER BY session_start_time DESC NULLS LAST)\n                  FILTER (WHERE name IS NOT NULL AND name <> ''))[1], cid::text) AS name,\n         CASE\n           WHEN MAX(rating) = 2 THEN 'S1'\n           WHEN MAX(rating) = 3 THEN 'S2'\n           WHEN MAX(rating) = 4 THEN 'S3'\n           WHEN MAX(rating) = 5 THEN 'C1'\n           WHEN MAX(rating) = 7 THEN 'C3'\n           WHEN MAX(rating) >= 8 THEN 'I1+'\n           ELSE 'Unknown'\n         END AS rating,\n         ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY session_duration_minutes)::numeric, 2) AS median_minutes\n  FROM controller_summaries\n  WHERE cid IS NOT NULL\n    AND session_duration_minutes >= 5\n    AND session_start_time >= now() - interval '90 days'\n  GROUP BY cid\n  HAVING COUNT(*) >= 3\n  ORDER BY median_minutes ASC, cid\n  LIMIT 15\n)\nSELECT name || ' (' || cid || ', ' || rating || ')' AS controller,\n       median_minutes AS \"Median session (minutes)\"\nFROM per_controller\nORDER BY median_minutes ASC, cid"
         }
       ],
       "options": {

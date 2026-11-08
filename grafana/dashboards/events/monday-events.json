@@ -52,7 +52,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: <a href=\"/live-events\" target=\"_top\">Live events</a> · **Monday events** | Management: <a href=\"/health\" target=\"_top\">Health</a>\n\nAll times are UTC. Figures cover VATPAC airspace."
+        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: **Monday events** | Management: <a href=\"/health\" target=\"_top\">Health</a>\n\nAll times are UTC. Figures cover VATPAC airspace."
       }
     },
     {
@@ -244,9 +244,9 @@
     },
     {
       "id": 4,
-      "type": "timeseries",
-      "title": "Airborne aircraft during the latest Monday event (0700-1200Z, 5-minute slots)",
-      "description": "Aircraft airborne in each 5-minute slot, 0700 to 1200 UTC on the latest Monday event.",
+      "type": "barchart",
+      "title": "Aircraft airborne during the Monday event window, each Monday (0700-1200Z)",
+      "description": "Question G1 (issue 324). Definition: for each Monday (UTC) in the last 5 years that has any, the number of distinct finished flights that were connected at some moment between 0700 and 1200 UTC and had airborne time above 0 (groundspeed of 60 kt or more at some point, as on the weekday and weekend charts). A flight that overlaps the window by even one minute counts once, however long it spans it. The flight summary stores when a flight started and ended and its total airborne minutes, not when it was airborne, so a flight that took off and landed outside the window but stayed connected into it is counted: the bars are an upper bound of the aircraft actually in the air during the window. Imported v1 flights are included (no altitude is needed). A flight counts about 8 hours after its last position, so the latest Monday fills in during that evening. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -257,6 +257,7 @@
         "w": 24,
         "h": 9
       },
+      "timeFrom": "1825d",
       "targets": [
         {
           "datasource": {
@@ -265,26 +266,29 @@
           },
           "refId": "A",
           "editorMode": "code",
-          "format": "time_series",
+          "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH mon AS (\n  -- The most recent Monday whose 0700Z start has passed: 7 hours back from now, so Monday 00:00 to 06:59Z still shows last Monday\n  SELECT (date_trunc('day', (now() - interval '7 hours') AT TIME ZONE 'UTC')\n          - (extract(isodow FROM (now() - interval '7 hours') AT TIME ZONE 'UTC')::int - 1) * interval '1 day') AT TIME ZONE 'UTC' AS d\n),\nslots AS (\n  SELECT mon.d + interval '7 hours' + n * interval '5 minutes' AS slot\n  FROM mon CROSS JOIN generate_series(0, 59) AS n\n),\nsamples AS (\n  SELECT s.observed_at, s.session_id\n  FROM pilot_sample s\n  WHERE s.observed_at >= (SELECT d FROM mon) + interval '7 hours'\n    AND s.observed_at <  (SELECT d FROM mon) + interval '12 hours'\n    AND s.alt_ft > 1000\n)\nSELECT sl.slot AS time,\n       count(DISTINCT sa.session_id) AS \"Airborne aircraft\"\nFROM slots sl\nLEFT JOIN samples sa\n       ON sa.observed_at >= sl.slot AND sa.observed_at < sl.slot + interval '5 minutes'\nWHERE sl.slot <= now()\nGROUP BY sl.slot\nORDER BY sl.slot"
+          "rawSql": "-- Each flight is expanded to the UTC days it touches; only Mondays are kept, so the query reads the flights once\nSELECT to_char(m.monday, 'DD-MM-YYYY') AS \"Monday (UTC)\",\n       count(DISTINCT f.session_id) AS \"Aircraft airborne\"\nFROM flight f\nCROSS JOIN LATERAL generate_series(date_trunc('day', f.start_time AT TIME ZONE 'UTC'),\n                                   date_trunc('day', f.end_time AT TIME ZONE 'UTC'), interval '1 day') AS d(day)\nCROSS JOIN LATERAL (SELECT d.day::date AS monday,\n                           (d.day::date + time '07:00') AT TIME ZONE 'UTC' AS win_start,\n                           (d.day::date + time '12:00') AT TIME ZONE 'UTC' AS win_end) m\nWHERE f.airborne_minutes > 0\n  AND f.end_time >= ($__timeFrom())::timestamptz\n  AND f.start_time <= ($__timeTo())::timestamptz\n  AND extract(isodow FROM d.day) = 1\n  AND f.start_time < m.win_end\n  AND f.end_time > m.win_start\n  AND m.win_start BETWEEN ($__timeFrom())::timestamptz AND ($__timeTo())::timestamptz\nGROUP BY m.monday\nORDER BY m.monday"
         }
       ],
       "options": {
+        "orientation": "vertical",
+        "xField": "Monday (UTC)",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "showValue": "auto",
+        "stacking": "none",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 0,
         "legend": {
-          "displayMode": "table",
+          "showLegend": false,
+          "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
-          ]
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "fieldConfig": {
@@ -294,32 +298,25 @@
             "fixedColor": "#3AA0DD"
           },
           "decimals": 0,
+          "unit": "none",
           "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "fillOpacity": 28,
-            "gradientMode": "opacity",
-            "showPoints": "never",
-            "spanNulls": true,
-            "axisPlacement": "left",
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
             "axisSoftMin": 0,
-            "axisBorderShow": false
+            "axisPlacement": "auto"
           }
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "Airborne aircraft"
+              "options": "Aircraft airborne"
             },
             "properties": [
               {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#3AA0DD"
-                }
+                "id": "custom.axisLabel",
+                "value": "Aircraft airborne"
               }
             ]
           }

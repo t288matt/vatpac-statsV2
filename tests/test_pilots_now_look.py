@@ -1,8 +1,7 @@
 """Issue 280: the redesigned "Pilots: online now" dashboard keeps its queries; only the look changed.
 
-Static checks on the dashboard JSON (no database): the two hour charts, the ATC panel and the busiest-hours table all run the
-same SQL as before the redesign, the 24 hour and 7 day charts share one query, the stat cards read a one-hour window and no
-panel carries a generated sentence.
+Static checks on the dashboard JSON (no database): the 24 hour and 7 day charts share one query, the stat cards read a
+one-hour window, no panel carries a generated sentence, and the panels removed in issues 313 and 315 stay removed.
 """
 from __future__ import annotations
 
@@ -11,8 +10,6 @@ from pathlib import Path
 
 DASH = Path(__file__).resolve().parents[1] / "grafana" / "dashboards" / "pilots" / "pilots-now.json"
 PANELS = {p["title"]: p for p in json.loads(DASH.read_text(encoding="utf-8"))["panels"] if p.get("title")}
-WEEKDAYS = "When are people online on weekdays (last 30 days)"
-WEEKENDS = "When are people online on weekends (last 30 days)"
 
 
 def sqls(title: str) -> list[str]:
@@ -20,10 +17,6 @@ def sqls(title: str) -> list[str]:
 
 
 def test_pilots_now_panels_reuse_the_unchanged_queries() -> None:
-    weekday, weekend = sqls(WEEKDAYS)[0], sqls(WEEKENDS)[0]
-    assert "-- v1 card 94" in weekday and "-- v1 card 95" in weekend
-    assert sqls("ATC online by hour (weekdays and weekends, last 30 days)") == [weekday, weekend]
-    assert sqls("Busiest hours on weekdays (last 30 days)") == [weekday]
     assert sqls("Pilots online over the last 7 days") == sqls("Pilots online over the last 24 hours")
 
 
@@ -39,15 +32,21 @@ def test_pilots_now_time_windows_are_set_on_the_panels() -> None:
     assert PANELS["Region share of the network"]["options"]["showPercentChange"] is False  # a percentage of a percentage: no arrow
 
 
-def test_pilots_now_hour_charts_show_one_series_each() -> None:
-    for title, col in ((WEEKDAYS, "Pilots (callsigns)"), (WEEKENDS, "Pilots (callsigns)")):
-        names = PANELS[title]["transformations"][0]["options"]["include"]["names"]
-        assert names == ["hour_utc", col] and PANELS[title]["type"] == "barchart"
-
-
-def test_pilots_now_has_no_generated_sentence_and_a_status_pill() -> None:
+def test_pilots_now_has_no_generated_sentence() -> None:
     text = [p for p in PANELS.values() if p["type"] == "text"]
     assert len(text) == 0 or all("${" in json.dumps(p["options"]) for p in text)
-    status = next(o for o in PANELS["Departure board"]["fieldConfig"]["overrides"] if o["matcher"]["options"] == "Status")
-    assert {"id": "custom.cellOptions", "value": {"type": "pill"}} in status["properties"]
-    assert "LIMIT 25" in sqls("Departure board")[0]
+
+
+def test_pilots_now_has_no_departure_board() -> None:
+    """Issue 313: the owner's "Live now" is this page (/live); the Departure board must not come back, by any title case."""
+    panels = json.loads(DASH.read_text(encoding="utf-8"))["panels"]
+    assert [p["title"] for p in panels if "departure board" in str(p.get("title", "")).lower()] == []
+    assert "Departure board" not in PANELS
+
+
+def test_pilots_now_has_none_of_the_removed_hour_panels() -> None:
+    """Issue 315: the hour-of-day panels left this page (the two charts stay on ATC: positions and Pilots: records)."""
+    for title in ("When are people online on weekdays (last 30 days)", "When are people online on weekends (last 30 days)",
+                  "ATC online by hour (weekdays and weekends, last 30 days)", "Busiest hours on weekdays (last 30 days)"):
+        assert title not in PANELS, title
+    assert max(p["gridPos"]["y"] + p["gridPos"]["h"] for p in PANELS.values()) == 20      # ends with the 24 hour and 7 day charts

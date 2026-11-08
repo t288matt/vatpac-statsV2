@@ -531,25 +531,6 @@ def test_raafv_routes_panel_shows_at_most_25_routes(conn) -> None:
     assert len(rows) == 25
 
 
-def test_departure_board_airborne_starts_at_60_kt(conn) -> None:
-    """Mutant P17 (`> 60`): the board labels 60 kt AIRBORNE and 59 kt TAXIING."""
-    now = datetime.now(timezone.utc)
-    _snap(conn, now - timedelta(seconds=15))
-    _snap(conn, now)
-    partition_for(conn, now)
-    for cid, cs, gs in ((9870001, "BRD60", 60), (9870002, "BRD59", 59)):
-        sid = conn.execute(
-            "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
-            "VALUES (%s,%s,%s,%s,%s,'YSSY','YMML') RETURNING id",
-            (cid, cs, (now - timedelta(hours=1)).replace(microsecond=0), now - timedelta(hours=1), now)).fetchone()["id"]
-        conn.execute("INSERT INTO pilot_position (observed_at, session_id, lat, lon, alt_ft, gs_kt) "
-                     "VALUES (%s,%s,-33.9,151.2,100,%s)", (now, sid, gs))
-    sql = _panel(p14.TRAFFIC.parent / "pilots-now.json", "Departure board")["targets"][0]["rawSql"].replace(
-        "${airport:sqlstring}", "'YSSY'")
-    got = {r["Flight"]: r["Status"] for r in conn.execute(sql).fetchall()}
-    assert got == {"BRD60": "AIRBORNE", "BRD59": "TAXIING"}
-
-
 def test_pilots_online_now_shows_the_newest_snapshot(conn) -> None:
     """Mutant P18 (ORDER BY ... ASC): the 'now' tile must read the newest snapshot, not the oldest."""
     now = datetime.now(timezone.utc)
