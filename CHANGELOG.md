@@ -6,6 +6,13 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Dashboard fixes and removals (08-11-2026, issues 300, 302, 303, 306, 308, 309, 310, 312; pull request pending, not yet deployed)
+
+- **One row per member (issue 300).** Seven panels grouped by CID and name, so a member with two names showed twice; they now show one row per CID with the most recent name. The shortest-median panels show the rating label (C1, S2) instead of a number. Numbers for members with two names change by design; unnamed sessions now count.
+- **Limits and windows.** Top service providers lists are 30 rows (issue 302); "Busiest days" panels cover 5 years (issue 309).
+- **Order and axes.** The ATC position-hours table is ordered CTR, FSS, APP, DEP, TWR, GND, DEL, FMP (issue 303); ATC is drawn on its own right-hand axis in the "When are people online" charts (issue 308).
+- **Removed.** The lapsed pilots panel (issue 306), the Longest flights panel (issue 310) and the dashboard Management: people online with its public address `/monthly` (issue 312; the server steps are in docs/RUNBOOKS/public-access.md).
+
 ## Military graphs only on the Military dashboard (08-11-2026, issue 301; pull request pending, not yet merged, not deployed)
 
 - **What is new.** The four military panels copied onto Aircraft and airlines in issue 267 group C are removed: Most popular military aircraft, Most popular RAAFv routes, and Hours and Flights flown by RAAFv aircraft per week. They stay on the Military dashboard, unchanged. A test now fails if a military panel appears on any other dashboard.

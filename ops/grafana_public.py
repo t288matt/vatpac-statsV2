@@ -44,7 +44,6 @@ SHORT_NAMES = {
     "vatpac-aircraft-airlines": "aircraft",
     "vatpac-monday-events": "monday",
     "vatpac-military": "military",
-    "vatpac-management": "monthly",
     "vatpac-monitoring": "health",
 }
 
