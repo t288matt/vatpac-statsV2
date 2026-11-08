@@ -132,9 +132,9 @@ def main() -> int:
             errors.append(f"{rel}: missing title")
         if dash.get("timezone") != "utc":
             errors.append(f"{rel}: dashboard timezone must be 'utc'")
-        if not any(p.get("type") == "text" and "${go_live}" in p.get("options", {}).get("content", "")
+        if not any(p.get("type") == "text" and "All times are UTC" in p.get("options", {}).get("content", "")
                    for p in dash.get("panels", [])):
-            errors.append(f"{rel}: missing the 'Live data since ${{go_live}}' banner text panel")
+            errors.append(f"{rel}: missing the 'All times are UTC' text panel")
 
         errors += check_dashboard(path.relative_to(DASHBOARDS).as_posix(), dash)
 

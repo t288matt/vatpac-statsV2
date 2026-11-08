@@ -54,7 +54,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: **Live events** · <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/monthly\" target=\"_top\">Monthly</a> · <a href=\"/health\" target=\"_top\">Health</a>\n\n**Live data since ${go_live}; earlier history was imported.** Flights from 24-08-2025 to 06-03-2026 and controller sessions from 24-08-2025 to 15-03-2026 come from the previous system (no speed, altitude or SELCAL for imported flights). There are no flights after 06-03-2026 and no controller sessions after 15-03-2026 until ${go_live}. Panels for the last 7 or 30 days and the live tables show current data only. All times are UTC. The live panels (online now, who is controlling, the departure board) show the latest snapshot and refresh every minute; the event panels cover the Monday event window, 0700-1200Z. Panels without a period of their own use the page's fixed 180 days; the page has no inputs."
+        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: **Live events** · <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/monthly\" target=\"_top\">Monthly</a> · <a href=\"/health\" target=\"_top\">Health</a>\n\nAll times are UTC. Figures cover VATPAC airspace. The live panels (online now, who is controlling) show the latest snapshot and refresh every minute; the event panels cover the Monday event window, 0700-1200Z. Panels without a period of their own use the page's fixed 180 days; the page has no inputs."
       }
     },
     {
@@ -375,259 +375,6 @@
       }
     },
     {
-      "id": 7,
-      "type": "table",
-      "title": "Departure board",
-      "description": "Question F4 (v1 card 138), copied unchanged from Pilots: online now. Definition: pilots with a flight plan from Sydney (YSSY, fixed) seen in the last 3 hours, with status (airborne at 60 kt or more), at most 25 rows. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 18,
-        "w": 12,
-        "h": 10
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT callsign AS \"Flight\",\n       COALESCE(arrival, 'N/A') AS \"Destination\",\n       status AS \"Status\",\n       COALESCE(deptime, 'N/A') AS \"Planned departure (UTC)\",\n       gs_kt AS \"Speed (kt)\",\n       alt_ft AS \"Altitude (ft)\",\n       COALESCE(flight_rules, 'N/A') AS \"Rules\",\n       COALESCE(aircraft_icao, 'N/A') AS \"Aircraft\",\n       last_seen AS \"Last seen\"\nFROM (\n  SELECT l.*,\n         CASE WHEN NOT l.is_online THEN 'LOGGED OFF'\n              WHEN l.gs_kt >= 60 THEN 'AIRBORNE'\n              WHEN l.gs_kt > 0 THEN 'TAXIING'\n              WHEN l.gs_kt = 0 THEN 'ON GROUND'\n              ELSE 'UNKNOWN' END AS status,\n         CASE WHEN NOT l.is_online THEN 5\n              WHEN l.gs_kt >= 60 THEN 4\n              WHEN l.gs_kt > 0 THEN 3\n              WHEN l.gs_kt = 0 THEN 1\n              ELSE 6 END AS status_rank\n  FROM pilot_latest l\n  WHERE l.departure = 'YSSY'\n) b\nORDER BY status_rank, last_seen DESC\nLIMIT 25"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "md",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "fields": ""
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "AIRBORNE": {
-                        "text": "AIRBORNE",
-                        "color": "#3AA0DD",
-                        "index": 0
-                      },
-                      "TAXIING": {
-                        "text": "TAXIING",
-                        "color": "#E69F00",
-                        "index": 1
-                      },
-                      "ON GROUND": {
-                        "text": "ON GROUND",
-                        "color": "#1FAF8A",
-                        "index": 2
-                      },
-                      "LOGGED OFF": {
-                        "text": "LOGGED OFF",
-                        "color": "#8A97B2",
-                        "index": 3
-                      },
-                      "UNKNOWN": {
-                        "text": "UNKNOWN",
-                        "color": "#CC79A7",
-                        "index": 4
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "pill"
-                }
-              },
-              {
-                "id": "custom.width",
-                "value": 130
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Speed (kt)"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic",
-                  "valueDisplayMode": "text"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "max",
-                "value": 500
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#3AA0DD"
-                }
-              },
-              {
-                "id": "custom.width",
-                "value": 150
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Altitude (ft)"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic",
-                  "valueDisplayMode": "text"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "max",
-                "value": 40000
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#1FAF8A"
-                }
-              },
-              {
-                "id": "custom.width",
-                "value": 170
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Last seen"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "time:HH:mm:ss"
-              },
-              {
-                "id": "custom.width",
-                "value": 110
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Flight"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 100
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Destination"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 100
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Planned departure (UTC)"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 190
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Rules"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 70
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Aircraft"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 90
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
       "id": 8,
       "type": "piechart",
       "title": "Where pilots currently online come from",
@@ -638,7 +385,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 28,
+        "y": 18,
         "w": 12,
         "h": 9
       },
@@ -780,7 +527,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 37,
+        "y": 27,
         "w": 12,
         "h": 9
       },
@@ -917,7 +664,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 46,
+        "y": 36,
         "w": 12,
         "h": 9
       },
