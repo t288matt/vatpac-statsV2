@@ -71,8 +71,8 @@ def test_dashboard_has_the_catalogue_questions_and_no_inputs():
     ("Active pilots and controllers (last 90 days, log scale)", "demographics/pilot-origins.json"),  # A6, card 93
     ("Busiest days by flights (last 5 years)", "pilots/pilots-traffic.json"),                       # A7, card 128
     ("Busiest days by pilots online (last 5 years)", "pilots/pilots-traffic.json"),                # A8, card 129
-    ("When are people online on weekdays (last 30 days)", "pilots/pilots-now.json"),               # A9, card 94
-    ("When are people online on weekends (last 30 days)", "pilots/pilots-now.json"),               # A9, card 95
+    ("When are people online on weekdays (last 30 days)", "atc/atc-positions.json"),               # A9, card 94
+    ("When are people online on weekends (last 30 days)", "atc/atc-positions.json"),               # A9, card 95
 ])
 def test_copied_panels_run_the_same_sql_and_window_as_their_source(title, src):
     mine = next(p for p in panels() if p.get("title") == title)

@@ -38,9 +38,9 @@ def _panels(title_start: str) -> list[tuple[str, dict]]:
 
 
 def test_when_are_people_online_draws_atc_on_a_right_hand_axis():
-    # Issue 308: ATC is small next to pilots; the six bar charts give it its own right-hand axis. Fails if an override is removed.
+    # Issue 308: ATC is small next to pilots; the four bar charts give it its own right-hand axis. Fails if an override is removed.
     found = _panels("When are people online on week")
-    assert len(found) == 6
+    assert len(found) == 4          # ATC: positions x2, Pilots: records x2 (the Live now copies left in issue 315)
     for where, p in found:
         over = next(o for o in p["fieldConfig"]["overrides"] if o["matcher"]["options"] == "ATC (callsigns)")
         props = {x["id"]: x["value"] for x in over["properties"]}

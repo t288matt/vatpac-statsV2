@@ -64,6 +64,16 @@ def test_owner_removed_panels_have_not_come_back() -> None:
     assert back == [], "removed by the owner, see " + ", ".join(REMOVED.values()) + ": " + ", ".join(back)
 
 
+def test_vfr_routes_panel_is_only_on_traffic_not_on_routes_and_airports() -> None:
+    """Issue 317: the copy on Routes and airports was removed; the panel on Traffic and aircraft stays."""
+    title = "Most popular VFR routes"
+
+    def titles(name: str) -> list[str]:
+        return [str(p.get("title")) for p in walk(json.loads((DASHBOARDS / "pilots" / name).read_text(encoding="utf-8"))["panels"])]
+    assert [t for t in titles("pilots-routes-airports.json") if t.startswith(title)] == []
+    assert [t for t in titles("pilots-traffic.json") if t.startswith(title)] == [title + " (last 30 days)"]
+
+
 if __name__ == "__main__":
     if "--write" in sys.argv:
         BASELINE.parent.mkdir(exist_ok=True)

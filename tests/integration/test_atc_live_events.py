@@ -103,8 +103,6 @@ COPIES = [  # (dashboard, title, source file)
     (POSITIONS, "Controllers active (30 days to week end, weekly)", "atc/atc-overview.json"),
     (POSITIONS, "Controllers with the longest median session (last 90 days)", "atc/atc-overview.json"),
     (POSITIONS, "Controllers with the shortest median session (last 90 days)", "atc/atc-overview.json"),
-    (POSITIONS, "When are people online on weekdays (last 30 days)", "pilots/pilots-now.json"),
-    (POSITIONS, "When are people online on weekends (last 30 days)", "pilots/pilots-now.json"),
     (RANKS, "Controllers logged on (last 30 days)", "atc/atc-overview.json"),
     (RANKS, "Controllers logged on each week, by rating group", "atc/atc-overview.json"),
     (LIVE, "Controllers online now", "atc/atc-overview.json"),
@@ -115,10 +113,7 @@ COPIES = [  # (dashboard, title, source file)
 ]
 
 
-RESTYLED = {
-            # issue 280, batch 2: the two copies on ATC positions plot Pilots AND ATC with a legend and two colours; Live now plots Pilots only (its transformation drops the ATC column), so options and fieldConfig differ on purpose. The query, format and window are still compared.
-            ("pilots/pilots-now.json", "When are people online on weekdays (last 30 days)"),
-            ("pilots/pilots-now.json", "When are people online on weekends (last 30 days)")}
+RESTYLED: set[tuple[str, str]] = set()   # issue 315: the only entries were the two hour charts copied from Pilots: online now; keep the mechanism for the next restyle
 
 
 @pytest.mark.parametrize("path,title,src", COPIES)

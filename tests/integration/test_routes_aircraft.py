@@ -52,8 +52,8 @@ def test_routes_dashboard_has_the_catalogue_questions_and_no_inputs():
     assert d["uid"] == "vatpac-routes-airports" and d["title"] == "Routes and airports"
     assert [v["name"] for v in d["templating"]["list"]] == ["go_live"]              # no inputs: only the hidden constant
     questions = sorted({p["description"].split()[1] for p in d["panels"] if p.get("description")})
-    assert questions == ["B1", "B10", "B2", "B3", "B4", "B5", "B6", "B8", "B9"]        # B7 was dropped by the owner
-    assert [p["type"] != "text" for p in d["panels"]].count(True) == 12
+    assert questions == ["B1", "B10", "B2", "B4", "B5", "B6", "B8", "B9"]        # B7 was dropped by the owner, B3 removed (issue 317)
+    assert [p["type"] != "text" for p in d["panels"]].count(True) == 11
     assert all("Definition" in p["description"] for p in d["panels"] if p.get("description"))
 
 
@@ -70,7 +70,6 @@ def test_aircraft_dashboard_has_the_catalogue_questions_and_no_inputs():
 COPIES = [
     (ROUTES, "Most popular domestic routes (last 30 days)", "pilots/pilots-traffic.json"),                  # B1, card 97
     (ROUTES, "Most popular international routes (last 30 days)", "pilots/pilots-traffic.json"),             # B2, card 45
-    (ROUTES, "Most popular VFR routes (last 30 days)", "pilots/pilots-traffic.json"),                       # B3, card 59
     (ROUTES, "Busiest home-region airports (last 30 days)", "pilots/pilots-traffic.json"),                  # B4, card 55
     (ROUTES, "Where pilots currently online come from", "demographics/pilot-origins.json"),                # B9, card 99
     (ROUTES, "Who flies most in Australian airspace: flights by home region (last 30 days)", "demographics/pilot-origins.json"),     # card 100
