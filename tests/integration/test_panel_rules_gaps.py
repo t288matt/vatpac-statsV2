@@ -159,17 +159,6 @@ def test_flights_by_joining_cohort(conn) -> None:
     assert [(r["cohort"], r["flights"], r["pilots"]) for r in rows] == [("10-", 3, 2), ("120-", 1, 1)]  # only the start of the range is shown, in units of 10,000
 
 
-def test_quietest_airports_lists_the_fewest_movements_first(conn) -> None:
-    flight(conn, 9963001, home="YSSY", dep="YSSY", arr="YMML")
-    flight(conn, 9963002, home="YSSY", dep="YSSY", arr="YMML")
-    flight(conn, 9963003, home="YSSY", dep="YBBN", arr="YSSY")
-    flight(conn, 9963004, home="YSSY", dep="YPDN", arr="ZZZZ")           # ZZZZ ends are not movements
-    flight(conn, 9963005, home="YSSY", dep="EGLL", arr="OMDB")           # outside the home region
-    rows = run(conn, "Quietest home-region airports (last 30 days)")
-    assert [(r["airport"], r["departures"], r["arrivals"], r["total_movements"]) for r in rows] == [
-        ("YBBN", 1, 0, 1), ("YMML", 0, 2, 2), ("YSSY", 2, 1, 3)]
-
-
 # ------------------------------------------------------------------ retention panels that were only run
 def test_activity_levels_of_controllers(conn) -> None:
     for d in (1, 5, 9, 14):

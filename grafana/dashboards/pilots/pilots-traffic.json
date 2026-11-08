@@ -364,7 +364,7 @@
       "gridPos": {
         "x": 0,
         "y": 23,
-        "w": 12,
+        "w": 24,
         "h": 9
       },
       "targets": [
@@ -441,87 +441,6 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "#E69F00"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": 7,
-      "type": "table",
-      "title": "Quietest home-region airports (last 30 days)",
-      "description": "Quietest home-region airports by departures and arrivals over the last 30 days.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 23,
-        "w": 12,
-        "h": 9
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT airport,\n       count(*) FILTER (WHERE movement_type = 'departure') AS departures,\n       count(*) FILTER (WHERE movement_type = 'arrival') AS arrivals,\n       count(*) AS total_movements\nFROM movements\nWHERE movement_time BETWEEN $__timeFrom() AND $__timeTo()\nGROUP BY airport\nORDER BY total_movements, airport\nLIMIT 20"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "md",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "fields": ""
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "total_movements"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic",
-                  "valueDisplayMode": "text"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#3AA0DD"
                 }
               }
             ]
