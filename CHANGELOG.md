@@ -6,12 +6,16 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
-## Departure board removed from Live now, four panel removals (08-11-2026, issues 313, 314, 315 and 317; pull request pending, not yet merged, not deployed)
+## Departure board removed from Live now, dashboard panel changes (08-11-2026, issues 313, 314, 315, 317, 318, 319, 320 and 321; pull request pending, not yet merged, not deployed)
 
 - **What is new.** The Departure board panel is removed from "Pilots: online now" (the page behind the "Live now" link and the short address `/live`). Issue 305 had removed it from "Live now and events" by mistake of page, so the board is now on no dashboard. Every other panel keeps its query and place (the board was the last panel, so nothing moves). The `pilot_latest` view and its migrations are unchanged. A test fails if a panel titled Departure board returns to that page.
 - **Quietest airports removed (issue 314).** The panel "Quietest home-region airports (last 30 days)" is removed from Pilots: traffic and aircraft. "Busiest home-region airports" stays with its query and now spans the full width of its row. A test fails if either removed panel returns.
 - **Hour-of-day panels removed from Live now (issue 315).** "Pilots: online now" no longer has the two "When are people online" charts, "ATC online by hour" or "Busiest hours on weekdays"; it ends with the 24 hour and 7 day pilot charts. The two charts stay on ATC: positions and Pilots: records, unchanged. A test fails if any of the four returns.
 - **VFR routes copy removed from Routes and airports (issue 317).** "Most popular VFR routes (last 30 days)" is removed there and stays on Pilots: traffic and aircraft. "Busiest home-region airports" on Routes and airports now spans the full width of its row.
+- **Whitelisted positions never staffed removed (issue 320).** The panel is removed from ATC: positions and controllers; "Top 15 airports by ATC hours staffed" now spans the full width of its row. The whitelist file and views are unchanged.
+- **New service-provider panels (issue 318).** ATC: controllers gains "Top S3", "Top C1", "Top C3" and "Top I1+ service providers (last 30 days)" (I1+ is rating 8 and above), copies of the S2 panel with another rating filter. The owner's message said "s3, c1, s3 and I1+"; the repeated s3 is read as C3. The panels below move down 24 rows.
+- **Median session panels ignore sessions under 5 minutes (issue 319).** On ATC: controllers and ATC: positions, "Controllers with the longest/shortest median session" count only sessions of 5 minutes or more, and the 3-session minimum counts only those. Values and rows change by design for people with short sessions.
+- **Top 2 per rank (issue 321).** "Top 5 positions/controllers for each current rank" on ATC: hours by rank are now "Top 2 ..." (two rows per rank).
 
 ## Dashboard fixes and removals (08-11-2026, issues 300, 302, 303, 306, 308, 309, 310, 312; pull request pending, not yet deployed)
 

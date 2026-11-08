@@ -4,7 +4,7 @@
   atc/atc-ranks.json      "ATC: hours by rank"               (E1 to E10, short address /atc-ranks)
   events/live-events.json "Live now and events"              (F1 to F10, short address /live-events)
 
-New queries under test: D2 to D6, E2 to E10, F3 and F10. Panels copied from existing dashboards (D1, D7 to D9, E1, F1, F2, F5 to F9)
+New queries under test: D2 to D5 (D6 was removed on 08-11-2026, issue 320), E2 to E10, F3 and F10. Panels copied from existing dashboards (D1, D7 to D9, E1, F1, F2, F5 to F9)
 are checked to be identical to their source panel; their rules are asserted by the tests of the original cards.
 
 Expected numbers are worked out by hand from synthetic sessions and flights, never by the SQL under test. Hours panels are
@@ -63,7 +63,7 @@ def whitelist() -> list[str]:
 
 # ------------------------------------------------------------------ the dashboards themselves
 @pytest.mark.parametrize("path,uid,title,questions", [
-    (POSITIONS, "vatpac-atc-positions", "ATC: positions and controllers", [f"D{i}" for i in range(1, 10)]),
+    (POSITIONS, "vatpac-atc-positions", "ATC: positions and controllers", [f"D{i}" for i in range(1, 10) if i != 6]),
     (RANKS, "vatpac-atc-ranks", "ATC: hours by rank", [f"E{i}" for i in range(1, 11)]),
     (LIVE, "vatpac-live-events", "Live now and events", [f"F{i}" for i in (1, 2, 3, 5, 6, 7, 8, 9, 10)]),
 ])
@@ -135,12 +135,11 @@ def test_every_restyled_exemption_still_differs_from_its_copy():
                    and any(panel(path, title).get(k) != panel(DASH / src, title).get(k) for k in ("type", "options", "fieldConfig"))]
         assert differs, f"stale RESTYLED entry: {src}: {title}"
 
-def test_the_whitelist_copied_into_d6_and_f3_is_the_whitelist_file():
-    """The whitelist lives in a file, not in the database, so D6 and F3 carry a copy; any drift fails here."""
+def test_the_whitelist_copied_into_f3_is_the_whitelist_file():
+    """The whitelist lives in a file, not in the database, so F3 carries a copy (D6 had one until issue 320); any drift fails here."""
     want = whitelist()
     assert len(want) == 254 and len(set(want)) == 254
-    for path, title in [(POSITIONS, "Whitelisted positions never staffed (last 30 days)"), (LIVE, "Whitelisted positions open now"),
-                        (LIVE, "Whitelisted positions staffed and open now, by type")]:
+    for path, title in [(LIVE, "Whitelisted positions open now"), (LIVE, "Whitelisted positions staffed and open now, by type")]:
         sql = panel(path, title)["targets"][0]["rawSql"]
         got = re.search(r"string_to_array\('([^']*)', ','\)", sql).group(1).split(",")
         assert got == want, title
@@ -221,22 +220,6 @@ def test_d5_sums_position_hours_per_airport_prefix_and_leaves_out_centre_fss_and
     assert [(r["Airport (callsign prefix)"], float(r["Position-hours"])) for r in rows] == [("SY", 3.5), ("ML", 3.0), ("AD", 2.0)]
 
 
-# ------------------------------------------------------------------ D6: whitelisted positions never staffed
-def test_d6_lists_whitelisted_positions_with_no_session_in_the_window(conn):
-    n = now()
-    add(conn, 1, "SY_TWR", n - timedelta(days=29), 30)                           # staffed
-    add(conn, 2, "ML_TWR", n - timedelta(days=31), 60)                           # staffed, but wholly before the window: still never staffed in it
-    add(conn, 3, "SY_GND", n - timedelta(days=30, hours=1), 180)                 # started before the window and ran into it: staffed
-    add(conn, 4, "NOT_ON_THE_LIST_TWR", n - timedelta(days=1), 60)               # not on the whitelist: never listed
-    rows = run(conn, POSITIONS, "Whitelisted positions never staffed (last 30 days)")
-    positions = [r["Position"] for r in rows]
-    assert len(positions) == 254 - 2 and len(set(positions)) == len(positions)
-    assert "SY_TWR" not in positions and "SY_GND" not in positions and "ML_TWR" in positions
-    assert set(positions) <= set(whitelist()) and "NOT_ON_THE_LIST_TWR" not in positions
-    order = {"CTR": 1, "TWR": 2, "APP": 3, "DEP": 4, "GND": 5, "DEL": 6, "FSS": 7, "FMP": 8}
-    assert [(order[r["Type"]], r["Position"]) for r in rows] == sorted((order[r["Type"]], r["Position"]) for r in rows)
-
-
 # ------------------------------------------------------------------ E: ranks (current rank, each controller once)
 def rank_rows(conn, title: str) -> dict[str, dict]:
     return {r["Rank (current)"]: r for r in run(conn, RANKS, title)}
@@ -304,30 +287,29 @@ def test_e5_averages_the_full_length_of_sessions_by_current_rank(conn):
     assert rows["S1"]["Sessions"] == 0 and rows["S1"]["Average minutes"] is None and rows["C3"]["Average hours"] is None
 
 
-def test_e6_top_five_positions_per_rank_use_the_current_rank(conn):
+def test_e6_top_two_positions_per_rank_use_the_current_rank(conn):
     n = now()
     for i in range(1, 8):                                                        # controller 110, C1: seven positions of 1 to 7 hours
         add(conn, 110, f"P{i}_TWR", n - timedelta(days=3), 60 * i, rating=C1)
     add(conn, 111, "OLD_GND", n - timedelta(days=9), 480, rating=S1)             # 8 h flown as S1, but 111 is C1 now
     add(conn, 111, "NEW_TWR", n - timedelta(days=1), 30, rating=C1)
     add(conn, 112, "OTHER_APP", n - timedelta(days=1), 60, rating=S2)
-    rows = run(conn, RANKS, "Top 5 positions for each current rank (last 30 days)")
+    rows = run(conn, RANKS, "Top 2 positions for each current rank (last 30 days)")
     assert [(r["Rank (current)"], r["#"], r["Position"], float(r["Hours staffed"])) for r in rows] == [
         ("S2", 1, "OTHER_APP", 1.0),
-        ("C1", 1, "OLD_GND", 8.0), ("C1", 2, "P7_TWR", 7.0), ("C1", 3, "P6_TWR", 6.0), ("C1", 4, "P5_TWR", 5.0), ("C1", 5, "P4_TWR", 4.0)]
+        ("C1", 1, "OLD_GND", 8.0), ("C1", 2, "P7_TWR", 7.0)]            # issue 321: two per rank; P6_TWR (6.0) is third and is cut
 
 
-def test_e7_top_five_controllers_per_rank_break_ties_by_cid(conn):
+def test_e7_top_two_controllers_per_rank_break_ties_by_cid(conn):
     n = now()
     for cid, hours in zip(range(200, 207), [5, 4, 4, 3, 2, 1, 1], strict=True):  # seven C3 controllers
         add(conn, cid, f"T{cid}_CTR", n - timedelta(days=2), 60 * hours, rating=C3)
     add(conn, 300, "TX_TWR", n - timedelta(days=2), 600, rating=S1)              # an S1 controller with 10 h: top of S1 only
     add(conn, 201, "TY_TWR", n - timedelta(days=15), 60, rating=S3)              # 201 flew a session as S3: it adds to 201's C3 hours (5.0), no S3 row
-    rows = run(conn, RANKS, "Top 5 controllers for each current rank (last 30 days)")
+    rows = run(conn, RANKS, "Top 2 controllers for each current rank (last 30 days)")
     assert [(r["Rank (current)"], r["#"], r["Controller"], float(r["Hours staffed"])) for r in rows] == [
         ("S1", 1, "Controller 300", 10.0),
-        ("C3", 1, "Controller 200", 5.0), ("C3", 2, "Controller 201", 5.0), ("C3", 3, "Controller 202", 4.0),
-        ("C3", 4, "Controller 203", 3.0), ("C3", 5, "Controller 204", 2.0)]
+        ("C3", 1, "Controller 200", 5.0), ("C3", 2, "Controller 201", 5.0)]  # issue 321: two per rank; 202 (4.0 h) is third and is cut
 
 
 def test_e8_centre_and_fss_hours_by_rank_with_shares_of_all(conn):
