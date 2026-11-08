@@ -773,7 +773,7 @@
       "id": 11,
       "type": "barchart",
       "title": "Top S1 service providers (last 30 days)",
-      "description": "The 50 S1 controllers with the most hours online over the last 30 days, regardless of the time selector.",
+      "description": "The 30 S1 controllers with the most hours online over the last 30 days, regardless of the time selector.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -836,7 +836,7 @@
       "id": 12,
       "type": "barchart",
       "title": "Top S2 service providers (last 30 days)",
-      "description": "The 50 S2 controllers with the most hours online over the last 30 days, regardless of the time selector.",
+      "description": "The 30 S2 controllers with the most hours online over the last 30 days, regardless of the time selector.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
