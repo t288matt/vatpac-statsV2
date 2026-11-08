@@ -603,6 +603,10 @@
             },
             "properties": [
               {
+                "id": "unit",
+                "value": "short"
+              },
+              {
                 "id": "custom.axisPlacement",
                 "value": "right"
               },
@@ -712,6 +716,10 @@
               "options": "ATC (callsigns)"
             },
             "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
               {
                 "id": "custom.axisPlacement",
                 "value": "right"

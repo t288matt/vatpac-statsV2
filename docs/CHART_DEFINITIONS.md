@@ -13,15 +13,15 @@ Panels read views and lookups only: `flight`, `controller_session_merged`, `onli
 
 Verification: on 07-10-2026 every panel query then existing (61) was run against the live local stack through Grafana's own API (`ops/check_panels.py`) with 0 errors (45 returned rows, 16 were empty because the data was only minutes old). The dashboards held 84 query panels in October and hold 159 after issue 267 groups A to F (04-11-2026) (the 16 cards added after the snapshot, T15, were merged on 08-10-2026; their dashboards are part of the deployed tree, and the production panel check of 13-10-2026 runs every dashboard panel with 0 errors); the extra ones were checked statically (`python grafana/validate_dashboards.py` parses every query with sqlglot and resolves the views read, `grafana/check_columns.py` resolves columns) and by integration tests on synthetic rows, and the retention panel queries were run on the VM database through a temporary view. Running `ops/check_panels.py` on the VM after the next deploy is the remaining step. "Runs without error" is not the same as "answers the question correctly": the Test column now names the automated tests that assert each panel (09-10-2026, issue #50: every name there is a test function that exists, and every panel also runs as the read-only role in `test_every_panel_query_runs_as_grafana_ro`). Entries marked "Live-data check (manual)" are checks for a person to make once enough real data exists; no test performs them. A test does not prove the definition is what the owner wants, only that the panel does what its row says.
 
-## Summary of the 57 non-archived v1 cards
+## Summary of the v1 cards in the rebuilt and dropped tables
 
 | Status | Count |
 |---|---|
-| KEPT | 10 |
-| CHANGED | 25 |
+| KEPT | 15 |
+| CHANGED | 21 |
 | UNVERIFIED | 0 |
-| DROPPED | 21 |
-| Total | 57 |
+| DROPPED | 26 |
+| Total | 62 |
 
 Charts without a recovered v1 SQL for the 28-09-2025 snapshot are listed separately below: 5 panels seen only in screenshots (UNVERIFIED) and the 13 retention panels, which were later rebuilt from the owner's Metabase export (cards 163 to 177), plus panels that are new in v3.
 
