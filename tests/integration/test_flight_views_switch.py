@@ -169,7 +169,7 @@ def test_a_flight_not_yet_written_is_in_no_flight_view(conn: Any) -> None:
 
 def test_count_panel_over_flight_ext_counts_only_written_flights(conn: Any) -> None:
     one_connected_one_gone(conn)
-    rows = conn.execute(panel_sql("pilots/pilots-traffic.json", "Busiest days by flights (last 6 months)")).fetchall()
+    rows = conn.execute(panel_sql("pilots/pilots-traffic.json", "Busiest days by flights (last 5 years)")).fetchall()
     assert sum(r["total_flights"] for r in rows) == 1
 
 
@@ -181,7 +181,7 @@ def test_count_panel_over_movements_counts_only_written_flights(conn: Any) -> No
 
 def test_count_panel_reading_flight_directly_counts_only_written_flights(conn: Any) -> None:
     one_connected_one_gone(conn)
-    rows = conn.execute(panel_sql("pilots/pilots-traffic.json", "Busiest days by pilots online (last 6 months)")).fetchall()
+    rows = conn.execute(panel_sql("pilots/pilots-traffic.json", "Busiest days by pilots online (last 5 years)")).fetchall()
     assert sum(r["unique_pilots"] for r in rows) == 1
 
 
@@ -189,7 +189,7 @@ def test_a_written_flight_is_counted_by_the_panel_that_reads_flight(conn: Any) -
     t = set_up_clock(conn)
     make_session(conn, CID + 803, session_ending(t, 9 * 3600))
     assert write(conn) == 1
-    rows = conn.execute(panel_sql("pilots/pilots-traffic.json", "Busiest days by pilots online (last 6 months)")).fetchall()
+    rows = conn.execute(panel_sql("pilots/pilots-traffic.json", "Busiest days by pilots online (last 5 years)")).fetchall()
     assert sum(r["unique_pilots"] for r in rows) == 1
 
 

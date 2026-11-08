@@ -11,7 +11,7 @@ Rules under test:
            codes (Embraer E-series); other regional jets stay in (v1 does not exclude them)
   card 93  active pilots (30+ airborne minutes) and controllers (30+ minutes, session started OR ended in
            90 days) with one bar per rating, v1 names (11 = Administrator, anything else Unknown)
-  card 129 ten dates with the most distinct pilots by LOGON date (UTC), 6 months, weekday name and rank
+  card 129 ten dates with the most distinct pilots by LOGON date (UTC), 5 years (issue 309; was 6 months), weekday name and rank
   card 135 distinct pilots per aircraft category over 6 months, flights with airborne time and an aircraft type
   card 55  movements stay as v1 (ADR-018): parked connections still count; checked on the existing panel
 """
@@ -26,7 +26,7 @@ pytestmark = pytest.mark.integration
 
 SPEED = "Highest groundspeeds (last 7 days)"
 PILOTS_BY_AIRCRAFT = "Most popular aircraft by pilots (last 6 months)"
-DAYS = "Busiest days by pilots online (last 6 months)"
+DAYS = "Busiest days by pilots online (last 5 years)"
 ACTIVE = "Active pilots and controllers (last 90 days, log scale)"
 AIRPORTS = "Busiest home-region airports (last 30 days)"
 
@@ -139,13 +139,19 @@ def test_card_129_is_dated_by_logon_not_flight_start(conn):
     assert [r["member_date"] for r in rows] == [utc_date_days_ago(15)]
 
 
-def test_card_129_top_ten_and_six_month_window(conn):
+def test_card_129_top_ten(conn):
     for i in range(12):
         add_flight(conn, 9300100 + i, logon_days_ago=5 + i, days_ago=4.9 + i)
-    add_flight(conn, 9300200, logon_days_ago=200, days_ago=199.9)        # outside 180 days
-    rows = run_panel(conn, TRAFFIC, DAYS)
-    assert len(rows) == 10
-    assert utc_date_days_ago(200) not in {r["member_date"] for r in rows}
+    assert len(run_panel(conn, TRAFFIC, DAYS)) == 10
+
+
+def test_card_129_window_is_five_years(conn):
+    """Issue 309: the window is 1825 days (it was 180); this fails if the panel's timeFrom goes back to 180d."""
+    add_flight(conn, 9300200, logon_days_ago=200, days_ago=199.9)         # outside the old 180 days, inside 5 years
+    add_flight(conn, 9300201, logon_days_ago=1800, days_ago=1799.9)       # inside 1825 days
+    add_flight(conn, 9300202, logon_days_ago=2000, days_ago=1999.9)       # outside 5 years
+    got = {r["member_date"] for r in run_panel(conn, TRAFFIC, DAYS)}
+    assert got == {utc_date_days_ago(200), utc_date_days_ago(1800)}
 
 
 # ---------------------------------------------------------------- card 93

@@ -62,8 +62,8 @@ def test_aircraft_dashboard_has_the_catalogue_questions_and_no_inputs():
     assert d["uid"] == "vatpac-aircraft-airlines" and d["title"] == "Aircraft and airlines"
     assert [v["name"] for v in d["templating"]["list"]] == ["go_live"]
     questions = sorted({p["description"].split()[1] for p in d["panels"] if p.get("description")})
-    assert questions == sorted(f"C{i}" for i in range(1, 11))
-    assert [p["type"] != "text" for p in d["panels"]].count(True) == 11
+    assert questions == sorted(f"C{i}" for i in (1, 2, 3, 4, 5, 6, 10))                  # C7 to C9 (military) live on Military only, issue 301
+    assert [p["type"] != "text" for p in d["panels"]].count(True) == 7
     assert all("Definition" in p["description"] for p in d["panels"] if p.get("description"))
 
 
@@ -79,10 +79,6 @@ COPIES = [
     (AIRCRAFT, "Most popular aircraft by pilots (last 6 months)", "pilots/pilots-traffic.json"),            # C2, card 135
     (AIRCRAFT, "Most popular airlines (last 30 days)", "pilots/pilots-traffic.json"),                       # C4, card 58
     (AIRCRAFT, "Most popular callsigns (last 30 days)", "pilots/pilots-traffic.json"),                      # C6, card 57
-    (AIRCRAFT, "Most popular military aircraft (unique pilots, last 7 days)", "military/military.json"),    # C7, card 65
-    (AIRCRAFT, "Hours flown by RAAFv aircraft per week (last 14 weeks)", "military/military.json"),        # C8, card 66
-    (AIRCRAFT, "Flights flown by RAAFv aircraft per week (last 14 weeks)", "military/military.json"),      # C8, card 184
-    (AIRCRAFT, "Most popular RAAFv routes (last month)", "military/military.json"),                         # C9, card 78
     (AIRCRAFT, "Highest groundspeeds (last 7 days)", "pilots/pilots-traffic.json"),                         # C10, card 61
 ]
 

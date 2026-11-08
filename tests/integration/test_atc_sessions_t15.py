@@ -6,7 +6,7 @@ test covers the SQL that Grafana runs. All times UTC. Card 148 (pilot/ATC intera
 (ADR-002: it needs controller-to-flight matching), so it has no test.
 
 Rules under test (owner's Metabase export, 08-10-2026):
-  144 / 146  S1 (rating 2) / S2 (rating 3) sessions started in the last 30 days, hours online per CID, top 50
+  144 / 146  S1 (rating 2) / S2 (rating 3) sessions started in the last 30 days, hours online per CID, top 30 (issue 302; it was 50)
   153        median session length in hours, last 90 days, at least 3 sessions, top 15 longest
   154        median session length in minutes, last 90 days, at least 3 sessions, named, top 15 shortest
 """
@@ -89,10 +89,12 @@ def test_provider_window_edges_and_limit(conn):
     add(conn, 9100002, days_ago(30.1), 60, rating=2)         # outside
     assert [r["controller"] for r in run(conn, S1_TITLE)] == ["Controller 9100001 (9100001)"]
     conn.execute("TRUNCATE controller_session RESTART IDENTITY CASCADE")
-    for i in range(52):
+    for i in range(32):
         add(conn, 9101000 + i, days_ago(3), 30 + i, rating=2)
+        add(conn, 9102000 + i, days_ago(3), 30 + i, rating=3)
     rows = run(conn, S1_TITLE)
-    assert len(rows) == 50
+    assert len(rows) == 30                                    # issue 302: 30 bars so the labels do not overlap
+    assert len(run(conn, S2_TITLE)) == 30
     assert float(rows[0]["Hours online"]) >= float(rows[-1]["Hours online"])
 
 
@@ -117,12 +119,19 @@ def test_longest_uses_the_median_not_the_mean(conn):
     ]
 
 
-def test_longest_needs_three_sessions_in_ninety_days_and_a_name(conn):
+def test_longest_needs_three_sessions_in_ninety_days(conn):
     add_three(conn, 9200001, (60, 60, 60), ago=100)           # all older than 90 days
     add(conn, 9200002, days_ago(10), 60)
     add(conn, 9200002, days_ago(11), 60)                      # only two
-    add_three(conn, 9200003, (60, 60, 60), name=None)         # no name: excluded
     assert run(conn, LONGEST_TITLE) == []
+
+
+def test_unnamed_sessions_count_and_the_label_falls_back_to_the_cid(conn):
+    """Issue 300: unnamed sessions are no longer dropped; a member with no name at all is labelled by CID."""
+    add_three(conn, 9200003, (60, 60, 60), name=None, rating=5)
+    add_three(conn, 9200004, (30, 30, 30), name="", rating=3)
+    assert [r["controller"] for r in run(conn, LONGEST_TITLE)] == ["9200003 (9200003, C1)", "9200004 (9200004, S2)"]
+    assert [r["controller"] for r in run(conn, SHORTEST_TITLE)] == ["9200004 (9200004, S2)", "9200003 (9200003, C1)"]
 
 
 def test_longest_and_shortest_return_at_most_fifteen(conn):
@@ -138,14 +147,32 @@ def test_longest_and_shortest_return_at_most_fifteen(conn):
 def test_shortest_uses_the_median_and_ascending_order(conn):
     add_three(conn, 9200001, (10, 10, 100))                   # median 10 (mean would be 40)
     add_three(conn, 9200002, (5, 20, 25), rating=5)           # median 20
-    add_three(conn, 9200003, (1, 1, 1), name="")              # empty name: excluded by card 154
-    add_three(conn, 9200004, (1, 1, 1), name=None)            # no name: excluded
     add_three(conn, 9200005, (1, 1, 1), ago=100)              # outside 90 days
     rows = run(conn, SHORTEST_TITLE)
     assert [(r["controller"], float(r["Median session (minutes)"])) for r in rows] == [
-        ("Controller 9200001 (9200001, rating 3)", 10.0),
-        ("Controller 9200002 (9200002, rating 5)", 20.0),
+        ("Controller 9200001 (9200001, S2)", 10.0),
+        ("Controller 9200002 (9200002, C1)", 20.0),
     ]
+
+
+@pytest.mark.parametrize("rating,label", [(2, "S1"), (3, "S2"), (4, "S3"), (5, "C1"), (7, "C3"), (8, "I1+"), (6, "Unknown"), (None, "Unknown")])
+def test_shortest_shows_the_rating_label_not_the_number(conn, rating, label):
+    add_three(conn, 9200001, (10, 10, 10), rating=rating)
+    [row] = run(conn, SHORTEST_TITLE)
+    assert row["controller"] == f"Controller 9200001 (9200001, {label})"
+
+
+@pytest.mark.parametrize("title,column,expected", [(LONGEST_TITLE, "Median session (hours)", 1.0),
+                                                    (SHORTEST_TITLE, "Median session (minutes)", 60.0)])
+def test_one_row_per_cid_when_the_name_changes(conn, title, column, expected):
+    """Issue 300: one CID under two names is one row; the 3-session minimum counts the person, the name is the latest."""
+    add(conn, 9200001, days_ago(10), 60, name="Matt")
+    add(conn, 9200001, days_ago(9), 60, name="Matt D")        # two sessions per name: neither name alone reaches 3
+    add(conn, 9200001, days_ago(8), 60, name="Matt D")
+    add(conn, 9200001, days_ago(7), 60, name="Matt")
+    add(conn, 9200001, days_ago(1), 60, name=None)            # the newest session has no name: the latest name still wins
+    rows = run(conn, title)
+    assert [(r["controller"], float(r[column])) for r in rows] == [("Matt (9200001, S2)", expected)]
 
 
 def test_every_new_panel_query_runs_on_empty_data(conn):

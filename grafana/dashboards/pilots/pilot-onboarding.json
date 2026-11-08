@@ -52,7 +52,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · **New pilots** · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: <a href=\"/live-events\" target=\"_top\">Live events</a> · <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/monthly\" target=\"_top\">Monthly</a> · <a href=\"/health\" target=\"_top\">Health</a>\n\n**Live data since ${go_live}; earlier history was imported.** Flights from 24-08-2025 to 06-03-2026 and controller sessions from 24-08-2025 to 15-03-2026 come from the previous system (no speed, altitude or SELCAL for imported flights). There are no flights after 06-03-2026 and no controller sessions after 15-03-2026 until ${go_live}. Panels for the last 7 or 30 days and the live tables show current data only. All times are UTC."
+        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · **New pilots** · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: <a href=\"/live-events\" target=\"_top\">Live events</a> · <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/health\" target=\"_top\">Health</a>\n\nAll times are UTC. Figures cover VATPAC airspace."
       }
     },
     {
@@ -95,7 +95,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table: one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n  WHERE airborne_minutes IS NOT NULL\n),\npilot_enroute_stats AS (\n  SELECT\n    cid,\n    name,\n    COUNT(*) as total_flights,\n    COUNT(CASE WHEN total_enroute_time_minutes > 0 THEN 1 END) as flights_with_enroute_time,\n    COUNT(CASE WHEN total_enroute_time_minutes = 0 THEN 1 END) as flights_with_zero_enroute_time,\n    AVG(time_online_minutes) as avg_time_online_minutes,\n    MIN(time_online_minutes) as min_time_online_minutes,\n    MAX(time_online_minutes) as max_time_online_minutes,\n    SUM(time_online_minutes) as total_time_online_minutes\n  FROM flight_summaries\n  WHERE cid IS NOT NULL\n  AND name IS NOT NULL\n  AND completion_time IS NOT NULL\n  AND completion_time >= NOW() - INTERVAL '90 days'\n  GROUP BY cid, name\n  HAVING COUNT(*) > 0\n)\nSELECT\n  cid,\n  name,\n  total_flights,\n  flights_with_zero_enroute_time,\n  ROUND(flights_with_zero_enroute_time * 100.0 / total_flights, 2) as zero_enroute_percentage,\n  ROUND(avg_time_online_minutes, 2) as avg_time_online_minutes,\n  min_time_online_minutes,\n  max_time_online_minutes,\n  total_time_online_minutes\nFROM pilot_enroute_stats\nWHERE flights_with_enroute_time = 0\nAND LENGTH(name) >= 4\nAND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\nORDER BY total_flights DESC, name\nLIMIT 200"
+          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table: one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n  WHERE airborne_minutes IS NOT NULL\n),\npilot_enroute_stats AS (\n  SELECT\n    cid,\n    COALESCE((ARRAY_AGG(name ORDER BY logon_time DESC NULLS LAST)\n                  FILTER (WHERE name IS NOT NULL AND name <> ''))[1], cid::text) AS name,\n    COUNT(*) as total_flights,\n    COUNT(CASE WHEN total_enroute_time_minutes > 0 THEN 1 END) as flights_with_enroute_time,\n    COUNT(CASE WHEN total_enroute_time_minutes = 0 THEN 1 END) as flights_with_zero_enroute_time,\n    AVG(time_online_minutes) as avg_time_online_minutes,\n    MIN(time_online_minutes) as min_time_online_minutes,\n    MAX(time_online_minutes) as max_time_online_minutes,\n    SUM(time_online_minutes) as total_time_online_minutes\n  FROM flight_summaries\n  WHERE cid IS NOT NULL\n  AND completion_time IS NOT NULL\n  AND completion_time >= NOW() - INTERVAL '90 days'\n  GROUP BY cid\n  HAVING COUNT(*) > 0\n)\nSELECT\n  cid,\n  name,\n  total_flights,\n  flights_with_zero_enroute_time,\n  ROUND(flights_with_zero_enroute_time * 100.0 / total_flights, 2) as zero_enroute_percentage,\n  ROUND(avg_time_online_minutes, 2) as avg_time_online_minutes,\n  min_time_online_minutes,\n  max_time_online_minutes,\n  total_time_online_minutes\nFROM pilot_enroute_stats\nWHERE flights_with_enroute_time = 0\nAND LENGTH(name) >= 4\nAND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\nORDER BY total_flights DESC, name\nLIMIT 200"
         }
       ],
       "options": {
@@ -273,171 +273,6 @@
             "matcher": {
               "id": "byName",
               "options": "month_label"
-            },
-            "properties": [
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": true,
-                  "tooltip": true,
-                  "viz": true
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": 5,
-      "type": "timeseries",
-      "title": "Pilots who flew last month but not this month (lapsed)",
-      "description": "Australian-based pilots who flew in each month, and how many of the previous month's pilots did not fly.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 29,
-        "w": 24,
-        "h": 10
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table: one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n),\nmonthly_pilots AS (\n  SELECT\n    DATE_TRUNC('month', completion_time AT TIME ZONE 'UTC') as month,\n    cid\n  FROM flight_summaries\n  WHERE cid IS NOT NULL\n  AND completion_time IS NOT NULL\n  AND name IS NOT NULL\n  AND LENGTH(name) >= 4\n  AND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n  GROUP BY DATE_TRUNC('month', completion_time AT TIME ZONE 'UTC'), cid\n),\nmonthly_comparison AS (\n  SELECT\n    m1.month as current_month,\n    COUNT(DISTINCT m1.cid) as pilots_current_month,\n    COUNT(DISTINCT CASE WHEN m2.cid IS NULL THEN m1.cid END) as pilots_who_lapsed_next_month\n  FROM monthly_pilots m1\n  LEFT JOIN monthly_pilots m2 ON m1.cid = m2.cid\n    AND m2.month = m1.month + INTERVAL '1 month'\n  GROUP BY m1.month\n),\nretention_data AS (\n  SELECT\n    c.current_month,\n    TRIM(TO_CHAR(c.current_month, 'FMMonth YYYY')) as month_label,\n    c.pilots_current_month,\n    c.pilots_who_lapsed_next_month,\n    LAG(c.pilots_current_month) OVER (ORDER BY c.current_month) as previous_month_pilots,\n    LAG(c.pilots_who_lapsed_next_month) OVER (ORDER BY c.current_month) as lapsed_from_previous_month\n  FROM monthly_comparison c\n)\nSELECT\n  current_month,\n  month_label,\n  pilots_current_month,\n  lapsed_from_previous_month as lapsed,\n  CASE\n    WHEN lapsed_from_previous_month IS NOT NULL AND previous_month_pilots IS NOT NULL\n    THEN ROUND(lapsed_from_previous_month * 100.0 / previous_month_pilots, 2)\n    ELSE NULL\n  END as percentage_lapsed,\n  CASE\n    WHEN previous_month_pilots IS NOT NULL\n    THEN CONCAT(month_label, ' - ', pilots_current_month, ' pilots, ', lapsed_from_previous_month, ' lapsed from ', TRIM(TO_CHAR(current_month - INTERVAL '1 month', 'Mon')))\n    ELSE CONCAT(month_label, ' - ', pilots_current_month, ' pilots')\n  END as retention_summary\nFROM retention_data\nORDER BY current_month"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#3AA0DD"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "fillOpacity": 28,
-            "gradientMode": "opacity",
-            "showPoints": "never",
-            "spanNulls": true,
-            "axisPlacement": "left",
-            "axisSoftMin": 0,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "pilots_current_month"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Pilots who flew"
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#3AA0DD"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "lapsed"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Lapsed from previous month"
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#E69F00"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "percentage_lapsed"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Lapsed (%)"
-              },
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#1FAF8A"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "month_label"
-            },
-            "properties": [
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": true,
-                  "tooltip": true,
-                  "viz": true
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "retention_summary"
             },
             "properties": [
               {

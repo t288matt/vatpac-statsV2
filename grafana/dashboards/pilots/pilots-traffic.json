@@ -52,7 +52,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · **Traffic** · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: <a href=\"/live-events\" target=\"_top\">Live events</a> · <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/monthly\" target=\"_top\">Monthly</a> · <a href=\"/health\" target=\"_top\">Health</a>\n\n**Live data since ${go_live}; earlier history was imported.** Flights from 24-08-2025 to 06-03-2026 and controller sessions from 24-08-2025 to 15-03-2026 come from the previous system (no speed, altitude or SELCAL for imported flights). There are no flights after 06-03-2026 and no controller sessions after 15-03-2026 until ${go_live}. Panels for the last 7 or 30 days and the live tables show current data only. All times are UTC."
+        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · **Traffic** · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: <a href=\"/live-events\" target=\"_top\">Live events</a> · <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/health\" target=\"_top\">Health</a>\n\nAll times are UTC. Figures cover VATPAC airspace."
       }
     },
     {
@@ -886,8 +886,8 @@
     {
       "id": 13,
       "type": "table",
-      "title": "Busiest days by flights (last 6 months)",
-      "description": "The five days with the most flights over the last 6 months (UTC).",
+      "title": "Busiest days by flights (last 5 years)",
+      "description": "The five days with the most flights over the last 5 years (UTC).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -963,13 +963,13 @@
           }
         ]
       },
-      "timeFrom": "180d"
+      "timeFrom": "1825d"
     },
     {
       "id": 14,
       "type": "table",
-      "title": "Busiest days by pilots online (last 6 months)",
-      "description": "The ten days with the most pilots online over the last 6 months (UTC).",
+      "title": "Busiest days by pilots online (last 5 years)",
+      "description": "The ten days with the most pilots online over the last 5 years (UTC).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -1045,7 +1045,7 @@
           }
         ]
       },
-      "timeFrom": "180d"
+      "timeFrom": "1825d"
     },
     {
       "id": 15,
@@ -1135,7 +1135,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table: one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n)\nSELECT\n    cid,\n    name,\n    ROUND(SUM(total_enroute_time_minutes) / 60.0) AS total_enroute_hours\nFROM flight_summaries\nWHERE\n    SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n    AND total_enroute_time_minutes > 30\n    AND completion_time >= NOW() - INTERVAL '7 days'\nGROUP BY cid, name\nORDER BY SUM(total_enroute_time_minutes) DESC, cid\nLIMIT 10"
+          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table: one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n)\nSELECT\n    cid,\n    name,\n    ROUND(enroute_minutes / 60.0) AS total_enroute_hours\nFROM (\n    SELECT\n        cid,\n        COALESCE((ARRAY_AGG(name ORDER BY logon_time DESC NULLS LAST)\n                  FILTER (WHERE name IS NOT NULL AND name <> ''))[1], cid::text) AS name,\n        SUM(total_enroute_time_minutes) AS enroute_minutes\n    FROM flight_summaries\n    WHERE total_enroute_time_minutes > 30\n        AND completion_time >= NOW() - INTERVAL '7 days'\n    GROUP BY cid\n) per_member\nWHERE SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\nORDER BY enroute_minutes DESC, cid\nLIMIT 10"
         }
       ],
       "options": {
