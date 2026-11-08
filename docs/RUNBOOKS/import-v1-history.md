@@ -15,7 +15,7 @@ No raw positions are read. `pilot_session`, `pilot_position` and the two control
 
 No panel and no dashboard file is changed by this work. After a load:
 
-- **History appears from 24-08-2025.** Panels with a long window or an all-time total now include v1 history. The banner on every dashboard already says "Live data since <go-live>; earlier history was imported" (with the imported range and the gap to go-live), so it is not edited; panel titles that say "since go-live" are not reworded.
+- **History appears from 24-08-2025.** Panels with a long window or an all-time total now include v1 history. Until 08-11-2026 a banner on every dashboard said "Live data since <go-live>; earlier history was imported" (with the imported range and the gap to go-live); issue #307 removed it, so the dashboards no longer state the gap and this runbook is where it is recorded; panel titles that say "since go-live" are not reworded.
 - **A gap with no data from 15-03-2026 to 07-10-2026** (about 206 days). It shows as zero or empty; the owner accepted this (ADR-035).
 - **Panels with no time axis count the gap as behaviour:** lapsed 90+ days, reactivated after 60+ days, and retention rate. Controllers who were active in the history and not since will show as lapsed; those who came back after the gap as reactivated.
 - **Imported flights have no speed, altitude or SELCAL data** (`max_gs_kt`, `max_alt_ft` NULL, `remarks` NULL, `sample_count` 0). Records and highest-speed or altitude panels leave them out. Their airborne time is v1's figure (capped at time online), not v3's measurement.

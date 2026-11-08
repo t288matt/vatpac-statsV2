@@ -9,6 +9,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 ## Military graphs only on the Military dashboard (08-11-2026, issue 301; pull request pending, not yet merged, not deployed)
 
 - **What is new.** The four military panels copied onto Aircraft and airlines in issue 267 group C are removed: Most popular military aircraft, Most popular RAAFv routes, and Hours and Flights flown by RAAFv aircraft per week. They stay on the Military dashboard, unchanged. A test now fails if a military panel appears on any other dashboard.
+- **Data-history banner removed (issue 307).** The 16 dashboards that carried "Live data since ...; earlier history was imported" now say "All times are UTC. Figures cover VATPAC airspace." The navigation links, panel heights and every query are unchanged (the navigation check keeps the top panel at 5 or 6 rows). The no-data gap (no flights 06-03-2026 to 07-10-2026, no controller sessions 15-03-2026 to 07-10-2026) is no longer stated on the pages; it is in the import runbook. Collector health keeps its own sentence.
 - **What did not change.** Every other panel on Aircraft and airlines, including Highest groundspeeds (last 7 days), keeps its query and window; no view, migration or collector code changed.
 - **Live now and events (issue 305).** The Departure board panel is removed from that page; it stays on Pilots: online now, with the `pilot_latest` view unchanged. The other panels there keep their queries and move up to close the gap.
 
