@@ -591,11 +591,22 @@
             "gradientMode": "none",
             "lineWidth": 0,
             "axisSoftMin": 0,
-            "axisPlacement": "auto",
-            "axisLabel": "Pilot callsigns"
+            "axisPlacement": "auto"
           }
         },
         "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pilots (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "custom.axisLabel",
+                "value": "Pilot callsigns"
+              }
+            ]
+          },
           {
             "matcher": {
               "id": "byName",
@@ -705,11 +716,22 @@
             "gradientMode": "none",
             "lineWidth": 0,
             "axisSoftMin": 0,
-            "axisPlacement": "auto",
-            "axisLabel": "Pilot callsigns"
+            "axisPlacement": "auto"
           }
         },
         "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pilots (callsigns)"
+            },
+            "properties": [
+              {
+                "id": "custom.axisLabel",
+                "value": "Pilot callsigns"
+              }
+            ]
+          },
           {
             "matcher": {
               "id": "byName",

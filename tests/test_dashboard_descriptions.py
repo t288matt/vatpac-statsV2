@@ -48,7 +48,10 @@ def test_when_are_people_online_draws_atc_on_a_right_hand_axis():
         # Grafana keys a y scale by unit: a different unit from the pilots series makes ATC a separate scale (issue 308)
         assert props["unit"] == "short" and p["fieldConfig"]["defaults"]["unit"] == "none", where
         assert props["custom.axisLabel"] == "ATC callsigns" and props["custom.axisSoftMin"] == 0, where
-        assert p["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "Pilot callsigns", where
+        # the left label sits on the Pilots series, not in the defaults: a default would also label the hour (x) axis
+        assert "axisLabel" not in p["fieldConfig"]["defaults"]["custom"], where
+        pil = next(o for o in p["fieldConfig"]["overrides"] if o["matcher"]["options"] == "Pilots (callsigns)")
+        assert {x["id"]: x["value"] for x in pil["properties"]}["custom.axisLabel"] == "Pilot callsigns", where
         assert p["fieldConfig"]["defaults"]["custom"]["axisSoftMin"] == 0, where
 
 

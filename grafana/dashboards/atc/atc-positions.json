@@ -818,8 +818,7 @@
             "gradientMode": "none",
             "lineWidth": 0,
             "axisSoftMin": 0,
-            "axisPlacement": "auto",
-            "axisLabel": "Pilot callsigns"
+            "axisPlacement": "auto"
           }
         },
         "overrides": [
@@ -835,6 +834,10 @@
                   "mode": "fixed",
                   "fixedColor": "#3AA0DD"
                 }
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "Pilot callsigns"
               }
             ]
           },
@@ -955,8 +958,7 @@
             "gradientMode": "none",
             "lineWidth": 0,
             "axisSoftMin": 0,
-            "axisPlacement": "auto",
-            "axisLabel": "Pilot callsigns"
+            "axisPlacement": "auto"
           }
         },
         "overrides": [
@@ -972,6 +974,10 @@
                   "mode": "fixed",
                   "fixedColor": "#3AA0DD"
                 }
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "Pilot callsigns"
               }
             ]
           },
