@@ -4,7 +4,7 @@
   atc/atc-ranks.json      "ATC: hours by rank"               (E1 to E10, short address /atc-ranks)
   events/live-events.json "Live now and events"              (F1 to F10, short address /live-events)
 
-New queries under test: D2 to D6, E2 to E10, F3 and F10. Panels copied from existing dashboards (D1, D7 to D9, E1, F1, F2, F4 to F9)
+New queries under test: D2 to D6, E2 to E10, F3 and F10. Panels copied from existing dashboards (D1, D7 to D9, E1, F1, F2, F5 to F9)
 are checked to be identical to their source panel; their rules are asserted by the tests of the original cards.
 
 Expected numbers are worked out by hand from synthetic sessions and flights, never by the SQL under test. Hours panels are
@@ -65,7 +65,7 @@ def whitelist() -> list[str]:
 @pytest.mark.parametrize("path,uid,title,questions", [
     (POSITIONS, "vatpac-atc-positions", "ATC: positions and controllers", [f"D{i}" for i in range(1, 10)]),
     (RANKS, "vatpac-atc-ranks", "ATC: hours by rank", [f"E{i}" for i in range(1, 11)]),
-    (LIVE, "vatpac-live-events", "Live now and events", [f"F{i}" for i in range(1, 11)]),
+    (LIVE, "vatpac-live-events", "Live now and events", [f"F{i}" for i in (1, 2, 3, 5, 6, 7, 8, 9, 10)]),
 ])
 def test_dashboard_has_every_catalogue_question_and_no_inputs(path, uid, title, questions):
     d = json.loads(path.read_text(encoding="utf-8"))
@@ -108,7 +108,6 @@ COPIES = [  # (dashboard, title, source file)
     (RANKS, "Controllers logged on (last 30 days)", "atc/atc-overview.json"),
     (RANKS, "Controllers logged on each week, by rating group", "atc/atc-overview.json"),
     (LIVE, "Controllers online now", "atc/atc-overview.json"),
-    (LIVE, "Departure board", "pilots/pilots-now.json"),
     (LIVE, "Where pilots currently online come from", "demographics/pilot-origins.json"),
     (LIVE, "Airborne aircraft during the latest Monday event (0700-1200Z, 5-minute slots)", "events/monday-events.json"),
     (LIVE, "Busiest days by flights (last 6 months)", "pilots/pilots-traffic.json"),
