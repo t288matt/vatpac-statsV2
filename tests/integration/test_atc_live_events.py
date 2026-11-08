@@ -65,7 +65,7 @@ def whitelist() -> list[str]:
 @pytest.mark.parametrize("path,uid,title,questions", [
     (POSITIONS, "vatpac-atc-positions", "ATC: positions and controllers", [f"D{i}" for i in range(1, 10) if i != 6]),
     (RANKS, "vatpac-atc-ranks", "ATC: hours by rank", [f"E{i}" for i in range(1, 11)]),
-    (LIVE, "vatpac-live-events", "Live now and events", [f"F{i}" for i in (1, 2, 3, 5, 6, 7, 8, 9, 10)]),
+    (LIVE, "vatpac-live-events", "Live now and events", [f"F{i}" for i in (3, 5, 6, 7, 8, 9, 10)]),
 ])
 def test_dashboard_has_every_catalogue_question_and_no_inputs(path, uid, title, questions):
     d = json.loads(path.read_text(encoding="utf-8"))
@@ -105,7 +105,6 @@ COPIES = [  # (dashboard, title, source file)
     (POSITIONS, "Controllers with the shortest median session (last 90 days)", "atc/atc-overview.json"),
     (RANKS, "Controllers logged on (last 30 days)", "atc/atc-overview.json"),
     (RANKS, "Controllers logged on each week, by rating group", "atc/atc-overview.json"),
-    (LIVE, "Controllers online now", "atc/atc-overview.json"),
     (LIVE, "Where pilots currently online come from", "demographics/pilot-origins.json"),
     (LIVE, "Airborne aircraft during the latest Monday event (0700-1200Z, 5-minute slots)", "events/monday-events.json"),
     (LIVE, "Busiest days by flights (last 5 years)", "pilots/pilots-traffic.json"),
@@ -139,7 +138,7 @@ def test_the_whitelist_copied_into_f3_is_the_whitelist_file():
     """The whitelist lives in a file, not in the database, so F3 carries a copy (D6 had one until issue 320); any drift fails here."""
     want = whitelist()
     assert len(want) == 254 and len(set(want)) == 254
-    for path, title in [(LIVE, "Whitelisted positions open now"), (LIVE, "Whitelisted positions staffed and open now, by type")]:
+    for path, title in [(LIVE, "Whitelisted positions open now")]:
         sql = panel(path, title)["targets"][0]["rawSql"]
         got = re.search(r"string_to_array\('([^']*)', ','\)", sql).group(1).split(",")
         assert got == want, title
@@ -399,27 +398,6 @@ def stage_online(conn) -> None:
             "VALUES (%s,%s,%s,%s,%s,118000000,%s,%s)", (cid, cs, (seen - timedelta(hours=1)).replace(microsecond=0), name, rating, seen - timedelta(hours=1), seen))
 
 
-def test_f3_lists_the_controllers_online_now(conn):
-    stage_online(conn)
-    rows = run(conn, LIVE, "Who is controlling now")
-    assert [(r["Position"], r["Controller"], r["Rank"]) for r in rows] == [("ML_APP", "Bob Approach", "S3"), ("NOT_LISTED_TWR", "Stranger", "C1"), ("SY_TWR", "Ann Tower", "C1")]
-    assert float(rows[2]["Frequency (MHz)"]) == 118.0 and float(rows[2]["Hours online"]) == 1.0
-
-
-def test_f3_counts_staffed_and_open_positions_by_type(conn):
-    stage_online(conn)
-    total = {}
-    for cs in whitelist():
-        total[cs.rsplit("_", 1)[1]] = total.get(cs.rsplit("_", 1)[1], 0) + 1
-    rows = {r["Type"]: r for r in run(conn, LIVE, "Whitelisted positions staffed and open now, by type")}
-    assert list(rows) == ["CTR", "TWR", "APP", "DEP", "GND", "DEL", "FSS", "FMP"]
-    assert {t: r["On the whitelist"] for t, r in rows.items()} == total
-    assert (rows["TWR"]["Staffed now"], rows["TWR"]["Open now"]) == (1, total["TWR"] - 1)      # SY_TWR; BN_TWR is offline and the unlisted one does not count
-    assert (rows["APP"]["Staffed now"], rows["APP"]["Open now"]) == (1, total["APP"] - 1)
-    assert (rows["CTR"]["Staffed now"], rows["CTR"]["Open now"]) == (0, total["CTR"])
-    assert sum(r["Staffed now"] + r["Open now"] for r in rows.values()) == 254
-
-
 def test_f3_lists_every_whitelisted_position_that_is_open(conn):
     stage_online(conn)
     rows = run(conn, LIVE, "Whitelisted positions open now")
@@ -430,7 +408,6 @@ def test_f3_lists_every_whitelisted_position_that_is_open(conn):
 
 def test_f3_with_nobody_online_shows_every_position_open(conn):
     assert len(run(conn, LIVE, "Whitelisted positions open now")) == 254
-    assert run(conn, LIVE, "Who is controlling now") == []
 
 
 # ------------------------------------------------------------------ F10: flights per month
