@@ -98,7 +98,7 @@ def test_new_hours_panels_state_their_window_and_size_in_the_title():
 
 
 COPIES = [  # (dashboard, title, source file)
-    (POSITIONS, "Top 50 service providers (last 30 days)", "atc/atc-overview.json"),
+    (POSITIONS, "Top 30 service providers (last 30 days)", "atc/atc-overview.json"),
     (POSITIONS, "CTR and FSS controllers active (30 days to month end, monthly)", "atc/atc-overview.json"),
     (POSITIONS, "Controllers active (30 days to week end, weekly)", "atc/atc-overview.json"),
     (POSITIONS, "Controllers with the longest median session (last 90 days)", "atc/atc-overview.json"),
@@ -111,8 +111,8 @@ COPIES = [  # (dashboard, title, source file)
     (LIVE, "Departure board", "pilots/pilots-now.json"),
     (LIVE, "Where pilots currently online come from", "demographics/pilot-origins.json"),
     (LIVE, "Airborne aircraft during the latest Monday event (0700-1200Z, 5-minute slots)", "events/monday-events.json"),
-    (LIVE, "Busiest days by flights (last 6 months)", "pilots/pilots-traffic.json"),
-    (LIVE, "Busiest days by pilots online (last 6 months)", "pilots/pilots-traffic.json"),
+    (LIVE, "Busiest days by flights (last 5 years)", "pilots/pilots-traffic.json"),
+    (LIVE, "Busiest days by pilots online (last 5 years)", "pilots/pilots-traffic.json"),
 ]
 
 

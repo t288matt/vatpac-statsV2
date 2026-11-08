@@ -80,7 +80,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table: one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n)\nSELECT\n    cid,\n    name,\n    ROUND(SUM(total_enroute_time_minutes) / 60.0) AS total_enroute_hours\nFROM flight_summaries\nWHERE\n    SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n    AND total_enroute_time_minutes > 30\n    AND completion_time >= NOW() - INTERVAL '7 days'\nGROUP BY cid, name\nORDER BY SUM(total_enroute_time_minutes) DESC, cid\nLIMIT 10"
+          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table: one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n)\nSELECT\n    cid,\n    name,\n    ROUND(enroute_minutes / 60.0) AS total_enroute_hours\nFROM (\n    SELECT\n        cid,\n        COALESCE((ARRAY_AGG(name ORDER BY logon_time DESC NULLS LAST)\n                  FILTER (WHERE name IS NOT NULL AND name <> ''))[1], cid::text) AS name,\n        SUM(total_enroute_time_minutes) AS enroute_minutes\n    FROM flight_summaries\n    WHERE total_enroute_time_minutes > 30\n        AND completion_time >= NOW() - INTERVAL '7 days'\n    GROUP BY cid\n) per_member\nWHERE SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\nORDER BY enroute_minutes DESC, cid\nLIMIT 10"
         }
       ],
       "options": {
@@ -229,7 +229,7 @@
       "gridPos": {
         "x": 0,
         "y": 15,
-        "w": 12,
+        "w": 24,
         "h": 9
       },
       "targets": [
@@ -298,87 +298,6 @@
         ]
       },
       "timeFrom": "14d"
-    },
-    {
-      "type": "table",
-      "title": "Longest flights (last 30 days)",
-      "description": "Question A4 (new). Definition: the ten flights with the most airborne hours among flights that finished in the last 30 days (airborne hours, not time connected; flights with airborne time only, so no 0.0 hour rows), with pilot, callsign, route and finish time (UTC). Ties: the later finish first. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 15,
-        "w": 12,
-        "h": 9
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT f.name AS \"Pilot\", f.callsign AS \"Callsign\", f.route_label AS \"Route\",\n       round(f.airborne_minutes / 60.0, 1) AS \"Airborne hours\",\n       to_char(f.end_time AT TIME ZONE 'UTC', 'DD-MM-YYYY HH24:MI') AS \"Finished (UTC)\"\nFROM flight_ext f\nWHERE f.end_time >= now() - interval '30 days'\n  AND f.airborne_minutes > 0\nORDER BY f.airborne_minutes DESC, f.end_time DESC, f.session_id\nLIMIT 10"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "md",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "fields": ""
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Airborne hours"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic",
-                  "valueDisplayMode": "text"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#3AA0DD"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "id": 5
     },
     {
       "type": "timeseries",
@@ -564,8 +483,8 @@
     {
       "id": 9,
       "type": "table",
-      "title": "Busiest days by flights (last 6 months)",
-      "description": "Question A7 (v1 card 128), copied unchanged from Pilots: traffic and aircraft. Definition: the five UTC dates with the most flights, by the date the flight started, over the last 6 months (180 days). A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "title": "Busiest days by flights (last 5 years)",
+      "description": "Question A7 (v1 card 128), copied unchanged from Pilots: traffic and aircraft. Definition: the five UTC dates with the most flights, by the date the flight started, over the last 5 years (180 days). A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -641,13 +560,13 @@
           }
         ]
       },
-      "timeFrom": "180d"
+      "timeFrom": "1825d"
     },
     {
       "id": 10,
       "type": "table",
-      "title": "Busiest days by pilots online (last 6 months)",
-      "description": "Question A8 (v1 card 129), copied unchanged from Pilots: traffic and aircraft. Definition: the ten UTC dates with the most distinct pilots, by the date the pilot logged on, over the last 6 months (180 days), with weekday and rank. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "title": "Busiest days by pilots online (last 5 years)",
+      "description": "Question A8 (v1 card 129), copied unchanged from Pilots: traffic and aircraft. Definition: the ten UTC dates with the most distinct pilots, by the date the pilot logged on, over the last 5 years (180 days), with weekday and rank. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -723,7 +642,7 @@
           }
         ]
       },
-      "timeFrom": "180d"
+      "timeFrom": "1825d"
     },
     {
       "id": 11,
@@ -786,7 +705,8 @@
             "gradientMode": "none",
             "lineWidth": 0,
             "axisSoftMin": 0,
-            "axisPlacement": "auto"
+            "axisPlacement": "auto",
+            "axisLabel": "Pilot callsigns"
           }
         },
         "overrides": [
@@ -817,6 +737,18 @@
                   "mode": "fixed",
                   "fixedColor": "#E69F00"
                 }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "ATC callsigns"
+              },
+              {
+                "id": "custom.axisSoftMin",
+                "value": 0
               }
             ]
           }
@@ -906,7 +838,8 @@
             "gradientMode": "none",
             "lineWidth": 0,
             "axisSoftMin": 0,
-            "axisPlacement": "auto"
+            "axisPlacement": "auto",
+            "axisLabel": "Pilot callsigns"
           }
         },
         "overrides": [
@@ -937,6 +870,18 @@
                   "mode": "fixed",
                   "fixedColor": "#E69F00"
                 }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "ATC callsigns"
+              },
+              {
+                "id": "custom.axisSoftMin",
+                "value": 0
               }
             ]
           }

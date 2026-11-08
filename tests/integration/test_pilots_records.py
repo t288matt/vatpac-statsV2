@@ -1,6 +1,6 @@
 """Group A of the database-questions catalogue (issue #267, 04-11-2026): the dashboard "Pilots: records and totals".
 
-New queries under test: A2 (most flights), A4 (longest flights), A5 (flights per week), A10 (average flight length).
+New queries under test: A2 (most flights), A5 (flights per week), A10 (average flight length).
 Panels copied from existing dashboards (A1, A3, A6 to A9) are checked to be identical to their source panel; their rules
 are asserted by the tests of the original cards (test_pilots_people_t15.py, test_audit_t30.py, test_online_hours.py ...).
 
@@ -21,7 +21,6 @@ pytestmark = pytest.mark.integration
 DASH = REPO / "grafana" / "dashboards"
 RECORDS = DASH / "pilots" / "pilots-records.json"
 MOST_FLIGHTS = "Pilots with the most flights (last 30 days)"
-LONGEST = "Longest flights (last 30 days)"
 WEEKLY = "Flights finished per week"
 AVERAGE = "Average flight length (7 days, 30 days, since go-live)"
 _n = {"i": 0}
@@ -62,7 +61,7 @@ def test_dashboard_has_the_catalogue_questions_and_no_inputs():
     assert d["uid"] == "vatpac-pilots-records" and d["title"] == "Pilots: records and totals"
     assert [v["name"] for v in d["templating"]["list"]] == ["go_live"]       # no inputs: only the hidden constant
     questions = sorted({p["description"].split()[1] for p in d["panels"] if p.get("description")})
-    assert questions == sorted(f"A{i}" for i in range(1, 11))                 # every question A1 to A10 has a panel
+    assert questions == sorted(f"A{i}" for i in range(1, 11) if i != 4)       # A1 to A10 except A4 (panel removed, issue 310)
     assert all("Definition" in p["description"] for p in d["panels"] if p.get("description"))
 
 
@@ -70,8 +69,8 @@ def test_dashboard_has_the_catalogue_questions_and_no_inputs():
     ("Which member spent the most time online? (last 7 days)", "pilots/pilots-traffic.json"),      # A1, card 155
     ("Pilots with the most diverse routes (last 14 days)", "pilots/pilots-traffic.json"),           # A3, card 46
     ("Active pilots and controllers (last 90 days, log scale)", "demographics/pilot-origins.json"),  # A6, card 93
-    ("Busiest days by flights (last 6 months)", "pilots/pilots-traffic.json"),                       # A7, card 128
-    ("Busiest days by pilots online (last 6 months)", "pilots/pilots-traffic.json"),                # A8, card 129
+    ("Busiest days by flights (last 5 years)", "pilots/pilots-traffic.json"),                       # A7, card 128
+    ("Busiest days by pilots online (last 5 years)", "pilots/pilots-traffic.json"),                # A8, card 129
     ("When are people online on weekdays (last 30 days)", "pilots/pilots-now.json"),               # A9, card 94
     ("When are people online on weekends (last 30 days)", "pilots/pilots-now.json"),               # A9, card 95
 ])
@@ -110,28 +109,6 @@ def test_a2_shows_ten_rows_at_most_and_the_latest_name(conn):
     rows = conn.execute(sql_of(MOST_FLIGHTS)).fetchall()
     assert len(rows) == 10
     assert (rows[0]["Pilot"], rows[0]["Flights"]) == ("New Name", 3)
-
-
-# ------------------------------------------------------------------ A4: longest flight
-def test_a4_orders_by_airborne_hours_and_skips_old_and_parked_flights(conn):
-    add_flight(conn, 9402001, days_ago=2, airborne=300, name="Five Hours", callsign="QFA1", dep="YSSY", arr="EGLL")
-    add_flight(conn, 9402002, days_ago=3, airborne=612, name="Ten Hours Plus", callsign="QFA2", dep="YPPH", arr="EGLL")
-    add_flight(conn, 9402003, days_ago=4, airborne=None, name="Unmeasured")       # no airborne figure (parked): left out
-    add_flight(conn, 9402004, days_ago=31, airborne=900, name="Too Old")           # finished 31 days ago: left out
-    add_flight(conn, 9402005, days_ago=1, airborne=0, name="Parked")               # 0.0 hours: left out
-    rows = conn.execute(sql_of(LONGEST)).fetchall()
-    assert [r["Pilot"] for r in rows] == ["Ten Hours Plus", "Five Hours"]
-    assert [float(r["Airborne hours"]) for r in rows] == [10.2, 5.0]            # 612 / 60 = 10.2
-    assert (rows[0]["Callsign"], rows[0]["Route"]) == ("QFA2", "YPPH-EGLL")
-    end = conn.execute("SELECT end_time FROM flight WHERE cid = 9402002").fetchone()["end_time"]
-    assert rows[0]["Finished (UTC)"] == end.astimezone(UTC).strftime("%d-%m-%Y %H:%M")
-
-
-def test_a4_shows_ten_rows_at_most_and_breaks_ties_by_latest_finish(conn):
-    for i in range(11):
-        add_flight(conn, 9403000 + i, days_ago=2 + i / 10, airborne=120, name=f"Pilot {i}")  # all 2.0 hours
-    rows = conn.execute(sql_of(LONGEST)).fetchall()
-    assert [r["Pilot"] for r in rows] == [f"Pilot {i}" for i in range(10)]            # later finish (smaller days_ago) first
 
 
 # ------------------------------------------------------------------ A5: flights per week
@@ -197,7 +174,7 @@ def test_new_queries_run_as_grafana_ro_within_the_statement_limit(conn):
     conn.execute("SET ROLE grafana_ro")
     conn.execute("SET statement_timeout = '30s'")        # SET ROLE does not apply the role's own settings; state the limit
     try:
-        for title in (MOST_FLIGHTS, LONGEST, WEEKLY, AVERAGE):
+        for title in (MOST_FLIGHTS, WEEKLY, AVERAGE):
             assert isinstance(conn.execute(sql_of(title)).fetchall(), list)
     finally:
         conn.execute("RESET statement_timeout")
@@ -220,13 +197,3 @@ def test_a2_ties_are_broken_by_the_ten_lowest_cids_whatever_the_insert_order(con
         add_flight(conn, cid, days_ago=3, name=f"Pilot {cid}")
     rows = conn.execute(sql_of(MOST_FLIGHTS)).fetchall()
     assert [r["Pilot"] for r in rows] == [f"Pilot {c}" for c in range(9440001, 9440011)]
-
-
-def test_a4_ties_on_hours_and_finish_are_broken_by_session_id(conn):
-    end = datetime.now(UTC).replace(microsecond=0) - timedelta(days=2)
-    for cid in range(9450001, 9450012):               # 11 flights, same airborne time and same finish time
-        flight_ending(conn, cid, end, airborne=120, name=f"Pilot {cid}")
-    for sid in conn.execute("SELECT session_id FROM flight_summary ORDER BY session_id DESC").fetchall():
-        conn.execute("UPDATE flight_summary SET written_at = now() WHERE session_id = %s", (sid["session_id"],))
-    rows = conn.execute(sql_of(LONGEST)).fetchall()   # heap order is now descending; the query must still give ascending ids
-    assert [r["Pilot"] for r in rows] == [f"Pilot {c}" for c in range(9450001, 9450011)]

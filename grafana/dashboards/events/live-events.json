@@ -909,8 +909,8 @@
     {
       "id": 12,
       "type": "table",
-      "title": "Busiest days by flights (last 6 months)",
-      "description": "Question F9 (v1 card 128), copied unchanged from Pilots: traffic and aircraft. Definition: the five UTC dates with the most flights (by flight start) over the last 6 months. Times are UTC.",
+      "title": "Busiest days by flights (last 5 years)",
+      "description": "Question F9 (v1 card 128), copied unchanged from Pilots: traffic and aircraft. Definition: the five UTC dates with the most flights (by flight start) over the last 5 years. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -986,13 +986,13 @@
           }
         ]
       },
-      "timeFrom": "180d"
+      "timeFrom": "1825d"
     },
     {
       "id": 13,
       "type": "table",
-      "title": "Busiest days by pilots online (last 6 months)",
-      "description": "Question F9 (v1 card 129), copied unchanged from Pilots: traffic and aircraft. Definition: the ten UTC dates with the most distinct pilots (by logon date) over the last 6 months, with weekday and rank. Times are UTC.",
+      "title": "Busiest days by pilots online (last 5 years)",
+      "description": "Question F9 (v1 card 129), copied unchanged from Pilots: traffic and aircraft. Definition: the ten UTC dates with the most distinct pilots (by logon date) over the last 5 years, with weekday and rank. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -1068,7 +1068,7 @@
           }
         ]
       },
-      "timeFrom": "180d"
+      "timeFrom": "1825d"
     },
     {
       "type": "table",
