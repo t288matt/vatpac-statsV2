@@ -54,6 +54,9 @@ def test_no_panel_without_a_baseline_entry() -> None:
 REMOVED = {  # owner-removed panels (title fragment, lower case): a panel with this title must not come back on any dashboard
     "departure board": "issues 305 and 313",
     "quietest home-region airports": "issue 314",
+    "whitelisted positions never staffed": "issue 320",
+    "top 5 positions for each current rank": "issue 321",
+    "top 5 controllers for each current rank": "issue 321",
 }
 
 
