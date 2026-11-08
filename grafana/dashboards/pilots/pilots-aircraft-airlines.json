@@ -51,7 +51,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · **Aircraft** · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: <a href=\"/live-events\" target=\"_top\">Live events</a> · <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/monthly\" target=\"_top\">Monthly</a> · <a href=\"/health\" target=\"_top\">Health</a>\n\n**Live data since ${go_live}; earlier history was imported.** Flights from 24-08-2025 to 06-03-2026 and controller sessions from 24-08-2025 to 15-03-2026 come from the previous system (no speed, altitude or SELCAL for imported flights). There are no flights after 06-03-2026 and no controller sessions after 15-03-2026 until ${go_live}. Panels for the last 7 or 30 days and the live tables show current data only. All times are UTC. A flight is counted once it has finished (about 8 hours after the pilot's last position; a reconnect within 2 hours on the same flight is one flight). Each panel has a fixed period and a fixed number of rows, stated in its title and description; the page has no inputs. RAAFv flights are found by the flight-plan remarks."
+        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · **Aircraft** · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: <a href=\"/live-events\" target=\"_top\">Live events</a> · <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/monthly\" target=\"_top\">Monthly</a> · <a href=\"/health\" target=\"_top\">Health</a>\n\n**Live data since ${go_live}; earlier history was imported.** Flights from 24-08-2025 to 06-03-2026 and controller sessions from 24-08-2025 to 15-03-2026 come from the previous system (no speed, altitude or SELCAL for imported flights). There are no flights after 06-03-2026 and no controller sessions after 15-03-2026 until ${go_live}. Panels for the last 7 or 30 days and the live tables show current data only. All times are UTC. A flight is counted once it has finished (about 8 hours after the pilot's last position; a reconnect within 2 hours on the same flight is one flight). Each panel has a fixed period and a fixed number of rows, stated in its title and description; the page has no inputs."
       },
       "id": 1
     },
@@ -518,122 +518,6 @@
       }
     },
     {
-      "id": 8,
-      "type": "piechart",
-      "title": "Most popular military aircraft (unique pilots, last 7 days)",
-      "description": "Question C7 (v1 card 65), copied unchanged from Military: aircraft and routes. Definition: pilots per military aircraft type over the selected time range (default last 7 days). The window is set to 7d on this page (the source dashboard's default). A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 34,
-        "w": 12,
-        "h": 10
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT t.aircraft, t.pilots, t.flights,\n       round(100.0 * t.pilots / sum(t.pilots) OVER (), 2) AS \"% of pilots\"\nFROM (\n  SELECT f.aircraft_icao AS aircraft, count(DISTINCT f.cid) AS pilots, count(*) AS flights\n  FROM flight_ext f\n  JOIN aircraft_type a ON a.icao = f.aircraft_icao\n  WHERE a.in_v1_card65_list\n    AND f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY f.aircraft_icao\n) t\nORDER BY t.pilots DESC, t.flights DESC, t.aircraft"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": true,
-          "calcs": [],
-          "fields": "/^pilots$/"
-        },
-        "pieType": "donut",
-        "legend": {
-          "showLegend": true,
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value",
-            "percent"
-          ],
-          "sortBy": "Value",
-          "sortDesc": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "desc"
-        },
-        "displayLabels": []
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      },
-      "timeFrom": "7d"
-    },
-    {
-      "id": 9,
-      "type": "table",
-      "title": "Most popular RAAFv routes (last month)",
-      "description": "Question C9 (v1 card 78), copied unchanged from Military: aircraft and routes. Definition: most popular RAAFv routes over the last month (UTC). A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 34,
-        "w": 12,
-        "h": 10
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT r.route_label AS route,\n       count(*) AS total_flights,\n       count(DISTINCT r.cid) AS unique_pilots,\n       round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS \"% of RAAFv flights\",\n       round(100.0 * count(DISTINCT r.cid) / sum(count(DISTINCT r.cid)) OVER (), 2) AS \"% of RAAFv pilots\"\nFROM (\n  SELECT f.cid, f.route_label,\n         row_number() OVER (PARTITION BY f.session_id ORDER BY f.end_time DESC) AS rn\n  FROM flight_ext f\n  WHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n    AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\n    AND f.departure <> '' AND f.arrival <> ''\n) r\nWHERE r.rn = 1\nGROUP BY r.route_label\nORDER BY total_flights DESC, unique_pilots DESC\nLIMIT 25"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "md",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "fields": ""
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          }
-        },
-        "overrides": []
-      },
-      "timeFrom": "1M"
-    },
-    {
       "id": 10,
       "type": "table",
       "title": "Highest groundspeeds (last 7 days)",
@@ -644,7 +528,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 44,
+        "y": 34,
         "w": 24,
         "h": 10
       },
@@ -686,143 +570,6 @@
         "overrides": []
       },
       "timeFrom": "7d"
-    },
-    {
-      "id": 11,
-      "type": "timeseries",
-      "title": "Hours flown by RAAFv aircraft per week (last 14 weeks)",
-      "description": "Question C8 (v1 card 66), copied unchanged from Military: aircraft and routes. Definition: airborne hours flown by RAAFv flights per week over the last 98 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 54,
-        "w": 12,
-        "h": 9
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "time_series",
-          "rawQuery": true,
-          "rawSql": "SELECT date_trunc('week', f.end_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       round((sum(f.airborne_minutes) / 60.0)::numeric, 1) AS \"RAAFv hours\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\nGROUP BY 1\nORDER BY 1"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#3AA0DD"
-          },
-          "custom": {
-            "drawStyle": "bars",
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "fillOpacity": 70,
-            "gradientMode": "opacity",
-            "showPoints": "never",
-            "spanNulls": true,
-            "axisPlacement": "left",
-            "axisSoftMin": 0,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": []
-      },
-      "timeFrom": "98d"
-    },
-    {
-      "id": 12,
-      "type": "timeseries",
-      "title": "Flights flown by RAAFv aircraft per week (last 14 weeks)",
-      "description": "Question C8 (v1 card 184), copied unchanged from Military: aircraft and routes. Definition: rAAFv flights per week over the last 98 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 54,
-        "w": 12,
-        "h": 9
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "time_series",
-          "rawQuery": true,
-          "rawSql": "SELECT date_trunc('week', f.end_time AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS time,\n       count(*) AS \"RAAFv flights\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.remarks ILIKE '%RAAFVIRTUAL.ORG%'\nGROUP BY 1\nORDER BY 1"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#3AA0DD"
-          },
-          "decimals": 0,
-          "custom": {
-            "drawStyle": "bars",
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "fillOpacity": 70,
-            "gradientMode": "opacity",
-            "showPoints": "never",
-            "spanNulls": true,
-            "axisPlacement": "left",
-            "axisSoftMin": 0,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": []
-      },
-      "timeFrom": "98d"
     }
   ]
 }

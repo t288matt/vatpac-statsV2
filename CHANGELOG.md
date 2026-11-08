@@ -6,6 +6,11 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Military graphs only on the Military dashboard (08-11-2026, issue 301; pull request pending, not yet merged, not deployed)
+
+- **What is new.** The four military panels copied onto Aircraft and airlines in issue 267 group C are removed: Most popular military aircraft, Most popular RAAFv routes, and Hours and Flights flown by RAAFv aircraft per week. They stay on the Military dashboard, unchanged. A test now fails if a military panel appears on any other dashboard.
+- **What did not change.** Every other panel on Aircraft and airlines, including Highest groundspeeds (last 7 days), keeps its query and window; no view, migration or collector code changed.
+
 ## The Departure board lists each flight once (07-11-2026, issue 285; pull request pending, not yet merged, not deployed)
 
 - **What is new.** The view `pilot_latest` (read by both Departure boards and, through `pilot_online_now`, the three "Where pilots currently online come from" charts) now keeps one row per flight, the most recent logon of that pilot, callsign and departure airport, instead of one row per logon; a round trip under one callsign keeps both legs, and the planned departure time is not part of the key (migration `20261107000010`). A reconnect or relog no longer shows the flight twice, sometimes as both ON GROUND and LOGGED OFF. On 07-11-2026 the live data had 17 such pairs (for example DLH1112 three times).
