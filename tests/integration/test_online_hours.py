@@ -1,7 +1,7 @@
 """Cards 94 and 95 (when people are online): distinct callsigns per UTC clock hour over the last 30 days.
 
 Sessions are inserted synthetically at fixed hours on the most recent Wednesday and Saturday, then the
-panel SQL is read from grafana/dashboards/pilots/pilots-now.json and executed.
+panel SQL is read from grafana/dashboards/atc/atc-positions.json and executed.
 Rules (owner decision 08-10-2026: rebuild to match v1; card 94 uses Monday to Friday, not v1's Sun/Mon/Sat):
   94 weekdays: pilots with airborne time, ATC sessions of at least 20 minutes, hours wrap past midnight
   95 weekends: ATC sessions of at least 30 minutes, no wrap (v1 quirk: a flight crossing midnight yields no hours)
@@ -17,7 +17,7 @@ from helpers import record_flight
 
 pytestmark = pytest.mark.integration
 
-DASHBOARD = REPO / "grafana" / "dashboards" / "pilots" / "pilots-now.json"
+DASHBOARD = REPO / "grafana" / "dashboards" / "atc" / "atc-positions.json"
 WEEKDAYS = "When are people online on weekdays (last 30 days)"
 WEEKENDS = "When are people online on weekends (last 30 days)"
 _n = {"i": 0}
