@@ -54,271 +54,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: **Live events** · <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/health\" target=\"_top\">Health</a>\n\nAll times are UTC. Figures cover VATPAC airspace. The live panels (online now, who is controlling) show the latest snapshot and refresh every minute; the event panels cover the Monday event window, 0700-1200Z. Panels without a period of their own use the page's fixed 180 days; the page has no inputs."
-      }
-    },
-    {
-      "id": 2,
-      "type": "stat",
-      "title": "Pilots online now (in region)",
-      "description": "Question F1 (v1 card 68), copied unchanged from Pilots: online now. Definition: pilots in Australian airspace in the latest network snapshot. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 6,
-        "w": 6,
-        "h": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT pilots_in_region AS \"Pilots\" FROM network_history ORDER BY observed_at DESC LIMIT 1"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "colorMode": "none",
-        "graphMode": "none",
-        "textMode": "value",
-        "justifyMode": "auto",
-        "showPercentChange": false,
-        "percentChangeColorMode": "same_as_value",
-        "wideLayout": false,
-        "orientation": "auto",
-        "text": {
-          "valueSize": 40
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#3AA0DD",
-                "value": null
-              }
-            ]
-          },
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#3AA0DD"
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 3,
-      "type": "stat",
-      "title": "Controllers online now",
-      "description": "Question F2 (v1 card 69), copied unchanged from ATC: controllers. Definition: controllers on the whitelist online in the latest network snapshot. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 6,
-        "y": 6,
-        "w": 6,
-        "h": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT controllers_in_region AS \"Controllers\" FROM network_history ORDER BY observed_at DESC LIMIT 1"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "colorMode": "none",
-        "graphMode": "none",
-        "textMode": "value",
-        "justifyMode": "auto",
-        "showPercentChange": false
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#3AA0DD",
-                "value": null
-              }
-            ]
-          },
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#3AA0DD"
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "table",
-      "title": "Who is controlling now",
-      "description": "Question F3 (new). Definition: every whitelisted position being staffed now: callsign, controller name, rank (the rating on the session now), frequency, logon time and hours online. Online means seen in the latest snapshots and within the last 5 minutes. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT callsign AS \"Position\", name AS \"Controller\", rank_group AS \"Rank\", frequency_mhz AS \"Frequency (MHz)\",\n       logon_time AS \"Logged on\", hours_online AS \"Hours online\"\nFROM controller_online_now\nORDER BY callsign"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "md",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "fields": ""
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          }
-        },
-        "overrides": []
-      },
-      "id": 4,
-      "gridPos": {
-        "x": 12,
-        "y": 6,
-        "w": 12,
-        "h": 8
-      }
-    },
-    {
-      "type": "table",
-      "title": "Whitelisted positions staffed and open now, by type",
-      "description": "Question F3 (new). Definition: for each position type (suffix of the callsign) the number of whitelisted positions staffed now and open now (not staffed). The whitelist is config/controller_callsigns_list.txt (254 callsigns when this panel was written; copied into the query, and a test fails if it drifts from the file). Staffed uses the same 'online now' rule as the list of controllers. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "WITH wl(callsign) AS (\n  SELECT unnest(string_to_array('AD-W_APP,AD_APP,AD_DEL,AD_FMP,AD_GND,AD_TWR,AF-N_TWR,AF_GND,AF_TWR,AMB_APP,AMB_DEL,AMB_GND,AMB_TWR,AS_TWR,AV_APP,AV_GND,AV_TWR,AYGA_TWR,AYMD_TWR,AYMH_TWR,AYNZ_APP,AYNZ_TWR,AYPY_APP,AYPY_GND,AYPY_TWR,AYTK_TWR,AY_GND,AY_TWR,BK-C_TWR,BK_GND,BK_TWR,BN-ARA_CTR,BN-ARL_CTR,BN-ASH_CTR,BN-BAR_CTR,BN-BUR_CTR,BN-CNK_CTR,BN-COL_FSS,BN-CVN_CTR,BN-C_APP,BN-DOS_CTR,BN-FLD_FSS,BN-F_APP,BN-GOL_CTR,BN-HWE_CTR,BN-INL_CTR,BN-ISA_CTR,BN-KEN_CTR,BN-KIY_CTR,BN-KPL_CTR,BN-MDE_CTR,BN-MLD_CTR,BN-MNN_CTR,BN-NSA_CTR,BN-N_GND,BN-OCN_CTR,BN-SDY_CTR,BN-STR_CTR,BN-SWY_CTR,BN-S_APP,BN-S_DEP,BN-S_GND,BN-TBP_CTR,BN-TRS_CTR,BN-TRT_CTR,BN-TSN_FSS,BN-WEG_CTR,BN-WIL_CTR,BN-W_TWR,BN_APP,BN_DEL,BN_DEP,BN_FMP,BN_GND,BN_TWR,BRM_GND,BRM_TWR,CB-W_APP,CB_APP,CB_FMP,CB_GND,CB_TWR,CFS_TWR,CG_DEL,CG_GND,CG_TWR,CIN_APP,CIN_DEL,CIN_GND,CIN_TWR,CN_GND,CN_TWR,CS-W_APP,CS_APP,CS_DEL,CS_FMP,CS_GND,CS_TWR,DN-W_APP,DN_APP,DN_DEL,DN_GND,DN_TWR,ED_GND,ED_TWR,EN_GND,EN_TWR,ES_APP,ES_DEL,ES_GND,ES_TWR,GIG_GND,GIG_TWR,HB_APP,HB_GND,HB_TWR,HM_TWR,JT-C_TWR,JT_GND,JT_TWR,KA_GND,KA_TWR,LM_APP,LM_GND,LM_TWR,LT_APP,LT_TWR,MB-W_TWR,MB_GND,MB_TWR,MK_APP,MK_GND,MK_TWR,ML-ASP_CTR,ML-ASW_CTR,ML-AUG_CTR,ML-BIK_CTR,ML-BKE_CTR,ML-BLA_CTR,ML-CRS_CTR,ML-ELW_CTR,ML-ESP_CTR,ML-FOR_CTR,ML-GEL_CTR,ML-GTH_CTR,ML-GUN_CTR,ML-GVE_CTR,ML-HUO_CTR,ML-HYD_CTR,ML-IND_FSS,ML-INE_FSS,ML-INS_FSS,ML-JAR_CTR,ML-KAT_CTR,ML-LEA_CTR,ML-MEK_CTR,ML-MTK_CTR,ML-MUN_CTR,ML-MZI_CTR,ML-NEW_CTR,ML-OLW_CTR,ML-OXL_CTR,ML-PAR_CTR,ML-PIY_CTR,ML-POT_CTR,ML-SNO_CTR,ML-S_DEP,ML-TBD_CTR,ML-WAR_CTR,ML-WOL_CTR,ML-WON_CTR,ML-WRA_CTR,ML-YWE_CTR,ML_APP,ML_DEL,ML_DEP,ML_FMP,ML_GND,ML_TWR,NFFN_APP,NFFN_TWR,NFNA_APP,NFNA_TWR,NVVV_TWR,NWWL_TWR,NWWM_TWR,NWWW_APP,NWWW_TWR,NW_APP,NW_DEL,NW_GND,NW_TWR,OK_APP,OK_DEL,OK_GND,OK_TWR,PE_APP,PE_DEL,PE_GND,PE_TWR,PF-W_TWR,PF_GND,PF_TWR,PH-E_GND,PH_APP,PH_DEL,PH_DEP,PH_FMP,PH_GND,PH_TWR,PKWA_APP,PKWA_GND,PKWA_TWR,RI_GND,RI_TWR,RK_APP,RK_GND,RK_TWR,SG_APP,SG_GND,SG_TWR,SU_GND,SU_TWR,SY-C_DEP,SY-C_GND,SY-DE_APP,SY-D_APP,SY-E_TWR,SY-N_APP,SY-N_DEP,SY-W_GND,SY_APP,SY_DEL,SY_DEP,SY_FMP,SY_GND,SY_TWR,TL_APP,TL_DEL,TL_GND,TL_TWR,TN_APP,TN_DEL,TN_GND,TN_TWR,TW-S_TWR,TW_GND,TW_TWR,WLM-L_APP,WLM_APP,WLM_DEL,WLM_GND,WLM_TWR,WR_TWR', ','))\n), t(ptype, ord) AS (\n  VALUES ('CTR', 1), ('TWR', 2), ('APP', 3), ('DEP', 4), ('GND', 5), ('DEL', 6), ('FSS', 7), ('FMP', 8)\n), now_on AS (\n  SELECT DISTINCT callsign FROM controller_online_now\n)\nSELECT t.ptype AS \"Type\",\n       count(*) FILTER (WHERE o.callsign IS NOT NULL) AS \"Staffed now\",\n       count(*) FILTER (WHERE o.callsign IS NULL) AS \"Open now\",\n       count(*) AS \"On the whitelist\"\nFROM wl w JOIN t ON t.ptype = substring(w.callsign FROM '_([A-Z]+)$') LEFT JOIN now_on o ON o.callsign = w.callsign\nGROUP BY t.ptype, t.ord\nORDER BY t.ord"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "md",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "fields": ""
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "On the whitelist"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic",
-                  "valueDisplayMode": "text"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#3AA0DD"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "id": 5,
-      "gridPos": {
-        "x": 0,
-        "y": 10,
-        "w": 12,
-        "h": 8
+        "content": "Pilots: <a href=\"/live\" target=\"_top\">Live now</a> · <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · <a href=\"/atc-positions\" target=\"_top\">Positions</a> · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: **Live events** · <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/health\" target=\"_top\">Health</a>\n\nAll times are UTC. Figures cover VATPAC airspace. The live panels (positions open now, where pilots online come from) show the latest snapshot and refresh every minute; the event panels cover the Monday event window, 0700-1200Z. Panels without a period of their own use the page's fixed 180 days; the page has no inputs."
       }
     },
     {
@@ -368,8 +104,8 @@
       },
       "id": 6,
       "gridPos": {
-        "x": 12,
-        "y": 14,
+        "x": 0,
+        "y": 6,
         "w": 12,
         "h": 10
       }
@@ -384,8 +120,8 @@
         "uid": "vatpac"
       },
       "gridPos": {
-        "x": 0,
-        "y": 18,
+        "x": 12,
+        "y": 6,
         "w": 12,
         "h": 9
       },
@@ -446,7 +182,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 24,
+        "y": 15,
         "w": 12,
         "h": 9
       },
@@ -527,7 +263,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 27,
+        "y": 16,
         "w": 12,
         "h": 9
       },
@@ -580,7 +316,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 33,
+        "y": 24,
         "w": 12,
         "h": 9
       },
@@ -664,7 +400,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 25,
         "w": 12,
         "h": 9
       },
@@ -746,7 +482,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 42,
+        "y": 33,
         "w": 12,
         "h": 9
       },
@@ -909,8 +645,8 @@
       "timeFrom": "12M",
       "id": 14,
       "gridPos": {
-        "x": 12,
-        "y": 51,
+        "x": 0,
+        "y": 34,
         "w": 12,
         "h": 9
       }
