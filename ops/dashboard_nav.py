@@ -32,7 +32,7 @@ GROUPS: dict[str, list[tuple[str, str]]] = {
     "ATC": [("atc", "Overview"), ("atc-retention", "Retention"), ("atc-hours", "Hours"), ("atc-positions", "Positions"),
             ("atc-ranks", "Ranks")],
     "Events": [("live-events", "Live events"), ("monday", "Monday events")],
-    "Management": [("monthly", "Monthly"), ("health", "Health")],
+    "Management": [("health", "Health")],
 }
 
 
