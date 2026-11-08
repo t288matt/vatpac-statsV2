@@ -45,9 +45,13 @@ def test_pilots_now_hour_charts_show_one_series_each() -> None:
         assert names == ["hour_utc", col] and PANELS[title]["type"] == "barchart"
 
 
-def test_pilots_now_has_no_generated_sentence_and_a_status_pill() -> None:
+def test_pilots_now_has_no_generated_sentence() -> None:
     text = [p for p in PANELS.values() if p["type"] == "text"]
     assert len(text) == 0 or all("${" in json.dumps(p["options"]) for p in text)
-    status = next(o for o in PANELS["Departure board"]["fieldConfig"]["overrides"] if o["matcher"]["options"] == "Status")
-    assert {"id": "custom.cellOptions", "value": {"type": "pill"}} in status["properties"]
-    assert "LIMIT 25" in sqls("Departure board")[0]
+
+
+def test_pilots_now_has_no_departure_board() -> None:
+    """Issue 313: the owner's "Live now" is this page (/live); the Departure board must not come back, by any title case."""
+    panels = json.loads(DASH.read_text(encoding="utf-8"))["panels"]
+    assert [p["title"] for p in panels if "departure board" in str(p.get("title", "")).lower()] == []
+    assert "Departure board" not in PANELS
