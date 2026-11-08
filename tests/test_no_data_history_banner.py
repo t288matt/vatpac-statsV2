@@ -21,9 +21,9 @@ def test_the_old_banner_is_on_no_dashboard() -> None:
     assert not bad, "old data-history banner is back on: " + ", ".join(bad)
 
 
-def test_sixteen_dashboards_carry_the_new_sentence_and_the_first_panel_is_the_navigation() -> None:
+def test_fifteen_dashboards_carry_the_new_sentence_and_the_first_panel_is_the_navigation() -> None:
     paths = [p for p in sorted(DASHBOARDS.glob("*/*.json")) if p.parent.name != "monitoring"]
-    assert len(paths) == 16
+    assert len(paths) == 15
     for p in paths:
         first = json.loads(p.read_text(encoding="utf-8"))["panels"][0]
         assert first["type"] == "text" and NEW in first["options"]["content"] and 'target="_top"' in first["options"]["content"], p.name

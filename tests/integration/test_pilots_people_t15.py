@@ -1,4 +1,4 @@
-"""T15 (pilots and people): cards 180, 181, 175, 183 and 155 ported from the v1 Metabase cards.
+"""T15 (pilots and people): cards 180, 181 and 155 ported from the v1 Metabase cards.
 
 Pilot and session rows are inserted synthetically (pilot_session plus the flight_summary row the writer would write,
 so the `flight` view returns them), then the panel SQL is read from the dashboard JSON files and executed, so the test covers the
@@ -6,8 +6,6 @@ SQL that Grafana runs. Rules under test (owner's Metabase export, 08-10-2026):
   Y rule      = the fourth character from the end of the pilot name is 'Y' (v1 quirk, kept: "Joe Yoda" counts)
   180         = pilots with flights completed in the last 90 days, none with airborne time; most flights first
   181         = per UTC month of logon: pilots, and pilots whose flights that month all had zero airborne time
-  175         = per UTC month: distinct Y pilots, all pilots (logon month), distinct controllers (start month)
-  183         = hours online per UTC month of completion from 1 September (UTC) of the current year
   155         = top 10 by airborne hours over 7 days, counting only flights over 30 minutes airborne
 v3 mapping: enroute minutes = airborne_minutes, time online = flight
 duration, completion time = flight end_time. Months are UTC even when the database session is not.
@@ -25,13 +23,10 @@ pytestmark = pytest.mark.integration
 
 DASH = REPO / "grafana" / "dashboards"
 ONBOARDING = DASH / "pilots" / "pilot-onboarding.json"
-MANAGEMENT = DASH / "management" / "management.json"
 TRAFFIC = DASH / "pilots" / "pilots-traffic.json"
 
 NEVER_FLEW_90 = "Pilots who logged on but never flew (90 days)"
 NEVER_FLEW_MONTH = "Pilots who logged on in a month but never flew that month"
-ONLINE_EACH_MONTH = "Australian-based pilots and ATC online each month"
-PILOT_HOURS = "Pilot hours per month (names with Y)"
 MOST_ONLINE = "Which member spent the most time online? (last 7 days)"
 
 Y_NAME = "Test Pilot YSSY"        # fourth character from the end is Y
@@ -139,45 +134,6 @@ def test_181_never_flew_that_month(conn):
     }
 
 
-# ---------------------------------------------------------------- card 175
-
-def test_175_pilots_and_atc_each_month(conn):
-    conn.execute("SET TIME ZONE 'Australia/Sydney'")
-    add_flight(conn, 9400001, Y_NAME, utc(2026, 1, 5, 13), logon=utc(2026, 1, 5, 12))      # P1 Y, twice: counted once
-    add_flight(conn, 9400001, Y_NAME, utc(2026, 1, 20, 13), logon=utc(2026, 1, 20, 12))
-    add_flight(conn, 9400002, OTHER_NAME, utc(2026, 1, 6, 13), logon=utc(2026, 1, 6, 12))  # P2 not Y
-    add_flight(conn, 9400003, Y_NAME, utc(2026, 2, 1, 1), logon=utc(2026, 1, 31, 23, 30),  # P3 Y, logon 31 Jan 23:30 UTC
-               online_minutes=90)
-    add_flight(conn, 9400004, Y_NAME, utc(2026, 2, 10, 13), logon=utc(2026, 2, 10, 12))    # P4 Y in February
-    add_controller(conn, 9450001, utc(2026, 1, 10, 9))                                      # C1 twice in January ...
-    add_controller(conn, 9450001, utc(2026, 1, 20, 9))
-    add_controller(conn, 9450001, utc(2026, 3, 3, 9))                                       # ... and in March
-    add_controller(conn, 9450002, utc(2026, 1, 31, 23, 45))                                 # C2 starts 31 Jan 23:45 UTC
-    got = {r["month"].strftime("%Y-%m"): (r["unique_pilots_with_y"], r["total_unique_pilots"], r["total_unique_atc"])
-           for r in rows(conn, MANAGEMENT, ONLINE_EACH_MONTH)}
-    assert got == {
-        "2026-01": (2, 3, 2),     # P1 and P3 with Y, P2 without; C1 and C2
-        "2026-02": (1, 1, 0),
-        "2026-03": (0, 0, 1),     # month with only ATC: the full join keeps it, pilots are zero
-    }
-
-
-# ---------------------------------------------------------------- card 183
-
-def test_183_hours_from_1_september_of_the_current_year(conn):
-    conn.execute("SET TIME ZONE 'Australia/Sydney'")
-    year = datetime.now(UTC).year
-    add_flight(conn, 9500001, Y_NAME, utc(year, 9, 1) - timedelta(seconds=1), online_minutes=600)   # August: out
-    add_flight(conn, 9500001, Y_NAME, utc(year - 1, 12, 15), online_minutes=600)                    # last year: out
-    add_flight(conn, 9500002, Y_NAME, utc(year, 9, 1), online_minutes=90)                           # exactly 1 Sep 00:00 UTC: in
-    add_flight(conn, 9500003, Y_NAME, utc(year, 9, 30, 23, 59), online_minutes=30)                  # September
-    add_flight(conn, 9500004, OTHER_NAME, utc(year, 9, 15), online_minutes=600)                     # not a Y name: out
-    add_flight(conn, 9500005, Y_NAME, utc(year, 10, 1), online_minutes=45)                          # October
-    add_flight(conn, 9500006, Y_NAME, utc(year, 10, 15), online_minutes=15)
-    got = {r["month"]: float(r["total_hours"]) for r in rows(conn, MANAGEMENT, PILOT_HOURS)}
-    assert got == {f"{year}-09": 2.0, f"{year}-10": 1.0}
-
-
 # ---------------------------------------------------------------- card 155
 
 def test_155_top_pilots_by_airborne_hours(conn):
@@ -223,7 +179,7 @@ def test_180_a_changed_name_is_one_row(conn):
 def test_every_new_panel_query_runs(conn):
     add_flight(conn, 9700001, Y_NAME, ago(days=1), airborne=0)
     add_controller(conn, 9750001, ago(days=1))
-    for path, titles in ((ONBOARDING, None), (MANAGEMENT, None), (TRAFFIC, [MOST_ONLINE])):
+    for path, titles in ((ONBOARDING, None), (TRAFFIC, [MOST_ONLINE])):
         for p in json.loads(path.read_text(encoding="utf-8"))["panels"]:
             if p.get("type") == "text" or (titles and p["title"] not in titles):
                 continue
