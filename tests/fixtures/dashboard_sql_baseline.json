@@ -85,7 +85,6 @@
   "4": "7f17c57ee1252a97",
   "5": "85eda84be49c30db",
   "6": "377eaa632aa72313",
-  "7": "99b70438b02bc61a",
   "8": "b8d851c9be862036",
   "9": "21701109c861d9ec"
  },
@@ -128,16 +127,12 @@
  },
  "pilots/pilots-aircraft-airlines.json": {
   "10": "c622d9ef29e8b8b3",
-  "11": "ceb7d15b0d61559c",
-  "12": "92be0bb044fd8c65",
   "2": "96ee61679ecd9e10",
   "3": "c8e7d5ae29044c6d",
   "4": "3e39f9fd3c8b18e6",
   "5": "e27b3e23d8dad8ca",
   "6": "871fa4b5f238e2d0",
-  "7": "a4f8718ef12259a8",
-  "8": "41f6cbe7cdcbeb4e",
-  "9": "f7414464ac6673a4"
+  "7": "a4f8718ef12259a8"
  },
  "pilots/pilots-now.json": {
   "10": "59add6d295592404",
