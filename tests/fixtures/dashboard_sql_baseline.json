@@ -77,20 +77,10 @@
   "6": "134bbf5917d31645",
   "7": "f50bb7a212a76b75"
  },
- "events/live-events.json": {
-  "10": "a7d6354e42e2e88b",
-  "11": "7274a251e6177ce9",
-  "12": "23583b43368ef6f1",
-  "13": "474b5c39eb915fd8",
-  "14": "51779481a8adf5e9",
-  "6": "377eaa632aa72313",
-  "8": "b8d851c9be862036",
-  "9": "21701109c861d9ec"
- },
  "events/monday-events.json": {
   "2": "a5d4de72923f3308",
   "3": "c376d8c7ec21ccd6",
-  "4": "7274a251e6177ce9"
+  "4": "9f71127fd8f278e9"
  },
  "military/military.json": {
   "2": "891daff5916a4daf",

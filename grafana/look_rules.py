@@ -26,7 +26,6 @@ RESTYLED = {
     "atc/atc-ranks.json",
     "atc/atc-position-hours.json",
     "atc/atc-retention.json",
-    "events/live-events.json",
     "events/monday-events.json",
     "monitoring/collector-health.json",
     "demographics/pilot-origins.json",

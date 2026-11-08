@@ -1,15 +1,14 @@
 """T15: RAAFv cards 142, 143, 161, 184 and Monday event card 156, rebuilt from the owner's current Metabase SQL.
 
-Rows are inserted synthetically (pilot_session plus the flight_summary row the writer would write, which the `flight` view reads; pilot_position
-for card 156). The panel SQL is read from the dashboard JSON, the Grafana time macros are replaced by literal UTC
+Rows are inserted synthetically (pilot_session plus the flight_summary row the writer would write, which the `flight` view reads). The panel SQL is read from the dashboard JSON, the Grafana time macros are replaced by literal UTC
 timestamps, and the query is executed. Rules under test:
   all RAAFv cards  RAAFv = flight-plan remarks contain RAAFVIRTUAL.ORG (any case), whatever the aircraft type.
   card 142         logon time in the window (inclusive edges), distinct rows, newest first, names and CIDs shown.
   card 143         flights ending in the window; per aircraft type: distinct sessions, airborne minutes and hours.
   card 161         flights with logon in the window; one count per session (split rows count once); shares.
   card 184         flights per UTC week of the flight end (weeks start Monday).
-  card 156         distinct sessions with a sample above 1000 ft in each 5-minute slot, 0700-1200Z on the latest
-                   Monday; no slot at 1200; no sector logic (STAYS-DROPPED parts: none are built).
+  card 156         (issue 324) per Monday, the distinct finished flights with airborne time connected at some moment in
+                   0700-1200Z; one bar per Monday that has any; no sector logic.
 """
 from __future__ import annotations
 
@@ -18,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import REPO
-from helpers import partition_for, record_flight
+from helpers import record_flight
 
 pytestmark = pytest.mark.integration
 
@@ -170,96 +169,70 @@ def test_card_184_flights_per_utc_week_of_end(conn) -> None:
     assert [r["time"] for r in rows] == sorted(r["time"] for r in rows)       # oldest first for the bar chart
 
 
-# ------------------------------------------------------------------ card 156
-# The panel reads now() (latest Monday, and no slots after the present). The tests fix the clock, so they run on any day
-# and at any hour: "now" is Wednesday 07-10-2026 10:00 UTC, the latest Monday is 05-10-2026.
+# ------------------------------------------------------------------ card 156 (issue 324: one bar per Monday)
+# The panel counts finished flights from the flight summary (`flight`): airborne_minutes > 0 and connected at some moment in
+# 0700-1200 UTC on a Monday (start before 12:00, end after 07:00). The time range is the panel's own (5 years), here a fixed pair.
 MON = datetime(2026, 10, 5, tzinfo=UTC)
-WED_NOW = datetime(2026, 10, 7, 10, 0, tzinfo=UTC)
+NEXT_MON = MON + timedelta(days=7)
+TITLE = "Aircraft airborne during the Monday event window, each Monday (0700-1200Z)"
 
 
-def _add_samples(conn, cid: int, samples: list[tuple[datetime, int | None]]) -> int:
-    first, last = min(t for t, _ in samples), max(t for t, _ in samples)
-    for t, _ in samples:
-        partition_for(conn, t)
-    sid = conn.execute(
-        "INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) "
-        "VALUES (%s,%s,%s,%s,%s) RETURNING id", (cid, f"TST{cid}", first.replace(microsecond=0), first, last)).fetchone()["id"]
-    for t, alt in samples:
-        conn.execute("INSERT INTO pilot_position (observed_at, session_id, alt_ft, gs_kt) VALUES (%s,%s,%s,250)",
-                     (t, sid, alt))
-    return sid
+def _bars(conn, start: datetime = MON - timedelta(days=1), end: datetime = NEXT_MON + timedelta(days=3)) -> dict[str, int]:
+    rows = run_panel(conn, EVENTS, TITLE, start, end)
+    assert [r["Monday (UTC)"] for r in rows] == sorted((r["Monday (UTC)"] for r in rows), key=lambda t: (t[6:], t[3:5], t[:2]))
+    return {r["Monday (UTC)"]: r["Aircraft airborne"] for r in rows}
 
 
-def test_card_156_airborne_count_per_slot_on_latest_monday(conn) -> None:
-    mon = MON
-
-    def h(hours: float) -> datetime:
-        return mon + timedelta(minutes=round(hours * 60))
-
-    # A: two samples in the 07:00 slot (counted once), then one at 11:57 (slot 11:55)
-    _add_samples(conn, 9500071, [(h(7.0), 5000), (h(7.0) + timedelta(minutes=1), 5000), (h(11.0) + timedelta(minutes=57), 5000)])
-    # B: exactly 1000 ft is not above 1000 ft (07:10); 1001 ft counts (07:15); 06:59:45 is before the window
-    _add_samples(conn, 9500072, [(h(7.0) - timedelta(seconds=15), 5000), (h(7.0) + timedelta(minutes=10), 1000), (h(7.25), 1001)])
-    # C: sample exactly at 12:00 is outside (no slot at 12:00); NULL altitude never counts
-    _add_samples(conn, 9500073, [(h(12.0), 5000), (h(7.5), None)])
-    # D: a sample 5 minutes before the same weekday a week earlier must not leak in
-    _add_samples(conn, 9500074, [(h(7.0) - timedelta(days=7), 5000)])
-    rows = run_panel(conn, EVENTS, "Airborne aircraft during the latest Monday", mon, mon + timedelta(days=1), now=WED_NOW)
-    got = {r["time"]: r["Airborne aircraft"] for r in rows}
-    assert len(rows) == 60
-    assert rows[0]["time"] == h(7) and rows[-1]["time"] == h(12) - timedelta(minutes=5)
-    assert got[h(7)] == 1                                  # A only
-    assert got[h(7.25)] == 1                               # B (1001 ft)
-    assert got[h(7.0) + timedelta(minutes=10)] == 0                        # B at exactly 1000 ft does not count
-    assert got[h(11.0) + timedelta(minutes=55)] == 1                       # A
-    assert sum(got.values()) == 3                          # nothing else anywhere in the window
+def test_card_156_a_flight_overlapping_the_window_by_one_minute_counts(conn) -> None:
+    add_flight(conn, 9500071, MON + timedelta(hours=5), MON + timedelta(hours=7, minutes=1), airborne=30)    # ends 07:01: counts
+    add_flight(conn, 9500072, MON + timedelta(hours=11, minutes=59), MON + timedelta(hours=13), airborne=30)  # starts 11:59: counts
+    assert _bars(conn) == {"05-10-2026": 2}
 
 
-def test_card_156_slots_after_now_are_not_drawn_while_the_event_is_on(conn) -> None:
-    """Mutant P35 (slot <= now() removed). Monday 09:07 UTC: the 07:00 to 09:05 slots (26) exist, later ones do not, and
-    a sample later than now is ignored. Before 07:00 nothing is drawn."""
-    _add_samples(conn, 9500075, [(MON + timedelta(hours=8), 5000)])
-    _add_samples(conn, 9500076, [(MON + timedelta(hours=10), 5000)])         # in the future at 09:07
-    title = "Airborne aircraft during the latest Monday"
-    now = MON + timedelta(hours=9, minutes=7)
-    rows = run_panel(conn, EVENTS, title, MON, MON + timedelta(days=1), now=now)
-    assert [r["time"] for r in rows] == [MON + timedelta(hours=7, minutes=5 * n) for n in range(26)]
-    assert rows[-1]["time"] == MON + timedelta(hours=9, minutes=5)
-    assert {r["time"]: r["Airborne aircraft"] for r in rows}[MON + timedelta(hours=8)] == 1
-    assert sum(r["Airborne aircraft"] for r in rows) == 1                    # the 10:00 sample is not counted
-    # (before 07:00Z on Monday the panel shows the previous Monday: test_card_156_before_0700z_on_monday_shows_last_monday)
+def test_card_156_a_flight_before_or_after_the_window_does_not_count(conn) -> None:
+    add_flight(conn, 9500073, MON + timedelta(hours=5), MON + timedelta(hours=6, minutes=59), airborne=30)   # ends 06:59
+    add_flight(conn, 9500074, MON + timedelta(hours=5), MON + timedelta(hours=7), airborne=30)               # ends exactly 07:00
+    add_flight(conn, 9500075, MON + timedelta(hours=12), MON + timedelta(hours=14), airborne=30)             # starts exactly 12:00
+    assert _bars(conn) == {}                                                                                  # a Monday with no flights has no bar
 
 
-def test_card_156_uses_the_latest_monday_not_the_previous_one(conn) -> None:
-    """On Sunday evening the latest Monday is still the one just gone; just after midnight on the next Monday it is the new one."""
-    title = "Airborne aircraft during the latest Monday"
-    next_mon = MON + timedelta(days=7)
-    _add_samples(conn, 9500077, [(MON + timedelta(hours=7), 5000)])
-    _add_samples(conn, 9500078, [(next_mon + timedelta(hours=7), 5000)])
-    sunday = run_panel(conn, EVENTS, title, MON, next_mon, now=next_mon - timedelta(minutes=1))
-    assert sunday[0]["time"] == MON + timedelta(hours=7) and sunday[0]["Airborne aircraft"] == 1 and len(sunday) == 60
-    monday = run_panel(conn, EVENTS, title, MON, next_mon, now=next_mon + timedelta(hours=7, minutes=30))
-    assert [r["time"] for r in monday][0] == next_mon + timedelta(hours=7) and len(monday) == 7
-    assert [r["Airborne aircraft"] for r in monday][0] == 1 and sum(r["Airborne aircraft"] for r in monday) == 1
+def test_card_156_only_mondays_count(conn) -> None:
+    tue = MON + timedelta(days=1)
+    add_flight(conn, 9500076, tue + timedelta(hours=8), tue + timedelta(hours=10), airborne=60)               # Tuesday 08:00 to 10:00
+    sun = MON - timedelta(days=1)
+    add_flight(conn, 9500077, sun + timedelta(hours=8), sun + timedelta(hours=10), airborne=60)               # Sunday
+    assert _bars(conn) == {}
 
 
-def test_card_156_has_no_sector_or_frequency_logic() -> None:
-    sql = panel(EVENTS, "Airborne aircraft during the latest Monday")["targets"][0]["rawSql"].lower()
-    for word in ("sector", "frequency", "transceiver"):
+def test_card_156_a_flight_is_counted_once_however_long_it_spans_the_window(conn) -> None:
+    add_flight(conn, 9500078, MON + timedelta(hours=3), MON + timedelta(hours=16), airborne=600)             # spans it all
+    add_flight(conn, 9500079, MON + timedelta(hours=8), MON + timedelta(hours=11), airborne=120, segments=2)  # one session, two flight rows
+    assert _bars(conn) == {"05-10-2026": 2}
+
+
+def test_card_156_a_flight_with_no_airborne_time_does_not_count(conn) -> None:
+    add_flight(conn, 9500080, MON + timedelta(hours=8), MON + timedelta(hours=10), airborne=0)               # parked the whole time
+    add_flight(conn, 9500081, MON + timedelta(hours=8), MON + timedelta(hours=10), airborne=0.5)             # half a minute of airborne time
+    assert _bars(conn) == {"05-10-2026": 1}
+
+
+def test_card_156_two_mondays_give_two_bars_in_date_order(conn) -> None:
+    add_flight(conn, 9500082, NEXT_MON + timedelta(hours=9), NEXT_MON + timedelta(hours=10), airborne=45)
+    add_flight(conn, 9500083, NEXT_MON + timedelta(hours=9), NEXT_MON + timedelta(hours=11), airborne=45)
+    add_flight(conn, 9500084, MON + timedelta(hours=9), MON + timedelta(hours=10), airborne=45)
+    assert _bars(conn) == {"05-10-2026": 1, "12-10-2026": 2}
+
+
+def test_card_156_respects_the_time_range(conn) -> None:
+    add_flight(conn, 9500085, MON + timedelta(hours=9), MON + timedelta(hours=10), airborne=45)
+    add_flight(conn, 9500086, NEXT_MON + timedelta(hours=9), NEXT_MON + timedelta(hours=10), airborne=45)
+    assert _bars(conn, start=NEXT_MON - timedelta(days=1), end=NEXT_MON + timedelta(days=1)) == {"12-10-2026": 1}
+    assert _bars(conn, start=MON + timedelta(hours=8)) == {"12-10-2026": 1}           # a range that starts after this Monday's 0700Z leaves it out
+
+
+def test_card_156_reads_the_flight_summary_not_raw_positions() -> None:
+    p = panel(EVENTS, "Aircraft airborne during the Monday event window")
+    sql = p["targets"][0]["rawSql"].lower()
+    for word in ("pilot_sample", "pilot_position", "sector", "frequency", "now()"):
         assert word not in sql
-
-
-def test_card_156_before_0700z_on_monday_shows_last_monday(conn) -> None:
-    """Issue 94: from Monday 00:00 to 06:59 UTC the most recent event that has started is last Monday's, so it is shown in
-    full (60 slots); at exactly 07:00:00 the new Monday begins with its first slot."""
-    title = "Airborne aircraft during the latest Monday"
-    next_mon = MON + timedelta(days=7)
-    _add_samples(conn, 9500079, [(MON + timedelta(hours=8), 5000)])
-    _add_samples(conn, 9500080, [(next_mon + timedelta(hours=7), 5000)])
-    for now in (next_mon, next_mon + timedelta(hours=3), next_mon + timedelta(hours=6, minutes=59, seconds=59)):
-        rows = run_panel(conn, EVENTS, title, MON, next_mon + timedelta(days=1), now=now)
-        assert len(rows) == 60 and rows[0]["time"] == MON + timedelta(hours=7), now
-        assert sum(r["Airborne aircraft"] for r in rows) == 1
-    started = run_panel(conn, EVENTS, title, MON, next_mon + timedelta(days=1), now=next_mon + timedelta(hours=7))
-    assert [r["time"] for r in started] == [next_mon + timedelta(hours=7)]
-    assert started[0]["Airborne aircraft"] == 1
+    assert p["type"] == "barchart" and p["timeFrom"] == "1825d" and p["title"] == TITLE
