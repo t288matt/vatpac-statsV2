@@ -10,6 +10,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 - **What is new.** The four military panels copied onto Aircraft and airlines in issue 267 group C are removed: Most popular military aircraft, Most popular RAAFv routes, and Hours and Flights flown by RAAFv aircraft per week. They stay on the Military dashboard, unchanged. A test now fails if a military panel appears on any other dashboard.
 - **What did not change.** Every other panel on Aircraft and airlines, including Highest groundspeeds (last 7 days), keeps its query and window; no view, migration or collector code changed.
+- **Live now and events (issue 305).** The Departure board panel is removed from that page; it stays on Pilots: online now, with the `pilot_latest` view unchanged. The other panels there keep their queries and move up to close the gap.
 
 ## The Departure board lists each flight once (07-11-2026, issue 285; pull request pending, not yet merged, not deployed)
 
