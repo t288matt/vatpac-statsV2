@@ -6,7 +6,7 @@ Live pilot and controller statistics for the VATPAC region, built from VATSIM's 
 
 ## About
 
-VATPAC Stats shows live and historical statistics for pilots and air traffic controllers in the VATPAC region on VATSIM. The numbers are updated every 30 seconds and shown as sixteen dashboards. Anyone can view them on the internet without logging in, and nobody can change them (see "Public read-only access" below).
+VATPAC Stats shows live and historical statistics for pilots and air traffic controllers in the VATPAC region on VATSIM. The numbers are updated every 30 seconds and shown as fifteen dashboards. Anyone can view them on the internet without logging in, and nobody can change them (see "Public read-only access" below).
 
 This version (v3) replaces the original system (v1).
 
