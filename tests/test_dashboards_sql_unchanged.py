@@ -51,6 +51,19 @@ def test_no_panel_without_a_baseline_entry() -> None:
     assert not new, "panel has no baseline entry (add it with --write in the same pull request): " + ", ".join(new)
 
 
+REMOVED = {  # owner-removed panels (title fragment, lower case): a panel with this title must not come back on any dashboard
+    "departure board": "issues 305 and 313",
+    "quietest home-region airports": "issue 314",
+}
+
+
+def test_owner_removed_panels_have_not_come_back() -> None:
+    back = [f"{p['title']} ({f})" for f in sorted(DASHBOARDS.glob("*/*.json"))
+            for p in walk(json.loads(f.read_text(encoding="utf-8"))["panels"])
+            if any(frag in str(p.get("title", "")).lower() for frag in REMOVED)]
+    assert back == [], "removed by the owner, see " + ", ".join(REMOVED.values()) + ": " + ", ".join(back)
+
+
 if __name__ == "__main__":
     if "--write" in sys.argv:
         BASELINE.parent.mkdir(exist_ok=True)
