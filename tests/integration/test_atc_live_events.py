@@ -1,10 +1,9 @@
-"""Groups D, E and F of the database-questions catalogue (issue #267, 04-11-2026): three fixed-panel dashboards.
+"""Groups D and E of the database-questions catalogue (issue #267, 04-11-2026): two fixed-panel dashboards (group F, Live now and events, was deleted in issue 323).
 
   atc/atc-positions.json  "ATC: positions and controllers"  (D1 to D9, short address /atc-positions)
   atc/atc-ranks.json      "ATC: hours by rank"               (E1 to E10, short address /atc-ranks)
-  events/live-events.json "Live now and events"              (F1 to F10, short address /live-events)
 
-New queries under test: D2 to D6, E2 to E10, F3 and F10. Panels copied from existing dashboards (D1, D7 to D9, E1, F1, F2, F5 to F9)
+New queries under test: D2 to D5 (D6 was removed on 08-11-2026, issue 320) and E2 to E10. Panels copied from existing dashboards (D1, D7 to D9, E1)
 are checked to be identical to their source panel; their rules are asserted by the tests of the original cards.
 
 Expected numbers are worked out by hand from synthetic sessions and flights, never by the SQL under test. Hours panels are
@@ -13,20 +12,16 @@ position-hours clipped to the last 30 days: the boundary tests start a session b
 from __future__ import annotations
 
 import json
-import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import REPO
-from helpers import add_flight
 
 pytestmark = pytest.mark.integration
 
 DASH = REPO / "grafana" / "dashboards"
 POSITIONS = DASH / "atc" / "atc-positions.json"
 RANKS = DASH / "atc" / "atc-ranks.json"
-LIVE = DASH / "events" / "live-events.json"
-WHITELIST = REPO / "config" / "controller_callsigns_list.txt"
 SIX = ["S1", "S2", "S3", "C1", "C3", "I1+"]
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 S1, S2, S3, C1, C3, I1, SUP, OBS, C2 = 2, 3, 4, 5, 7, 8, 11, 1, 6   # VATSIM rating numbers
@@ -57,15 +52,10 @@ def add(conn, cid: int, callsign: str, start: datetime, minutes: int, rating: in
     )
 
 
-def whitelist() -> list[str]:
-    return [ln.split(",")[0].strip() for ln in WHITELIST.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
-
-
 # ------------------------------------------------------------------ the dashboards themselves
 @pytest.mark.parametrize("path,uid,title,questions", [
-    (POSITIONS, "vatpac-atc-positions", "ATC: positions and controllers", [f"D{i}" for i in range(1, 10)]),
+    (POSITIONS, "vatpac-atc-positions", "ATC: positions and controllers", [f"D{i}" for i in range(1, 10) if i != 6]),
     (RANKS, "vatpac-atc-ranks", "ATC: hours by rank", [f"E{i}" for i in range(1, 11)]),
-    (LIVE, "vatpac-live-events", "Live now and events", [f"F{i}" for i in (1, 2, 3, 5, 6, 7, 8, 9, 10)]),
 ])
 def test_dashboard_has_every_catalogue_question_and_no_inputs(path, uid, title, questions):
     d = json.loads(path.read_text(encoding="utf-8"))
@@ -103,22 +93,12 @@ COPIES = [  # (dashboard, title, source file)
     (POSITIONS, "Controllers active (30 days to week end, weekly)", "atc/atc-overview.json"),
     (POSITIONS, "Controllers with the longest median session (last 90 days)", "atc/atc-overview.json"),
     (POSITIONS, "Controllers with the shortest median session (last 90 days)", "atc/atc-overview.json"),
-    (POSITIONS, "When are people online on weekdays (last 30 days)", "pilots/pilots-now.json"),
-    (POSITIONS, "When are people online on weekends (last 30 days)", "pilots/pilots-now.json"),
     (RANKS, "Controllers logged on (last 30 days)", "atc/atc-overview.json"),
     (RANKS, "Controllers logged on each week, by rating group", "atc/atc-overview.json"),
-    (LIVE, "Controllers online now", "atc/atc-overview.json"),
-    (LIVE, "Where pilots currently online come from", "demographics/pilot-origins.json"),
-    (LIVE, "Airborne aircraft during the latest Monday event (0700-1200Z, 5-minute slots)", "events/monday-events.json"),
-    (LIVE, "Busiest days by flights (last 5 years)", "pilots/pilots-traffic.json"),
-    (LIVE, "Busiest days by pilots online (last 5 years)", "pilots/pilots-traffic.json"),
 ]
 
 
-RESTYLED = {
-            # issue 280, batch 2: the two copies on ATC positions plot Pilots AND ATC with a legend and two colours; Live now plots Pilots only (its transformation drops the ATC column), so options and fieldConfig differ on purpose. The query, format and window are still compared.
-            ("pilots/pilots-now.json", "When are people online on weekdays (last 30 days)"),
-            ("pilots/pilots-now.json", "When are people online on weekends (last 30 days)")}
+RESTYLED: set[tuple[str, str]] = set()   # issue 315: the only entries were the two hour charts copied from Pilots: online now; keep the mechanism for the next restyle
 
 
 @pytest.mark.parametrize("path,title,src", COPIES)
@@ -139,18 +119,6 @@ def test_every_restyled_exemption_still_differs_from_its_copy():
         differs = [path for path, t, s in COPIES if (s, t) == (src, title)
                    and any(panel(path, title).get(k) != panel(DASH / src, title).get(k) for k in ("type", "options", "fieldConfig"))]
         assert differs, f"stale RESTYLED entry: {src}: {title}"
-
-def test_the_whitelist_copied_into_d6_and_f3_is_the_whitelist_file():
-    """The whitelist lives in a file, not in the database, so D6 and F3 carry a copy; any drift fails here."""
-    want = whitelist()
-    assert len(want) == 254 and len(set(want)) == 254
-    for path, title in [(POSITIONS, "Whitelisted positions never staffed (last 30 days)"), (LIVE, "Whitelisted positions open now"),
-                        (LIVE, "Whitelisted positions staffed and open now, by type")]:
-        sql = panel(path, title)["targets"][0]["rawSql"]
-        got = re.search(r"string_to_array\('([^']*)', ','\)", sql).group(1).split(",")
-        assert got == want, title
-    assert all(re.search(r"_(CTR|TWR|APP|DEP|GND|DEL|FSS|FMP)$", c) for c in want)
-
 
 # ------------------------------------------------------------------ D2: positions by hours
 def test_d2_ranks_positions_by_hours_clipped_to_thirty_days(conn):
@@ -226,22 +194,6 @@ def test_d5_sums_position_hours_per_airport_prefix_and_leaves_out_centre_fss_and
     assert [(r["Airport (callsign prefix)"], float(r["Position-hours"])) for r in rows] == [("SY", 3.5), ("ML", 3.0), ("AD", 2.0)]
 
 
-# ------------------------------------------------------------------ D6: whitelisted positions never staffed
-def test_d6_lists_whitelisted_positions_with_no_session_in_the_window(conn):
-    n = now()
-    add(conn, 1, "SY_TWR", n - timedelta(days=29), 30)                           # staffed
-    add(conn, 2, "ML_TWR", n - timedelta(days=31), 60)                           # staffed, but wholly before the window: still never staffed in it
-    add(conn, 3, "SY_GND", n - timedelta(days=30, hours=1), 180)                 # started before the window and ran into it: staffed
-    add(conn, 4, "NOT_ON_THE_LIST_TWR", n - timedelta(days=1), 60)               # not on the whitelist: never listed
-    rows = run(conn, POSITIONS, "Whitelisted positions never staffed (last 30 days)")
-    positions = [r["Position"] for r in rows]
-    assert len(positions) == 254 - 2 and len(set(positions)) == len(positions)
-    assert "SY_TWR" not in positions and "SY_GND" not in positions and "ML_TWR" in positions
-    assert set(positions) <= set(whitelist()) and "NOT_ON_THE_LIST_TWR" not in positions
-    order = {"CTR": 1, "TWR": 2, "APP": 3, "DEP": 4, "GND": 5, "DEL": 6, "FSS": 7, "FMP": 8}
-    assert [(order[r["Type"]], r["Position"]) for r in rows] == sorted((order[r["Type"]], r["Position"]) for r in rows)
-
-
 # ------------------------------------------------------------------ E: ranks (current rank, each controller once)
 def rank_rows(conn, title: str) -> dict[str, dict]:
     return {r["Rank (current)"]: r for r in run(conn, RANKS, title)}
@@ -309,30 +261,29 @@ def test_e5_averages_the_full_length_of_sessions_by_current_rank(conn):
     assert rows["S1"]["Sessions"] == 0 and rows["S1"]["Average minutes"] is None and rows["C3"]["Average hours"] is None
 
 
-def test_e6_top_five_positions_per_rank_use_the_current_rank(conn):
+def test_e6_top_two_positions_per_rank_use_the_current_rank(conn):
     n = now()
     for i in range(1, 8):                                                        # controller 110, C1: seven positions of 1 to 7 hours
         add(conn, 110, f"P{i}_TWR", n - timedelta(days=3), 60 * i, rating=C1)
     add(conn, 111, "OLD_GND", n - timedelta(days=9), 480, rating=S1)             # 8 h flown as S1, but 111 is C1 now
     add(conn, 111, "NEW_TWR", n - timedelta(days=1), 30, rating=C1)
     add(conn, 112, "OTHER_APP", n - timedelta(days=1), 60, rating=S2)
-    rows = run(conn, RANKS, "Top 5 positions for each current rank (last 30 days)")
+    rows = run(conn, RANKS, "Top 2 positions for each current rank (last 30 days)")
     assert [(r["Rank (current)"], r["#"], r["Position"], float(r["Hours staffed"])) for r in rows] == [
         ("S2", 1, "OTHER_APP", 1.0),
-        ("C1", 1, "OLD_GND", 8.0), ("C1", 2, "P7_TWR", 7.0), ("C1", 3, "P6_TWR", 6.0), ("C1", 4, "P5_TWR", 5.0), ("C1", 5, "P4_TWR", 4.0)]
+        ("C1", 1, "OLD_GND", 8.0), ("C1", 2, "P7_TWR", 7.0)]            # issue 321: two per rank; P6_TWR (6.0) is third and is cut
 
 
-def test_e7_top_five_controllers_per_rank_break_ties_by_cid(conn):
+def test_e7_top_two_controllers_per_rank_break_ties_by_cid(conn):
     n = now()
     for cid, hours in zip(range(200, 207), [5, 4, 4, 3, 2, 1, 1], strict=True):  # seven C3 controllers
         add(conn, cid, f"T{cid}_CTR", n - timedelta(days=2), 60 * hours, rating=C3)
     add(conn, 300, "TX_TWR", n - timedelta(days=2), 600, rating=S1)              # an S1 controller with 10 h: top of S1 only
     add(conn, 201, "TY_TWR", n - timedelta(days=15), 60, rating=S3)              # 201 flew a session as S3: it adds to 201's C3 hours (5.0), no S3 row
-    rows = run(conn, RANKS, "Top 5 controllers for each current rank (last 30 days)")
+    rows = run(conn, RANKS, "Top 2 controllers for each current rank (last 30 days)")
     assert [(r["Rank (current)"], r["#"], r["Controller"], float(r["Hours staffed"])) for r in rows] == [
         ("S1", 1, "Controller 300", 10.0),
-        ("C3", 1, "Controller 200", 5.0), ("C3", 2, "Controller 201", 5.0), ("C3", 3, "Controller 202", 4.0),
-        ("C3", 4, "Controller 203", 3.0), ("C3", 5, "Controller 204", 2.0)]
+        ("C3", 1, "Controller 200", 5.0), ("C3", 2, "Controller 201", 5.0)]  # issue 321: two per rank; 202 (4.0 h) is third and is cut
 
 
 def test_e8_centre_and_fss_hours_by_rank_with_shares_of_all(conn):
@@ -410,147 +361,8 @@ def test_e10_counts_ranks_present_in_the_latest_monday_window_only(conn):
     assert {r["Event date (UTC)"] for r in rows.values()} == {mon.strftime("%d-%m-%Y")}
 
 
-# ------------------------------------------------------------------ F3: who is controlling now and which positions are open
-def stage_online(conn) -> None:
-    t = datetime.now(UTC) - timedelta(seconds=5)
-    conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (t,))
-    for cid, cs, name, rating, seen in [(1, "SY_TWR", "Ann Tower", C1, t), (2, "ML_APP", "Bob Approach", S3, t),
-                                        (3, "BN_TWR", "Offline Olly", C1, t - timedelta(minutes=10)),
-                                        (4, "NOT_LISTED_TWR", "Stranger", C1, t)]:
-        conn.execute(
-            "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, frequency_hz, first_seen, last_seen) "
-            "VALUES (%s,%s,%s,%s,%s,118000000,%s,%s)", (cid, cs, (seen - timedelta(hours=1)).replace(microsecond=0), name, rating, seen - timedelta(hours=1), seen))
-
-
-def test_f3_lists_the_controllers_online_now(conn):
-    stage_online(conn)
-    rows = run(conn, LIVE, "Who is controlling now")
-    assert [(r["Position"], r["Controller"], r["Rank"]) for r in rows] == [("ML_APP", "Bob Approach", "S3"), ("NOT_LISTED_TWR", "Stranger", "C1"), ("SY_TWR", "Ann Tower", "C1")]
-    assert float(rows[2]["Frequency (MHz)"]) == 118.0 and float(rows[2]["Hours online"]) == 1.0
-
-
-def test_f3_counts_staffed_and_open_positions_by_type(conn):
-    stage_online(conn)
-    total = {}
-    for cs in whitelist():
-        total[cs.rsplit("_", 1)[1]] = total.get(cs.rsplit("_", 1)[1], 0) + 1
-    rows = {r["Type"]: r for r in run(conn, LIVE, "Whitelisted positions staffed and open now, by type")}
-    assert list(rows) == ["CTR", "TWR", "APP", "DEP", "GND", "DEL", "FSS", "FMP"]
-    assert {t: r["On the whitelist"] for t, r in rows.items()} == total
-    assert (rows["TWR"]["Staffed now"], rows["TWR"]["Open now"]) == (1, total["TWR"] - 1)      # SY_TWR; BN_TWR is offline and the unlisted one does not count
-    assert (rows["APP"]["Staffed now"], rows["APP"]["Open now"]) == (1, total["APP"] - 1)
-    assert (rows["CTR"]["Staffed now"], rows["CTR"]["Open now"]) == (0, total["CTR"])
-    assert sum(r["Staffed now"] + r["Open now"] for r in rows.values()) == 254
-
-
-def test_f3_lists_every_whitelisted_position_that_is_open(conn):
-    stage_online(conn)
-    rows = run(conn, LIVE, "Whitelisted positions open now")
-    positions = [r["Position"] for r in rows]
-    assert len(positions) == 252 and "SY_TWR" not in positions and "ML_APP" not in positions and "BN_TWR" in positions
-    assert rows[0]["Type"] == "CTR" and rows[-1]["Type"] == "FMP"
-
-
-def test_f3_with_nobody_online_shows_every_position_open(conn):
-    assert len(run(conn, LIVE, "Whitelisted positions open now")) == 254
-    assert run(conn, LIVE, "Who is controlling now") == []
-
-
-# ------------------------------------------------------------------ F10: flights per month
-def month_start(n: datetime, back: int) -> datetime:
-    y, m = n.year, n.month - back
-    while m < 1:
-        y, m = y - 1, m + 12
-    return datetime(y, m, 1, tzinfo=UTC)
-
-
-def flight_at(conn, cid: int, end: datetime, airborne: float | None = 60) -> None:
-    add_flight(conn, cid, days_ago=(datetime.now(UTC) - end).total_seconds() / 86400.0, airborne=airborne)
-
-
-def test_f10_counts_flights_by_month_with_the_change_on_the_previous_month(conn):
-    n = now()
-    this, prev, prev2 = month_start(n, 0), month_start(n, 1), month_start(n, 2)
-    for i in range(2):
-        flight_at(conn, 500 + i, prev2 + timedelta(days=14, hours=i))
-    for i in range(3):
-        flight_at(conn, 510 + i, prev + timedelta(days=14, hours=i))
-    flight_at(conn, 520, this + (n - this) / 2)
-    flight_at(conn, 521, prev + timedelta(days=3), airborne=0)                     # parked flights are not counted
-    flight_at(conn, 522, prev + timedelta(days=3), airborne=None)
-    rows = run(conn, LIVE, "Flights per month, month on month (last 12 months)")
-    assert [(r["Month"], r["Flights"], r["Change on previous month (%)"] and float(r["Change on previous month (%)"]), r["Month status"]) for r in rows] == [
-        (f"{prev2:%Y-%m}", 2, None, "complete"), (f"{prev:%Y-%m}", 3, 50.0, "complete"), (f"{this:%Y-%m}", 1, -66.7, "month in progress")]
-
-
-def test_f10_starts_twelve_months_back_at_most_and_shows_empty_months_as_zero(conn):
-    n = now()
-    flight_at(conn, 530, month_start(n, 14) + timedelta(days=5))                   # too old for a 12 month view
-    flight_at(conn, 531, month_start(n, 3) + timedelta(days=5))
-    rows = run(conn, LIVE, "Flights per month, month on month (last 12 months)")
-    assert len(rows) == 12 and rows[0]["Month"] == f"{month_start(n, 11):%Y-%m}" and rows[-1]["Month"] == f"{n:%Y-%m}"
-    assert {r["Month"]: r["Flights"] for r in rows if r["Flights"]} == {f"{month_start(n, 3):%Y-%m}": 1}
-    assert rows[0]["Flights"] == 0 and rows[0]["Change on previous month (%)"] is None
-
-
-def test_f10_with_no_flights_is_empty_and_says_history_starts_at_go_live(conn):
-    assert run(conn, LIVE, "Flights per month, month on month (last 12 months)") == []
-    assert "07-10-2026" in panel(LIVE, "Flights per month, month on month (last 12 months)")["description"]
-
-
-# ------------------------------------------------------------------ F6 and F7: only the latest Monday event
-F6 = "Latest Monday event attendance (0700-1200Z)"
-F7 = "Share of YMML-YSSY airborne time flown by local pilots (latest Monday 0700-1200Z)"
-
-
-def test_f6_and_f7_are_adapted_not_copied_and_say_so():
-    for title in (F6, F7):
-        d = panel(LIVE, title)["description"]
-        assert "ADAPTED" in d and "not a plain copy" in d and "latest" in d.lower()
-    assert panel(LIVE, F6)["targets"][0]["rawSql"] != panel(DASH / "events" / "monday-events.json", "Monday event attendance (0700-1200Z)")["targets"][0]["rawSql"]
-
-
-def stage_two_mondays(conn):
-    """Flights and controllers on the latest Monday event and on the Monday before it (different numbers)."""
-    n = now()
-    mon = last_monday(n)
-    conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (mon - timedelta(days=21),))   # go-live: the view lists Mondays from here
-    def fl(cid, end, minutes, airborne, **plan):
-        add_flight(conn, cid, days_ago=(datetime.now(UTC) - end).total_seconds() / 86400.0, minutes=minutes, airborne=airborne, **plan)
-    # latest Monday: two pilots, one controller; YMML-YSSY traffic 120 minutes local + 60 minutes visiting
-    fl(701, mon + timedelta(hours=9), 90, 120, dep="YMML", arr="YSSY", home_icao="YSSY")
-    fl(702, mon + timedelta(hours=10), 90, 60, dep="YSSY", arr="YMML", home_icao="EGLL")
-    add(conn, 1, "T_A_TWR", mon + timedelta(hours=8), 60)
-    # the Monday before: five pilots, three controllers, all visiting pilots on YMML-YSSY
-    prev = mon - timedelta(days=7)
-    for i in range(5):
-        fl(710 + i, prev + timedelta(hours=9), 90, 100, dep="YMML", arr="YSSY", home_icao="EGLL")
-    for i in range(3):
-        add(conn, 10 + i, f"T_B{i}_TWR", prev + timedelta(hours=8), 60)
-    return mon
-
-
-def test_f6_two_mondays_give_only_the_latest(conn):
-    mon = stage_two_mondays(conn)
-    rows = run(conn, LIVE, F6)
-    assert [(r["Event date (UTC)"], r["Pilots"], r["Controllers"]) for r in rows] == [(mon.strftime("%d-%m-%Y"), 2, 1)]
-
-
-def test_f7_two_mondays_give_only_the_latest(conn):
-    mon = stage_two_mondays(conn)
-    rows = run(conn, LIVE, F7)
-    # latest Monday: 120 local of 180 airborne minutes = 66.7 per cent over 3.0 hours; the earlier Monday (0 per cent, 8.3 hours) must not show
-    assert [(r["Event date (UTC)"], float(r["Local pilots (%)"]), float(r["Airborne hours"])) for r in rows] == [(mon.strftime("%d-%m-%Y"), 66.7, 3.0)]
-
-
-def test_f7_with_no_event_flights_shows_the_date_and_no_share(conn):
-    rows = run(conn, LIVE, F7)
-    assert len(rows) == 1 and rows[0]["Local pilots (%)"] is None and float(rows[0]["Airborne hours"]) == 0.0
-
-
 # ------------------------------------------------------------------ the latest-Monday rule at fixed clock times
 E10 = "Ranks that staffed the latest Monday event (0700-1200Z, current rank)"
-F8 = "Airborne aircraft during the latest Monday event (0700-1200Z, 5-minute slots)"
 
 
 @pytest.mark.parametrize("offset,event_offset_days", [
@@ -574,7 +386,3 @@ def test_latest_monday_rule_with_a_fixed_clock(conn, offset, event_offset_days):
 
     want = event.strftime("%d-%m-%Y")
     assert {r["Event date (UTC)"] for r in at_clock(RANKS, E10)} == {want}
-    assert [r["Event date (UTC)"] for r in at_clock(LIVE, F6)] == [want]
-    assert [r["Event date (UTC)"] for r in at_clock(LIVE, F7)] == [want]
-    slots = at_clock(LIVE, F8)
-    assert slots and slots[0]["time"] == event + timedelta(hours=7)

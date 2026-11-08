@@ -19,7 +19,7 @@ from helpers import record_flight
 pytestmark = pytest.mark.integration
 
 EVENTS = REPO / "grafana" / "dashboards" / "events" / "monday-events.json"
-NOW_PANELS = REPO / "grafana" / "dashboards" / "pilots" / "pilots-now.json"
+NOW_PANELS = REPO / "grafana" / "dashboards" / "atc" / "atc-positions.json"
 ZONES = ["Australia/Sydney", "America/Los_Angeles"]
 _n = {"i": 0}
 

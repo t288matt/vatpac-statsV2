@@ -215,11 +215,11 @@ def test_a_stopped_collector_never_makes_a_flight_appear_early(conn: Any) -> Non
     assert conn.execute("SELECT count(*) AS n FROM movements").fetchone()["n"] == 0
 
 
-def test_departure_board_still_shows_a_connected_pilot_with_no_flight_row(conn: Any) -> None:
-    """Live panels read pilot_latest, not flight: a connected pilot is on the board although the flight is not written yet."""
+def test_pilot_latest_still_shows_a_connected_pilot_with_no_flight_row(conn: Any) -> None:
+    """Live views read pilot_latest, not flight: a connected pilot is listed although the flight is not written yet."""
     one_connected_one_gone(conn)
-    rows = conn.execute(panel_sql("pilots/pilots-now.json", "Departure board")).fetchall()
-    assert {r["Flight"]: r["Status"] for r in rows}[f"TEST{CID + 801}"] == "AIRBORNE"
+    rows = conn.execute("SELECT cid, is_online FROM pilot_latest").fetchall()
+    assert {r["cid"]: r["is_online"] for r in rows}[CID + 801] is True
     assert {r["cid"] for r in conn.execute("SELECT cid FROM pilot_online_now").fetchall()} == {CID + 801}
 
 

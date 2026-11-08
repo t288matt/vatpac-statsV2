@@ -7,8 +7,9 @@ test covers the SQL that Grafana runs. All times UTC. Card 148 (pilot/ATC intera
 
 Rules under test (owner's Metabase export, 08-10-2026):
   144 / 146  S1 (rating 2) / S2 (rating 3) sessions started in the last 30 days, hours online per CID, top 30 (issue 302; it was 50)
-  153        median session length in hours, last 90 days, at least 3 sessions, top 15 longest
-  154        median session length in minutes, last 90 days, at least 3 sessions, named, top 15 shortest
+  issue 318  the same for S3 (4), C1 (5), C3 (7) and I1+ (8 and above)
+  153        median session length in hours, last 90 days, at least 3 sessions of 5 minutes or more (issue 319), top 15 longest
+  154        median session length in minutes, last 90 days, at least 3 sessions of 5 minutes or more (issue 319), top 15 shortest
 """
 from __future__ import annotations
 
@@ -26,7 +27,13 @@ S1_TITLE = "Top S1 service providers (last 30 days)"
 S2_TITLE = "Top S2 service providers (last 30 days)"
 LONGEST_TITLE = "Controllers with the longest median session (last 90 days)"
 SHORTEST_TITLE = "Controllers with the shortest median session (last 90 days)"
-NEW_TITLES = [S1_TITLE, S2_TITLE, LONGEST_TITLE, SHORTEST_TITLE]
+S3_TITLE = "Top S3 service providers (last 30 days)"
+C1_TITLE = "Top C1 service providers (last 30 days)"
+C3_TITLE = "Top C3 service providers (last 30 days)"
+I1_TITLE = "Top I1+ service providers (last 30 days)"
+# (title, a rating the panel counts, a rating it must not count); I1+ counts every rating of 8 and above
+PROVIDERS = [(S1_TITLE, 2, 3), (S2_TITLE, 3, 2), (S3_TITLE, 4, 5), (C1_TITLE, 5, 4), (C3_TITLE, 7, 8), (I1_TITLE, 8, 7)]
+NEW_TITLES = [t for t, _, _ in PROVIDERS] + [LONGEST_TITLE, SHORTEST_TITLE]
 
 # A fixed anchor a few days back, on the hour, so the 30-day and 90-day windows are far away.
 ANCHOR = (datetime.now(UTC) - timedelta(days=5)).replace(minute=0, second=0, microsecond=0)
@@ -62,7 +69,7 @@ def days_ago(days: float) -> datetime:
 
 # --- cards 144 and 146 -------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("title,rating,other", [(S1_TITLE, 2, 3), (S2_TITLE, 3, 2)])
+@pytest.mark.parametrize("title,rating,other", PROVIDERS)
 def test_service_provider_rules(conn, title, rating, other):
     add(conn, 9100001, days_ago(10), 60, rating=rating)
     add(conn, 9100001, days_ago(9), 60, rating=rating)       # 2.00 hours in total
@@ -84,6 +91,14 @@ def test_provider_counts_only_sessions_at_the_stated_rating(conn):
     assert [float(r["Hours online"]) for r in run(conn, S2_TITLE)] == [2.0]
 
 
+def test_each_provider_panel_counts_only_its_own_rating(conn):
+    """Issue 318: one controller with a session at every rating from S1 to I3 appears, with those hours only, on its own panel."""
+    for k, rating in enumerate((2, 3, 4, 5, 7, 8, 9, 10)):
+        add(conn, 9100001, days_ago(10 + k), 60 * (k + 1), rating=rating)        # 1, 2, 3, 4, 5, 6, 7, 8 hours
+    got = {t: [float(r["Hours online"]) for r in run(conn, t)] for t, _, _ in PROVIDERS}
+    assert got == {S1_TITLE: [1.0], S2_TITLE: [2.0], S3_TITLE: [3.0], C1_TITLE: [4.0], C3_TITLE: [5.0], I1_TITLE: [6.0 + 7.0 + 8.0]}
+
+
 def test_provider_window_edges_and_limit(conn):
     add(conn, 9100001, days_ago(29.9), 60, rating=2)         # inside the 30 days
     add(conn, 9100002, days_ago(30.1), 60, rating=2)         # outside
@@ -92,9 +107,13 @@ def test_provider_window_edges_and_limit(conn):
     for i in range(32):
         add(conn, 9101000 + i, days_ago(3), 30 + i, rating=2)
         add(conn, 9102000 + i, days_ago(3), 30 + i, rating=3)
+        for k, rating in enumerate((4, 5, 7, 8)):
+            add(conn, 9103000 + 100 * k + i, days_ago(3), 30 + i, rating=rating)
     rows = run(conn, S1_TITLE)
     assert len(rows) == 30                                    # issue 302: 30 bars so the labels do not overlap
     assert len(run(conn, S2_TITLE)) == 30
+    for title in (S3_TITLE, C1_TITLE, C3_TITLE, I1_TITLE):    # issue 318: the same limit on the four new panels
+        assert len(run(conn, title)) == 30, title
     assert float(rows[0]["Hours online"]) >= float(rows[-1]["Hours online"])
 
 
@@ -124,6 +143,28 @@ def test_longest_needs_three_sessions_in_ninety_days(conn):
     add(conn, 9200002, days_ago(10), 60)
     add(conn, 9200002, days_ago(11), 60)                      # only two
     assert run(conn, LONGEST_TITLE) == []
+
+
+def test_sessions_under_five_minutes_are_ignored(conn):
+    """Issue 319: exactly 5 minutes counts, 4.99 does not; the 3-session minimum counts only qualifying sessions."""
+    add_three(conn, 9200001, (5, 5, 5))                       # exactly 5.00 minutes each: all count, median 5
+    add_three(conn, 9200002, (4.99, 4.99, 4.99))              # just under: none count, the controller drops out
+    add_three(conn, 9200003, (1.35, 60, 60))                  # one short session ignored: only two qualify, drops out
+    add_three(conn, 9200004, (1, 2, 30), ago=30)              # short sessions ignored: one qualifies, drops out
+    add_three(conn, 9200005, (60, 60, 60), ago=10)            # a normal controller, for contrast
+    add(conn, 9200005, days_ago(40), 1)                       # plus a 1 minute session: ignored
+    long_rows = {r["controller"]: float(r["Median session (hours)"]) for r in run(conn, LONGEST_TITLE)}
+    short_rows = {r["controller"]: float(r["Median session (minutes)"]) for r in run(conn, SHORTEST_TITLE)}
+    assert long_rows == {"Controller 9200001 (9200001, S2)": round(5 / 60, 2), "Controller 9200005 (9200005, S2)": 1.0}
+    assert short_rows == {"Controller 9200001 (9200001, S2)": 5.0, "Controller 9200005 (9200005, S2)": 60.0}
+
+
+def test_short_sessions_do_not_pull_the_median_down(conn):
+    add_three(conn, 9200001, (2, 3, 60))                      # median would be 3 with all sessions; only one qualifies: drops out
+    add(conn, 9200001, days_ago(20), 90)
+    add(conn, 9200001, days_ago(21), 120)                     # now three qualifying sessions: 60, 90, 120
+    [row] = run(conn, SHORTEST_TITLE)
+    assert float(row["Median session (minutes)"]) == 90.0     # median of 60, 90, 120 (the 2 and 3 minute sessions are ignored)
 
 
 def test_unnamed_sessions_count_and_the_label_falls_back_to_the_cid(conn):
