@@ -1271,7 +1271,7 @@
         },
         "overrides": []
       },
-      "timeFrom": "12M"
+      "timeFrom": "24M"
     }
   ]
 }
