@@ -195,14 +195,11 @@
             },
             "properties": [
               {
-                "id": "displayName",
-                "value": "Pilots who logged on"
-              },
-              {
-                "id": "color",
+                "id": "custom.hideFrom",
                 "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#3AA0DD"
+                  "legend": true,
+                  "tooltip": true,
+                  "viz": true
                 }
               }
             ]
