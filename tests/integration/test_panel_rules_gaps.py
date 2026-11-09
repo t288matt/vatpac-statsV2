@@ -89,7 +89,7 @@ def test_controllers_online_now_shows_the_newest_snapshot(conn) -> None:
     assert run(conn, "Controllers online now") == [{"Controllers": 7}]
 
 
-def test_online_over_time_averages_each_five_minute_bin(conn) -> None:
+def test_pilots_online_over_time_averages_each_five_minute_bin(conn) -> None:
     base = datetime.fromtimestamp(int(datetime.now(UTC).timestamp()) // 300 * 300 - 7200, UTC)
     snapshot(conn, base + timedelta(seconds=10), 10, 4, 100, 40)
     snapshot(conn, base + timedelta(seconds=70), 20, 6, 200, 60)          # same bin: averages
@@ -98,8 +98,6 @@ def test_online_over_time_averages_each_five_minute_bin(conn) -> None:
     rows = run(conn, "Pilots online over the last 24 hours", base, base + timedelta(hours=1))
     assert [(r["time"], float(r["In region"]), float(r["Network-wide"])) for r in rows] == [
         (base, 15.0, 150.0), (base + timedelta(minutes=5), 30.0, 300.0)]
-    rows = run(conn, "Controllers online over time", base, base + timedelta(hours=1))
-    assert [(r["time"], float(r["Controllers"])) for r in rows] == [(base, 5.0), (base + timedelta(minutes=5), 8.0)]
 
 
 def test_controllers_online_now_list(conn) -> None:

@@ -67,7 +67,7 @@
       "gridPos": {
         "x": 0,
         "y": 5,
-        "w": 4,
+        "w": 24,
         "h": 4
       },
       "targets": [
@@ -118,74 +118,6 @@
       }
     },
     {
-      "id": 3,
-      "type": "timeseries",
-      "title": "Controllers online over time",
-      "description": "Number of VATPAC controllers online over the selected time range.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 4,
-        "y": 5,
-        "w": 20,
-        "h": 6
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "time_series",
-          "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(observed_at, $__interval),\n       avg(controllers_in_region) AS \"Controllers\"\nFROM network_history\nWHERE $__timeFilter(observed_at)\nGROUP BY 1\nORDER BY 1"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#3AA0DD"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "fillOpacity": 28,
-            "gradientMode": "opacity",
-            "showPoints": "never",
-            "spanNulls": true,
-            "axisPlacement": "left",
-            "axisSoftMin": 0,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": []
-      },
-      "interval": "1m"
-    },
-    {
       "id": 4,
       "type": "table",
       "title": "Controllers online now (list)",
@@ -196,7 +128,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 11,
+        "y": 9,
         "w": 24,
         "h": 8
       },
