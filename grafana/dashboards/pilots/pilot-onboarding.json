@@ -195,10 +195,14 @@
             },
             "properties": [
               {
+                "id": "displayName",
+                "value": "Pilots who logged on"
+              },
+              {
                 "id": "custom.hideFrom",
                 "value": {
-                  "legend": true,
-                  "tooltip": true,
+                  "legend": false,
+                  "tooltip": false,
                   "viz": true
                 }
               }
