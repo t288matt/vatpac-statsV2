@@ -84,19 +84,22 @@ def test_service_provider_rules(conn, title, rating, other):
     ]
 
 
-def test_provider_counts_only_sessions_at_the_stated_rating(conn):
+def test_provider_lists_a_controller_once_under_the_highest_rating(conn):
+    """A controller with sessions at two ratings is listed once, under the higher, with all their hours."""
     add(conn, 9100001, days_ago(10), 60, rating=2)
-    add(conn, 9100001, days_ago(9), 120, rating=3)           # v1 filters the session's rating, not the person's
-    assert [float(r["Hours online"]) for r in run(conn, S1_TITLE)] == [1.0]
-    assert [float(r["Hours online"]) for r in run(conn, S2_TITLE)] == [2.0]
+    add(conn, 9100001, days_ago(9), 120, rating=3)
+    assert run(conn, S1_TITLE) == []
+    assert [float(r["Hours online"]) for r in run(conn, S2_TITLE)] == [3.0]
 
 
-def test_each_provider_panel_counts_only_its_own_rating(conn):
-    """Issue 318: one controller with a session at every rating from S1 to I3 appears, with those hours only, on its own panel."""
+def test_each_provider_panel_lists_a_controller_only_at_the_highest_rating(conn):
+    """One controller with a session at every rating from S1 to I3 appears only on the I1+ panel, with all 36 hours."""
     for k, rating in enumerate((2, 3, 4, 5, 7, 8, 9, 10)):
-        add(conn, 9100001, days_ago(10 + k), 60 * (k + 1), rating=rating)        # 1, 2, 3, 4, 5, 6, 7, 8 hours
+        add(conn, 9100001, days_ago(10 + k), 60 * (k + 1), rating=rating)        # 1 to 8 hours
     got = {t: [float(r["Hours online"]) for r in run(conn, t)] for t, _, _ in PROVIDERS}
-    assert got == {S1_TITLE: [1.0], S2_TITLE: [2.0], S3_TITLE: [3.0], C1_TITLE: [4.0], C3_TITLE: [5.0], I1_TITLE: [6.0 + 7.0 + 8.0]}
+    assert got == {S1_TITLE: [], S2_TITLE: [], S3_TITLE: [], C1_TITLE: [], C3_TITLE: [], I1_TITLE: [36.0]}
+    add(conn, 9100002, days_ago(5), 90, rating=7)                                 # a plain C3 still lists on C3
+    assert [float(r["Hours online"]) for r in run(conn, C3_TITLE)] == [1.5]
 
 
 def test_provider_window_edges_and_limit(conn):

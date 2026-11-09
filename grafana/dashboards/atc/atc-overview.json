@@ -67,7 +67,7 @@
       "gridPos": {
         "x": 0,
         "y": 5,
-        "w": 4,
+        "w": 24,
         "h": 4
       },
       "targets": [
@@ -118,74 +118,6 @@
       }
     },
     {
-      "id": 3,
-      "type": "timeseries",
-      "title": "Controllers online over time",
-      "description": "Number of VATPAC controllers online over the selected time range.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 4,
-        "y": 5,
-        "w": 20,
-        "h": 6
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "time_series",
-          "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(observed_at, $__interval),\n       avg(controllers_in_region) AS \"Controllers\"\nFROM network_history\nWHERE $__timeFilter(observed_at)\nGROUP BY 1\nORDER BY 1"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#3AA0DD"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "fillOpacity": 28,
-            "gradientMode": "opacity",
-            "showPoints": "never",
-            "spanNulls": true,
-            "axisPlacement": "left",
-            "axisSoftMin": 0,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": []
-      },
-      "interval": "1m"
-    },
-    {
       "id": 4,
       "type": "table",
       "title": "Controllers online now (list)",
@@ -196,7 +128,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 11,
+        "y": 9,
         "w": 24,
         "h": 8
       },
@@ -773,7 +705,7 @@
       "id": 11,
       "type": "barchart",
       "title": "Top S1 service providers (last 30 days)",
-      "description": "The 30 S1 controllers with the most hours online over the last 30 days, regardless of the time selector.",
+      "description": "The 30 S1 controllers with the most hours online over the last 30 days, regardless of the time selector. Each controller is listed once, under the highest rating they logged on with in the period, and all their hours count there.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -794,7 +726,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\n  AND rating = 2\nGROUP BY cid\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
+          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\nGROUP BY cid\nHAVING MAX(rating) = 2\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
         }
       ],
       "options": {
@@ -836,7 +768,7 @@
       "id": 12,
       "type": "barchart",
       "title": "Top S2 service providers (last 30 days)",
-      "description": "The 30 S2 controllers with the most hours online over the last 30 days, regardless of the time selector.",
+      "description": "The 30 S2 controllers with the most hours online over the last 30 days, regardless of the time selector. Each controller is listed once, under the highest rating they logged on with in the period, and all their hours count there.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -857,7 +789,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\n  AND rating = 3\nGROUP BY cid\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
+          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\nGROUP BY cid\nHAVING MAX(rating) = 3\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
         }
       ],
       "options": {
@@ -899,7 +831,7 @@
       "id": 16,
       "type": "barchart",
       "title": "Top S3 service providers (last 30 days)",
-      "description": "The 30 S3 controllers with the most hours online over the last 30 days, regardless of the time selector.",
+      "description": "The 30 S3 controllers with the most hours online over the last 30 days, regardless of the time selector. Each controller is listed once, under the highest rating they logged on with in the period, and all their hours count there.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -920,7 +852,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\n  AND rating = 4\nGROUP BY cid\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
+          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\nGROUP BY cid\nHAVING MAX(rating) = 4\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
         }
       ],
       "options": {
@@ -962,7 +894,7 @@
       "id": 17,
       "type": "barchart",
       "title": "Top C1 service providers (last 30 days)",
-      "description": "The 30 C1 controllers with the most hours online over the last 30 days, regardless of the time selector.",
+      "description": "The 30 C1 controllers with the most hours online over the last 30 days, regardless of the time selector. Each controller is listed once, under the highest rating they logged on with in the period, and all their hours count there.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -983,7 +915,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\n  AND rating = 5\nGROUP BY cid\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
+          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\nGROUP BY cid\nHAVING MAX(rating) = 5\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
         }
       ],
       "options": {
@@ -1025,7 +957,7 @@
       "id": 18,
       "type": "barchart",
       "title": "Top C3 service providers (last 30 days)",
-      "description": "The 30 C3 controllers with the most hours online over the last 30 days, regardless of the time selector.",
+      "description": "The 30 C3 controllers with the most hours online over the last 30 days, regardless of the time selector. Each controller is listed once, under the highest rating they logged on with in the period, and all their hours count there.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -1046,7 +978,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\n  AND rating = 7\nGROUP BY cid\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
+          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\nGROUP BY cid\nHAVING MAX(rating) = 7\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
         }
       ],
       "options": {
@@ -1088,7 +1020,7 @@
       "id": 19,
       "type": "barchart",
       "title": "Top I1+ service providers (last 30 days)",
-      "description": "The 30 I1 and higher controllers (rating 8 and above) with the most hours online over the last 30 days, regardless of the time selector.",
+      "description": "The 30 I1 and higher controllers (rating 8 and above) with the most hours online over the last 30 days, regardless of the time selector. Each controller is listed once, under the highest rating they logged on with in the period, and all their hours count there.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -1109,7 +1041,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\n  AND rating >= 8\nGROUP BY cid\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
+          "rawSql": "SELECT COALESCE(TRIM(MAX(name)), 'Unknown') || ' (' || cid || ')' AS controller,\n       ROUND(SUM(session_duration_minutes) / 60.0, 2) AS \"Hours online\"\nFROM controller_summaries\nWHERE cid IS NOT NULL\n  AND session_duration_minutes > 0\n  AND session_start_time >= now() - interval '30 days'\nGROUP BY cid\nHAVING MAX(rating) >= 8\nORDER BY SUM(session_duration_minutes) DESC, cid\nLIMIT 30"
         }
       ],
       "options": {
@@ -1339,7 +1271,7 @@
         },
         "overrides": []
       },
-      "timeFrom": "12M"
+      "timeFrom": "24M"
     }
   ]
 }
