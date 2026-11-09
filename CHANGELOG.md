@@ -6,6 +6,13 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Dashboard tidy (09-11-2026, issue 326; pull request 327, not yet merged, not deployed)
+
+- **Longer ranges.** "ATC hours staffed per week, by position type" shows the last 14 months (was 12); "CTR hours staffed per week" on ATC: controllers shows the last 24 months (was 12).
+- **Controllers online over time removed.** The panel is removed from ATC: controllers; "Controllers online now" takes the full width of its row.
+- **One rank per service provider.** "Top S1", "Top S2", "Top S3", "Top C1", "Top C3" and "Top I1+ service providers (last 30 days)" list each controller once, under the highest rating they logged on with in the 30 days, with all their hours there. Before, each panel counted only the sessions logged at its own rating, so a controller who logs on at different ratings (one on production alternated between C3 and a rating above I1) appeared on two panels. Hours change by design for such controllers.
+- **Pilots who logged on not plotted.** On Pilot onboarding, "Pilots who logged on in a month but never flew that month" no longer draws the "Pilots who logged on" bars; the figure stays in the legend and tooltip, and the never-flew bars and percentage line are unchanged.
+
 ## Departure board removed from Live now, dashboard panel changes (08-11-2026, issues 313, 314, 315, 317, 318, 319, 320, 321, 323 and 324; pull request pending, not yet merged, not deployed)
 
 - **What is new.** The Departure board panel is removed from "Pilots: online now" (the page behind the "Live now" link and the short address `/live`). Issue 305 had removed it from "Live now and events" by mistake of page, so the board is now on no dashboard. Every other panel keeps its query and place (the board was the last panel, so nothing moves). The `pilot_latest` view and its migrations are unchanged. A test fails if a panel titled Departure board returns to that page.
