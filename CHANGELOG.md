@@ -9,6 +9,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 ## Dashboard tidy (09-11-2026, issue 326; pull request 327, not yet merged, not deployed)
 
 - **Longer ranges.** "ATC hours staffed per week, by position type" shows the last 14 months (was 12); "CTR hours staffed per week" on ATC: controllers shows the last 24 months (was 12).
+- **Live now dashboard removed.** "Pilots: online now" (short address `/live`) is deleted, with its nav link; the other 14 dashboards remain. Needs the server steps in docs/RUNBOOKS/public-access.md ("Remove a dashboard") at deploy.
 - **Controllers online panels removed.** "Controllers online over time", "Controllers online now" and "Controllers online now (list)" are removed from ATC: controllers; the charts below move up.
 - **Hours by weekday and UTC hour removed.** The six "When S1, S2, S3, C1, C3 and I1+ controllers are online" tables are removed from ATC: ranks (issue 326); "Ranks that staffed the latest Monday event" moves up.
 - **One rank per service provider.** "Top S1", "Top S2", "Top S3", "Top C1", "Top C3" and "Top I1+ service providers (last 30 days)" list each controller once, under the highest rating they logged on with in the 30 days, with all their hours there. Before, each panel counted only the sessions logged at its own rating, so a controller who logs on at different ratings (one on production alternated between C3 and a rating above I1) appeared on two panels. Hours change by design for such controllers.

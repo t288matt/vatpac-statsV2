@@ -81,10 +81,11 @@ def test_vfr_routes_panel_is_only_on_traffic_not_on_routes_and_airports() -> Non
 
 
 def test_the_live_now_and_events_dashboard_is_gone() -> None:
-    """Issue 323: events/live-events.json (uid vatpac-live-events, /live-events) was deleted; Live now (/live) is Pilots: online now."""
+    """Issue 323: events/live-events.json (uid vatpac-live-events, /live-events) was deleted. Issue 326: so was Live now, Pilots: online now (pilots/pilots-now.json, uid vatpac-pilots-now, /live)."""
     assert not (DASHBOARDS / "events" / "live-events.json").exists()
+    assert not (DASHBOARDS / "pilots" / "pilots-now.json").exists()
     uids = {json.loads(p.read_text(encoding="utf-8"))["uid"] for p in DASHBOARDS.glob("*/*.json")}
-    assert "vatpac-live-events" not in uids and "vatpac-pilots-now" in uids
+    assert "vatpac-live-events" not in uids and "vatpac-pilots-now" not in uids
 
 
 if __name__ == "__main__":

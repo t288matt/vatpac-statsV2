@@ -29,7 +29,6 @@ DASHBOARD_ONLY_TESTS = (
     "tests/test_dashboard_descriptions.py",
     "tests/test_dashboard_nav.py",
     "tests/test_chart_definitions_tests.py",
-    "tests/test_pilots_now_look.py",
     "tests/test_phase3_switch.py",
     "tests/test_dashboards_look.py",
     "tests/test_dashboards_sql_unchanged.py",

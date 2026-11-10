@@ -18,7 +18,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "ops"))
 import ci_scope as cs  # noqa: E402
 
-DASH = "grafana/dashboards/pilots/pilots-now.json"
+DASH = "grafana/dashboards/pilots/pilots-traffic.json"
 UNIT_RUN = 'read -r -a targets <<< "$(python ops/ci_scope.py tests unit)"\n[ "${#targets[@]}" -gt 0 ]   # an empty list would run more than intended; stop instead\npytest -q -m "not integration" "${targets[@]}"\n'  # noqa: E501
 INTEG_RUN = 'read -r -a targets <<< "$(python ops/ci_scope.py tests integration)"\n[ "${#targets[@]}" -gt 0 ]   # an empty list would run more than intended; stop instead\npytest "${targets[@]}" -m integration -q\n'  # noqa: E501
 

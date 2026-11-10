@@ -10,7 +10,7 @@ GROUPS below. To add a dashboard: add it to SHORT_NAMES, add it to a group here,
     python ops/dashboard_nav.py --check    change nothing; exit 1 if any strip is missing or out of step (run in CI)
 
 Links are HTML anchors with a bare short path and NO query string (the Traefik redirect rule does not match one):
-<a href="/live" target="_top">Live now</a>. target="_top" is needed: without it Grafana's in-page router handles the click, never
+<a href="/traffic" target="_top">Traffic</a>. target="_top" is needed: without it Grafana's in-page router handles the click, never
 asks Traefik, and shows Page not found (issue 284). Standard library only.
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ NAV_ROWS = 3  # rows the strip adds to the top text panel (a banner-only panel i
 
 # group label -> [(short address, display name)]; the short address must be a value in SHORT_NAMES
 GROUPS: dict[str, list[tuple[str, str]]] = {
-    "Pilots": [("live", "Live now"), ("traffic", "Traffic"), ("new-pilots", "New pilots"), ("origins", "Origins"),
+    "Pilots": [("traffic", "Traffic"), ("new-pilots", "New pilots"), ("origins", "Origins"),
                ("pilots", "Records"), ("routes", "Routes"), ("aircraft", "Aircraft"), ("military", "Military")],
     "ATC": [("atc", "Overview"), ("atc-retention", "Retention"), ("atc-hours", "Hours"), ("atc-positions", "Positions"),
             ("atc-ranks", "Ranks")],

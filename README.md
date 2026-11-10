@@ -6,7 +6,7 @@ Live pilot and controller statistics for the VATPAC region, built from VATSIM's 
 
 ## About
 
-VATPAC Stats shows live and historical statistics for pilots and air traffic controllers in the VATPAC region on VATSIM. The numbers are updated every 30 seconds and shown as fifteen dashboards. Anyone can view them on the internet without logging in, and nobody can change them (see "Public read-only access" below).
+VATPAC Stats shows live and historical statistics for pilots and air traffic controllers in the VATPAC region on VATSIM. The numbers are updated every 30 seconds and shown as fourteen dashboards. Anyone can view them on the internet without logging in, and nobody can change them (see "Public read-only access" below).
 
 This version (v3) replaces the original system (v1).
 
@@ -50,7 +50,7 @@ Dashboards (as code in `grafana/dashboards/`): Pilots now, Pilots traffic, Pilot
 
 ## Public read-only access
 
-All fifteen dashboards can be shown to anyone on the internet, read-only, without a login. Each dashboard has its own public link, with a fixed time range, and a short address such as `https://vpac.mpengor.com/live` that redirects to it; visitors cannot send their own queries, change the time range or edit anything. Anonymous access in Grafana stays off. The links are created by `ops/grafana_public.py`, and traffic reaches Grafana through Cloudflare, a Cloudflare Tunnel and a small forwarder on the owner's Traefik machine. Setup, checks and how to switch it off: [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md); what runs on the Traefik machine (<TRAEFIK_HOST_IP>, outside this repository) is in its section "The Traefik machine". The public address is `https://vpac.mpengor.com` (DNS and Cloudflare are outside this repository).
+All fourteen dashboards can be shown to anyone on the internet, read-only, without a login. Each dashboard has its own public link, with a fixed time range, and a short address such as `https://vpac.mpengor.com/traffic` that redirects to it; visitors cannot send their own queries, change the time range or edit anything. Anonymous access in Grafana stays off. The links are created by `ops/grafana_public.py`, and traffic reaches Grafana through Cloudflare, a Cloudflare Tunnel and a small forwarder on the owner's Traefik machine. Setup, checks and how to switch it off: [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md); what runs on the Traefik machine (<TRAEFIK_HOST_IP>, outside this repository) is in its section "The Traefik machine". The public address is `https://vpac.mpengor.com` (DNS and Cloudflare are outside this repository).
 
 The collector serves `/health` and `/metrics` on port 8080 inside the Docker network only (not published). The database is not published either; the dev overlay (`make dev`) publishes it on `127.0.0.1:55432` only.
 
