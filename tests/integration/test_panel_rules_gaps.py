@@ -81,14 +81,6 @@ def ctrl(conn, cid: int, days_ago: float, minutes: int = 60, rating: int = 3, ca
 
 
 # ------------------------------------------------------------------ online now and over time
-def test_controllers_online_now_shows_the_newest_snapshot(conn) -> None:
-    now = datetime.now(UTC)
-    snapshot(conn, now - timedelta(minutes=20), controllers=2)
-    snapshot(conn, now - timedelta(seconds=30), controllers=7)
-    snapshot(conn, now - timedelta(minutes=10), controllers=5)
-    assert run(conn, "Controllers online now") == [{"Controllers": 7}]
-
-
 def test_pilots_online_over_time_averages_each_five_minute_bin(conn) -> None:
     base = datetime.fromtimestamp(int(datetime.now(UTC).timestamp()) // 300 * 300 - 7200, UTC)
     snapshot(conn, base + timedelta(seconds=10), 10, 4, 100, 40)
@@ -98,21 +90,6 @@ def test_pilots_online_over_time_averages_each_five_minute_bin(conn) -> None:
     rows = run(conn, "Pilots online over the last 24 hours", base, base + timedelta(hours=1))
     assert [(r["time"], float(r["In region"]), float(r["Network-wide"])) for r in rows] == [
         (base, 15.0, 150.0), (base + timedelta(minutes=5), 30.0, 300.0)]
-
-
-def test_controllers_online_now_list(conn) -> None:
-    set_poll_interval(conn, 30)
-    now = datetime.now(UTC)
-    snapshot(conn, now - timedelta(seconds=40))
-    snapshot(conn, now - timedelta(seconds=10))
-    ctrl(conn, 9960002, 0, callsign="ML_TWR", rating=3, frequency_hz=118_500_000, minutes=120,
-         last_seen=now - timedelta(seconds=10))
-    ctrl(conn, 9960001, 0, callsign="AD_APP", rating=4, last_seen=now - timedelta(seconds=10))
-    ctrl(conn, 9960003, 0, callsign="BN_GND", rating=2, last_seen=now - timedelta(minutes=10))        # gone
-    rows = run(conn, "Controllers online now (list)")
-    assert [(r["callsign"], r["cid"], r["rating"], r["Frequency (MHz)"]) for r in rows] == [
-        ("AD_APP", 9960001, "S3", None), ("ML_TWR", 9960002, "S2", 118.5)]
-    assert float(rows[1]["Hours online"]) == 2.0
 
 
 def test_where_pilots_online_come_from(conn) -> None:

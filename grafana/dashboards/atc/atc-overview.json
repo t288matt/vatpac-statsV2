@@ -56,158 +56,6 @@
       }
     },
     {
-      "id": 2,
-      "type": "stat",
-      "title": "Controllers online now",
-      "description": "Number of VATPAC controllers online in the latest snapshot.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 5,
-        "w": 24,
-        "h": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT controllers_in_region AS \"Controllers\" FROM network_history ORDER BY observed_at DESC LIMIT 1"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "colorMode": "none",
-        "graphMode": "none",
-        "textMode": "value",
-        "justifyMode": "auto",
-        "showPercentChange": false
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#3AA0DD",
-                "value": null
-              }
-            ]
-          },
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#3AA0DD"
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 4,
-      "type": "table",
-      "title": "Controllers online now (list)",
-      "description": "Controllers online now, with rating, frequency, logon time and hours online.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 9,
-        "w": 24,
-        "h": 8
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT callsign, name, cid, rank_group AS rating, frequency_mhz AS \"Frequency (MHz)\",\n       logon_time AS \"Logged on\", hours_online AS \"Hours online\"\nFROM controller_online_now\nORDER BY callsign"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "md",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "fields": ""
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Frequency (MHz)"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 2
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Logged on"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "time: YYYY-MM-DD HH:mm"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Hours online"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 2
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
       "id": 5,
       "type": "barchart",
       "title": "Controllers logged on (last 30 days)",
@@ -218,7 +66,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 19,
+        "y": 5,
         "w": 12,
         "h": 8
       },
@@ -281,7 +129,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 19,
+        "y": 5,
         "w": 12,
         "h": 8
       },
@@ -450,7 +298,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 27,
+        "y": 13,
         "w": 12,
         "h": 8
       },
@@ -518,7 +366,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 27,
+        "y": 13,
         "w": 12,
         "h": 8
       },
@@ -586,7 +434,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 21,
         "w": 24,
         "h": 14
       },
@@ -649,7 +497,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 49,
+        "y": 35,
         "w": 24,
         "h": 8
       },
@@ -712,7 +560,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 57,
+        "y": 43,
         "w": 12,
         "h": 12
       },
@@ -775,7 +623,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 57,
+        "y": 43,
         "w": 12,
         "h": 12
       },
@@ -838,7 +686,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 69,
+        "y": 55,
         "w": 12,
         "h": 12
       },
@@ -901,7 +749,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 69,
+        "y": 55,
         "w": 12,
         "h": 12
       },
@@ -964,7 +812,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 81,
+        "y": 67,
         "w": 12,
         "h": 12
       },
@@ -1027,7 +875,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 81,
+        "y": 67,
         "w": 12,
         "h": 12
       },
@@ -1090,7 +938,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 93,
+        "y": 79,
         "w": 12,
         "h": 10
       },
@@ -1153,7 +1001,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 93,
+        "y": 79,
         "w": 12,
         "h": 10
       },
@@ -1216,7 +1064,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 103,
+        "y": 89,
         "w": 24,
         "h": 8
       },

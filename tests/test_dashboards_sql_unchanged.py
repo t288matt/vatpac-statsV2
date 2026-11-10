@@ -58,6 +58,7 @@ REMOVED = {  # owner-removed panels (title fragment, lower case): a panel with t
     "top 5 positions for each current rank": "issue 321",
     "top 5 controllers for each current rank": "issue 321",
     "controllers online over time": "issue 326",
+    "controllers online now": "issue 326",
 }
 
 
