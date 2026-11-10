@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed 08-10-2026 against the repository, with the dashboard, public-address and deploy-mode statements re-checked on 10-11-2026; the Grafana version and the public-access part were updated 11-10-2026; sections 4 and 5 (flights, the drop gate) were updated on 13-10-2026 against the code and the live database (issue 89 phases 4 and 5). Authoritative sources: [SPEC.md](../SPEC.md) and [DECISIONS.md](DECISIONS.md). This page describes what the code in the repository does.
+Last reviewed 08-10-2026 against the repository; the Grafana version and the public-access part were updated 11-10-2026; sections 4 and 5 (flights, the drop gate) were updated on 13-10-2026 against the code and the live database (issue 89 phases 4 and 5). Authoritative sources: [SPEC.md](../SPEC.md) and [DECISIONS.md](DECISIONS.md). This page describes what the code in the repository does.
 
 ## 1. What it is
 
@@ -64,7 +64,7 @@ Start-up order: `db` healthy, then `migrate` completes, then `collector`, `grafa
 
 ### Public read-only access (ADR-029)
 
-Since 11-10-2026 the dashboards (eleven since the ATC position hours dashboard, twelve since the pilots records dashboard, fourteen since the routes and aircraft dashboards, seventeen since the ATC positions, ATC ranks and live events dashboards, all 04-11-2026, sixteen since the Management: people online dashboard was removed on 08-11-2026, issue 312, fifteen since Live now and events was deleted on 08-11-2026, issue 323, and fourteen since Live now (Pilots: online now) was deleted on 10-11-2026, issue 326) are also published read-only on the internet at `https://vpac.mpengor.com` (the owner confirmed the hostname). The mechanism is Grafana public dashboards: one public link per dashboard (a token in the address), a fixed time range, no annotations. The token of each link is fixed (first 32 hex characters of sha256 of `vatpac-public:` plus the dashboard uid), and fourteen short addresses (`/traffic`, `/new-pilots`, `/origins`, `/atc`, `/atc-retention`, `/atc-hours`, `/pilots`, `/routes`, `/aircraft`, `/atc-positions`, `/atc-ranks`, `/monday`, `/military`, `/health`) redirect to the links through Traefik labels on the helper container; the address bar then shows the long address. The path:
+The 14 dashboards are also published read-only on the internet at `https://vpac.mpengor.com` (the owner confirmed the hostname). The mechanism is Grafana public dashboards: one public link per dashboard (a token in the address), a fixed time range, no annotations. The token of each link is fixed (first 32 hex characters of sha256 of `vatpac-public:` plus the dashboard uid), and 14 short addresses (`/traffic`, `/new-pilots`, `/origins`, `/atc`, `/atc-retention`, `/atc-hours`, `/pilots`, `/routes`, `/aircraft`, `/atc-positions`, `/atc-ranks`, `/monday`, `/military`, `/health`) redirect to the links through Traefik labels on the helper container; the address bar then shows the long address. The path:
 
 ```
 visitor -> Cloudflare (rate limit rule, Bot Fight Mode) -> Cloudflare Tunnel (named Home; connector on the Traefik machine)
