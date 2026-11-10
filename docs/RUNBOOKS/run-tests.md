@@ -27,7 +27,7 @@ mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/int
 
 ## 1c. What CI runs for which pull request (issue 290, 06-11-2026)
 
-A pull request runs a `scope` job first. It lists the changed paths (`git diff -z --name-status -M`, renames and deletes included) and `ops/ci_scope.py` classifies each one; the most expensive class wins. A push to `main` or `dev` is always the full suite.
+A pull request runs a `scope` job first. It lists the changed paths (`git diff -z --name-status -M`, renames and deletes included) and `ops/ci_scope.py` classifies each one; the most expensive class wins. A push to `main` or `dev` is always the full suite. A push that changes only prose (`*.md` and `docs/`, except `docs/RUNBOOKS/`, `docs/reference/`, `CHART_DEFINITIONS.md`, `DATA_DICTIONARY.md` and `DEFINITIONS.md`, which tests read) does not start this workflow at all; `docs-secret-scan.yml` still scans it, and if the tip of `main` is such a push no CI run exists for it (see "Publishing commit-tagged images" in deploy-to-vm.md).
 
 | Changed paths | Scope | What runs |
 |---|---|---|
