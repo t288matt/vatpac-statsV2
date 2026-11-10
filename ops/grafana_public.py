@@ -26,10 +26,9 @@ from grafana_api import Grafana, default_url  # the one Grafana client with its 
 
 WANTED = {"isEnabled": True, "timeSelectionEnabled": False, "annotationsEnabled": False, "share": "public"}
 
-# Short, readable addresses (https://<host>/live) that redirect to a dashboard's public link. Grafana only accepts a
+# Short, readable addresses (https://<host>/traffic) that redirect to a dashboard's public link. Grafana only accepts a
 # 32-character hex token in its own address, so words can only be a redirect, done by Traefik labels (--traefik-labels).
 SHORT_NAMES = {
-    "vatpac-pilots-now": "live",
     "vatpac-pilots-traffic": "traffic",
     "vatpac-pilot-onboarding": "new-pilots",
     "vatpac-demographics": "origins",

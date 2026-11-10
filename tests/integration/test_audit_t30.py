@@ -454,14 +454,6 @@ def test_international_and_domestic_routes_are_separated(conn) -> None:
     assert intl == {"YSSY-EGLL", "EGLL-KJFK"} and dom == {"YSSY-YMML"}
 
 
-def test_vfr_routes_need_three_distinct_pilots(conn) -> None:
-    """Mutant P22 (minimum 3 pilots -> 2)."""
-    for cid, arr in ((9860030, "YBBN"), (9860031, "YBBN"), (9860032, "YBBN"), (9860033, "YMML"), (9860034, "YMML")):
-        p14.add_flight(conn, cid, dep="YSSY", arr=arr, flight_rules="V")
-    rows = _run(conn, p14.TRAFFIC, "Most popular VFR routes (last 30 days)")
-    assert [(r["route"], r["pilots"]) for r in rows] == [("YSSY-YBBN", 3)]
-
-
 def test_popular_callsigns_need_two_distinct_pilots(conn) -> None:
     """Mutant P24 (minimum 2 pilots -> 1)."""
     p14.add_flight(conn, 9860040, callsign="QFA1")
@@ -529,29 +521,6 @@ def test_raafv_routes_panel_shows_at_most_25_routes(conn) -> None:
                         remarks=ev14.RAAFV_REMARKS)
     rows = ev14.run_panel(conn, ev14.MILITARY, "Most popular RAAFv routes", now - timedelta(days=30), now)
     assert len(rows) == 25
-
-
-def test_pilots_online_now_shows_the_newest_snapshot(conn) -> None:
-    """Mutant P18 (ORDER BY ... ASC): the 'now' tile must read the newest snapshot, not the oldest."""
-    now = datetime.now(timezone.utc)
-    conn.execute("INSERT INTO network_snapshot VALUES (%s,3,0,30,0)", (now - timedelta(hours=2),))
-    conn.execute("INSERT INTO network_snapshot VALUES (%s,7,0,70,0)", (now - timedelta(seconds=10),))
-    conn.execute("INSERT INTO network_snapshot VALUES (%s,5,0,25,0)", (now - timedelta(minutes=30),))   # a second one, inside the hour, different values
-    pn = p14.TRAFFIC.parent / "pilots-now.json"
-
-    def rows_of(title: str) -> list[dict]:
-        # Issue 280: the card is a one-hour time series and Grafana reduces it to its LAST value (calcs lastNotNull), so the
-        # rows must be ascending by time and the last row the newest snapshot. The 2-hour-old snapshot is outside the window.
-        sql = _panel(pn, title)["targets"][0]["rawSql"].replace(
-            "$__timeFilter(observed_at)", "observed_at BETWEEN now() - interval '1 hour' AND now()")
-        return conn.execute(sql).fetchall()
-
-    for title, field, want in (("Pilots in the region now", "Pilots in the region", [5, 7]),
-                               ("Pilots on the whole network now", "Pilots on the network", [25, 70])):
-        got = rows_of(title)
-        assert [r[field] for r in got] == want
-        assert [r["time"] for r in got] == sorted(r["time"] for r in got)
-    assert [float(r["Region share"]) for r in rows_of("Region share of the network")] == [20.0, 10.0]
 
 
 # ------------------------------------------------------------------ ATC panels

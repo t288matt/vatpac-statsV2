@@ -16,7 +16,6 @@ PALETTE = {BLUE, AMBER, GREEN, PINK, GREY, RED}
 
 # Dashboards that have the new look (path under grafana/dashboards). Add a batch's files here in the same pull request.
 RESTYLED = {
-    "pilots/pilots-now.json",
     "pilots/pilots-traffic.json",
     "pilots/pilots-routes-airports.json",
     "pilots/pilots-aircraft-airlines.json",
