@@ -58,8 +58,8 @@ FULL_DOCS_DIRS = ("docs/RUNBOOKS/", "docs/reference/")
 FULL_DOCS_FILES = ("docs/DATA_DICTIONARY.md", "docs/DEFINITIONS.md", "docs/CONFIG_MAP.md", "SPEC.md")
 DASHBOARD_DOCS = ("docs/CHART_DEFINITIONS.md",)  # test_chart_definitions_tests.py reads it against the dashboards
 
-# Jobs of ci.yml. The dashboards scope needs these; full needs all of them; docs needs the secret scan only.
-DOCS_JOBS = ("scope", "secret-scan")
+# Jobs of ci.yml. The dashboards scope needs these; full needs all of them; docs needs the secret scan and the attribution check only.
+DOCS_JOBS = ("scope", "secret-scan", "commit-attribution")
 DASHBOARD_JOBS = (*DOCS_JOBS, "config-drift", "dashboards", "size-budget", "unit-tests", "integration-tests")
 FULL_JOBS = (*DASHBOARD_JOBS, "lint", "compose-config", "image-build")
 NEEDED = {DOCS: DOCS_JOBS, DASHBOARDS: DASHBOARD_JOBS, FULL: FULL_JOBS}
