@@ -54,7 +54,7 @@ def add(conn, cid: int, callsign: str, start: datetime, minutes: int, rating: in
 # ------------------------------------------------------------------ the dashboards themselves
 @pytest.mark.parametrize("path,uid,title,questions", [
     (POSITIONS, "vatpac-atc-positions", "ATC: positions and controllers", [f"D{i}" for i in range(1, 10) if i != 6]),
-    (RANKS, "vatpac-atc-ranks", "ATC: hours by rank", [f"E{i}" for i in range(1, 11)]),
+    (RANKS, "vatpac-atc-ranks", "ATC: hours by rank", [f"E{i}" for i in range(1, 11) if i != 9]),   # E9 (hours by weekday and UTC hour) was removed on 10-11-2026, issue 326
 ])
 def test_dashboard_has_every_catalogue_question_and_no_inputs(path, uid, title, questions):
     d = json.loads(path.read_text(encoding="utf-8"))

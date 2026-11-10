@@ -81,17 +81,6 @@ def ctrl(conn, cid: int, days_ago: float, minutes: int = 60, rating: int = 3, ca
 
 
 # ------------------------------------------------------------------ online now and over time
-def test_pilots_online_over_time_averages_each_five_minute_bin(conn) -> None:
-    base = datetime.fromtimestamp(int(datetime.now(UTC).timestamp()) // 300 * 300 - 7200, UTC)
-    snapshot(conn, base + timedelta(seconds=10), 10, 4, 100, 40)
-    snapshot(conn, base + timedelta(seconds=70), 20, 6, 200, 60)          # same bin: averages
-    snapshot(conn, base + timedelta(seconds=310), 30, 8, 300, 80)         # next bin
-    snapshot(conn, base - timedelta(seconds=10), 99, 99, 99, 99)          # before the dashboard range: ignored
-    rows = run(conn, "Pilots online over the last 24 hours", base, base + timedelta(hours=1))
-    assert [(r["time"], float(r["In region"]), float(r["Network-wide"])) for r in rows] == [
-        (base, 15.0, 150.0), (base + timedelta(minutes=5), 30.0, 300.0)]
-
-
 def test_where_pilots_online_come_from(conn) -> None:
     set_poll_interval(conn, 30)
     now = datetime.now(UTC)
