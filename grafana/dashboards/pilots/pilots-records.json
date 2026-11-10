@@ -616,6 +616,18 @@
           {
             "matcher": {
               "id": "byName",
+              "options": "member_date"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:DD-MM-YYYY"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
               "options": "unique_pilots"
             },
             "properties": [
