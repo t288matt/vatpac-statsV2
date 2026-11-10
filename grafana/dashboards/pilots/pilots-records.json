@@ -534,6 +534,18 @@
           {
             "matcher": {
               "id": "byName",
+              "options": "flight_date"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:DD-MM-YYYY"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
               "options": "total_flights"
             },
             "properties": [
