@@ -132,7 +132,7 @@ def test_verify_requires_everything_the_scope_needs() -> None:
     assert cs.verify("dashboards", {**dash, "integration-tests": "skipped"})   # needed in this scope
     assert cs.verify("dashboards", {**dash, "dashboards": "skipped"})
     assert cs.verify("dashboards", {**dash, "lint": "failure"})
-    docs = {j: "skipped" for j in cs.FULL_JOBS} | {"scope": "success", "secret-scan": "success"}
+    docs = {j: "skipped" for j in cs.FULL_JOBS} | {"scope": "success", "secret-scan": "success", "commit-attribution": "success"}
     assert cs.verify("docs", docs) == []
     assert cs.verify("docs", {**docs, "secret-scan": "skipped"})          # the scan must have run
     assert cs.verify("docs", {**docs, "unit-tests": "failure"})
@@ -231,7 +231,7 @@ def test_every_job_is_gated_by_the_scope_it_needs() -> None:
     """The `if` of each job, against ci_scope.NEEDED: which scopes run a job must be exactly the scopes that need it."""
     jobs = CI["jobs"]
     for name, job in jobs.items():
-        if name in ("scope", "ci-result", "secret-scan"):
+        if name in ("scope", "ci-result", "secret-scan", "commit-attribution"):
             assert "if" not in job or name == "ci-result", name   # scope and the secret scan run in every scope
             continue
         assert job["needs"] == "scope" or "scope" in job["needs"], name
@@ -239,7 +239,7 @@ def test_every_job_is_gated_by_the_scope_it_needs() -> None:
         runs_in = {s for s in cs.NEEDED if (f"=='{s}'" in cond and "!=" not in cond) or (s != "docs" and cond.endswith("!='docs'"))}
         wanted = {s for s, jobs_needed in cs.NEEDED.items() if name in jobs_needed}
         assert runs_in == wanted, f"{name}: runs in {runs_in}, ci_scope.NEEDED says {wanted}"
-    assert "if" not in jobs["scope"] and "if" not in jobs["secret-scan"]
+    assert all("if" not in jobs[j] for j in ("scope", "secret-scan", "commit-attribution"))
     assert "needs" not in jobs["secret-scan"]   # a failed scope job cannot stop the secret scan
 
 

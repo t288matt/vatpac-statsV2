@@ -313,6 +313,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Working agreement section 10 (10-11-2026): no commit message or pull request text may carry a Claude attribution. Runs in
+  # every scope. It scans all history reachable from the checkout, so an old branch merged in with a trailer is caught too.
+  commit-attribution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: No Claude attribution in commits or pull request text
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 ops/check_no_claude_attribution.py
+
   image-build:
     runs-on: ubuntu-latest
     needs: [scope, compose-config]
@@ -329,7 +343,7 @@ jobs:
   # and it fails unless every job the scope needs succeeded; a job may be skipped only when the scope says it is not needed
   # (ops/ci_scope.py verify, tested in tests/test_ci_scope.py). A skipped job is never read as a pass.
   ci-result:
-    needs: [scope, lint, unit-tests, integration-tests, config-drift, dashboards, compose-config, size-budget, secret-scan, image-build]
+    needs: [scope, lint, unit-tests, integration-tests, config-drift, dashboards, compose-config, size-budget, secret-scan, commit-attribution, image-build]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
