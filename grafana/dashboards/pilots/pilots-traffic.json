@@ -1132,7 +1132,21 @@
             ]
           }
         ]
-      }
+      },
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "cid",
+                "destinationType": "string"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ]
     }
   ]
 }
