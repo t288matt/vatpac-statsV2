@@ -46,7 +46,7 @@ You should see an `ok` poll about every 30 seconds in `poll_log`, plus a few `sk
 
 Open Grafana at http://localhost:3300 and log in with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` from `.env`. Anonymous access is off. Grafana listens on the loopback address only; set `GRAFANA_BIND` in `.env` to reach it from the LAN (see [docs/RUNBOOKS/deploy-to-vm.md](docs/RUNBOOKS/deploy-to-vm.md)). To publish the dashboards read-only, see [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md).
 
-Dashboards (as code in `grafana/dashboards/`): Pilots now, Pilots traffic, Pilots: records and totals, Routes and airports, Aircraft and airlines, Pilot onboarding, ATC overview, ATC position hours, ATC positions and controllers, ATC hours by rank, ATC retention, Pilot origins, Military, Monday events, and Collector health. Every chart is explained in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md).
+Dashboards (as code in `grafana/dashboards/`): Pilots: traffic and aircraft, Pilots: records and totals, Routes and airports, Aircraft and airlines, Pilots: onboarding and lapsed pilots, ATC: controllers, ATC: position hours, ATC: positions and controllers, ATC: hours by rank, ATC: retention and reactivation, Demographics: pilot origins and cohorts, Military: aircraft and routes, Events: Monday event, and Monitoring: collector and data freshness. Every chart is explained in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md).
 
 ## Public read-only access
 
@@ -56,7 +56,7 @@ The collector serves `/health` and `/metrics` on port 8080 inside the Docker net
 
 ## For dashboard users
 
-Fifteen dashboards, all in Grafana (folder: dashboard). Times are UTC. What each one shows is in Grafana itself (dashboard and panel descriptions); the exact rule behind every chart is in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md), and the meaning of "flight", "session", "online now" and "airborne minutes" is in [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
+Fourteen dashboards, all in Grafana (folder: dashboard). Times are UTC. What each one shows is in Grafana itself (dashboard and panel descriptions); the exact rule behind every chart is in [docs/CHART_DEFINITIONS.md](docs/CHART_DEFINITIONS.md), and the meaning of "flight", "session", "online now" and "airborne minutes" is in [docs/DEFINITIONS.md](docs/DEFINITIONS.md).
 
 Charts start empty at go-live (07-10-2026) and fill as data arrives (v1 history was loaded on 05-11-2026 under ADR-035, so history starts on 24-08-2025, with a gap from 15-03-2026 to 07-10-2026: [docs/RUNBOOKS/import-v1-history.md](docs/RUNBOOKS/import-v1-history.md).); a flight appears in the flight totals about 8 hours after its last position.
 
@@ -117,7 +117,7 @@ On Windows without `make`, run the underlying commands.
 | `make config` | Validate the compose files with a throwaway env |
 | `make soak` | Soak report from `poll_log`: was a snapshot stored every poll interval over the last `HOURS` (default 24) |
 | `make up` / `make dev` / `make down` | Start (optionally with the dev overlay) or stop the stack; volumes are kept. `make up` builds the images locally; it is not the registry deploy, and it refuses to run in registry mode (added by pull request 180; see the deploy runbook) |
-| `make deploy` | Registry mode only: `docker compose pull`, then `docker compose up -d --no-build` (added by pull request 180; it does not run `--preflight`, so run that first) |
+| `make deploy` | Registry mode only: `git pull --ff-only`, `docker compose pull`, `ops/check_pulled_images.sh` (stops if the images were not built from the checkout), then `docker compose up -d --no-build`. It does not run `--preflight`, so run that first |
 | `make logs` / `make ps` | Follow logs; container status |
 | `make backup` / `make backup-test` | Take a backup now; restore the newest into a scratch database and check it |
 | `make restore FILE=... CONFIRM=...` | Restore a dump ([docs/RUNBOOKS/restore.md](docs/RUNBOOKS/restore.md)) |

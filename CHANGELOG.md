@@ -6,7 +6,7 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
-## Dashboard tidy (09-11-2026, issue 326; pull request 327, not yet merged, not deployed)
+## Dashboard tidy (09-11-2026, issue 326; pull requests 327 and 332, merged to main on 09-11-2026 and 10-11-2026)
 
 - **Longer ranges.** "ATC hours staffed per week, by position type" shows the last 14 months (was 12); "CTR hours staffed per week" on ATC: controllers shows the last 24 months (was 12).
 - **VFR routes removed.** "Most popular VFR routes (last 30 days)" is removed from Pilots: traffic (it had already left Routes and airports, issue 317); "Pilots with the most diverse routes" stays at the left of its row.
@@ -16,7 +16,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 - **One rank per service provider.** "Top S1", "Top S2", "Top S3", "Top C1", "Top C3" and "Top I1+ service providers (last 30 days)" list each controller once, under the highest rating they logged on with in the 30 days, with all their hours there. Before, each panel counted only the sessions logged at its own rating, so a controller who logs on at different ratings (one on production alternated between C3 and a rating above I1) appeared on two panels. Hours change by design for such controllers.
 - **Pilots who logged on not plotted.** On Pilot onboarding, "Pilots who logged on in a month but never flew that month" no longer draws the "Pilots who logged on" bars; the figure stays in the legend and tooltip, and the never-flew bars and percentage line are unchanged.
 
-## Departure board removed from Live now, dashboard panel changes (08-11-2026, issues 313, 314, 315, 317, 318, 319, 320, 321, 323 and 324; pull request pending, not yet merged, not deployed)
+## Departure board removed from Live now, dashboard panel changes (08-11-2026, issues 313, 314, 315, 317, 318, 319, 320, 321, 323 and 324; pull request 316, merged to main on 08-11-2026)
 
 - **What is new.** The Departure board panel is removed from "Pilots: online now" (the page behind the "Live now" link and the short address `/live`). Issue 305 had removed it from "Live now and events" by mistake of page, so the board is now on no dashboard. Every other panel keeps its query and place (the board was the last panel, so nothing moves). The `pilot_latest` view and its migrations are unchanged. A test fails if a panel titled Departure board returns to that page.
 - **Quietest airports removed (issue 314).** The panel "Quietest home-region airports (last 30 days)" is removed from Pilots: traffic and aircraft. "Busiest home-region airports" stays with its query and now spans the full width of its row. A test fails if either removed panel returns.
@@ -29,100 +29,100 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 - **Monday event aircraft per Monday (issue 324).** On Events: Monday event, "Airborne aircraft during the latest Monday event" is replaced by a bar chart "Aircraft airborne during the Monday event window, each Monday (0700-1200Z)", one bar per Monday over 5 years, from the flight summary. A flight counts if it has airborne time and was connected at some moment between 0700 and 1200 UTC, so the bars are an upper bound (the summary does not store when a flight was airborne).
 - **Top 2 per rank (issue 321).** "Top 5 positions/controllers for each current rank" on ATC: hours by rank are now "Top 2 ..." (two rows per rank).
 
-## Dashboard fixes and removals (08-11-2026, issues 300, 302, 303, 306, 308, 309, 310, 312; pull request pending, not yet deployed)
+## Dashboard fixes and removals (08-11-2026, issues 300, 302, 303, 306, 308, 309, 310, 312; pull request 311, merged to main on 08-11-2026)
 
 - **One row per member (issue 300).** Seven panels grouped by CID and name, so a member with two names showed twice; they now show one row per CID with the most recent name. The shortest-median panels show the rating label (C1, S2) instead of a number. Numbers for members with two names change by design; unnamed sessions now count.
 - **Limits and windows.** Top service providers lists are 30 rows (issue 302); "Busiest days" panels cover 5 years (issue 309).
 - **Order and axes.** The ATC position-hours table is ordered CTR, FSS, APP, DEP, TWR, GND, DEL, FMP (issue 303); ATC is drawn on its own right-hand axis in the "When are people online" charts (issue 308).
 - **Removed.** The lapsed pilots panel (issue 306), the Longest flights panel (issue 310) and the dashboard Management: people online with its public address `/monthly` (issue 312; the server steps are in docs/RUNBOOKS/public-access.md).
 
-## Military graphs only on the Military dashboard (08-11-2026, issue 301; pull request pending, not yet merged, not deployed)
+## Military graphs only on the Military dashboard (08-11-2026, issue 301; pull request 311, merged to main on 08-11-2026)
 
 - **What is new.** The four military panels copied onto Aircraft and airlines in issue 267 group C are removed: Most popular military aircraft, Most popular RAAFv routes, and Hours and Flights flown by RAAFv aircraft per week. They stay on the Military dashboard, unchanged. A test now fails if a military panel appears on any other dashboard.
 - **Data-history banner removed (issue 307).** The 16 dashboards that carried "Live data since ...; earlier history was imported" now say "All times are UTC. Figures cover VATPAC airspace." The navigation links, panel heights and every query are unchanged (the navigation check keeps the top panel at 5 or 6 rows). The no-data gap (no flights 06-03-2026 to 07-10-2026, no controller sessions 15-03-2026 to 07-10-2026) is no longer stated on the pages; it is in the import runbook. Collector health keeps its own sentence.
 - **What did not change.** Every other panel on Aircraft and airlines, including Highest groundspeeds (last 7 days), keeps its query and window; no view, migration or collector code changed.
 - **Live now and events (issue 305).** The Departure board panel is removed from that page; it was then still on Pilots: online now (removed there too by issue 313), with the `pilot_latest` view unchanged. The other panels there keep their queries and move up to close the gap.
 
-## The Departure board lists each flight once (07-11-2026, issue 285; pull request pending, not yet merged, not deployed)
+## The Departure board lists each flight once (07-11-2026, issue 285; pull request 299, merged to main on 07-11-2026)
 
 - **What is new.** The view `pilot_latest` (read by both Departure boards and, through `pilot_online_now`, the three "Where pilots currently online come from" charts) now keeps one row per flight, the most recent logon of that pilot, callsign and departure airport, instead of one row per logon; a round trip under one callsign keeps both legs, and the planned departure time is not part of the key (migration `20261107000010`). A reconnect or relog no longer shows the flight twice, sometimes as both ON GROUND and LOGGED OFF. On 07-11-2026 the live data had 17 such pairs (for example DLH1112 three times).
 - **What did not change.** If a pilot's newest logon has no position yet, the older logon still shows. The view's columns, their order and types, the 3 hour window, and no panel query. Pilot counts per region are by distinct pilot and do not move. `online_now` and `network_history` do not read this view.
 
-## Look of Pilot origins, Military and Pilot onboarding (06-11-2026, issue 280, batch 4; pull request pending, not yet merged, not deployed)
+## Look of Pilot origins, Military and Pilot onboarding (06-11-2026, issue 280, batch 4; pull request 298, merged to main on 06-11-2026)
 
 - **What is new.** The last three pages have the "Pilots: online now" look, so every page now matches: donuts with a legend table (the RAAFv aircraft pie is now a donut), the cohort chart as horizontal bars with values, the log-scale chart in one blue, time series with a gradient and a legend table (the two onboarding charts keep their percentage line on the right-hand axis, now in fixed colours), and tables with the larger row height. The tables here mix counts with minutes or percentages, so none has an in-cell bar. The Pilot origins and Military panels that copy a panel on Routes and Aircraft now match their copies, and the copy check no longer has any not-yet-restyled source.
 - **What did not change.** No panel's query, format, time window or column names (`tests/test_dashboards_sql_unchanged.py`).
 - **One correction.** The weekly RAAFv hours chart on Aircraft (and its source on Military) no longer forces whole numbers; the query returns hours to one decimal place.
 
-## Look of Live events, Monday events, Monthly and Collector health (06-11-2026, issue 280, batch 3; pull request pending, not yet merged, not deployed)
+## Look of Live events, Monday events, Monthly and Collector health (06-11-2026, issue 280, batch 3; pull request 296, merged to main on 06-11-2026)
 
 - **What is new.** Four more pages have the "Pilots: online now" look: plain stat cards (Collector health keeps its green, amber and red limits, now in the fixed colours, with red `#D55E00` added to the checker's palette), tables with in-cell bars where the columns share a scale, a status pill on the month column, time series and the monthly bar chart with a gradient and legend table, and a donut with a legend table. The Departure board, Busiest days tables and Monday airborne chart match their sources.
 - **What did not change.** No panel's query, format, time window or column names (`tests/test_dashboards_sql_unchanged.py`). The copy check still compares query, format and window; one entry in its list of not-yet-restyled sources remains, for the Pilot origins donut (batch 4).
 - **Known limits.** The Collector health text wording said orange; it now says amber.
 
-## Look of the five ATC pages (06-11-2026, issue 280, batch 2; pull request pending, not yet merged, not deployed)
+## Look of the five ATC pages (06-11-2026, issue 280, batch 2; pull request 297, merged to main on 06-11-2026)
 
 - **What is new.** ATC overview, positions, hours by rank, position hours and retention have the "Pilots: online now" look: in-cell bars on ranked tables, single-colour horizontal ranked bars with values, time series with a gradient and a legend table, a donut with a legend table, plain stat cards (no sparkline or arrow), a blue heat table for the hours-by-weekday tables, status pills on the lapse and risk columns, and the two hours-online charts as bar charts instead of the old trend panel. The retention gauge is one fixed blue. The retention gauge no longer overlaps the cohort table (layout only).
 - **What did not change.** No panel's query, format, time window or column names; the baseline test passes unchanged.
 
-## Look of Traffic, Routes, Aircraft and Pilots records (06-11-2026, issue 280; pull request pending, not yet merged, not deployed)
+## Look of Traffic, Routes, Aircraft and Pilots records (06-11-2026, issue 280; pull request 295, merged to main on 06-11-2026)
 
 - **What is new.** Four more pages have the "Pilots: online now" look: in-cell bars on ranked tables, single-colour horizontal ranked bars with values, time series with a gradient and a legend table, donuts with a legend table, and the two hours-online charts as bar charts instead of the old trend panel. A shared checker (`grafana/look_rules.py`, run by `grafana/validate_dashboards.py`) keeps the look from drifting, and the look conventions are written in [docs/RUNBOOKS/dashboards.md](docs/RUNBOOKS/dashboards.md).
 - **What did not change.** No panel's query, format, time window or column names. `tests/test_dashboards_sql_unchanged.py` compares every panel on every dashboard with a baseline taken before the change. The other pages (ATC, events, monthly, health, origins, military, new pilots) are restyled in later batches.
 - **Known limits.** Donuts keep Grafana's classic colours (one per slice); tables that mix scales have no bars because Grafana scales a bar against the largest value of any number column.
 
-## Tiered CI for pull requests (06-11-2026, issue 290; pull request pending, not yet merged)
+## Tiered CI for pull requests (06-11-2026, issue 290; pull request 291, merged to main on 06-11-2026)
 
 - **What is new.** A pull request now runs only the checks its changes need. A change to dashboard JSON (and its chart table and dashboard-only tests) runs the dashboard validators, the nav check, config drift, the size budget, the dashboard unit tests and the dashboard SQL tests against the real views (both time zone passes, strict). A change to prose only runs the secret scan. Anything else, any mix, anything the filter does not know, and every change to `.github/` or `ops/ci_scope.py` runs the full suite as before. A final `ci-result` check always reports and fails unless every job the scope needs succeeded; a skipped job never counts as a pass.
 - **What did not change.** Every push to `main` and `dev` still runs the full suite, so the main result that the release workflow and the CI-failure issue read keeps its meaning. No test was removed, weakened or skipped. The rules and the table of paths are in [docs/RUNBOOKS/run-tests.md](docs/RUNBOOKS/run-tests.md) section 1c.
 - **Owner action after merge.** If branch protection is ever switched on, require `ci-result` only (not the individual jobs, which are skipped in lighter scopes).
 
-## Pilots: online now, new look (06-11-2026, issue 280; pull request 287, not yet merged or deployed)
+## Pilots: online now, new look (06-11-2026, issue 280; pull request 287, merged to main on 06-11-2026; the dashboard was deleted later, see the dashboard tidy entries above)
 
 - **What is new.** The dashboard "Pilots: online now" (short address `/live`) has a new look built from Grafana's own options: three stat cards (pilots in the region, pilots on the network, the region's share) with a change against one hour ago on the first two, a 24 hour and a 7 day chart of pilots online, weekday and weekend bar charts of when people are online, one small panel for controllers by hour, a busiest-hours table, and a departure board with status pills and speed and altitude bars. The navigation strip is unchanged.
 - **What is not there.** No sparklines (they sit behind the number in Grafana), no donut or ranked bars, no generated sentences. Grafana cannot do a sidebar, a theme switch or per-card toggles on public dashboards.
 - **What did not change.** The departure board, weekday, weekend and 24 hour queries are the same as before; only the three stat card queries are new (read-only, one hour of `network_history`). The "Live now and events" dashboard keeps the old region card query. The same look for the other 16 dashboards is a later pull request. Duplicate departure rows are issue 285.
 
-## v1 history loaded (05-11-2026, issue 279, ADR-035 accepted; merged in pull request 281 and deployed)
+## v1 history loaded (05-11-2026, issue 279, ADR-035 accepted; pull request 281, merged to main on 05-11-2026)
 
 - **What is new.** On the owner's go, `ops/v1_import/load.sh` committed v1's two summary tables into the live database `vatpac` between 13:00:03 and 13:00:12 UTC on 05-11-2026, after a fresh dump and a clean dry run (0 rejects): 73,532 flights (24-08-2025 to 06-03-2026) into `flight_summary` and 11,270 controller sessions (24-08-2025 to 15-03-2026) into `controller_session`, with negative ids so imported rows cannot meet live rows and can be removed again. It read only the two summary tables, no raw positions. Counts per month match the runbook table, the live rows were untouched, and a second dry run reports every row already loaded and 0 to insert. The CSV extracts were deleted afterwards. The script stays for a repeat or a rollback. Steps: [docs/RUNBOOKS/import-v1-history.md](docs/RUNBOOKS/import-v1-history.md).
 - **What the dashboards show now.** History appears from 24-08-2025, with no data from 15-03-2026 to 07-10-2026 (shown as zero; no panel is changed). Imported flights have no speed, altitude or SELCAL data, and their airborne time is v1's figure capped at time online. Panels with no time axis (lapsed 90+ days, reactivated after 60+ days, retention rate) count the gap as behaviour. The limits are in ADR-035.
 
-## ATC positions, ATC ranks and live events dashboards (04-11-2026, issue 267 groups D, E and F; pull request pending, not yet merged or deployed)
+## ATC positions, ATC ranks and live events dashboards (04-11-2026, issue 267 groups D, E and F; pull request 278, merged to main on 04-11-2026)
 
 - **What is new.** Three new dashboards, "ATC: positions and controllers" (short address `/atc-positions`), "ATC: hours by rank" (`/atc-ranks`) and "Live now and events" (`/live-events`), each with its own public link, answer the catalogue questions D1 to D9, E1 to E10 and F1 to F10: the positions, callsigns and airports with the most hours staffed or sessions, the controllers behind them, the hours by rank and weekday, the latest Monday event, who is controlling now and which whitelisted positions are open, and flights per month. Fixed periods, no inputs. Dashboards, SQL and tests only: no migration and no image release.
 - **The rules.** E2 to E10 use the CURRENT rank of each controller (the latest rating seen; owner decision 04-11-2026), so every controller counts once; the two copies of cards 115 and 116 keep the rank at the time of each session, as the originals do, so their totals differ from the rest of the page. F6 and F7 show only the latest Monday event; the original panels on Events: Monday event still show every week. F10 history starts on 07-10-2026 with no backfill.
 - **Deploy.** This pull request also carries groups B and C, so it needs the steps of the routes and aircraft entry above, for three more dashboards as well: run `python3 ops/grafana_public.py --public-url https://vpac.mpengor.com` on the VM, and the owner pastes the new Traefik labels for the five new short addresses (`/routes`, `/aircraft`, `/atc-positions`, `/atc-ranks` and `/live-events`) in one paste (`--traefik-labels`).
 
-## Routes, airports and aircraft dashboards (04-11-2026, issue 267 groups B and C; pull request pending, not yet merged or deployed)
+## Routes, airports and aircraft dashboards (04-11-2026, issue 267 groups B and C; pull request 278, merged to main on 04-11-2026)
 
 - **What is new.** Two new dashboards, "Routes and airports" (short address `/routes`) and "Aircraft and airlines" (short address `/aircraft`), each with its own public link, answer the catalogue questions B1 to B10 (B7 dropped by the owner) and C1 to C10: routes, busiest airports (departures, arrivals, international arrivals, rolling 24 hours and 7 days), aircraft types, airlines by airborne hours, callsigns, military and RAAFv aircraft and routes, and highest groundspeeds. Fixed periods, no inputs. Dashboard, SQL and tests only: no migration and no image release. Because they are new dashboard files they need the same deploy steps as `/pilots` and `/atc-hours`: run `python3 ops/grafana_public.py --public-url https://vpac.mpengor.com` on the VM, and the owner pastes the two new short-address labels into the Traefik helper (`--traefik-labels`).
 - **The rule.** "Australian airports" means an ICAO code that starts with the configured home prefix (setting `home_icao_prefixes`, currently Y; owner decision 04-11-2026), not the pilot's home airport. The new count and ranking panels count flights with airborne time only (a parked flight is not counted). Copied panels are unchanged and still exist on their original dashboards, so those questions are answered on two dashboards until the owner decides otherwise.
 
-## Pilots: records and totals dashboard (04-11-2026, issue 267 group A; pull request pending, not yet merged or deployed)
+## Pilots: records and totals dashboard (04-11-2026, issue 267 group A; pull request 276, merged to main on 04-11-2026)
 
 - **What is new.** A new dashboard, "Pilots: records and totals" (its own public link, short address `/pilots`), answers ten plain questions about pilots and flights: most airborne hours (7 days), most flights (30 days), most diverse routes (14 days), longest flights (30 days), flights finished per week (12 months), pilots active (90 days), busiest days by flights and by pilots (6 months), when people are online (weekday and weekend hours), and average flight length (7 days, 30 days, since go-live). Fixed periods, no inputs. Dashboard and tests only: no migration and no image release. Because it is a new dashboard file it needs the same deploy steps as `/atc-hours`: run `python3 ops/grafana_public.py --public-url https://vpac.mpengor.com` on the VM, and the owner pastes the new short-address labels into the Traefik helper (`--traefik-labels`).
 - **The rule.** A flight counts once finished; periods are UTC; pilot hours are airborne hours. The new count and ranking panels (most flights, longest flights, flights per week, average length) count flights with airborne time only: a parked flight is not counted (owner decision 04-11-2026). Four panels are new (most flights, longest flights, flights per week, average flight length); the other panels are copies of existing vetted panels.
 - **What does not change.** The copied panels still exist unchanged on their original dashboards (Pilots: traffic, Pilots: online now, Demographics: pilot origins), so those questions are now answered twice until the owner decides otherwise.
 
-## ATC hours staffed by position type (04-11-2026, issue 267 group G; pull request pending, not yet merged or deployed)
+## ATC hours staffed by position type (04-11-2026, issue 267 group G; merged to main on 04-11-2026)
 
 - **What is new.** A new dashboard, "ATC: position hours" (its own public link, short address `/atc-hours`), answers "how many hours were CTR, TWR, APP, DEP, GND, DEL, FSS and FMP positions staffed?": a stacked weekly chart per position type, and a table of the eight types for the last 7 days, last 30 days, last full month and since go-live. It is a new dashboard file, so it needs three steps at deploy time: run `python3 ops/grafana_public.py --public-url https://vpac.mpengor.com` on the VM to create its public link, and the owner pastes the new short-address labels into the Traefik helper (`--traefik-labels`). No migration and no image release.
 - **The rule.** Position-hours: merged controller sessions, clipped to the period, summed per type, so two CTR sectors online for 3 hours count as 6. The type is the callsign suffix, so APP and DEP are separate and CTR excludes FSS.
 - **What does not change.** The existing "CTR hours staffed per week" panel is untouched; its CTR figure can differ slightly because it credits a whole session to the week it started and uses the feed's facility code. FMP may often show 0 (not yet checked how it appears in the feed).
 
-## Images are published automatically after green CI on main (04-11-2026, issue 268; pull request pending, not yet merged or deployed)
+## Images are published automatically after green CI on main (04-11-2026, issue 268; pull requests 269 and 272, merged to main on 04-11-2026)
 
 - **What changes.** The `release` workflow now also starts by itself when the `ci` workflow finishes successfully for a push to main, so the owner no longer has to click "Run workflow" before `make deploy`. It publishes the commit only if it is still main's tip; a run for an older commit stops with a notice and publishes nothing, so `latest` never moves backwards when two CI runs finish out of order.
 - **What does not change.** Nothing deploys by itself: `make deploy` on the VM is still run by hand, and it still refuses to start if the pulled images do not match the checkout. The manual run still works for a rollback or a docs-only tip. No service code changes.
 
-## Poll duration no longer climbs to 30 seconds and resets (27-10-2026, issue 261; pull request 262, not yet merged or deployed)
+## Poll duration no longer climbs to 30 seconds and resets (27-10-2026, issue 261; pull request 262, merged to main on 27-10-2026)
 
 - **The cause.** `poll_history.duration_ms` rose from about 300 ms to about 30 s over 29 to 45 hours, then dropped back. Polls start on a fixed 30 s grid, and the 30 s floor between requests (`MIN_REQUEST_GAP_S`) is also 30 s. The floor stamped the moment it woke up from its wait, so every wake that was a few milliseconds late made the next poll wait a few milliseconds longer, until the wait reached the full 30 s and the schedule re-synchronised. The wait was counted in `duration_ms`; nothing was slow on the network or in the database.
 - **The fix.** The floor still stamps the real send time, so no two requests are ever closer than 30 s. The poll loop now schedules the next poll one interval after the last real send (if that is later than its own tick), so a poll starts only when the floor has already elapsed and the wait is normally 0. After a stall, a 429 or an unchanged feed it recovers in one poll. The cadence is now about 30.003 s instead of a drift-free grid.
 - **Logging.** A poll over 2 s logs a `slow poll` warning with `duration_ms`, `wait_ms` (the floor wait of the last attempt; retry back-off is not counted) and `request_ms` (the GET itself). The first poll after every restart still waits up to 30 s, because the start-up feed discovery counts as a request; that warning is expected.
 
-## Deploy tooling made stricter and shared (22-10-2026, issue 257; merged, not yet deployed)
+## Deploy tooling made stricter and shared (22-10-2026, issue 257; merged to main)
 
 - **`ops/deploy.sh --verify` fails from a stale checkout.** It counts the integrity checks and runs the flap check from the copies of `ops/audit/*.sql` in the checkout it is run from; on 22-10-2026 a stale checkout counted 21 invariants while production runs 20. Now `--verify` first compares the local checkout with the VM checkout. If they differ (or either cannot be read) it prints a "STALE CHECKOUT" banner, fails a `checkout_current` line and stops before the checks that read local files. `--mark <commit>` refuses unless the local `HEAD` is exactly that commit, and `--preflight` and `--status` print `local checkout is at <10 characters>`. `--verify` and `--mark` also fail when there are uncommitted or untracked files under `ops/`, since those are what they run. Run them from a clean checkout of the VM's commit, for example a fresh worktree at that commit (not `origin/main`, which may have moved on since the release).
 - **One reader of the release marker and of `gh` (issue #215).** `ops/release_common.sh` is shared by `ops/deploy.sh` and `ops/stale_issues.sh`: a marker commit of 7 to 40 characters is read the same way in both, and `GH_BIN`, then `DEPLOY_GH`, names the GitHub CLI.
@@ -132,7 +132,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 - **One Grafana client (issue #210).** `ops/grafana_api.py` serves `ops/check_panels.py` and `ops/grafana_public.py`: the admin login goes in clear text only to an address of this machine and over https otherwise, redirects are never followed, and `check_panels.py` prints the message of a non-JSON error reply. Typed with `mypy --strict` in CI.
 - No change to the running stack or its images.
 
-## Retention list panels show the highest rating (22-10-2026, issue 236; merged, not yet deployed)
+## Retention list panels show the highest rating (22-10-2026, issue 236; merged to main)
 
 - The two retention list panels, "Who might need help reactivating?" and "Who reactivated after being away for more than 60 days?", now take the rank group (S1, S2, C1 and so on) from the controller's highest rating. Before, a controller promoted from S2 to C1 showed S2; now C1. Labels and blanks are unchanged. Two integration tests pin it.
 

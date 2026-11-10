@@ -27,7 +27,7 @@ mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/int
 
 ## 1c. What CI runs for which pull request (issue 290, 06-11-2026)
 
-A pull request runs a `scope` job first. It lists the changed paths (`git diff -z --name-status -M`, renames and deletes included) and `ops/ci_scope.py` classifies each one; the most expensive class wins. A push to `main` or `dev` is always the full suite.
+A pull request runs a `scope` job first. It lists the changed paths (`git diff -z --name-status -M`, renames and deletes included) and `ops/ci_scope.py` classifies each one; the most expensive class wins. A push to `main` or `dev` is always the full suite. A push that changes only prose (`*.md` and `docs/`, except `docs/RUNBOOKS/`, `docs/reference/`, `CHART_DEFINITIONS.md`, `DATA_DICTIONARY.md` and `DEFINITIONS.md`, which tests read) does not start this workflow at all; `docs-secret-scan.yml` still scans it, and if the tip of `main` is such a push no CI run exists for it (see "Publishing commit-tagged images" in deploy-to-vm.md).
 
 | Changed paths | Scope | What runs |
 |---|---|---|
@@ -37,6 +37,8 @@ A pull request runs a `scope` job first. It lists the changed paths (`git diff -
 | `collector/`, `db/`, `ops/` (including `ops/ci_scope.py`), `.github/`, `docker-compose*.yml`, `Makefile`, any other test file, `grafana/validate_dashboards.py`, `grafana/look_rules.py`, `grafana/provisioning/`, anything not named above, any mix with these, an empty or unreadable change list | `full` | everything, as before |
 
 The scope job classifies with the base branch's copy of `ops/ci_scope.py` and forces `full` itself when `.github/` or the script is in the change, so a pull request cannot loosen its own filter. `ci-result` is the one check to require: it always runs, and it fails unless every job the scope needs succeeded (a job may be skipped only when the scope does not need it). The lists of dashboard tests are in `ops/ci_scope.py`; `tests/test_ci_scope.py` fails when a test that reads the dashboards is missing from them. Nothing is deselected or skipped inside a scope. To see the answer for your own branch: `git diff -z --name-status -M origin/main | python ops/ci_scope.py`. To run the dashboards-scope tests yourself: `python -m pytest -q -m "not integration" $(python ops/ci_scope.py tests unit)`, and, with the section 1b database, `python -m pytest $(python ops/ci_scope.py tests integration) -m integration -q`.
+
+**Attribution check.** The `commit-attribution` job runs in every scope. It runs `ops/check_no_claude_attribution.py`, which fails the run when any commit message reachable from the checkout, or the pull request title or description, carries a Claude co-author trailer or a "generated with" footer. If the text is in the pull request title or description, edit it and re-run the job; a trailer already in a commit message means that commit must be rewritten on the branch.
 
 ## 1b. Integration tests on the PC with Docker Desktop (works since 13-10-2026; the same database as CI)
 
