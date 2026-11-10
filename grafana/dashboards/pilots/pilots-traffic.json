@@ -294,10 +294,36 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_flights"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
           }
         ]
       },
-      "timeFrom": "14d"
+      "timeFrom": "14d",
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "total_flights",
+                "destinationType": "string"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ]
     },
     {
       "id": 6,
