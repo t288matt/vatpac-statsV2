@@ -9,6 +9,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 ## Dashboard tidy (09-11-2026, issue 326; pull request 327, not yet merged, not deployed)
 
 - **Longer ranges.** "ATC hours staffed per week, by position type" shows the last 14 months (was 12); "CTR hours staffed per week" on ATC: controllers shows the last 24 months (was 12).
+- **VFR routes removed.** "Most popular VFR routes (last 30 days)" is removed from Pilots: traffic (it had already left Routes and airports, issue 317); "Pilots with the most diverse routes" stays at the left of its row.
 - **Live now dashboard removed.** "Pilots: online now" (short address `/live`) is deleted, with its nav link; the other 14 dashboards remain. Needs the server steps in docs/RUNBOOKS/public-access.md ("Remove a dashboard") at deploy.
 - **Controllers online panels removed.** "Controllers online over time", "Controllers online now" and "Controllers online now (list)" are removed from ATC: controllers; the charts below move up.
 - **Hours by weekday and UTC hour removed.** The six "When S1, S2, S3, C1, C3 and I1+ controllers are online" tables are removed from ATC: ranks (issue 326); "Ranks that staffed the latest Monday event" moves up.

@@ -218,59 +218,6 @@
       }
     },
     {
-      "id": 4,
-      "type": "table",
-      "title": "Most popular VFR routes (last 30 days)",
-      "description": "Most popular VFR routes over the last 30 days, flown by at least 3 pilots.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 14,
-        "w": 12,
-        "h": 9
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT route_label AS route,\n       count(DISTINCT cid) AS pilots,\n       count(*) AS flights,\n       round(avg(duration_minutes)::numeric, 1) AS \"Average duration (min)\",\n       min(end_time) AS \"First flight\",\n       max(end_time) AS \"Latest flight\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND f.flight_rules = 'V'\n  AND f.departure <> f.arrival\n  AND NOT f.is_zzzz\nGROUP BY route_label\nHAVING count(DISTINCT cid) >= 3\nORDER BY pilots DESC, flights DESC\nLIMIT 10"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "md",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "fields": ""
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
       "id": 5,
       "type": "table",
       "title": "Pilots with the most diverse routes (last 14 days)",
@@ -280,7 +227,7 @@
         "uid": "vatpac"
       },
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 14,
         "w": 12,
         "h": 9
