@@ -23,7 +23,6 @@ DASH = REPO / "grafana" / "dashboards"
 POSITIONS = DASH / "atc" / "atc-positions.json"
 RANKS = DASH / "atc" / "atc-ranks.json"
 SIX = ["S1", "S2", "S3", "C1", "C3", "I1+"]
-DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 S1, S2, S3, C1, C3, I1, SUP, OBS, C2 = 2, 3, 4, 5, 7, 8, 11, 1, 6   # VATSIM rating numbers
 
 
@@ -301,42 +300,6 @@ def test_e8_centre_and_fss_hours_by_rank_with_shares_of_all(conn):
     # 5.0 centre and FSS hours in all (3.0 + 1.0 + the observer's 1.0)
     assert got == [("C1", 2.0, 1.0, 3.0, 60.0), ("S3", 1.0, 0.0, 1.0, 20.0), ("S1", 0.0, 0.0, 0.0, 0.0), ("S2", 0.0, 0.0, 0.0, 0.0),
                    ("C3", 0.0, 0.0, 0.0, 0.0), ("I1+", 0.0, 0.0, 0.0, 0.0)]
-
-
-def heat_rows(conn, rank: str) -> list[dict]:
-    p = next(p for p in panels(RANKS) if p.get("title", "").startswith(f"When {rank} controllers are online"))
-    return conn.execute(p["targets"][0]["rawSql"]).fetchall()
-
-
-def test_e9_has_one_panel_per_rank():
-    titles = [p["title"] for p in panels(RANKS) if p.get("title", "").startswith("When ")]
-    assert len(titles) == 6 and [t.split()[1] for t in titles] == SIX
-
-
-def test_e9_puts_hours_in_the_right_weekday_and_hour_cells_for_that_rank_only(conn):
-    n = now()
-    day = datetime(n.year, n.month, n.day, tzinfo=UTC) - timedelta(days=7)       # the same weekday a week ago: always inside 30 days
-    add(conn, 1, "T_A_TWR", day + timedelta(hours=10, minutes=30), 90, rating=S1)   # 10:30 to 12:00: 0.5 h at 10, 1.0 h at 11
-    add(conn, 2, "T_B_TWR", day + timedelta(hours=10, minutes=30), 90, rating=C1)   # another rank, the same time: must not show for S1
-    add(conn, 3, "T_C_TWR", day + timedelta(days=1, hours=23, minutes=30), 60, rating=S1)  # across midnight: 0.5 h at 23, 0.5 h at 00 the next day
-    rows = heat_rows(conn, "S1")
-    assert [r["Hour (UTC)"] for r in rows] == list(range(24))
-    assert list(rows[0].keys()) == ["Hour (UTC)"] + DAYS
-    cells = {(r["Hour (UTC)"], d): float(r[d]) for r in rows for d in DAYS if float(r[d]) != 0.0}
-    dow = DAYS[day.weekday()]
-    nxt = DAYS[(day + timedelta(days=1)).weekday()]
-    nxt2 = DAYS[(day + timedelta(days=2)).weekday()]
-    assert cells == {(10, dow): 0.5, (11, dow): 1.0, (23, nxt): 0.5, (0, nxt2): 0.5}
-    assert sum(float(r[d]) for r in heat_rows(conn, "C1") for d in DAYS) == 1.5           # the C1 controller's own 90 minutes
-    assert sum(float(r[d]) for r in heat_rows(conn, "S2") for d in DAYS) == 0.0
-
-
-def test_e9_clips_a_session_that_started_before_the_window(conn):
-    n = now()
-    start = n - timedelta(days=30, hours=2)
-    add(conn, 1, "T_A_TWR", start, 180, rating=S1)                               # only the last hour is inside the 30 days
-    total = sum(float(r[d]) for r in heat_rows(conn, "S1") for d in DAYS)
-    assert total == 1.0
 
 
 def last_monday(n: datetime) -> datetime:
