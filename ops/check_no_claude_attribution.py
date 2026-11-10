@@ -14,9 +14,10 @@ import sys
 
 # One line each. Case does not matter. Dependabot and human co-authors are not matched.
 PATTERNS = (
-    re.compile(r"^\s*co-authored-by:.*(claude|anthropic)", re.IGNORECASE),
+    re.compile(r"^\s*co-authored-by:.*(\bclaude\b|anthropic)", re.IGNORECASE),
     re.compile(r"noreply@anthropic\.com", re.IGNORECASE),
-    re.compile(r"generated with .{0,6}claude", re.IGNORECASE),
+    re.compile(r"(generated|created|made)\s+(with|by)\s+.{0,8}\bclaude\b", re.IGNORECASE),
+    re.compile(r"claude\.com/claude-code", re.IGNORECASE),
 )
 
 
