@@ -384,3 +384,21 @@ def test_a_run_on_main_is_never_cancelled_and_the_secret_scan_sees_all_history()
     for st in steps_of("integration-tests"):
         if str(st.get("name", "")).startswith("pytest"):
             assert st["env"]["VATPAC_TEST_STRICT"] == "1", st["name"]
+
+
+def test_a_checking_command_piped_into_tee_runs_under_pipefail() -> None:
+    """GitHub's default shell is `bash -e` without pipefail, so `check | tee file` takes tee's exit status and a failing check
+    leaves the step green. Every step that pipes into tee must say `set -o pipefail` first (issue 343 review)."""
+    seen = 0
+    for name, job in CI["jobs"].items():
+        for st in job.get("steps", []):
+            run = str(st.get("run", ""))
+            if re.search(r"\|\s*tee\b", run) and "scope" != name:   # the scope job's tee only prints a summary line
+                seen += 1
+                assert "set -o pipefail" in run.split("|")[0] or run.lstrip().startswith("set -o pipefail"), (name, st.get("name"))
+    assert seen >= 1
+
+
+def test_image_build_does_not_wait_for_quick_checks_and_ci_result_still_needs_it() -> None:
+    assert CI["jobs"]["image-build"]["needs"] == "scope"
+    assert {"quick-checks", "image-build"} <= set(CI["jobs"]["ci-result"]["needs"])

@@ -39,8 +39,9 @@ def test_the_partition_ending_exactly_at_the_cutoff_goes_and_the_next_day_stays(
 
 
 def test_a_session_last_seen_exactly_at_the_cutoff_still_pins_its_partition(conn) -> None:
-    """D03 (`last_seen > cutoff`): a session seen at exactly the cutoff is inside the window and keeps its old partition;
-    one microsecond earlier it no longer does."""
+    """D03 (`last_seen > cutoff` at BOTH places in the function): a session seen at exactly the cutoff is inside the window
+    and keeps its old partition; one microsecond earlier it no longer does. Changing only the first (pinning) check is
+    near-equivalent: the re-check before the drop still keeps the partition, so no test can tell that single change apart."""
     sid = mk(conn, 9842001, mins(day(200), 10))
     process_flights(conn)
     conn.execute("UPDATE pilot_session SET last_seen = %s WHERE id = %s", (CUTOFF, sid))

@@ -73,7 +73,7 @@ DG = "drop_old_pilot_position_partitions(integer,date)"
 UR = "unreconciled_partition_sessions(timestamptz,timestamptz)"
 sql("D01", "drop gate", DG, "CONTINUE WHEN p_end > cutoff;", "CONTINUE WHEN p_end > cutoff - interval '24 hours';")
 sql("D02", "drop gate", DG, "CONTINUE WHEN p_end > cutoff;", "CONTINUE WHEN p_end > cutoff + interval '24 hours';")
-sql("D03", "drop gate", DG, "AND s.last_seen >= cutoff;", "AND s.last_seen > cutoff;")
+sql("D03", "drop gate", DG, "AND s.last_seen >= cutoff;", "AND s.last_seen > cutoff;")  # near-equivalent: the re-check before the drop repeats it
 sql("D04", "drop gate", DG, "IF retention_days IS NULL OR retention_days < 1 THEN", "IF retention_days IS NULL OR retention_days < 0 THEN")
 sql("D05", "drop gate", UR, "WHERE s.id IS NULL\n        OR s.flown_upto IS NULL OR", "WHERE s.id IS NULL\n        OR")
 sql("D06", "drop gate", UR, "COALESCE(cov.n, 0) < pos.n)\n    UNION ALL", "cov.n < pos.n)\n    UNION ALL")

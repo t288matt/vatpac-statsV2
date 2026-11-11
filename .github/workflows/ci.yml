@@ -259,6 +259,7 @@ jobs:
       - name: dashboards (validator, with SQL parsing)
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
         run: |
+          set -o pipefail   # the default shell has no pipefail: without it tee's exit status would hide a validator failure
           python grafana/validate_dashboards.py | tee "$RUNNER_TEMP/dashboards.txt"
           grep -q '^sql statements parsed with sqlglot' "$RUNNER_TEMP/dashboards.txt"
       - name: dashboards (navigation check)
@@ -305,7 +306,7 @@ jobs:
 
   image-build:
     runs-on: ubuntu-latest
-    needs: [scope, quick-checks]
+    needs: scope   # not quick-checks: the build runs beside the other jobs; an invalid compose file fails the build too, and ci-result needs every job
     if: needs.scope.outputs.scope == 'full'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
