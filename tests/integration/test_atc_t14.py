@@ -31,6 +31,9 @@ placed inside a given week only ever contributes to that week's row; its tests u
 Panel 15 "CTR hours staffed per week" (issue #259, 27-10-2026) has no v1 card: a plain per-week sum of
 `duration_minutes` on `controller_session_ranked` filtered to `facility = 6` (the VATSIM CTR code), not the
 `is_ctr_fss` flag used elsewhere on this dashboard.
+
+Panel 20 "CTR hours staffed per day (last 14 months)" (issue #325) is the same definition per UTC day: each session
+is clipped to the days it touches, overlapping positions add up, and a day with no CTR time shows 0.
 """
 from __future__ import annotations
 
@@ -48,6 +51,7 @@ CTR_TITLE = "CTR and FSS controllers active (30 days to month end, monthly)"
 ALL_TITLE = "Controllers active (30 days to week end, weekly)"
 RATING_TITLE = "Controllers logged on each week, by rating group"
 CTR_HOURS_TITLE = "CTR hours staffed per week"
+CTR_DAILY_TITLE = "CTR hours staffed per day (last 14 months)"
 
 
 def month_start(months_ago: int) -> datetime:
@@ -200,3 +204,60 @@ def test_ctr_hours_per_week_counts_only_facility_6(conn):
     add_session(conn, 9100051, W1, 60, facility=4, day_offset=2)             # TWR: excluded
     rows = rows_by_bucket(conn, CTR_HOURS_TITLE)
     assert float(rows[W1]["CTR hours"]) == 1.5
+
+
+def utc(day: int, hour: int = 0, minute: int = 0, month: int = 1) -> datetime:
+    return datetime(2026, month, day, hour, minute, tzinfo=UTC)
+
+
+def add_exact_session(conn, cid: int, start: datetime, minutes: int, facility: int) -> None:
+    add_session(conn, cid, start, minutes, callsign=f"TEST{cid}_CTR", facility=facility, day_offset=0)
+
+
+def daily_ctr_hours(conn, frm: datetime, to: datetime, *, role: str | None = None) -> dict[str, float]:
+    """The daily panel's SQL, with its time macros expanded to a fixed window, as {UTC date: hours}."""
+    sql = next(p["targets"][0]["rawSql"] for p in json.loads(DASHBOARD.read_text(encoding="utf-8"))["panels"]
+               if p.get("title") == CTR_DAILY_TITLE)
+    sql = sql.replace("$__timeFrom()", f"'{frm.isoformat()}'").replace("$__timeTo()", f"'{to.isoformat()}'")
+    if role:
+        conn.execute(f"SET ROLE {role}")
+    try:
+        rows = conn.execute(sql).fetchall()
+    finally:
+        if role:
+            conn.execute("RESET ROLE")
+    return {r["time"].astimezone(UTC).strftime("%d-%m-%Y"): float(r["CTR hours"]) for r in rows}
+
+
+def test_ctr_hours_per_day_splits_sessions_at_midnight_utc_and_zero_fills(conn):
+    """Window 10-01-2026 05:00 to 20-01-2026 12:00 UTC: the day containing the start is a whole day, the day of the
+    end is included, and every day in between has a row."""
+    add_exact_session(conn, 9100101, utc(12, 22, 30), 120, 6)    # 22:30 to 00:30: 1.5 h on 12th, 0.5 h on 13th
+    add_exact_session(conn, 9100102, utc(14, 2), 60, 6)          # two positions staffed together:
+    add_exact_session(conn, 9100103, utc(14, 2), 60, 6)          #   2 position-hours on the 14th
+    add_exact_session(conn, 9100104, utc(15, 3), 180, 4)         # TWR: ignored, so the 15th is 0
+    add_exact_session(conn, 9100105, utc(9, 23), 120, 6)         # 23:00 to 01:00 across the window's first midnight: 1 h on the 10th
+    add_exact_session(conn, 9100106, utc(9, 21), 60, 6)          # ends 22:00 on the 9th, before the window: not counted
+    add_exact_session(conn, 9100107, utc(20, 11), 60, 6)         # last day: 1 h
+    add_exact_session(conn, 9100108, utc(20, 13), 60, 6)         # starts after the window ends: not counted
+    got = daily_ctr_hours(conn, utc(10, 5), utc(20, 12))
+    days = [f"{d:02d}-01-2026" for d in range(10, 21)]
+    assert list(got) == days                                     # one row per day, none missing, none extra
+    want = dict.fromkeys(days, 0.0) | {"10-01-2026": 1.0, "12-01-2026": 1.5, "13-01-2026": 0.5, "14-01-2026": 2.0,
+                                       "20-01-2026": 1.0}
+    assert got == want
+
+
+def test_ctr_hours_per_day_does_not_move_with_the_session_time_zone(conn):
+    add_exact_session(conn, 9100111, utc(12, 22, 30), 120, 6)
+    conn.execute("SET TIME ZONE 'Australia/Sydney'")
+    try:
+        got = daily_ctr_hours(conn, utc(10, 5), utc(14, 12))
+    finally:
+        conn.execute("RESET TIME ZONE")
+    assert got["12-01-2026"] == 1.5 and got["13-01-2026"] == 0.5 and got["11-01-2026"] == 0.0
+
+
+def test_ctr_hours_per_day_runs_as_the_read_only_role(conn):
+    add_exact_session(conn, 9100121, utc(12, 22, 30), 120, 6)
+    assert daily_ctr_hours(conn, utc(10, 5), utc(14, 12), role="grafana_ro")["13-01-2026"] == 0.5

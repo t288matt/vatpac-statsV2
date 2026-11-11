@@ -1120,6 +1120,73 @@
         "overrides": []
       },
       "timeFrom": "24M"
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "CTR hours staffed per day (last 14 months)",
+      "description": "Hours CTR positions (facility = 6, the VATSIM Enroute code) were staffed on each UTC day. Position-hours: the time each position was staffed, so three CTR positions staffed together for one hour count as 3 hours. A session that crosses midnight UTC is split between the two days. A day with no CTR sessions shows 0. There are no controller sessions between 15-03-2026 and 07-10-2026, so that stretch shows 0.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 97,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (\n  SELECT generate_series(date_trunc('day', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n                         date_trunc('day', $__timeTo()::timestamptz AT TIME ZONE 'UTC'), interval '1 day') AS day\n), s AS (\n  SELECT session_start AT TIME ZONE 'UTC' AS s_from, session_end AT TIME ZONE 'UTC' AS s_to\n  FROM controller_session_ranked\n  WHERE facility = 6\n    AND session_end >= date_trunc('day', $__timeFrom()::timestamptz AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'\n    AND session_start <= $__timeTo()\n)\nSELECT d.day AT TIME ZONE 'UTC' AS time,\n       round(coalesce(sum(extract(epoch FROM least(s.s_to, d.day + interval '1 day') - greatest(s.s_from, d.day))) FILTER (WHERE s.s_from IS NOT NULL), 0) / 3600.0, 1) AS \"CTR hours\"\nFROM d LEFT JOIN s ON s.s_from < d.day + interval '1 day' AND s.s_to > d.day\nGROUP BY d.day\nORDER BY d.day"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 85,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "left",
+            "axisSoftMin": 0,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "14M"
     }
   ]
 }
