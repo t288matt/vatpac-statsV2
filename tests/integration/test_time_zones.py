@@ -4,7 +4,7 @@ Production is safe because the Grafana role is pinned to UTC (`db/roles.sql`, te
 protect the SQL itself: each one moves the session to a zone where a day or an hour differs from UTC (Sydney is UTC+10 or
 +11, Los Angeles is UTC-7 or -8), builds data whose UTC reading is known, and asserts the UTC answer. Removing any
 `AT TIME ZONE 'UTC'` from the three places below changes an answer in at least one zone (mutants U03, U05, U07 and the
-variants in the commit message). CI also runs the whole integration suite a second time in a Sydney session.
+variants in the commit message). CI runs the integration suite once, with a UTC session (issue 339); the tests here move their own session.
 """
 from __future__ import annotations
 
@@ -64,8 +64,8 @@ def monday_before(days_back: int) -> datetime:
 
 
 def test_the_session_time_zone_is_what_the_run_asked_for(conn) -> None:
-    """CI's second pass sets VATPAC_TEST_EXPECT_TZ together with the DSN option; if the option were silently ignored
-    the pass would prove nothing, so fail here. Without the variable there is nothing to check."""
+    """CI sets VATPAC_TEST_EXPECT_TZ (UTC) together with the DSN option; if the option were silently ignored
+    the run would not be in the zone it claims, so fail here. Without the variable there is nothing to check."""
     expected = os.environ.get("VATPAC_TEST_EXPECT_TZ")
     if expected:
         assert conn.execute("SHOW TimeZone").fetchone()["TimeZone"] == expected
