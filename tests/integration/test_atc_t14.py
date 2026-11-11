@@ -251,3 +251,11 @@ def test_ctr_hours_per_day_splits_sessions_at_midnight_utc_and_zero_fills(conn):
 def test_ctr_hours_per_day_runs_as_the_read_only_role(conn):
     add_exact_session(conn, 9100121, utc(12, 22, 30), 120, 6)
     assert daily_ctr_hours(conn, utc(10, 5), utc(14, 12), role="grafana_ro")["13-01-2026"] == 0.5
+
+
+def test_ctr_hours_per_day_spreads_a_long_session_and_clips_one_that_began_before_the_window(conn):
+    """Window 10-01-2026 05:00 to 14-01-2026 12:00 UTC, run as the read-only role."""
+    add_exact_session(conn, 9100131, utc(11, 20), 30 * 60, 6)    # 20:00 on the 11th to 02:00 on the 13th
+    add_exact_session(conn, 9100132, utc(8, 12), 48 * 60, 6)     # began on the 8th, before the window; ends 12:00 on the 10th
+    got = daily_ctr_hours(conn, utc(10, 5), utc(14, 12), role="grafana_ro")
+    assert got == {"10-01-2026": 12.0, "11-01-2026": 4.0, "12-01-2026": 24.0, "13-01-2026": 2.0, "14-01-2026": 0.0}

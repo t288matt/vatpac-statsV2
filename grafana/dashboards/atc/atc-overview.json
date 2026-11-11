@@ -1125,7 +1125,7 @@
       "id": 20,
       "type": "timeseries",
       "title": "CTR hours staffed per day (last 14 months)",
-      "description": "Hours CTR positions (facility = 6, the VATSIM Enroute code) were staffed on each UTC day. Position-hours: the time each position was staffed, so three CTR positions staffed together for one hour count as 3 hours. A session that crosses midnight UTC is split between the two days. A day with no CTR sessions shows 0. There are no controller sessions between 15-03-2026 and 07-10-2026, so that stretch shows 0.",
+      "description": "Hours CTR positions (facility = 6, the VATSIM Enroute code) were staffed on each UTC day. Position-hours: the time each position was staffed, so three CTR positions staffed together for one hour count as 3 hours. A session that crosses midnight UTC is split between the two days. A day with no CTR sessions shows 0. The first day of the 14 months is a whole day; today's bar is the current day so far.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
