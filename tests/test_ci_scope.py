@@ -374,3 +374,13 @@ def test_the_scope_step_cannot_be_loosened_by_the_pull_request_itself() -> None:
 
     assert forced(z(("M", "ops/ci_scope.py"))) and forced(z(("M", ".github/workflows/ci.yml")))
     assert forced(z(("R100", "docs/a.md", ".github/x"))) and not forced(z(("M", DASH), ("M", "docs/x.md")))
+
+
+def test_a_run_on_main_is_never_cancelled_and_the_secret_scan_sees_all_history() -> None:
+    """Issue 342, mutants W03 and W05, and W04 for the strict flag (the Sydney part of W04 went with issue 339)."""
+    assert CI["concurrency"]["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
+    checkout = next(st for st in steps_of("quick-checks") if str(st.get("uses", "")).startswith("actions/checkout"))
+    assert checkout["with"]["fetch-depth"] == 0   # gitleaks reads the history; a shallow clone would scan almost nothing
+    for st in steps_of("integration-tests"):
+        if str(st.get("name", "")).startswith("pytest"):
+            assert st["env"]["VATPAC_TEST_STRICT"] == "1", st["name"]

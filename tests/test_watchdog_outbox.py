@@ -398,3 +398,19 @@ def test_the_send_cap_is_per_cycle_not_per_flush(clock: Clock, tg: Telegram) -> 
     a.begin_cycle()                                # the next cycle gets a fresh budget
     a.flush()
     assert len(tg.delivered) == 2 * wd.OUTBOX_MAX_SENDS_PER_CYCLE
+
+
+@pytest.mark.parametrize("code", [400, 413])
+def test_a_poison_message_is_dropped_on_exactly_the_fifth_refusal(clock: Clock, tg: Telegram, code: int) -> None:
+    """Issue 342, mutants C11 (OUTBOX_MAX_REJECTIONS = 500) and C12 (413 no longer poison): the limit is pinned as the number
+    5, not as the constant, and both statuses Telegram uses for a bad message count."""
+    state: dict[str, Any] = {}
+    a = make(tg, state)
+    tg.status = code
+    a.send("WARN x: d")                            # send() tries once at once: refusal number 1
+    assert tg.attempts == 1 and len(state["outbox"]) == 1
+    for attempt in range(2, 6):
+        clock.now += 100_000                       # beyond any back-off: every flush really tries
+        a.flush()
+        assert tg.attempts == attempt
+        assert len(state["outbox"]) == (1 if attempt < 5 else 0), (code, attempt)
