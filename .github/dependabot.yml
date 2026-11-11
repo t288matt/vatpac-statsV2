@@ -10,14 +10,32 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # one pull request for all version updates of this entry; security updates are not grouped and stay separate
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
   - package-ecosystem: docker
     directory: /collector
     schedule:
       interval: weekly
+    # one pull request for all version updates of this entry; security updates are not grouped and stay separate
+    groups:
+      docker-collector:
+        applies-to: version-updates
+        patterns:
+          - "*"
   - package-ecosystem: docker
     directory: /ops/backup
     schedule:
       interval: weekly
+    # one pull request for all version updates of this entry; security updates are not grouped and stay separate
+    groups:
+      docker-ops-backup:
+        applies-to: version-updates
+        patterns:
+          - "*"
     ignore:
       - dependency-name: postgres
         update-types: ["version-update:semver-major"]
@@ -25,6 +43,12 @@ updates:
     directory: /ops/migrate
     schedule:
       interval: weekly
+    # one pull request for all version updates of this entry; security updates are not grouped and stay separate
+    groups:
+      docker-ops-migrate:
+        applies-to: version-updates
+        patterns:
+          - "*"
     ignore:
       - dependency-name: amacneil/dbmate
         update-types: ["version-update:semver-major"]
@@ -32,20 +56,44 @@ updates:
     directory: /ops/watchdog
     schedule:
       interval: weekly
+    # one pull request for all version updates of this entry; security updates are not grouped and stay separate
+    groups:
+      docker-ops-watchdog:
+        applies-to: version-updates
+        patterns:
+          - "*"
   - package-ecosystem: pip
     directory: /collector
     schedule:
       interval: weekly
+    # one pull request for all version updates of this entry; security updates are not grouped and stay separate
+    groups:
+      pip-collector:
+        applies-to: version-updates
+        patterns:
+          - "*"
     # numpy is no longer ignored (14-10-2026). It needs the x86-64-v2 CPU baseline, so the VM's Proxmox CPU type must be
     # 'host' or 'x86-64-v2-AES' (the default kvm64 crash-looped the collector on 07-10-2026). CI cannot catch it (modern runners).
   - package-ecosystem: pip
     directory: /ops/watchdog
     schedule:
       interval: weekly
+    # one pull request for all version updates of this entry; security updates are not grouped and stay separate
+    groups:
+      pip-ops-watchdog:
+        applies-to: version-updates
+        patterns:
+          - "*"
   - package-ecosystem: docker-compose
     directory: /
     schedule:
       interval: weekly
+    # one pull request for all version updates of this entry; security updates are not grouped and stay separate
+    groups:
+      docker-compose:
+        applies-to: version-updates
+        patterns:
+          - "*"
     ignore:
       - dependency-name: postgres
         update-types: ["version-update:semver-major"]
