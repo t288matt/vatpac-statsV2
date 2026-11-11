@@ -65,9 +65,11 @@ jobs:
           echo "scope=$scope" >> "$GITHUB_OUTPUT"
           echo "CI scope: $scope (event: $EVENT)" | tee -a "$GITHUB_STEP_SUMMARY"
 
-  lint:
+  # Unit tests, and in the full scope the lint checks (ruff, mypy, shell syntax), which used to be a separate `lint` job (issue 340).
+  # Every check step runs even when an earlier one failed (`!cancelled()`), so one run still reports every failing check by name.
+  unit-tests:
     needs: scope
-    if: needs.scope.outputs.scope == 'full'
+    if: needs.scope.outputs.scope != 'docs'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -82,48 +84,40 @@ jobs:
         run: |
           pip install -r collector/requirements.txt
           if [ -f collector/requirements-dev.txt ]; then pip install -r collector/requirements-dev.txt; fi
-          pip install "ruff==${RUFF_VERSION}" "mypy==${MYPY_VERSION}" pyyaml==6.0.2 types-PyYAML==6.0.12.20260906
+          pip install pytest pyyaml==6.0.2
+      - name: Install lint tools
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
+        run: pip install "ruff==${RUFF_VERSION}" "mypy==${MYPY_VERSION}" types-PyYAML==6.0.12.20260906
       - name: ruff (collector)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         run: cd collector && ruff check .
       - name: mypy (collector)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         run: cd collector && mypy src
       - name: ruff (ops python)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         run: ruff check --config ops/ruff.toml ops
       - name: mypy (ops python)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         run: >
           mypy --strict --ignore-missing-imports
           ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py
           ops/check_panels.py ops/grafana_public.py ops/grafana_api.py ops/env_file.py ops/ci_scope.py
       - name: shell syntax (ops scripts)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         run: |
           for f in ops/*.sh ops/migrate/*.sh; do [ "$f" = ops/deploy.sh ] || [ "$f" = ops/stale_issues.sh ] || sh -n "$f"; done
           for f in ops/backup/*.sh ops/deploy.sh ops/stale_issues.sh; do bash -n "$f"; done
 
-  unit-tests:
-    needs: scope
-    if: needs.scope.outputs.scope != 'docs'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.14"
-          cache: pip
-          cache-dependency-path: collector/requirements*.txt
-      - name: Install
-        run: |
-          pip install -r collector/requirements.txt
-          if [ -f collector/requirements-dev.txt ]; then pip install -r collector/requirements-dev.txt; fi
-          pip install pytest pyyaml==6.0.2
       - name: pytest (unit; integration tests need Postgres and are marked)
-        if: needs.scope.outputs.scope == 'full'
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         env:
           PYTHONPATH: collector/src
         run: pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv
       # Dashboards scope: the same command on the dashboard test files only (the list lives in ops/ci_scope.py, and
       # tests/test_ci_scope.py fails if a test that reads the dashboards is missing from it). Nothing is deselected.
       - name: pytest (unit, dashboards scope)
-        if: needs.scope.outputs.scope == 'dashboards'
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'dashboards' }}
         env:
           PYTHONPATH: collector/src
         run: |
@@ -184,94 +178,97 @@ jobs:
           pip install -r collector/requirements.txt
           pip install pytest pytest-asyncio
       # VATPAC_TEST_STRICT=1: a missing database or ANY skipped test fails the run (tests/integration/conftest.py), so a
-      # green result cannot hide tests that did not run.
-      - name: pytest (integration)
+      # green result cannot hide tests that did not run. One pass only, in UTC (owner decision 11-11-2026, issue 339: the
+      # system, the database sessions and every dashboard are UTC). The test connection's session time zone is set to UTC
+      # explicitly in the DSN, so the run does not depend on the runner's zone, and VATPAC_TEST_EXPECT_TZ makes
+      # tests/integration/test_time_zones.py fail if that option were silently ignored. Individual tests that move their own
+      # session to another zone (test_time_zones.py and others) still do so; grafana_ro is pinned to UTC in db/roles.sql
+      # (tests/integration/test_roles.py::test_grafana_ro_timezone_is_pinned_to_utc).
+      - name: pytest (integration, UTC)
         if: needs.scope.outputs.scope == 'full'
         env:
           PYTHONPATH: collector/src
           VATPAC_TEST_STRICT: "1"
-          VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test
-          VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
-        run: pytest tests/integration -m integration -q
-      # Second pass, same database and same tests, but the test connection's session time zone is Australia/Sydney
-      # (production is UTC and grafana_ro is pinned to UTC, so only the tests' own connection moves). This is what
-      # catches SQL that stopped converting to UTC (issue #51, mutants U03, U05, U07 in the test audit). It adds about a minute.
-      - name: pytest (integration, session time zone Australia/Sydney)
-        if: needs.scope.outputs.scope == 'full'
-        env:
-          PYTHONPATH: collector/src
-          VATPAC_TEST_STRICT: "1"
-          VATPAC_TEST_EXPECT_TZ: Australia/Sydney
-          VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test?options=-c%20TimeZone%3DAustralia/Sydney
+          VATPAC_TEST_EXPECT_TZ: UTC
+          VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test?options=-c%20TimeZone%3DUTC
           VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
         run: pytest tests/integration -m integration -q
       # Dashboards scope: the integration tests that run dashboard SQL against the views, on the same database, built the same
-      # way, in strict mode and in both time zone passes. Collector, migration and role tests are not run here.
-      - name: pytest (integration, dashboards scope)
+      # way, in strict mode and in UTC. Collector, migration and role tests are not run here.
+      - name: pytest (integration, dashboards scope, UTC)
         if: needs.scope.outputs.scope == 'dashboards'
         env:
           PYTHONPATH: collector/src
           VATPAC_TEST_STRICT: "1"
-          VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test
-          VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
-        run: |
-          read -r -a targets <<< "$(python ops/ci_scope.py tests integration)"
-          [ "${#targets[@]}" -gt 0 ]   # an empty list would run more than intended; stop instead
-          pytest "${targets[@]}" -m integration -q
-      - name: pytest (integration, dashboards scope, session time zone Australia/Sydney)
-        if: needs.scope.outputs.scope == 'dashboards'
-        env:
-          PYTHONPATH: collector/src
-          VATPAC_TEST_STRICT: "1"
-          VATPAC_TEST_EXPECT_TZ: Australia/Sydney
-          VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test?options=-c%20TimeZone%3DAustralia/Sydney
+          VATPAC_TEST_EXPECT_TZ: UTC
+          VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test?options=-c%20TimeZone%3DUTC
           VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
         run: |
           read -r -a targets <<< "$(python ops/ci_scope.py tests integration)"
           [ "${#targets[@]}" -gt 0 ]   # an empty list would run more than intended; stop instead
           pytest "${targets[@]}" -m integration -q
 
-  config-drift:
+  # The small checks, one job of named steps (issue 340; each used to be its own job, and each job is billed in whole minutes).
+  # Every step runs even when an earlier one failed (`!cancelled()`), so one run reports every failing check by its own step.
+  # The secret scan and the attribution check run in every scope, and even when the scope job failed (the job has no condition
+  # on the scope, only on cancellation); the other steps run only in the scopes that need them (ops/ci_scope.py;
+  # tests/test_ci_scope.py runs these conditions for every scope).
+  quick-checks:
     needs: scope
-    if: needs.scope.outputs.scope != 'docs'
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read  # gitleaks lists the commits of a pull request
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: secret-scan (gitleaks)
+        if: ${{ !cancelled() }}
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Working agreement section 10 (10-11-2026): no commit message or pull request text may carry a Claude attribution. Runs in
+      # every scope. It scans all history reachable from the checkout, so an old branch merged in with a trailer is caught too.
+      - name: commit-attribution (no Claude attribution in commits or pull request text)
+        if: ${{ !cancelled() }}
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 ops/check_no_claude_attribution.py
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
         with:
           python-version: "3.14"
-      - run: pip install pyyaml==6.0.2
-      - name: collector settings vs compose vs .env.example
+      - name: Install
+        if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
+        run: pip install pyyaml==6.0.2
+      - name: config-drift (collector settings vs compose vs .env.example)
+        if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
         run: python ops/check_config_drift.py
-
-  dashboards:
-    needs: scope
-    if: needs.scope.outputs.scope != 'docs'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.14"
-      - run: python grafana/validate_dashboards.py
-      - run: python ops/dashboard_nav.py --check
-
-  compose-config:
-    needs: scope
-    if: needs.scope.outputs.scope == 'full'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Validate compose files with a generated throwaway env
+      - name: dashboards (validator)
+        if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
+        run: python grafana/validate_dashboards.py
+      - name: dashboards (navigation check)
+        if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
+        run: python ops/dashboard_nav.py --check
+      - name: size-budget
+        if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
+        run: python ops/check_size_budget.py
+      - name: compose-config (compose files with a generated throwaway env)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         # .env.example has blank secrets by design, so compose would fail on it
         run: |
           sh ops/gen_env.sh "$RUNNER_TEMP/ci.env"
           sh ops/check_env.sh "$RUNNER_TEMP/ci.env"
           docker compose --env-file "$RUNNER_TEMP/ci.env" config -q
           docker compose --env-file "$RUNNER_TEMP/ci.env" -f docker-compose.yml -f docker-compose.dev.yml config -q
-      - name: Image names resolve in local and registry mode (issue 173)
+      - name: compose-config (image names resolve in local and registry mode, issue 173)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         # The four built services must resolve to vatpac-stats-<name>:latest with both variables unset, to
         # <prefix>vatpac-stats-<name>:latest with the prefix alone, and to <prefix>...:<tag> with a tag override (the names the release workflow publishes).
+        # It reads the env file the previous step generated.
         run: |
           want="collector watchdog backup migrate"
           got="$(env -u VATPAC_IMAGE_PREFIX -u VATPAC_IMAGE_TAG docker compose --env-file "$RUNNER_TEMP/ci.env" config --images | grep 'vatpac-stats-' | sort)"
@@ -283,53 +280,16 @@ jobs:
           got="$(VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/ VATPAC_IMAGE_TAG=sha-abc1234 docker compose --env-file "$RUNNER_TEMP/ci.env" config --images | grep 'vatpac-stats-' | sort)"
           exp="$(for n in $want; do echo "ghcr.io/t288matt/vatpac-stats-$n:sha-abc1234"; done | sort)"
           [ "$got" = "$exp" ] || { echo "registry mode images differ"; echo "$got"; exit 1; }
-      - name: Blank secrets must fail (H4 guard)
+      - name: compose-config (blank secrets must fail, H4 guard)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         run: |
           if docker compose --env-file .env.example config -q 2>/dev/null; then
             echo ".env.example boots with blank secrets"; exit 1
           fi
 
-  size-budget:
-    needs: scope
-    if: needs.scope.outputs.scope != 'docs'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.14"
-      - run: python ops/check_size_budget.py
-
-  secret-scan:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read  # gitleaks lists the commits of a pull request
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Working agreement section 10 (10-11-2026): no commit message or pull request text may carry a Claude attribution. Runs in
-  # every scope. It scans all history reachable from the checkout, so an old branch merged in with a trailer is caught too.
-  commit-attribution:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: No Claude attribution in commits or pull request text
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: python3 ops/check_no_claude_attribution.py
-
   image-build:
     runs-on: ubuntu-latest
-    needs: [scope, compose-config]
+    needs: [scope, quick-checks]
     if: needs.scope.outputs.scope == 'full'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -343,7 +303,7 @@ jobs:
   # and it fails unless every job the scope needs succeeded; a job may be skipped only when the scope says it is not needed
   # (ops/ci_scope.py verify, tested in tests/test_ci_scope.py). A skipped job is never read as a pass.
   ci-result:
-    needs: [scope, lint, unit-tests, integration-tests, config-drift, dashboards, compose-config, size-budget, secret-scan, commit-attribution, image-build]
+    needs: [scope, unit-tests, integration-tests, quick-checks, image-build]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:

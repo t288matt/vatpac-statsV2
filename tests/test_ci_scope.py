@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -123,18 +124,19 @@ def test_unreadable_change_lists_are_full(data: bytes) -> None:
 def test_verify_requires_everything_the_scope_needs() -> None:
     ok_full = {j: "success" for j in cs.FULL_JOBS}
     assert cs.verify("full", ok_full) == []
-    assert cs.verify("full", {**ok_full, "lint": "skipped"})                 # a skipped job is not a pass for full
+    assert cs.verify("full", {**ok_full, "unit-tests": "skipped"})           # a skipped job is not a pass for full
     assert cs.verify("full", {**ok_full, "integration-tests": "failure"})
+    assert cs.verify("full", {**ok_full, "quick-checks": "failure"})
     assert cs.verify("full", {**ok_full, "image-build": "cancelled"})
-    assert cs.verify("full", {k: v for k, v in ok_full.items() if k != "lint"})   # a missing job fails
-    dash = {j: "success" for j in cs.DASHBOARD_JOBS} | {j: "skipped" for j in ("lint", "compose-config", "image-build")}
+    assert cs.verify("full", {k: v for k, v in ok_full.items() if k != "quick-checks"})   # a missing job fails
+    dash = {j: "success" for j in cs.DASHBOARD_JOBS} | {"image-build": "skipped"}
     assert cs.verify("dashboards", dash) == []
     assert cs.verify("dashboards", {**dash, "integration-tests": "skipped"})   # needed in this scope
-    assert cs.verify("dashboards", {**dash, "dashboards": "skipped"})
-    assert cs.verify("dashboards", {**dash, "lint": "failure"})
-    docs = {j: "skipped" for j in cs.FULL_JOBS} | {"scope": "success", "secret-scan": "success", "commit-attribution": "success"}
+    assert cs.verify("dashboards", {**dash, "quick-checks": "skipped"})
+    assert cs.verify("dashboards", {**dash, "image-build": "failure"})
+    docs = {j: "skipped" for j in cs.FULL_JOBS} | {"scope": "success", "quick-checks": "success"}
     assert cs.verify("docs", docs) == []
-    assert cs.verify("docs", {**docs, "secret-scan": "skipped"})          # the scan must have run
+    assert cs.verify("docs", {**docs, "quick-checks": "skipped"})         # the secret scan and attribution check must have run
     assert cs.verify("docs", {**docs, "unit-tests": "failure"})
     assert cs.verify("", ok_full) and cs.verify("None", ok_full) and cs.verify("everything", ok_full)
 
@@ -158,7 +160,7 @@ def test_cli_verify_reads_the_needs_json_and_fails_closed() -> None:
         return json.dumps(n)
     good = {j: "success" for j in cs.FULL_JOBS}
     assert run_cli("verify", env={"NEEDS_JSON": needs("full", good)}).returncode == 0
-    assert run_cli("verify", env={"NEEDS_JSON": needs("full", {**good, "lint": "skipped"})}).returncode == 1
+    assert run_cli("verify", env={"NEEDS_JSON": needs("full", {**good, "quick-checks": "skipped"})}).returncode == 1
     assert run_cli("verify", env={"NEEDS_JSON": "not json"}).returncode == 1
     assert run_cli("verify", env={"NEEDS_JSON": "{}"}).returncode == 1
     # the scope job itself failed: it has no output, so nothing can pass
@@ -225,33 +227,128 @@ def test_ci_result_always_runs_and_waits_for_every_job() -> None:
     assert res["if"].replace(" ", "") in ("${{always()}}", "always()")
     assert set(res["needs"]) == set(jobs) - {"ci-result"}
     assert set(cs.FULL_JOBS) == set(jobs) - {"ci-result"}
+    assert set(jobs) == {"scope", "quick-checks", "unit-tests", "integration-tests", "image-build", "ci-result"}   # issue 340
+
+
+def runs_in(cond: str | None, scope: str) -> bool:
+    """Evaluate a job or step `if` of ci.yml for a scope, as GitHub would when nothing has failed or been cancelled
+    (`success()` is true, `!cancelled()` is true). Only the pieces ci.yml uses are understood; anything else fails the test."""
+    if cond is None:
+        return True
+    expr = cond.strip()
+    if expr.startswith("${{") and expr.endswith("}}"):
+        expr = expr[3:-2]
+    expr = expr.replace("!cancelled()", "True").replace("needs.scope.outputs.scope", repr(scope))
+    expr = expr.replace("&&", " and ").replace("||", " or ")
+    assert not re.search(r"[A-Za-z_]+\(|needs\.|github\.", expr), cond
+    return bool(eval(expr, {"__builtins__": {}}, {"True": True}))  # noqa: S307  (a literal expression built above)
+
+
+SCOPES = ("docs", "dashboards", "full", "", "garbage")   # the last two: the scope job failed and left no (or a wrong) output
 
 
 def test_every_job_is_gated_by_the_scope_it_needs() -> None:
-    """The `if` of each job, against ci_scope.NEEDED: which scopes run a job must be exactly the scopes that need it."""
+    """The `if` of each job, run for every scope, against ci_scope.NEEDED. quick-checks has no scope condition at job level on
+    purpose (its secret scan and attribution steps run in every scope, even when the scope job failed); its steps are held below."""
     jobs = CI["jobs"]
+    assert "if" not in jobs["scope"] and "needs" not in jobs["scope"]
     for name, job in jobs.items():
-        if name in ("scope", "ci-result", "secret-scan", "commit-attribution"):
-            assert "if" not in job or name == "ci-result", name   # scope and the secret scan run in every scope
+        if name in ("scope", "ci-result"):
             continue
         assert job["needs"] == "scope" or "scope" in job["needs"], name
-        cond = job["if"].replace(" ", "")
-        runs_in = {s for s in cs.NEEDED if (f"=='{s}'" in cond and "!=" not in cond) or (s != "docs" and cond.endswith("!='docs'"))}
-        wanted = {s for s, jobs_needed in cs.NEEDED.items() if name in jobs_needed}
-        assert runs_in == wanted, f"{name}: runs in {runs_in}, ci_scope.NEEDED says {wanted}"
-    assert all("if" not in jobs[j] for j in ("scope", "secret-scan", "commit-attribution"))
-    assert "needs" not in jobs["secret-scan"]   # a failed scope job cannot stop the secret scan
+        if name == "quick-checks":
+            assert all(runs_in(job["if"], s) for s in SCOPES), "quick-checks must start in every scope"
+            continue
+        for s in cs.NEEDED:
+            assert runs_in(job["if"], s) == (name in cs.NEEDED[s]), f"{name} in scope {s}"
 
 
-def test_the_dashboards_scope_steps_use_the_scope_and_the_full_steps_are_untouched() -> None:
-    steps = [st for j in ("unit-tests", "integration-tests") for st in CI["jobs"][j]["steps"] if "if" in st]
-    by_scope: dict[str, int] = {}
+# Which scopes run each step, by the start of the step name. Every step of these two jobs must be in a table.
+ALL, NOT_DOCS, FULL_ONLY, DASH_ONLY = {"docs", "dashboards", "full"}, {"dashboards", "full"}, {"full"}, {"dashboards"}
+QUICK_STEPS = {
+    "secret-scan": ALL, "commit-attribution": ALL,
+    "actions/setup-python": NOT_DOCS, "Install": NOT_DOCS, "config-drift": NOT_DOCS, "dashboards": NOT_DOCS,
+    "size-budget": NOT_DOCS, "compose-config": FULL_ONLY,
+}
+UNIT_STEPS = {
+    "Install lint tools": FULL_ONLY, "ruff": FULL_ONLY, "mypy": FULL_ONLY, "shell syntax": FULL_ONLY,
+    "pytest (unit; ": FULL_ONLY, "pytest (unit, dashboards scope)": DASH_ONLY,
+}
+
+
+def steps_of(job: str) -> list[dict[str, Any]]:
+    return list(CI["jobs"][job]["steps"])
+
+
+def test_each_quick_check_step_runs_in_exactly_the_scopes_that_need_it() -> None:
+    seen = set()
+    for st in steps_of("quick-checks"):
+        if str(st.get("uses", "")).startswith("actions/checkout"):
+            continue
+        name = str(st.get("name") or str(st["uses"]).split("@")[0])
+        key = next((k for k in sorted(QUICK_STEPS, key=len, reverse=True) if name.startswith(k)), None)
+        assert key, f"quick-checks step {name!r} is not in the table above: say which scopes run it"
+        seen.add(key)
+        got = {s for s in ("docs", "dashboards", "full") if runs_in(st.get("if"), s)}
+        assert got == QUICK_STEPS[key], f"{name}: runs in {got}, expected {QUICK_STEPS[key]}"
+        assert "!cancelled()" in str(st.get("if")), f"{name}: must run even when an earlier step failed"
+        if key in ("secret-scan", "commit-attribution"):
+            assert runs_in(st["if"], "") and runs_in(st["if"], "garbage"), f"{name} must run even if the scope job failed"
+    assert seen == set(QUICK_STEPS)   # every check that was a job is still a step
+
+
+def test_each_unit_test_job_step_runs_in_exactly_the_scopes_that_need_it() -> None:
+    seen = set()
+    for st in steps_of("unit-tests")[2:]:   # the checkout and setup-python steps run whenever the job runs
+        name = str(st["name"])
+        if name == "Install":
+            continue
+        key = next((k for k in sorted(UNIT_STEPS, key=len, reverse=True) if name.startswith(k)), None)
+        assert key, f"unit-tests step {name!r} is not in the table above"
+        seen.add(key)
+        got = {s for s in ("docs", "dashboards", "full") if runs_in(st.get("if"), s)}
+        assert got == UNIT_STEPS[key], f"{name}: runs in {got}, expected {UNIT_STEPS[key]}"
+        assert "!cancelled()" in str(st["if"]), f"{name}: must run even when an earlier step failed"
+        assert not runs_in(st["if"], ""), f"{name} must not run on an unknown scope"
+    assert seen == set(UNIT_STEPS)   # lint (ruff, mypy, shell syntax) is still checked, in the same job as the unit tests
+
+
+def test_no_check_can_pass_by_being_allowed_to_fail() -> None:
+    text = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "continue-on-error" not in text and "|| true" not in text
+
+
+def test_the_checks_that_used_to_be_jobs_still_run_these_commands() -> None:
+    """The old jobs, by the command each ran; each must still be a step of quick-checks or unit-tests (issue 340)."""
+    runs = "\n".join(str(st.get("run", "")) for j in ("quick-checks", "unit-tests") for st in steps_of(j))
+    for cmd in ("python ops/check_config_drift.py", "python grafana/validate_dashboards.py", "python ops/dashboard_nav.py --check",
+                "python ops/check_size_budget.py", "python3 ops/check_no_claude_attribution.py", "sh ops/gen_env.sh",
+                "sh ops/check_env.sh", 'docker compose --env-file "$RUNNER_TEMP/ci.env" config -q', "config --images",
+                "docker compose --env-file .env.example config -q",
+                "cd collector && ruff check .", "cd collector && mypy src", "ruff check --config ops/ruff.toml ops",
+                "mypy --strict --ignore-missing-imports", "sh -n", "bash -n"):
+        assert cmd in runs, cmd
+    assert any(str(st.get("uses", "")).startswith("gitleaks/gitleaks-action@") for st in steps_of("quick-checks"))
+
+
+def test_integration_runs_once_in_utc_and_no_pass_uses_another_zone() -> None:
+    steps = [st for st in steps_of("integration-tests") if str(st.get("name", "")).startswith("pytest")]
+    assert sorted(str(st["if"]).split("'")[1] for st in steps) == ["dashboards", "full"]   # one pass per scope
     for st in steps:
-        by_scope[st["if"].split("'")[1]] = by_scope.get(st["if"].split("'")[1], 0) + 1
-    assert by_scope == {"full": 3, "dashboards": 3}   # unit once and integration twice (two time zones), for each scope
-    full_runs = {st["run"] for st in steps if "'full'" in st["if"]}
-    dash_runs = sorted(st["run"] for st in steps if "'dashboards'" in st["if"])
-    assert dash_runs == sorted([UNIT_RUN, INTEG_RUN, INTEG_RUN])   # exact text: widening them to all of tests/ fails
+        env = st["env"]
+        assert env["VATPAC_TEST_EXPECT_TZ"] == "UTC", st["name"]
+        assert env["VATPAC_TEST_DSN"].endswith("?options=-c%20TimeZone%3DUTC"), st["name"]   # explicit, not the runner's zone
+        assert env["VATPAC_TEST_STRICT"] == "1"
+    text = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "Sydney" not in text   # issue 339: no second time zone pass
+
+
+def test_the_scope_steps_run_the_exact_commands_and_the_full_steps_are_untouched() -> None:
+    unit = [st for st in steps_of("unit-tests") if str(st.get("name", "")).startswith("pytest")]
+    integ = [st for st in steps_of("integration-tests") if str(st.get("name", "")).startswith("pytest")]
+    dash_runs = sorted(str(st["run"]) for st in unit + integ if "'dashboards'" in str(st["if"]))
+    assert dash_runs == sorted([UNIT_RUN, INTEG_RUN])   # exact text: widening them to all of tests/ fails
+    full_runs = {str(st["run"]) for st in unit + integ if "'full'" in str(st["if"])}
     assert full_runs == {'pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv',
                          "pytest tests/integration -m integration -q"}
 
