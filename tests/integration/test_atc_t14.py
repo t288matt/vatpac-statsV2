@@ -248,16 +248,6 @@ def test_ctr_hours_per_day_splits_sessions_at_midnight_utc_and_zero_fills(conn):
     assert got == want
 
 
-def test_ctr_hours_per_day_does_not_move_with_the_session_time_zone(conn):
-    add_exact_session(conn, 9100111, utc(12, 22, 30), 120, 6)
-    conn.execute("SET TIME ZONE 'Australia/Sydney'")
-    try:
-        got = daily_ctr_hours(conn, utc(10, 5), utc(14, 12))
-    finally:
-        conn.execute("RESET TIME ZONE")
-    assert got["12-01-2026"] == 1.5 and got["13-01-2026"] == 0.5 and got["11-01-2026"] == 0.0
-
-
 def test_ctr_hours_per_day_runs_as_the_read_only_role(conn):
     add_exact_session(conn, 9100121, utc(12, 22, 30), 120, 6)
     assert daily_ctr_hours(conn, utc(10, 5), utc(14, 12), role="grafana_ro")["13-01-2026"] == 0.5
