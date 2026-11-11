@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 from conftest import REPO
-from helpers import add_flight, make_session, run, run_panel, set_up_clock, session_ending, write_all
+from helpers import add_flight, make_session, run, run_panel, session_ending, set_up_clock, write_all
 
 pytestmark = pytest.mark.integration
 
