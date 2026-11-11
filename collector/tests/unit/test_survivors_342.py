@@ -50,8 +50,9 @@ def test_a_429_hands_the_feeds_retry_after_to_the_loop() -> None:
 
 def _drive(monkeypatch: pytest.MonkeyPatch, polls: int, work_s: float = 0.0, jitter_s: float = 0.002,
            seed: int = 7) -> tuple[list[float], list[float]]:
-    """The real poll_loop and FeedClient on a virtual clock. Every sleep wakes late by a random amount up to ``jitter_s``;
-    each poll then spends ``work_s`` of virtual time after its request (database work). Returns (send times, floor waits)."""
+    """The real poll_loop and FeedClient on a virtual clock. Every sleep wakes late by a random amount up to
+    ``jitter_s``; each poll then spends ``work_s`` of virtual time after its request (database work).
+    Returns (send times, floor waits)."""
     clock, rng = [1000.0], random.Random(seed)
     starts: list[float] = []
     sends: list[float] = []
@@ -84,8 +85,8 @@ def _drive(monkeypatch: pytest.MonkeyPatch, polls: int, work_s: float = 0.0, jit
 
 
 def test_an_overrunning_poll_skips_to_the_next_whole_tick_not_a_burst(monkeypatch: pytest.MonkeyPatch) -> None:
-    """B04 (math.floor instead of math.ceil): a poll whose work takes 40 s (1.33 intervals) must be followed by the next
-    tick on the grid, 60 s after the last one. With floor the loop starts again at once (40 s), a catch-up burst."""
+    """B04 (math.floor instead of math.ceil): a poll whose work takes 40 s (1.33 intervals) must be followed by the
+    next tick on the grid, 60 s after the last one. With floor the loop starts again at once (40 s), a burst."""
     sends, _ = _drive(monkeypatch, 20, work_s=40.0, jitter_s=0.0)
     gaps = [b - a for a, b in zip(sends, sends[1:], strict=False)]
     assert all(abs(g - 60.0) < 0.01 for g in gaps), gaps
@@ -93,8 +94,8 @@ def test_an_overrunning_poll_skips_to_the_next_whole_tick_not_a_burst(monkeypatc
 
 def test_48_hours_of_random_wake_up_jitter_never_breaks_the_floor_or_ratchets_the_wait(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """The #261 class: 5760 polls (48 hours at 30 s) with every wake-up up to 1.5 s late at random. The 30 s floor between
-    sends always holds, the throttle wait never grows, and the long-run cadence stays close to 30 s."""
+    """The #261 class: 5760 polls (48 hours at 30 s) with every wake-up up to 1.5 s late at random. The 30 s floor
+    between sends always holds, the throttle wait never grows, and the long-run cadence stays close to 30 s."""
     sends, waits = _drive(monkeypatch, 5760, jitter_s=1.5, seed=261)
     gaps = [b - a for a, b in zip(sends, sends[1:], strict=False)]
     assert min(gaps) >= GAP - EPS
@@ -133,7 +134,7 @@ class _Conn:
 def test_a_batch_failing_with_program_limit_exceeded_is_bisected_down_to_the_bad_record() -> None:
     """A06 (ProgramLimitExceeded removed from the bisect catch, the #111 regression): it is not a DataError or an
     IntegrityError, so without the entry one oversized callsign would lose the whole snapshot."""
-    assert not issubclass(psycopg.errors.ProgramLimitExceeded, (psycopg.DataError, psycopg.IntegrityError))
+    assert not issubclass(psycopg.errors.ProgramLimitExceeded, psycopg.DataError | psycopg.IntegrityError)
     rows = [{"callsign": c} for c in ("A", "B", "BAD", "C", "D")]
     cur = _Cur()
     n, _, bad = store._write(_Conn(), cur, "SQL", rows, None, False)  # type: ignore[arg-type]
