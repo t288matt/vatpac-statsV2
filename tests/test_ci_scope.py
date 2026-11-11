@@ -268,11 +268,11 @@ ALL, NOT_DOCS, FULL_ONLY, DASH_ONLY = {"docs", "dashboards", "full"}, {"dashboar
 QUICK_STEPS = {
     "secret-scan": ALL, "commit-attribution": ALL,
     "actions/setup-python": NOT_DOCS, "Install": NOT_DOCS, "config-drift": NOT_DOCS, "dashboards": NOT_DOCS,
-    "size-budget": NOT_DOCS, "compose-config": FULL_ONLY,
+    "size-budget": NOT_DOCS, "actionlint": NOT_DOCS, "compose-config": FULL_ONLY,
 }
 UNIT_STEPS = {
     "Install lint tools": FULL_ONLY, "ruff": FULL_ONLY, "mypy": FULL_ONLY, "shell syntax": FULL_ONLY,
-    "pytest (unit; ": FULL_ONLY, "pytest (unit, dashboards scope)": DASH_ONLY,
+    "pytest (unit; ": FULL_ONLY, "unit skips": FULL_ONLY, "pytest (unit, dashboards scope)": DASH_ONLY,
 }
 
 

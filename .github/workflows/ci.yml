@@ -102,7 +102,7 @@ jobs:
         run: >
           mypy --strict --ignore-missing-imports
           ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py
-          ops/check_panels.py ops/grafana_public.py ops/grafana_api.py ops/env_file.py ops/ci_scope.py
+          ops/check_panels.py ops/grafana_public.py ops/grafana_api.py ops/env_file.py ops/ci_scope.py ops/check_skips.py
       - name: shell syntax (ops scripts)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         run: |
@@ -113,7 +113,14 @@ jobs:
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         env:
           PYTHONPATH: collector/src
+          PYTEST_ADDOPTS: --junitxml=${{ runner.temp }}/unit.xml
         run: pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv
+      # Issue 343: a skipped test is a test that did not run. The expected number is kept in one place, ops/check_skips.py
+      # (23 here: the watchdog auto-restart tests switched off on purpose, issue 232). A new skip, or one switched back on,
+      # fails this step until the number is changed in a reviewed diff.
+      - name: unit skips (the number of skipped tests is the expected one)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
+        run: python ops/check_skips.py "$RUNNER_TEMP/unit.xml"
       # Dashboards scope: the same command on the dashboard test files only (the list lives in ops/ci_scope.py, and
       # tests/test_ci_scope.py fails if a test that reads the dashboards is missing from it). Nothing is deselected.
       - name: pytest (unit, dashboards scope)
@@ -243,19 +250,28 @@ jobs:
           python-version: "3.14"
       - name: Install
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
-        run: pip install pyyaml==6.0.2
+        run: pip install pyyaml==6.0.2 sqlglot==30.31.0 actionlint-py==1.7.12.25
       - name: config-drift (collector settings vs compose vs .env.example)
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
         run: python ops/check_config_drift.py
-      - name: dashboards (validator)
+      # sqlglot is installed (issue 343), so every dashboard query is parsed as PostgreSQL; the second line fails the step if
+      # the validator ever goes back to "sql parsing: skipped".
+      - name: dashboards (validator, with SQL parsing)
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
-        run: python grafana/validate_dashboards.py
+        run: |
+          python grafana/validate_dashboards.py | tee "$RUNNER_TEMP/dashboards.txt"
+          grep -q '^sql statements parsed with sqlglot' "$RUNNER_TEMP/dashboards.txt"
       - name: dashboards (navigation check)
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
         run: python ops/dashboard_nav.py --check
       - name: size-budget
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
         run: python ops/check_size_budget.py
+      # Issue 343: workflow syntax and expression errors. Shellcheck of the run scripts is off (-shellcheck=): it was not
+      # measured on these scripts, so it is a separate decision.
+      - name: actionlint (workflow files)
+        if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
+        run: actionlint -shellcheck= .github/workflows/*.yml
       - name: compose-config (compose files with a generated throwaway env)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         # .env.example has blank secrets by design, so compose would fail on it
