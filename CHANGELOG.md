@@ -6,6 +6,10 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## CTR hours staffed per day (11-11-2026, issue 325)
+
+- **New panel.** "CTR hours staffed per day (last 14 months)" on ATC: controllers, directly below "CTR hours staffed per week": one bar per UTC day showing the hours CTR positions (facility 6) were staffed. Three CTR positions staffed together for one hour count as 3 hours; a session that crosses midnight UTC is split between the two days; a day with no CTR sessions shows 0. No view or migration changes.
+
 ## Dashboard tidy (09-11-2026, issue 326; pull requests 327 and 332, merged to main on 09-11-2026 and 10-11-2026)
 
 - **Longer ranges.** "ATC hours staffed per week, by position type" shows the last 14 months (was 12); "CTR hours staffed per week" on ATC: controllers shows the last 24 months (was 12).
