@@ -6,6 +6,18 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## CI changes (11-11-2026, issues 339 to 345)
+
+- **One UTC integration pass.** The integration tests run once, in UTC, with the test session time zone set explicitly. The Australia/Sydney pass is removed; the check that `grafana_ro` is pinned to UTC stays.
+- **Small jobs merged.** The secret scan, attribution check, config drift, dashboard validator and navigation check, size budget, workflow lint and compose checks are the named steps of one `quick-checks` job; lint is a set of steps of `unit-tests`. The same checks run, `ci-result` is still the one check to require, and the scope filter still fails closed.
+- **Awkward-data guard.** A new integration test loads awkward data (two names for one CID, reconnects, duplicate logons) and asserts that the per-member and per-flight dashboard panels return one row per key. It is part of the dashboards scope.
+- **Survivor tests and CI pins.** New tests cover the 18 faults a mutation review found unnoticed (near-miss detection, Retry-After handling, catch-up rounding, watchdog Telegram limits, partition retention and pin boundaries, backup size boundary, compose restart policies, and a fake-clock test with wake-up jitter). `ci.yml` pins the strict database flag, the gitleaks history depth, and never cancels a run on `main`.
+- **SQL parsing.** CI installs `sqlglot`, so the dashboard validator parses every dashboard query and the step fails if parsing is skipped.
+- **Workflow linting.** `actionlint` checks the workflow files.
+- **Skip-count check.** `ops/check_skips.py` fails the unit job when the number of skipped tests differs from the expected value kept in that file.
+- **Grouped Dependabot updates.** Version updates arrive as one pull request per entry in `.github/dependabot.yml`; security updates stay separate.
+- **Mutation harness.** `tests/tools/mutation` is a tool for reviewers to run on demand against risky changes; CI does not run it. See docs/RUNBOOKS/run-tests.md.
+
 ## Dashboard tidy (09-11-2026, issue 326; pull requests 327 and 332, merged to main on 09-11-2026 and 10-11-2026)
 
 - **Longer ranges.** "ATC hours staffed per week, by position type" shows the last 14 months (was 12); "CTR hours staffed per week" on ATC: controllers shows the last 24 months (was 12).
