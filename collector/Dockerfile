@@ -3,7 +3,7 @@
 # read-only at /app/config at run time.
 
 # ---- build stage: resolve dependencies into a venv ----
-FROM python:3.14-slim AS build
+FROM python:3.15-slim AS build
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -11,7 +11,7 @@ COPY collector/requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
 
 # ---- runtime stage ----
-FROM python:3.14-slim AS runtime
+FROM python:3.15-slim AS runtime
 ARG VERSION=dev
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH=/app/src \
