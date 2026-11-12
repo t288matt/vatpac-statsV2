@@ -7,15 +7,62 @@ technical text with all its detail still goes to the watchdog log and to watchdo
 
 Plain ASCII only (emoji and curly quotes caused UTF-8 errors before). Formatting must never stop an alert: telegram_text()
 catches every error and falls back to the old technical wording.
+
+The wording is built from structured values, never from the technical text: a check hands over its level, its detail text (for
+the Technical line and the log only) and the key numbers in `facts` (a Checked result); an Alert carries those to humanise().
+Rewording a detail therefore cannot change the plain sentence. The facts each check supplies are listed beside its wording below.
 """
 from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 log = logging.getLogger("watchdog.messages")
+
+Facts = Mapping[str, Any]
+
+
+class Checked(tuple[str, str]):
+    """A check result: (level, detail) exactly like a plain tuple (it compares and unpacks as one), plus the key numbers the
+    plain-language wording needs in `.facts`. Facts are JSON-safe (the scheduled checks keep them in the status file)."""
+    facts: dict[str, Any]
+
+    def __new__(cls, level: str, detail: str, **facts: Any) -> Checked:
+        obj = super().__new__(cls, (level, detail))
+        obj.facts = facts
+        return obj
+
+
+def facts_of(result: tuple[str, str]) -> dict[str, Any]:
+    """The key numbers a check result carries ({} for a plain (level, detail) tuple)."""
+    return dict(result.facts) if isinstance(result, Checked) else {}
+
+
+@dataclass(frozen=True)
+class Alert:
+    """One alert as the watchdog raises it. level is warn, crit or ok (ok = RECOVERED; previous_level is what it was).
+    down_for is how long the alert was active in seconds, or None when unknown. name is a check name, 'near-miss'
+    (detail = the callsigns) or 'restarted:<service>' (facts counts and why)."""
+    name: str
+    level: str
+    detail: str
+    previous_level: str | None = None
+    down_for: float | None = None
+    facts: Facts = field(default_factory=dict)
+
+    def technical(self) -> str:
+        """The technical wording for the log and the status file."""
+        if self.name == "near-miss":
+            return f"NEAR-MISS controller callsign(s) not on whitelist: {self.detail}"
+        if self.name.startswith("restarted:"):
+            return f"RESTARTED {self.name.split(':', 1)[1]} ({self.facts.get('counts', '')}): {self.facts.get('why', self.detail)}"
+        if self.level == "ok":
+            return f"RECOVERED {self.name} (was {self.previous_level}): {self.detail}"
+        return f"{self.level.upper()} {self.name}: {self.detail}"
 
 PREFIX = "VATPAC Stats:"
 LABELS = {"warn": "heads up", "crit": "problem", "ok": "all clear"}
@@ -119,9 +166,6 @@ INVARIANTS: dict[str, tuple[str, str]] = {
 }
 
 
-_QUIET_HOURS = re.compile(r"flight_quiet_hours=(\d+(?:\.\d+)?) flight_quiet_check_grace_minutes=(\d+(?:\.\d+)?)")
-
-
 def _hours_minutes(hours: str, grace_minutes: str) -> str:
     """'8' and '30' -> '8 hours 30 minutes': the age at which the check fires, built from both settings."""
     total = round(float(hours) * 60 + float(grace_minutes))
@@ -130,15 +174,14 @@ def _hours_minutes(hours: str, grace_minutes: str) -> str:
     return " ".join(parts) or "0 minutes"
 
 
-def invariant_words(name: str, detail: str) -> str:
+def invariant_words(name: str, quiet: tuple[str, str] | list[str] | None = None) -> str:
     """The plain wording of one invariant. The quiet-period check quotes the flight_quiet_hours setting that the check itself
-    used (the invariant pack reports it with the grace as `flight_quiet_hours=N flight_quiet_check_grace_minutes=M`, integrity.summarise_invariants carries it into the detail);
-    without it the wording says "longer ago than the quiet period" and names no number."""
+    used; `quiet` is (flight_quiet_hours, flight_quiet_check_grace_minutes) as the invariant pack reported them (integrity.py
+    puts them in the facts). Without it the wording says "longer ago than the quiet period" and names no number."""
     words = INVARIANTS[name][0]
     if "{when}" not in words:
         return words
-    m = _QUIET_HOURS.search(detail)
-    return words.format(when=f"over {_hours_minutes(m.group(1), m.group(2))} ago" if m else "longer ago than the quiet period")
+    return words.format(when=f"over {_hours_minutes(quiet[0], quiet[1])} ago" if quiet else "longer ago than the quiet period")
 
 
 def _clip(text: str, n: int = MAX_TECH) -> str:
@@ -165,60 +208,56 @@ def duration_words(seconds: float) -> str:
     return f"about {n} days"
 
 
-def _num(pattern: str, detail: str) -> float | None:
-    m = re.search(pattern, detail)
-    return float(m.group(1)) if m else None
-
-
 def _age_words(seconds: float | None) -> str:
     return duration_words(seconds) if seconds is not None else "a while"
 
 
 # ---------------------------------------------------------------- per-check wording
-# Each builder returns (plain text, needs-action sentence is part of the text). Level is "warn" or "crit".
+# Each builder takes the level ("warn" or "crit") and the check's facts and returns the plain text (the needs-action sentence is part of it).
+# A fact that is absent (a result without facts, or a number the check could not give) gets the vague wording, never an error.
 
-def _collector_health(level: str, detail: str) -> str:
+def _collector_health(level: str, facts: Facts) -> str:
     return ("The data collector is not answering properly, so new VATSIM data may not be arriving. "
             "It keeps trying; if this lasts, check whether VATSIM is down or the collector is stuck (see docs/RUNBOOKS/stuck-collector.md on the VM).")
 
 
-def _poll_age(level: str, detail: str) -> str:
-    if "no newest ok poll" in detail:
+def _poll_age(level: str, facts: Facts) -> str:  # facts: missing (no poll recorded yet) or age_s
+    if facts.get("missing"):
         return "No successful VATSIM data fetch has been recorded yet. If this is not a fresh install, see docs/RUNBOOKS/stuck-collector.md on the VM."
-    age = _age_words(_num(r"(\d+)s old", detail))
+    age = _age_words(facts.get("age_s"))
     tail = ("The system keeps retrying; if this lasts, the collector may be stuck (see docs/RUNBOOKS/stuck-collector.md on the VM)."
             if level == "crit" else "Usually a brief hiccup; no action unless it grows.")
     return f"No fresh VATSIM data for {age}. {tail}"
 
 
-def _snapshot_age(level: str, detail: str) -> str:
-    if "no newest snapshot" in detail:
+def _snapshot_age(level: str, facts: Facts) -> str:  # facts: missing or age_s, as for the poll
+    if facts.get("missing"):
         return "No snapshot of the network has been stored yet. If this is not a fresh install, see docs/RUNBOOKS/stuck-collector.md on the VM."
-    age = _age_words(_num(r"(\d+)s old", detail))
+    age = _age_words(facts.get("age_s"))
     tail = ("Data is not being recorded; if the poll alert is also active, see docs/RUNBOOKS/stuck-collector.md on the VM, otherwise the VATSIM feed may have frozen (see docs/RUNBOOKS/feed-outage.md on the VM)."
             if level == "crit" else "Usually a brief hiccup; no action unless it grows.")
     return f"The newest stored picture of the network is {age} old. {tail}"
 
 
-def _grafana(level: str, detail: str) -> str:
+def _grafana(level: str, facts: Facts) -> str:
     return ("The dashboards (Grafana) are down or unwell. Data collection is not affected. "
             "Restart Grafana when convenient (docker compose restart grafana, from ~/vatpac-statsV2 on the VM).")
 
 
-def _database(level: str, detail: str) -> str:
+def _database(level: str, facts: Facts) -> str:
     return ("The watchdog cannot read the database, so the checks that need it are blind. Collection may still be running. "
             "Check the database container and its log (see docs/RUNBOOKS/db-full.md on the VM if the disk is full).")
 
 
-def _db_size(level: str, detail: str) -> str:
-    gb = _num(r"([\d.]+) GB", detail)
+def _db_size(level: str, facts: Facts) -> str:  # facts: gb
+    gb = facts.get("gb")
     size = f"{gb:.1f} GB" if gb is not None else "larger than expected"
     return (f"The database has grown to {size}, more than expected (normally 2 to 3 GB). Nothing is broken yet, "
             "but old data may not be being cleared away; see docs/RUNBOOKS/db-full.md on the VM when you can.")
 
 
-def _disk(level: str, detail: str) -> str:
-    found = [(path, float(p)) for path, p in re.findall(r"(\S+) (\d+)% used", detail)]
+def _disk(level: str, facts: Facts) -> str:  # facts: disks, a list of [path, percent used] for the paths that could be read
+    found = [(str(path), float(p)) for path, p in facts.get("disks") or []]
     if not found:
         return "A disk the watchdog watches could not be read. Check the VM when convenient (see docs/RUNBOOKS/db-full.md on the VM)."
     path, top = max(found, key=lambda f: f[1])
@@ -229,22 +268,22 @@ def _disk(level: str, detail: str) -> str:
     return f"A disk on the VM{which} is {pct} full. Nothing breaks yet, but it needs clearing within days (see docs/RUNBOOKS/db-full.md on the VM)."
 
 
-def _backup_age(level: str, detail: str) -> str:
-    if "no backup yet" in detail:
+def _backup_age(level: str, facts: Facts) -> str:  # facts: none_yet (no dump found) or age_h
+    if facts.get("none_yet"):
         return "No database backup has been found. Take one by hand (run make backup from ~/vatpac-statsV2 on the VM) and check the backup log."
-    h = _num(r"backup ([\d.]+) h old", detail)
+    h = facts.get("age_h")
     age = f"{h:.0f} hours" if h is not None else "over a day"
     return f"The newest database backup is {age} old; one should be made every night. Take one by hand (run make backup from ~/vatpac-statsV2 on the VM) and check the backup log."
 
 
-def _backup_remote(level: str, detail: str) -> str:
+def _backup_remote(level: str, facts: Facts) -> str:
     return ("The nightly backup is being made, but the copy to the second location (off the VM) has not succeeded recently, so losing "
             "the VM disk could lose the backups too. Check the backup log (docker compose logs --tail=50 backup, from ~/vatpac-statsV2 "
             "on the VM) and the copy destination (see docs/RUNBOOKS/restore.md on the VM, Off-box copies).")
 
 
-def _telegram_outbox(level: str, detail: str) -> str:
-    if "refuses" in detail:
+def _telegram_outbox(level: str, facts: Facts) -> str:  # facts: refused (Telegram answered with a configuration fault)
+    if facts.get("refused"):
         return ("Telegram is refusing the alert messages, which usually means a wrong chat id or a wrong, revoked or blocked bot. "
                 "Nothing is lost yet: they are kept and retried. Check TELEGRAM_CHAT_ID and TELEGRAM_BOT_TOKEN in .env on the VM "
                 "(see docs/RUNBOOKS/alerts.md on the VM, telegram_outbox).")
@@ -253,35 +292,36 @@ def _telegram_outbox(level: str, detail: str) -> str:
             "from ~/vatpac-statsV2 on the VM); problems are still visible in the status file.")
 
 
-def _restore_test(level: str, detail: str) -> str:
-    if "FAILED" in detail:
+def _restore_test(level: str, facts: Facts) -> str:  # facts: state, one of failed, stale, unreadable, overdue
+    state = facts.get("state")
+    if state == "failed":
         return ("The weekly test that proves a backup can really be restored has failed, so a recent backup may be unusable. "
                 "Run make backup-test from ~/vatpac-statsV2 on the VM and read the result (see docs/RUNBOOKS/restore.md on the VM).")
-    if "stale" in detail:
+    if state == "stale":
         return ("The weekly restore test worked, but the newest data in the backup was old (a long outage or a quiet period before the dump). "
                 "Backups are probably fine; check the collector was running, then run make backup-test from ~/vatpac-statsV2 on the VM "
                 "(see docs/RUNBOOKS/restore.md on the VM).")
-    if "unreadable" in detail:
+    if state == "unreadable":
         return "The result of the weekly backup restore test cannot be read. Run make backup-test from ~/vatpac-statsV2 on the VM to check (see docs/RUNBOOKS/restore.md on the VM)."
     return ("The weekly test that proves a backup can really be restored is overdue. Backups are probably fine, "
             "but run make backup-test from ~/vatpac-statsV2 on the VM when convenient (see docs/RUNBOOKS/restore.md on the VM).")
 
 
-def _identity_flap(level: str, detail: str) -> str:
-    if "query failed" in detail:
+def _identity_flap(level: str, facts: Facts) -> str:  # facts: query_failed
+    if facts.get("query_failed"):
         return "The check for duplicated flight sessions could not run. An engineer should look at it; no action needed today."
     return ("VATSIM may have changed how it stamps logon times again, so one connection could be stored as two and flight counts "
             "inflated. Not urgent today, but an engineer should look (the exact command is in docs/RUNBOOKS/alerts.md on the VM, under identity_flap).")
 
 
-def _feed_archive(level: str, detail: str) -> str:
+def _feed_archive(level: str, facts: Facts) -> str:
     return ("The safety copy of the raw VATSIM data (the archive) has stopped being written. Live collection is not affected. "
             "Check the disk space and the collector log (see docs/RUNBOOKS/feed-archive.md on the VM).")
 
 
-def _integrity_failing_names(detail: str) -> list[str]:
-    """The invariant names in the detail, in the order the detail lists them."""
-    return sorted((n for n in INVARIANTS if n in detail), key=detail.index)
+def _integrity_failing_names(facts: Facts) -> list[str]:
+    """The failing invariants the check named (in the order it listed them), without any this table does not know."""
+    return [n for n in facts.get("names") or [] if n in INVARIANTS]
 
 
 # Invariants whose failure needs action TODAY (data may stop or be wrong now), most urgent first. When several invariants fail
@@ -308,61 +348,65 @@ def _several_todo(names: list[str]) -> str:
     return f"{todo}{today} The rest: watchdog log."
 
 
-def _failing_count(detail: str, names: list[str]) -> int:
-    """How many invariants failed: the 'N of 18' figure in the detail (the detail lists at most six names), else the names seen."""
-    m_ = re.search(r"(\d+) of \d+ invariants", detail)
-    return max(int(m_.group(1)), len(names)) if m_ else len(names)
+def _failing_count(facts: Facts, names: list[str]) -> int:
+    """How many invariants failed: the check's own count (it names at most six), else the names seen."""
+    n = facts.get("failing")
+    return max(int(n), len(names)) if n is not None else len(names)
 
 
-def _data_integrity(level: str, detail: str) -> str:
-    if detail.startswith("new violations since the last sweep"):
-        names = _by_urgency(_integrity_failing_names(detail))
-        what = invariant_words(names[0], detail) if names else "another rule is now broken"
+def _data_integrity(level: str, facts: Facts) -> str:
+    """facts: state (new = violations since the last sweep, incomplete = the sweep could not run properly, else violations),
+    names (failing invariants, as listed), failing (how many failed), of (how many were checked), quiet (the quiet-period settings)."""
+    state = facts.get("state")
+    if state == "new":
+        names = _by_urgency(_integrity_failing_names(facts))
+        what = invariant_words(names[0], facts.get("quiet")) if names else "another rule is now broken"
         more = f" (and {len(names) - 1} more)" if len(names) > 1 else ""
         todo = _several_todo(names) if len(names) > 1 else INVARIANTS[names[0]][1] if names else f"See {_IG} on the VM."
         return f"The routine data check found a new problem on top of the earlier one: {what}{more}. {todo}"
-    if "could not run" in detail or "did not report" in detail or "unexpected row" in detail or "no invariants found" in detail:
+    if state == "incomplete":
         return ("The routine data check could not run properly (it retries in an hour). Data collection is not affected. "
                 f"If it keeps failing, an engineer should look (see {_IG} on the VM).")
-    names = _integrity_failing_names(detail)
+    names = _integrity_failing_names(facts)
     if not names:
         return f"A routine data check found a problem. See {_IG} on the VM for what to do."
-    first = invariant_words(_by_urgency(names)[0], detail)
-    others = _failing_count(detail, names) - 1
+    first = invariant_words(_by_urgency(names)[0], facts.get("quiet"))
+    others = _failing_count(facts, names) - 1
     more = f" (plus {others} other{'s' if others > 1 else ''})" if others > 0 else ""
     # more than the six names the detail lists can fail: then at least two did, so the several-failed wording applies
     todo = _several_todo(names) if others > 0 else INVARIANTS[names[0]][1]
     return f"A routine data check found a problem: {first}{more}. {todo}"
 
 
-def _feed_crosscheck(level: str, detail: str) -> str:
-    if "nothing to compare" in detail:
+def _feed_crosscheck(level: str, facts: Facts) -> str:  # facts: state (nothing, could_not_run or differences) and n, the number of differences
+    state = facts.get("state")
+    if state == "nothing":
         return ("The fortnightly check that compares saved raw VATSIM data with what the system stored had nothing to compare. "
                 "Check that the raw-data archive is switched on and writing (see docs/RUNBOOKS/feed-archive.md on the VM).")
-    if "could not run" in detail:
+    if state == "could_not_run":
         return "The fortnightly cross-check of saved raw data against stored data could not run; it retries in an hour. No action unless it keeps failing."
-    n = _num(r"(\d+) difference", detail)
+    n = facts.get("n")
     diff = f"{n:.0f} difference{'s' if n != 1 else ''}" if n is not None else "differences"
     return (f"The fortnightly check against saved raw VATSIM data found {diff}: the system may have kept or dropped some pilots "
             "or controllers wrongly. Not urgent; an engineer should look (see docs/RUNBOOKS/integrity-checks.md on the VM).")
 
 
-def _container(level: str, detail: str, svc: str) -> str:
+def _container(level: str, facts: Facts, svc: str) -> str:  # facts: missing (no such container)
     if svc == "migrate":
         return ("The migrate container (a one-off job that updates the database layout when the system starts) is reported as not "
                 "healthy. It is not meant to keep running; read its log (docker compose logs migrate, from ~/vatpac-statsV2 on the VM).")
-    if "missing" in detail:
+    if facts.get("missing"):
         return f"The {svc} container is missing. Run docker compose up -d from ~/vatpac-statsV2 on the VM and check it comes back."
     if level == "warn":
         return f"Docker restarted the {svc} container by itself. It should be fine; check it stays up."
     return f"The {svc} container is not running properly. Check docker compose ps and its log (from ~/vatpac-statsV2 on the VM), then restart it if needed."
 
 
-def _docker_proxy(level: str, detail: str) -> str:
+def _docker_proxy(level: str, facts: Facts) -> str:
     return "The watchdog cannot reach Docker to check the containers. Container checks are blind until it is back; check the Docker proxy."
 
 
-def _restart_cap(level: str, detail: str, svc: str) -> str:
+def _restart_cap(level: str, facts: Facts, svc: str) -> str:
     return (f"The {svc} container keeps failing and has hit the hourly limit on automatic restarts, so the watchdog has stopped restarting it. "
             "Look at its log and restart it by hand.")
 
@@ -373,7 +417,7 @@ def _generic(name: str, level: str, detail: str) -> str:
 
 
 # One entry per check with its own wording: (the function that words a problem, the plain "all clear" sentence for RECOVERED).
-_CHECKS: dict[str, tuple[Callable[[str, str], str], str]] = {
+_CHECKS: dict[str, tuple[Callable[[str, Facts], str], str]] = {
     "collector_health": (_collector_health, "The data collector is answering again."),
     "poll_log_ok_age": (_poll_age, "Data is flowing again."),
     "network_snapshot_age": (_snapshot_age, "Fresh network snapshots are being stored again."),
@@ -398,13 +442,13 @@ def known_checks() -> list[str]:
     return sorted(_CHECKS)
 
 
-def _plain(name: str, level: str, detail: str) -> str:
+def _plain(name: str, level: str, detail: str, facts: Facts) -> str:
     if name in _CHECKS:
-        return _CHECKS[name][0](level, detail)
+        return _CHECKS[name][0](level, facts)
     if name.startswith("container:"):
-        return _container(level, detail, name.split(":", 1)[1])
+        return _container(level, facts, name.split(":", 1)[1])
     if name.startswith("restart-cap:"):
-        return _restart_cap(level, detail, name.split(":", 1)[1])
+        return _restart_cap(level, facts, name.split(":", 1)[1])
     return _generic(name, level, detail)
 
 
@@ -419,11 +463,13 @@ def _recovered_plain(name: str, detail: str) -> str:
 
 
 def humanise(name: str, level: str, detail: str, previous_level: str | None = None, down_for: float | None = None,
-             now: datetime | None = None) -> str:
+             now: datetime | None = None, facts: Facts | None = None) -> str:
     """The Telegram text for one alert: 'VATPAC Stats: <label> (HH:MM UTC). <plain text>' then 'Technical: <check>, <detail>'.
 
     level is warn, crit or ok (ok means RECOVERED; previous_level is what it was). down_for is how long the alert was active
-    (counted from its confirmation, not the true start of the problem) in seconds, or None when unknown (then no duration is claimed). Never raises for an unknown check name."""
+    (counted from its confirmation, not the true start of the problem) in seconds, or None when unknown (then no duration is claimed).
+    facts are the key numbers the check handed over; the plain sentence uses only them, never the detail text. Never raises for an unknown check name."""
+    facts = facts or {}
     stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%H:%M UTC")
     label = LABELS.get(level, "heads up")
     if name == "near-miss":
@@ -441,20 +487,19 @@ def humanise(name: str, level: str, detail: str, previous_level: str | None = No
         label = LABELS["ok"]
         tech = f"{name} recovered" + (f" (was {previous_level})" if previous_level else "") + f", {_clip(detail)}"
     else:
-        plain = _plain(name, level, detail)
+        plain = _plain(name, level, detail, facts)
         if level == "warn" and previous_level == "crit":
             plain = "This has eased from a problem to a warning. " + plain
-        tech = f"{name}, {_tech_detail(name, detail)}"
+        tech = f"{name}, {_tech_detail(name, detail, facts)}"
     return _ascii(f"{PREFIX} {label} ({stamp}). {plain}\nTechnical: {tech}")
 
 
-def _tech_detail(name: str, detail: str) -> str:
+def _tech_detail(name: str, detail: str, facts: Facts) -> str:
     """The detail for the Technical line. The integrity sweep lists up to six long invariant names: keep the count and the first."""
     if name == "data_integrity":
-        names = _integrity_failing_names(detail)
-        counts = re.search(r"(\d+) of (\d+) invariants", detail)
-        if names and counts:
-            return _integrity_tech(names, _failing_count(detail, names), counts.group(1), counts.group(2))
+        names = _integrity_failing_names(facts)
+        if names and facts.get("failing") is not None and facts.get("of") is not None:
+            return _integrity_tech(names, _failing_count(facts, names), str(facts["failing"]), str(facts["of"]))
         short = detail.replace("new violations since the last sweep:", "new violations:", 1)
         return _clip(_strip_log_pointer(short), MAX_TECH_INTEGRITY + 20)
     return _clip(_strip_log_pointer(detail))
@@ -481,28 +526,6 @@ def _strip_log_pointer(detail: str) -> str:
     return re.split(r"\.\s*Details are in the watchdog log", detail)[0]
 
 
-_ALERT_RE = re.compile(r"^(WARN|CRIT) (\S+): (.*)$", re.S)
-_RECOVERED_RE = re.compile(r"^RECOVERED (\S+) \(was (\w+)\): (.*)$", re.S)
-_RESTARTED_RE = re.compile(r"^RESTARTED (\S+) \((.*?)\): (.*)$", re.S)
-
-
-def from_alert_text(text: str, down_for: float | None = None, previous_level: str | None = None,
-                    now: datetime | None = None) -> str:
-    """Parse the technical alert text the watchdog logs ('WARN x: d', 'CRIT x: d', 'RECOVERED x (was warn): d',
-    'NEAR-MISS ...', 'RESTARTED svc (...): why') and humanise it. Unrecognised text gets a generic wrapper that keeps it."""
-    if (m := _ALERT_RE.match(text)):
-        return humanise(m.group(2), m.group(1).lower(), m.group(3), previous_level, None, now)
-    if (m := _RECOVERED_RE.match(text)):
-        return humanise(m.group(1), "ok", m.group(3), m.group(2), down_for, now)
-    if text.startswith("NEAR-MISS"):
-        callsigns = text.split(":", 1)[1].strip() if ":" in text else text
-        return humanise("near-miss", "warn", callsigns, None, None, now)
-    if (m := _RESTARTED_RE.match(text)):
-        return humanise(f"restarted:{m.group(1)}", "warn", f"{m.group(2)}: {m.group(3)}", None, None, now)
-    stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%H:%M UTC")
-    return _ascii(f"{PREFIX} heads up ({stamp}). The monitoring system sent a message; see docs/RUNBOOKS/alerts.md on the VM.\nTechnical: {_clip(text, 300)}")
-
-
 DELAY_NOTE_AFTER_S = 120  # a message delivered this long after it was raised says so
 
 
@@ -527,11 +550,15 @@ def dropped_notice(n: int, first_at: float) -> str:
                   f"Technical: telegram_outbox, {n} dropped")
 
 
-def telegram_text(text: str, down_for: float | None = None, previous_level: str | None = None) -> str:
-    """The text to send to Telegram for a technical alert text. A formatting bug must never stop an alert, so on any
+def telegram_text(text: str, alert: Alert | None = None) -> str:
+    """The text to send to Telegram for an alert. text is its technical wording (the log line); an alert of None means free text
+    that no check raised, which gets a generic wrapper that keeps it. A formatting bug must never stop an alert, so on any
     error the old technical wording is sent and the error is logged."""
     try:
-        return from_alert_text(text, down_for, previous_level)
+        if alert is not None:
+            return humanise(alert.name, alert.level, alert.detail, alert.previous_level, alert.down_for, facts=alert.facts)
+        stamp = datetime.now(UTC).strftime("%H:%M UTC")
+        return _ascii(f"{PREFIX} heads up ({stamp}). The monitoring system sent a message; see docs/RUNBOOKS/alerts.md on the VM.\nTechnical: {_clip(text, 300)}")
     except Exception as exc:  # noqa: BLE001 - deliberately broad: never drop an alert
         log.error("could not format the alert in plain words (%s); sending the technical text", type(exc).__name__)
         return f"vatpac-stats: {text}"

@@ -211,7 +211,7 @@ def test_new_violations_while_already_failing_produce_a_follow_up_notice(calls: 
     assert notices == []  # the first alert is the normal state change
     calls["box"]["sweep"] = ((integrity.WARN, "2 of 18"), ["a", "b"], integrity.RECHECK_AFTER_FINDINGS_S)
     _, notices = integrity.run_due(plan(), state, now=6 * HOUR)
-    assert len(notices) == 1 and notices[0].startswith("WARN data_integrity:") and "b" in notices[0] and "a," not in notices[0]
+    assert len(notices) == 1 and notices[0][0] == "warn" and notices[0][1].startswith("new violations") and "b" in notices[0][1] and "a," not in notices[0][1]
     calls["box"]["sweep"] = ((integrity.WARN, "1 of 18"), ["a"], integrity.RECHECK_AFTER_FINDINGS_S)
     _, notices = integrity.run_due(plan(), state, now=12 * HOUR)
     assert notices == []  # a violation ageing out is not news
@@ -232,7 +232,7 @@ class Recorder(wd.Alerter):
         self.confirmed, self.pending, self.sent = {}, {}, sent
         self.cfg = type("C", (), {"confirm": 2})()
 
-    def send(self, text: str) -> None:
+    def send(self, text: str, alert: object = None) -> None:
         self.sent.append(text)
 
 

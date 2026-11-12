@@ -356,7 +356,7 @@ class Recorder:
         sent = self.sent
 
         class A(wd.Alerter):
-            def send(self, text: str) -> None:
+            def send(self, text: str, alert: object = None) -> None:
                 sent.append(text)
 
         self.alerter = A(type("C", (), {"confirm": confirm, "tg_token": "", "tg_chat": ""})(), None, {})  # type: ignore[arg-type]
@@ -434,7 +434,7 @@ def test_telegram_message_goes_to_the_bot_api_in_plain_text() -> None:
         seen.append(request)
         return httpx.Response(200)
 
-    telegram_alerter(handler).send("CRIT disk: / 95% used")
+    telegram_alerter(handler).update("disk", "crit", "/ 95% used", {"disks": [["/", 95]]})
     assert len(seen) == 1 and seen[0].url.host == "api.telegram.org" and seen[0].url.path == "/bot123:SECRET/sendMessage"
     sent = json.loads(seen[0].content)
     assert sent["chat_id"] == "42" and set(sent) == {"chat_id", "text"}
@@ -606,7 +606,7 @@ class World:
         sent = self.sent
 
         class A(wd.Alerter):
-            def send(self, text: str) -> None:
+            def send(self, text: str, alert: object = None) -> None:
                 sent.append(text)
 
         self.client = client_for(self.handle)
@@ -654,7 +654,7 @@ def test_cycle_scheduled_integrity_result_is_in_the_status_alerted_once_and_reco
 
 
 def test_cycle_sends_the_follow_up_notices_from_a_sweep(world: World) -> None:
-    world.integrity = ({}, ["WARN data_integrity: new violations since the last sweep: y"])
+    world.integrity = ({}, [("warn", "new violations since the last sweep: y")])
     world.cycle(1)
     assert world.sent == ["WARN data_integrity: new violations since the last sweep: y"]
     world.integrity = ({}, [])

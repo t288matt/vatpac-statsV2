@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,20 @@ sys.modules["watchdog_under_test_outbox"] = wd
 spec.loader.exec_module(wd)
 
 NOW = 1_800_000_000.0
+
+
+def send(a: Any, text: str) -> None:
+    """Raise an alert written as its technical text (how these tests describe it), through the structured path the watchdog uses."""
+    if (m := re.match(r"(WARN|CRIT) (\S+): (.*)$", text, re.S)):
+        a.notify(m.group(2), (m.group(1).lower(), m.group(3)))
+    elif (m := re.match(r"RECOVERED (\S+) \(was (\w+)\): (.*)$", text, re.S)):
+        a.notify(m.group(1), ("ok", m.group(3)), previous=m.group(2))
+    elif (m := re.match(r"NEAR-MISS .*?: (.*)$", text)):
+        a.notify("near-miss", ("warn", m.group(1)))
+    elif (m := re.match(r"RESTARTED (\S+) \((.*?)\): (.*)$", text)):
+        a.notify(f"restarted:{m.group(1)}", wd.Checked("warn", f"{m.group(2)}: {m.group(3)}", counts=m.group(2), why=m.group(3)))
+    else:
+        send(a, text)
 
 
 class Clock:
@@ -69,7 +84,7 @@ def test_fail_then_succeed_delivers_once_after_the_back_off(clock: Clock, tg: Te
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = httpx.ConnectError("down")
-    a.send("CRIT disk: / 95% used")
+    send(a, "CRIT disk: / 95% used")
     assert tg.delivered == [] and len(state["outbox"]) == 1
     tg.status = 200
     a.flush()                                           # too soon: still backing off
@@ -85,7 +100,7 @@ def test_http_error_status_is_retried_too(clock: Clock, tg: Telegram) -> None:
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = 502
-    a.send("WARN disk: / 85% used")
+    send(a, "WARN disk: / 85% used")
     assert len(state["outbox"]) == 1
     tg.status = 200
     clock.now += 1000
@@ -97,7 +112,7 @@ def test_a_late_message_says_so_and_keeps_the_original_time(clock: Clock, tg: Te
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = 500
-    a.send("CRIT disk: / 95% used")
+    send(a, "CRIT disk: / 95% used")
     original = state["outbox"][0]["body"]
     tg.status = 200
     clock.now += 600
@@ -111,7 +126,7 @@ def test_a_late_message_says_so_and_keeps_the_original_time(clock: Clock, tg: Te
 
 def test_a_prompt_message_is_not_marked_delayed(clock: Clock, tg: Telegram) -> None:
     a = make(tg, {})
-    a.send("CRIT disk: / 95% used")
+    send(a, "CRIT disk: / 95% used")
     assert "delayed" not in tg.delivered[0]
 
 
@@ -119,7 +134,7 @@ def test_outbox_survives_a_restart(clock: Clock, tg: Telegram) -> None:
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = httpx.ConnectError("down")
-    a.send("CRIT disk: / 95% used")
+    send(a, "CRIT disk: / 95% used")
     reloaded = json.loads(json.dumps(state))             # the status file is JSON
     tg.status = 200
     clock.now += 1000
@@ -138,8 +153,8 @@ def test_order_is_kept_and_a_recovery_never_overtakes_its_problem(clock: Clock, 
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = httpx.ConnectError("down")
-    a.send("CRIT disk: / 95% used")
-    a.send("RECOVERED disk (was crit): / 40% used")      # raised while the first is still stuck
+    send(a, "CRIT disk: / 95% used")
+    send(a, "RECOVERED disk (was crit): / 40% used")      # raised while the first is still stuck
     assert tg.delivered == [] and len(state["outbox"]) == 2
     tg.status = 200
     clock.now += 1000
@@ -152,9 +167,9 @@ def test_a_new_message_waits_behind_a_backlog_and_does_not_jump_the_queue(clock:
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = 500
-    a.send("CRIT disk: / 95% used")
+    send(a, "CRIT disk: / 95% used")
     tg.status = 200
-    a.send("WARN db_size: 30.00 GB (limit 20)")          # still backing off: must not be sent ahead of the first
+    send(a, "WARN db_size: 30.00 GB (limit 20)")          # still backing off: must not be sent ahead of the first
     assert tg.delivered == [] and len(state["outbox"]) == 2
 
 
@@ -164,7 +179,7 @@ def test_outbox_is_bounded_and_drops_the_oldest(clock: Clock, tg: Telegram, capl
     tg.status = 500
     with caplog.at_level(logging.WARNING, logger="watchdog"):
         for i in range(wd.OUTBOX_MAX + 5):
-            a.send(f"WARN check{i}: detail")
+            send(a, f"WARN check{i}: detail")
     assert len(state["outbox"]) == wd.OUTBOX_MAX
     assert "check0" not in state["outbox"][0]["body"] and f"check{wd.OUTBOX_MAX + 4}" in state["outbox"][-1]["body"]
     assert "dropped the oldest undelivered message" in caplog.text
@@ -175,7 +190,7 @@ def test_back_off_grows_and_is_capped(clock: Clock, tg: Telegram) -> None:
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = 500
-    a.send("WARN x: d")
+    send(a, "WARN x: d")
     gaps = []
     for _ in range(9):
         clock.now = state["outbox_next_try"] + 0.1
@@ -189,7 +204,7 @@ def test_a_poison_message_is_dropped_and_the_next_alert_goes_out_at_once(clock: 
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = 400
-    a.send("WARN x: d")
+    send(a, "WARN x: d")
     for _ in range(wd.OUTBOX_MAX_REJECTIONS - 2):
         clock.now += 2000
         a.flush()
@@ -217,7 +232,7 @@ def test_a_configuration_fault_never_drops_a_message(clock: Clock, tg: Telegram,
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = code
-    a.send("CRIT disk: / 95% used")
+    send(a, "CRIT disk: / 95% used")
     assert state["outbox_next_try"] - clock.now >= wd.OUTBOX_BACKOFF_MAX_S - 1
     for _ in range(6):
         clock.now += wd.OUTBOX_BACKOFF_MAX_S + 1
@@ -233,11 +248,11 @@ def test_at_the_bound_all_clear_messages_go_first_and_a_notice_counts_the_loss(c
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = 500
-    a.send("CRIT first: d")
+    send(a, "CRIT first: d")
     for i in range(wd.OUTBOX_MAX - 2):
-        a.send(f"RECOVERED r{i} (was warn): d") if i % 2 else a.send(f"WARN w{i}: d")
-    a.send("RECOVERED late (was crit): d")
-    a.send("WARN newest: d")                      # over the bound
+        send(a, f"RECOVERED r{i} (was warn): d") if i % 2 else send(a, f"WARN w{i}: d")
+    send(a, "RECOVERED late (was crit): d")
+    send(a, "WARN newest: d")                      # over the bound
     bodies = [m["body"] for m in state["outbox"]]
     assert len(bodies) <= wd.OUTBOX_MAX
     assert any("CRIT first" in b or "first" in b for b in bodies), "the oldest CRIT must survive while all-clears exist"
@@ -254,7 +269,7 @@ def test_a_long_backlog_is_sent_a_few_at_a_time(clock: Clock, tg: Telegram) -> N
     a = make(tg, state)
     tg.status = 500
     for i in range(12):
-        a.send(f"WARN c{i}: d")
+        send(a, f"WARN c{i}: d")
     tg.status = 200
     clock.now += 2000
     a.flush()
@@ -297,22 +312,26 @@ def test_a_fixed_run_of_check_results_sends_exactly_the_golden_messages(clock: C
     import re
     cfg = type("C", (), {"confirm": 2, "tg_token": "1:T", "tg_chat": "9"})()
     a = wd.Alerter(cfg, httpx.Client(transport=httpx.MockTransport(tg.handle)), {})  # type: ignore[arg-type]
-    seq = [
-     ("disk", "ok", "/ 40% used"), ("disk", "warn", "/ 85% used"), ("disk", "warn", "/ 85% used"), ("disk", "crit", "/ 95% used"),
-     ("disk", "crit", "/ 95% used"), ("disk", "ok", "/ 40% used"), ("disk", "ok", "/ 40% used"),
-     ("poll_log_ok_age", "warn", "newest ok poll is 70s old"), ("poll_log_ok_age", "crit", "newest ok poll is 400s old"),
-     ("poll_log_ok_age", "crit", "newest ok poll is 400s old"), ("poll_log_ok_age", "ok", "newest ok poll 5s old"), ("poll_log_ok_age", "ok", "x"),
-     ("backup_age", "crit", "newest backup 30.0 h old"), ("backup_age", "crit", "newest backup 30.0 h old"),
-     ("container:collector", "crit", "unhealthy"), ("container:collector", "crit", "unhealthy"), ("container:collector", "ok", "running/healthy"), ("container:collector", "ok", "running/healthy"),
-     ("restore_test", "crit", "last restore test FAILED 2.0 days ago"), ("restore_test", "crit", "last restore test FAILED 2.0 days ago"),
-     ("identity_flap", "warn", "3 pilot and 0 controller session pairs"), ("identity_flap", "warn", "x"),
-     ("db_size", "warn", "25.00 GB (limit 20)"), ("db_size", "warn", "25.00 GB (limit 20)"),
+    d40, d85, d95 = {"disks": [["/", 40]]}, {"disks": [["/", 85]]}, {"disks": [["/", 95]]}
+    seq: list[tuple[str, str, str, dict[str, Any]]] = [
+     ("disk", "ok", "/ 40% used", d40), ("disk", "warn", "/ 85% used", d85), ("disk", "warn", "/ 85% used", d85),
+     ("disk", "crit", "/ 95% used", d95), ("disk", "crit", "/ 95% used", d95), ("disk", "ok", "/ 40% used", d40), ("disk", "ok", "/ 40% used", d40),
+     ("poll_log_ok_age", "warn", "newest ok poll is 70s old", {"age_s": 70}), ("poll_log_ok_age", "crit", "newest ok poll is 400s old", {"age_s": 400}),
+     ("poll_log_ok_age", "crit", "newest ok poll is 400s old", {"age_s": 400}), ("poll_log_ok_age", "ok", "newest ok poll 5s old", {"age_s": 5}),
+     ("poll_log_ok_age", "ok", "x", {}),
+     ("backup_age", "crit", "newest backup 30.0 h old", {"age_h": 30.0}), ("backup_age", "crit", "newest backup 30.0 h old", {"age_h": 30.0}),
+     ("container:collector", "crit", "unhealthy", {}), ("container:collector", "crit", "unhealthy", {}),
+     ("container:collector", "ok", "running/healthy", {}), ("container:collector", "ok", "running/healthy", {}),
+     ("restore_test", "crit", "last restore test FAILED 2.0 days ago", {"state": "failed"}),
+     ("restore_test", "crit", "last restore test FAILED 2.0 days ago", {"state": "failed"}),
+     ("identity_flap", "warn", "3 pilot and 0 controller session pairs", {"query_failed": False}), ("identity_flap", "warn", "x", {}),
+     ("db_size", "warn", "25.00 GB (limit 20)", {"gb": 25.0}), ("db_size", "warn", "25.00 GB (limit 20)", {"gb": 25.0}),
     ]
-    for n, lv, d in seq:
+    for n, lv, d, f in seq:
         clock.now += 60
-        a.update(n, lv, d)
-    a.send("NEAR-MISS controller callsign(s) not on whitelist: X_TWR")
-    a.send("RESTARTED collector (1/3 this hour, ok=True): stuck")
+        a.update(n, lv, d, f)
+    send(a, "NEAR-MISS controller callsign(s) not on whitelist: X_TWR")
+    send(a, "RESTARTED collector (1/3 this hour, ok=True): stuck")
     got = [re.sub(r"\(\d\d:\d\d UTC\)", "(HH:MM UTC)", t) for t in tg.delivered]
     assert got == json.loads((REPO / "tests" / "fixtures" / "alerter_replay_golden.json").read_text())
 
@@ -322,7 +341,7 @@ def test_a_wrong_chat_id_answered_with_400_never_drops_the_crit(clock: Clock, tg
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status, tg.description = 400, "Bad Request: chat not found"
-    a.send("CRIT disk: / 95% used")
+    send(a, "CRIT disk: / 95% used")
     for _ in range(8):
         clock.now += wd.OUTBOX_BACKOFF_MAX_S + 1
         a.flush()
@@ -343,7 +362,7 @@ def test_other_configuration_descriptions_are_never_poison(clock: Clock, tg: Tel
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status, tg.description = 400, desc
-    a.send("CRIT x: d")
+    send(a, "CRIT x: d")
     for _ in range(wd.OUTBOX_MAX_REJECTIONS + 2):
         clock.now += wd.OUTBOX_BACKOFF_MAX_S + 1
         a.flush()
@@ -354,7 +373,7 @@ def test_a_400_about_the_text_is_poison_and_the_next_alert_goes_at_once(clock: C
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status, tg.description = 400, "Bad Request: can't parse entities: Can't find end of the entity"
-    a.send("WARN bad: d")
+    send(a, "WARN bad: d")
     for _ in range(wd.OUTBOX_MAX_REJECTIONS - 2):
         clock.now += 2000
         a.flush()
@@ -377,7 +396,7 @@ def test_the_log_shows_the_description_but_never_the_token(clock: Clock, tg: Tel
     a = make(tg, {})
     tg.status, tg.description = 401, "Unauthorized 123:SECRET"
     with caplog.at_level(logging.WARNING, logger="watchdog"):
-        a.send("CRIT x: d")
+        send(a, "CRIT x: d")
     assert "Unauthorized" in caplog.text and "SECRET" not in caplog.text
 
 
@@ -386,7 +405,7 @@ def test_the_send_cap_is_per_cycle_not_per_flush(clock: Clock, tg: Telegram) -> 
     a = make(tg, state)
     tg.status = 500
     for i in range(12):
-        a.send(f"WARN c{i}: d")
+        send(a, f"WARN c{i}: d")
     tg.status = 200
     clock.now += 2000
     a.begin_cycle()
@@ -407,7 +426,7 @@ def test_a_poison_message_is_dropped_on_exactly_the_fifth_refusal(clock: Clock, 
     state: dict[str, Any] = {}
     a = make(tg, state)
     tg.status = code
-    a.send("WARN x: d")                            # send() tries once at once: refusal number 1
+    send(a, "WARN x: d")                            # send() tries once at once: refusal number 1
     assert tg.attempts == 1 and len(state["outbox"]) == 1
     for attempt in range(2, 6):
         clock.now += 100_000                       # beyond any back-off: every flush really tries

@@ -218,8 +218,8 @@ def _alert(dsn: str, role: str | None) -> str:
     with psycopg.connect(dsn) as c:
         rows = integrity.run_invariants(c, SQL, timeout_s=60, role=role)
     findings, problems = integrity.evaluate(rows, integrity.invariant_names(SQL))
-    _, detail = integrity.summarise_invariants([f for f in findings if f.name == QUIET], problems, len(integrity.invariant_names(SQL)))
-    return messages.humanise("data_integrity", "warn", detail, now=datetime(2026, 11, 12, 10, 0, tzinfo=UTC))
+    res = integrity.summarise_invariants([f for f in findings if f.name == QUIET], problems, len(integrity.invariant_names(SQL)))
+    return messages.humanise("data_integrity", "warn", res[1], now=datetime(2026, 11, 12, 10, 0, tzinfo=UTC), facts=integrity.facts_of(res))
 
 
 def tok(hours: str, grace: str) -> str:
