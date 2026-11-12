@@ -372,7 +372,7 @@ def _generic(name: str, level: str, detail: str) -> str:
     return f"A monitoring check ({name}) {what}. See docs/RUNBOOKS/alerts.md on the VM for what it means."
 
 
-# One entry per check with its own wording: (the plain sentence for a problem, the plain sentence for RECOVERED, the "all clear").
+# One entry per check with its own wording: (the function that words a problem, the plain "all clear" sentence for RECOVERED).
 _CHECKS: dict[str, tuple[Callable[[str, str], str], str]] = {
     "collector_health": (_collector_health, "The data collector is answering again."),
     "poll_log_ok_age": (_poll_age, "Data is flowing again."),
