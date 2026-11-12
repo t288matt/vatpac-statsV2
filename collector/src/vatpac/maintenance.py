@@ -1,6 +1,7 @@
 """Maintenance: settings sync, partitions, retention, writing finished flights, view refresh, poll_log trimming.
 
-run_maintenance runs daily (and at startup); refresh_flights alone runs every FLIGHT_REFRESH_INTERVAL_S."""
+run_maintenance runs every task daily; at startup and in the in-poll recovery it runs only the tasks named in
+STARTUP_TASKS and PARTITION_TASKS; refresh_flights alone runs every FLIGHT_REFRESH_INTERVAL_S."""
 
 from __future__ import annotations
 
@@ -22,6 +23,8 @@ PARTITIONS_AHEAD = 7
 FLIGHT_REFRESH_INTERVAL_S = 300.0  # main.py: how often to call refresh_flights
 FLIGHT_WRITE_BATCH = 50  # pilots per call: small, so the 20 s statement_timeout is never close
 MAX_DROP_CALLS = 600  # safety bound for the drop loop (one partition per call, so 600 partitions)
+STARTUP_TASKS = ("settings", "partitions_created")  # what must be true before the first poll
+PARTITION_TASKS = ("partitions_created",)  # what the in-poll CheckViolation recovery needs
 DROP_PAUSE_S = 0.5  # between two drops: the parent table lock of the first is released and polls can write
 
 
@@ -96,8 +99,12 @@ def refresh_materialized_views(conn: psycopg.Connection[Any]) -> int:
     return _scalar(conn, "SELECT refresh_materialized_views()", ())
 
 
-def run_maintenance(conn: psycopg.Connection[Any], settings: Settings) -> dict[str, int]:
-    """Run every task; one failing task never blocks the others. Needs an autocommit connection."""
+def run_maintenance(
+    conn: psycopg.Connection[Any], settings: Settings, only: tuple[str, ...] | None = None
+) -> dict[str, int]:
+    """Run every task (or just those named in ``only``); one failing task never blocks the others.
+
+    Needs an autocommit connection."""
     today = datetime.now(UTC).date()
 
     def settings_task() -> int:
@@ -112,9 +119,14 @@ def run_maintenance(conn: psycopg.Connection[Any], settings: Settings) -> dict[s
         "poll_log_trimmed": lambda: trim_poll_log(conn),
         "views_refreshed": lambda: refresh_materialized_views(conn),
     }
+    unknown = set(only or ()) - tasks.keys()
+    if unknown:
+        raise ValueError(f"unknown maintenance tasks: {sorted(unknown)}")
     out: dict[str, int] = {}
     failed = 0
     for name, task in tasks.items():
+        if only is not None and name not in only:
+            continue
         try:
             out[name] = task()
         except psycopg.Error:
