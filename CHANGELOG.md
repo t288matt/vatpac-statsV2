@@ -6,6 +6,10 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Unused materialised-view refresh removed (12-11-2026, issue 226)
+
+- **Dead code removed.** The database has no materialised views, so the daily maintenance task that refreshed them did nothing. The task, the database function `refresh_materialized_views()` (dropped by migration 20261112000020) and the collector's right to run it are gone. The other daily maintenance tasks are unchanged; the "maintenance finished" log line no longer carries a `views_refreshed` field.
+
 ## Controller chart labels, removed charts and UK-style dates (12-11-2026, issue 353)
 
 - **Controller labels.** On ATC: controllers, "Top 30 service providers (last 30 days)" and "Controllers with the shortest average session (last 30 days)" label each bar `Name (CID, rank)`, like the median-session charts: the latest non-empty name (the CID where there is none) and the controller's highest rating in the period as its rank group. The bars, order, values and limits are unchanged. Ratings other than S1 to I1+ (such as 1 and 6) read Unknown, and a name of only spaces counts as missing on these two charts.

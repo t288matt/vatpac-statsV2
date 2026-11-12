@@ -91,11 +91,6 @@ def trim_poll_log(conn: psycopg.Connection[Any], days: int = POLL_LOG_RETENTION_
     return max(cur.rowcount, 0)
 
 
-def refresh_materialized_views(conn: psycopg.Connection[Any]) -> int:
-    """Refresh every materialized view in public (SECURITY DEFINER SQL function: no table rights needed)."""
-    return _scalar(conn, "SELECT refresh_materialized_views()", ())
-
-
 def run_maintenance(conn: psycopg.Connection[Any], settings: Settings) -> dict[str, int]:
     """Run every task; one failing task never blocks the others. Needs an autocommit connection."""
     today = datetime.now(UTC).date()
@@ -110,7 +105,6 @@ def run_maintenance(conn: psycopg.Connection[Any], settings: Settings) -> dict[s
         "flights_refreshed": lambda: refresh_flights(conn),
         "partitions_dropped": lambda: drop_old_partitions(conn, today, settings.position_retention_days),
         "poll_log_trimmed": lambda: trim_poll_log(conn),
-        "views_refreshed": lambda: refresh_materialized_views(conn),
     }
     out: dict[str, int] = {}
     failed = 0

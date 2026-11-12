@@ -15,7 +15,6 @@ pytestmark = pytest.mark.integration
 MAINT_FUNCS = [
     "ensure_pilot_position_partitions(int, date)",
     "drop_old_pilot_position_partitions(int, date)",
-    "refresh_materialized_views()",
     "write_finished_flights(int)",
 ]
 
@@ -91,7 +90,6 @@ def test_collector_can_write_data_and_run_maintenance(as_collector) -> None:
     c.execute("DELETE FROM poll_log WHERE polled_at < now() - interval '400 days'")
     # issue 89 phase 5: the 5-minute job calls the writer itself, so the collector must be allowed to (it was denied before)
     assert c.execute("SELECT write_finished_flights(50) AS n").fetchone()["n"] >= 0
-    c.execute("SELECT refresh_materialized_views()")
     c.execute("SELECT drop_old_pilot_position_partitions(90, DATE '2026-10-07')")
 
 
@@ -130,8 +128,7 @@ def test_maintenance_functions_are_not_public(conn) -> None:
         acl = conn.execute("SELECT proacl::text AS a FROM pg_proc WHERE oid = %s::regprocedure", (fn,)).fetchone()["a"]
         # NULL = default privileges (EXECUTE for PUBLIC); a PUBLIC grant shows as "=X/owner"
         assert acl is not None and "{=X" not in acl and ",=X" not in acl, fn
-    for fn in ("ensure_pilot_position_partitions", "drop_old_pilot_position_partitions",
-               "refresh_materialized_views", "write_finished_flights"):
+    for fn in ("ensure_pilot_position_partitions", "drop_old_pilot_position_partitions", "write_finished_flights"):
         row = conn.execute("SELECT prosecdef, proconfig FROM pg_proc WHERE proname = %s", (fn,)).fetchone()
         assert row["prosecdef"] is True and any(c.startswith("search_path=public") for c in row["proconfig"])
     # issue 89 phase 4: the reconciliation helper is internal. No PUBLIC grant, and not granted to the collector or anyone else
@@ -180,3 +177,9 @@ def test_collector_may_execute_the_flight_writer_and_nothing_old_remains(conn) -
     assert conn.execute("SELECT has_function_privilege('collector', 'write_finished_flights(int)', 'EXECUTE') AS ok").fetchone()["ok"]
     assert not conn.execute("SELECT has_function_privilege('collector', 'unreconciled_partition_sessions(timestamptz, timestamptz)', 'EXECUTE') AS ok").fetchone()["ok"]
     assert conn.execute("SELECT count(*) AS n FROM pg_proc WHERE proname IN ('refresh_flight_summary', 'refresh_flight_summary_sessions')").fetchone()["n"] == 0
+
+
+def test_refresh_materialized_views_function_is_gone(conn) -> None:
+    """Issue 226: there are no materialised views, so the refresh function was dropped and must not come back unnoticed."""
+    n = conn.execute("SELECT count(*) AS n FROM pg_proc WHERE proname = 'refresh_materialized_views'").fetchone()["n"]
+    assert n == 0
