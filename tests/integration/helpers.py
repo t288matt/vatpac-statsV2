@@ -165,7 +165,7 @@ def record_flight(conn, sid: int, start: datetime, end: datetime, *, airborne: f
 
     For the panel tests, which assert the panel arithmetic and not the writer (the writer has its own tests, test_flight_writer.py
     and test_flight_views_switch.py). The flight gate is applied as the writer applies it: a session whose departure or arrival is
-    empty after upper(btrim) makes no row. Plan fields are copied from the session, as the writer freezes them.
+    empty after norm_code makes no row. Plan fields are copied from the session, as the writer freezes them.
     ``start_offset_s`` lets a test create a second flight of one session (a returning session): the key is (session_id, start_time)."""
     conn.execute(
         r"""
@@ -173,17 +173,13 @@ def record_flight(conn, sid: int, start: datetime, end: datetime, *, airborne: f
                name, home_icao, server, aircraft_icao, aircraft_faa, flight_rules, route, remarks, planned_alt, deptime,
                pilot_rating, military_rating, airborne_minutes, max_gs_kt, max_alt_ft, sample_count)
         SELECT ps.id, %s::timestamptz + make_interval(secs => %s::double precision), %s::timestamptz, ps.cid, ps.callsign,
-               upper(btrim(ps.departure, E' 	
-')), upper(btrim(ps.arrival, E' 	
-')), ARRAY[ps.id], ps.logon_time,
+               norm_code(ps.departure), norm_code(ps.arrival), ARRAY[ps.id], ps.logon_time,
                ps.name, ps.home_icao, ps.server, ps.aircraft_icao, ps.aircraft_faa, ps.flight_rules, ps.route, ps.remarks,
                ps.planned_alt, ps.deptime, ps.pilot_rating, ps.military_rating, %s::numeric, %s::int, %s::int, %s::bigint
           FROM pilot_session ps
          WHERE ps.id = %s
-           AND NULLIF(upper(btrim(ps.departure, E' 	
-')), '') IS NOT NULL
-           AND NULLIF(upper(btrim(ps.arrival, E' 	
-')), '') IS NOT NULL
+           AND norm_code(ps.departure) IS NOT NULL
+           AND norm_code(ps.arrival) IS NOT NULL
         """,
         (start, start_offset_s, end, airborne, gs, alt, samples, sid),
     )

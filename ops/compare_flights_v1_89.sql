@@ -33,7 +33,7 @@ v3 AS (
      WHERE f.logon_time >= w.w_start AND f.end_time < w.w_end AND NOT (f.start_time < w.cut_end AND f.end_time > w.cut_start)
 ),
 v1 AS (
-    SELECT row_number() OVER () AS rid, s.cid, s.callsign, upper(btrim(s.departure)) AS departure, upper(btrim(s.arrival)) AS arrival,
+    SELECT row_number() OVER () AS rid, s.cid, s.callsign, norm_code(s.departure) AS departure, norm_code(s.arrival) AS arrival,
            date_trunc('second', s.logon_time) AS logon_s, s.completion_time
       FROM v1_summary s, win w
      WHERE s.logon_time >= w.w_start AND s.logon_time < w.w_end

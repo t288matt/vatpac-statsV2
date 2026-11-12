@@ -6,6 +6,13 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## One rule for airport and aircraft codes (12-11-2026, issue 207)
+
+- **One function.** The rule for tidying an airport, aircraft type or prefix code (strip spaces, tabs and line breaks from both ends, upper-case, and read an empty result as no value) is now one database function, `norm_code()`. About twenty copies of it, in two slightly different spellings, are gone: every view, function, index and script calls it. Migrations `20261112000100` to `20261112000170`.
+- **What can look different.** The live-flights view, the flight-extra view (aircraft type), the home-prefix list and the home and region helpers used a looser version that left tabs in place and returned an empty text instead of no value. The collector never stores a tab or an empty code, so on stored data they give the same rows; only a hand-entered code with a tab or line break, or a blank one, now reads as the tidy code or as empty. The flight writer and the deletion check already used this rule and are unchanged.
+- **Military dashboard.** "RAAFv flights (last 7 days)" and "Most popular RAAFv aircraft last month (flights)" use `norm_code()` for the aircraft type. They return the same rows as before on data the collector can store.
+- **Two indexes rebuilt.** The departure and arrival indexes on `pilot_session` are rebuilt on the function while the collector keeps running; there is no pause in polling. Steps and checks are in the deploy runbook (section 4f).
+
 ## Controller chart labels, removed charts and UK-style dates (12-11-2026, issue 353)
 
 - **Controller labels.** On ATC: controllers, "Top 30 service providers (last 30 days)" and "Controllers with the shortest average session (last 30 days)" label each bar `Name (CID, rank)`, like the median-session charts: the latest non-empty name (the CID where there is none) and the controller's highest rating in the period as its rank group. The bars, order, values and limits are unchanged. Ratings other than S1 to I1+ (such as 1 and 6) read Unknown, and a name of only spaces counts as missing on these two charts.

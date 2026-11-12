@@ -52,7 +52,7 @@ UPDATE gate_plan g SET independent_uncovered = (
     SELECT count(*) FROM pilot_position p LEFT JOIN pilot_session s ON s.id = p.session_id
      WHERE p.observed_at >= g.p_start AND p.observed_at < g.p_end
        AND (s.id IS NULL OR s.flown_upto IS NULL OR p.observed_at > s.flown_upto
-            OR (NULLIF(upper(btrim(s.departure, E' \t\r\n')), '') IS NOT NULL AND NULLIF(upper(btrim(s.arrival, E' \t\r\n')), '') IS NOT NULL
+            OR (norm_code(s.departure) IS NOT NULL AND norm_code(s.arrival) IS NOT NULL
                 AND NOT EXISTS (SELECT 1 FROM flight_summary f
                                  WHERE p.session_id = ANY (f.session_ids) AND p.observed_at BETWEEN f.start_time AND f.end_time))))
  WHERE g.due AND NOT g.pinned;
