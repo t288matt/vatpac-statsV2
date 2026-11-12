@@ -14,8 +14,17 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-from helpers import CID, T0, add_flight, make_session, run, run_panel, session_ending, set_up_clock, write_all
+from helpers import (
+    CID,
+    T0,
+    add_flight,
+    make_session,
+    run,
+    run_panel,
+    session_ending,
+    set_up_clock,
+    write_all,
+)
 
 psycopg = pytest.importorskip("psycopg")
 pytestmark = pytest.mark.integration
@@ -82,7 +91,7 @@ def test_the_planner_uses_the_index_for_either_spelling(conn: Any, column: str, 
     conn.execute("SET enable_seqscan = off")
     try:
         plan = "\n".join(next(iter(r.values())) for r in conn.execute(
-            f"EXPLAIN SELECT count(*) FROM pilot_session WHERE {spelling.format(c=column)} = 'YMML'").fetchall())  # noqa: S608
+            f"EXPLAIN SELECT count(*) FROM pilot_session WHERE {spelling.format(c=column)} = 'YMML'").fetchall())
     finally:
         conn.execute("RESET enable_seqscan")
     assert f"pilot_session_{column}_code_idx" in plan, plan
