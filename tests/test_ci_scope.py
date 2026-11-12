@@ -178,6 +178,7 @@ EXEMPT = {
     "tests/test_ci_scope.py": "this file",
     "tests/test_run_checks_parity.py": "names the validator command only to check that CI does not run it outside ops/run_checks.sh",
     "tests/scale/run_panels.py": "scale tool, not a test that CI runs",
+    "tests/test_norm_code_single_rule.py": "names the dashboards folder only to scan it for copies of the ICAO text rule",
 }
 
 

@@ -47,9 +47,9 @@ A session that forms no flight (no flight plan, or no positions) is marked as pr
 
 ## 2. The flight gate
 
-**v3.** A session counts as a "flight" only when departure and arrival are both non-empty after `UPPER` and trimming. The gate is applied in the `flight` view, not at ingest, so every in-region session and all its positions are stored.
+**v3.** A session counts as a "flight" only when departure and arrival are both non-empty after `norm_code()`. The gate is applied in the `flight` view, not at ingest, so every in-region session and all its positions are stored.
 
-Trimming uses `btrim` with an explicit character set (space, tab, carriage return, line feed). Plain `trim()` strips spaces only, so tabs in an airport code used to slip past the gate; this was a defect found by the integration tests and fixed (ADR-015).
+`norm_code()` is the one rule for an ICAO text code, used by the flight gate and by every other place that normalises an airport, aircraft type or prefix: it strips spaces, tabs, carriage returns and line feeds from both ends, upper-cases, and treats an empty result as no value (NULL). Plain `trim()` strips spaces only, so it is not used for these codes (ADR-015).
 
 `poll_log.pilots_with_plan` counts, per snapshot, the in-region pilots that pass the same test, for monitoring.
 

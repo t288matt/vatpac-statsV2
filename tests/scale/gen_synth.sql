@@ -67,17 +67,17 @@ SELECT sid, cid, callsign, date_trunc('second', st), 'Pilot ' || cid,
 FROM sess;
 SELECT setval('pilot_session_id_seq', (SELECT max(id) FROM pilot_session));
 
--- flight_summary rows: one finished flight per session that passes the flight gate (departure and arrival non-empty after upper(btrim)),
+-- flight_summary rows: one finished flight per session that passes the flight gate (departure and arrival non-empty after norm_code),
 -- as write_finished_flights() writes them (reconnects are not joined here: the scale test measures the readers, not the writer; the
 -- writer needs positions, which this script does not generate). About 1% of the flights have no airborne figure (carried over).
 INSERT INTO flight_summary (session_id, start_time, end_time, cid, callsign, departure, arrival, session_ids, logon_time,
                             name, aircraft_icao, flight_rules, remarks, airborne_minutes, max_gs_kt, max_alt_ft, sample_count)
-SELECT ps.id, ps.first_seen, ps.last_seen, ps.cid, ps.callsign, upper(btrim(ps.departure)), upper(btrim(ps.arrival)), ARRAY[ps.id], ps.logon_time,
+SELECT ps.id, ps.first_seen, ps.last_seen, ps.cid, ps.callsign, norm_code(ps.departure), norm_code(ps.arrival), ARRAY[ps.id], ps.logon_time,
        ps.name, ps.aircraft_icao, ps.flight_rules, ps.remarks,
        CASE WHEN ps.id % 97 = 0 THEN NULL ELSE round((extract(epoch FROM ps.last_seen - ps.first_seen) / 60.0 * 0.8)::numeric, 2) END,
        ps.max_gs_kt, ps.max_alt_ft, (extract(epoch FROM ps.last_seen - ps.first_seen) / 15)::bigint + 1
 FROM pilot_session ps
-WHERE NULLIF(upper(btrim(ps.departure)), '') IS NOT NULL AND NULLIF(upper(btrim(ps.arrival)), '') IS NOT NULL
+WHERE norm_code(ps.departure) IS NOT NULL AND norm_code(ps.arrival) IS NOT NULL
   AND ps.last_seen < now() - interval '8 hours';
 -- a few flights in progress (online now)
 INSERT INTO network_snapshot VALUES (now() - interval '5 seconds', 1, 1, 1, 1);

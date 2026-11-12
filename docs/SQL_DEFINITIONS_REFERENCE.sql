@@ -1,16 +1,12 @@
 -- REFERENCE SNAPSHOT, NOT APPLIED. Nothing reads or runs this file; it is documentation only (issue #234).
 --
--- What it is: the text of the database objects that migrations 20261009000120 and 20261013000300 rebuilt from the
--- live catalogue (pg_get_functiondef / pg_get_viewdef plus a text replace of the old flight table name with flight_summary), so
--- the migration files themselves never contain the final text. The older migrations (20261012000190, 20261012000200,
--- 20261013000210) still use the old table name; the definitions below are what a database holds after every migration up
--- to and including 20261013000300.
+-- What it is: the text of the database objects that several migrations rebuilt from the live catalogue (pg_get_functiondef /
+-- pg_get_viewdef plus a text replace), so the migration files themselves never contain the final text. The definitions below
+-- are what a database holds after every migration up to and including 20261112000170.
 --
--- How it was made (21-10-2026): a throwaway PostgreSQL 16 database built from db/migrations by the production
--- migrate image (the same way CI builds its test database), then extracted with the queries at the bottom.
--- Checked against the live VM database on 21-10-2026 (read-only, md5 of the same queries): the three functions and the
--- view are identical to the text below. To check again, run the queries at the bottom there (read-only; see
--- ops/schema_dump.sql for how to run a file over ssh) and compare.
+-- How it was made: a throwaway PostgreSQL 16 database built from db/migrations by the production migrate image (the same way
+-- CI builds its test database), then extracted with the queries at the bottom. To check a live database, run those queries
+-- there (read-only; see ops/schema_dump.sql for how to run a file over ssh) and compare.
 --
 -- It goes stale the next time a migration changes one of these objects. Regenerate it then, and update the
 -- migration number above.
@@ -45,17 +41,17 @@ BEGIN
         RETURN 0;
     END IF;
     -- One writer at a time. A second caller does not wait: it returns 0 at once (deliberate deviation from design section 2 step 1,
-    -- which blocks; the manager's decision of 12-10-2026); the running call does the work.
+    -- which blocks; the manager's decision of 12-10-2026, see docs/CONFORMANCE_89_PHASE1.md); the running call does the work.
     IF NOT pg_try_advisory_xact_lock(hashtext('vatpac.flight_writer')) THEN
         RETURN 0;
     END IF;
 
-    quiet_h := setting_num('flight_quiet_hours');           -- the one reader: raises when the row is missing; no default
+    quiet_h := setting_num('flight_quiet_hours');
     IF quiet_h < 2.5 THEN
         RAISE EXCEPTION 'flight_quiet_hours is % but must be at least 2.5 (the 120 minute join rule needs a longer quiet period); nothing written', quiet_h;
     END IF;
     quiet := make_interval(secs => (quiet_h * 3600)::double precision);
-    gap_cap := setting_num('airborne_gap_cap_seconds');      -- 75 s = 2.5 x the 30 s poll interval; raises when the row is missing
+    gap_cap := setting_num('airborne_gap_cap_seconds');
 
     SELECT max(observed_at) INTO ref FROM network_snapshot;
     IF ref IS NULL THEN
@@ -104,8 +100,8 @@ BEGIN
         SELECT ps.id, ps.cid, ps.callsign, ps.logon_time, ps.last_seen, ps.flown_upto,
                ps.name, ps.home_icao, ps.server, ps.aircraft_icao, ps.aircraft_faa, ps.flight_rules, ps.route,
                ps.remarks, ps.planned_alt, ps.deptime, ps.pilot_rating, ps.military_rating,
-               NULLIF(upper(btrim(ps.departure, E' \t\r\n')), '') AS dep_n,
-               NULLIF(upper(btrim(ps.arrival,   E' \t\r\n')), '') AS arr_n
+               norm_code(ps.departure) AS dep_n,
+               norm_code(ps.arrival) AS arr_n
           FROM pilot_session ps
          WHERE ps.cid = ANY (pilots) AND (ps.flown_upto IS NULL OR ps.last_seen > ps.flown_upto)
     ),
@@ -437,8 +433,8 @@ AS $function$
                    THEN 'session row missing'
                WHEN s.flown_upto IS NULL OR s.flown_upto < pos.last_at
                    THEN 'positions not yet processed by the flight writer'
-               WHEN NULLIF(upper(btrim(s.departure, E' \t\r\n')), '') IS NOT NULL
-                AND NULLIF(upper(btrim(s.arrival,   E' \t\r\n')), '') IS NOT NULL
+               WHEN public.norm_code(s.departure) IS NOT NULL
+                AND public.norm_code(s.arrival) IS NOT NULL
                 AND COALESCE(cov.n, 0) < pos.n
                    THEN 'positions not inside a written flight'
            END AS reason
@@ -447,8 +443,8 @@ AS $function$
       LEFT JOIN cov ON cov.session_id = pos.session_id
      WHERE s.id IS NULL
         OR s.flown_upto IS NULL OR s.flown_upto < pos.last_at
-        OR (NULLIF(upper(btrim(s.departure, E' \t\r\n')), '') IS NOT NULL
-            AND NULLIF(upper(btrim(s.arrival, E' \t\r\n')), '') IS NOT NULL
+        OR (public.norm_code(s.departure) IS NOT NULL
+            AND public.norm_code(s.arrival) IS NOT NULL
             AND COALESCE(cov.n, 0) < pos.n)
     UNION ALL
     -- Stored count against sample_count for every flight that overlaps the day, provided EVERY day the flight spans is still stored

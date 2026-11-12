@@ -108,8 +108,8 @@ FROM pilot_session s
 WHERE s.flown_upto >= s.last_seen
   AND s.last_seen < (SELECT max(observed_at) FROM network_snapshot) - interval '2 days'
   AND s.last_seen >= (SELECT max(observed_at) FROM network_snapshot) - interval '30 days'
-  AND NULLIF(upper(btrim(s.departure, E' \t\r\n')), '') IS NOT NULL
-  AND NULLIF(upper(btrim(s.arrival,   E' \t\r\n')), '') IS NOT NULL
+  AND norm_code(s.departure) IS NOT NULL
+  AND norm_code(s.arrival) IS NOT NULL
   AND EXISTS (SELECT 1 FROM pilot_position p WHERE p.session_id = s.id AND p.observed_at >= s.first_seen AND p.observed_at <= s.last_seen)
   AND s.id NOT IN (SELECT unnest(f.session_ids) FROM flight_summary f
                     WHERE f.end_time >= (SELECT max(observed_at) FROM network_snapshot) - interval '45 days')
