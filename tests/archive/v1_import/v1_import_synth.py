@@ -3,8 +3,8 @@
 Never real data: names, CIDs and times are invented. The CSV layout is exactly what ops/v1_import/extract.sh writes
 (`psql --csv`: header, empty field = NULL, timestamps `YYYY-MM-DD HH:MM:SS[.ffffff]+00`, jsonb as JSON text).
 
-    python tests/tools/v1_import_synth.py generate OUT_DIR [--full]      write the files (--full: the real monthly counts)
-    python tests/tools/v1_import_synth.py compare DSN OUT_DIR [--limit N]  compare loaded rows with the reference mapping
+    python tests/archive/v1_import/v1_import_synth.py generate OUT_DIR [--full]      write the files (--full: the real monthly counts)
+    python tests/archive/v1_import/v1_import_synth.py compare DSN OUT_DIR [--limit N]  compare loaded rows with the reference mapping
 
 The reference mapping (`expected_flight`, `expected_controller`) is written from the owner's field map and the collector's own
 text helpers (vatpac.model), not from the SQL, so a mistake in either shows as a difference.
@@ -21,7 +21,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "collector" / "src"))
 from vatpac import model  # noqa: E402
 
