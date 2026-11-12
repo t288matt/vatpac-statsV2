@@ -31,6 +31,7 @@ esac
 """
 FAKE_PG_RESTORE = """#!/bin/sh
 # usage: pg_restore -l FILE ; succeeds only for a good fake dump
+[ -n "$FAKE_RESTORE_LOG" ] && echo "$*" >> "$FAKE_RESTORE_LOG"
 grep -q GOODDUMP "$2" || { echo "pg_restore: error: unsupported version in file header" >&2; exit 1; }
 echo "1; 0 1 SCHEMA - public owner"
 grep -q NODATA "$2" && exit 0
@@ -195,3 +196,27 @@ def test_a_dump_of_exactly_half_the_previous_size_is_kept_and_one_byte_less_is_r
     assert r.returncode == 0 and len(_new_dumps(backups)) == 1, r.stdout + r.stderr
     r, backups = _run(tmp_path / "under", "good", old_pad=12)
     assert r.returncode != 0 and "under 50%" in r.stdout and not _new_dumps(backups)
+
+
+def test_the_dump_is_listed_once_and_the_same_listing_serves_both_checks(tmp_path: Path) -> None:
+    """Issue 217: one pg_restore -l on the .partial file feeds the readable gate and the key-table check."""
+    log = tmp_path / "restore_calls.log"
+    r, backups = _run(tmp_path, "good", FAKE_RESTORE_LOG=str(log))
+    assert r.returncode == 0, r.stdout + r.stderr
+    calls = log.read_text().splitlines()
+    assert len(calls) == 1 and calls[0].startswith("-l ") and calls[0].endswith(".dump.partial"), calls
+    assert len(_new_dumps(backups)) == 1
+
+
+def test_the_single_listing_still_rejects_a_dump_with_no_key_table_data(tmp_path: Path) -> None:
+    log = tmp_path / "restore_calls.log"
+    r, backups = _run(tmp_path, "nodata", FAKE_RESTORE_LOG=str(log), BACKUP_MIN_FIRST_BYTES="1", old=0)
+    assert "no table data for poll_log" in r.stdout and not _new_dumps(backups)
+    assert len(log.read_text().splitlines()) == 1
+
+
+def test_an_unreadable_dump_is_listed_once_and_stops_before_the_content_check(tmp_path: Path) -> None:
+    log = tmp_path / "restore_calls.log"
+    r, backups = _run(tmp_path, "junk", FAKE_RESTORE_LOG=str(log))
+    assert "FAILED validation" in r.stdout and "FAILED content check" not in r.stdout
+    assert len(log.read_text().splitlines()) == 1 and not list(backups.glob("*.rejected"))
