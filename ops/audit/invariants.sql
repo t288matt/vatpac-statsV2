@@ -79,10 +79,12 @@ UNION ALL
 -- view ops_pending_flight (migration 20261112000010, issues 200 and 238), which reads the setting flight_quiet_hours itself, so no number is
 -- written here and a changed setting is followed. The detail is the setting the check used; the watchdog builds its alert wording from it.
 -- A missing or non-numeric setting row makes this query fail, and the sweep reports that it could not run.
--- The check fires as soon as the writer's own rule says a flight is due (the old copy added a 1 hour allowance, 9 hours in all).
+-- The check fires at flight_quiet_hours plus flight_quiet_check_grace_minutes (owner decision 12-11-2026, 30 minutes: the writer runs every 5
+-- minutes), both settings, view column is_overdue. The detail carries both values for the alert wording.
 SELECT 'flights quiet longer than the quiet period with unprocessed positions', count(*),
-       (SELECT 'flight_quiet_hours=' || trim_scale(s.value)::text FROM ops_setting s WHERE s.key = 'flight_quiet_hours')
-FROM ops_pending_flight WHERE is_quiet
+       (SELECT 'flight_quiet_hours=' || trim_scale(h.value)::text || ' flight_quiet_check_grace_minutes=' || trim_scale(g.value)::text
+          FROM ops_setting h, ops_setting g WHERE h.key = 'flight_quiet_hours' AND g.key = 'flight_quiet_check_grace_minutes')
+FROM ops_pending_flight WHERE is_overdue
 UNION ALL
 SELECT 'flights written in the last 3 days whose sample_count differs from the stored positions of their sessions', count(*), NULL FROM (
   SELECT f.session_id, f.start_time, f.sample_count,

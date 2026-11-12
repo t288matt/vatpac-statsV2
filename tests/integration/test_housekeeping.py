@@ -7,7 +7,7 @@ from test_controller_retention import add_session
 
 pytestmark = pytest.mark.integration
 
-SEEDED = {"home_icao_prefixes": "Y", "airborne_gap_cap_seconds": "40"}  # the migration seed for the prefixes; the gap cap row is written by the test setup (conftest TEST_GAP_CAP)
+SEEDED = {"home_icao_prefixes": "Y", "airborne_gap_cap_seconds": "75"}  # the migration seed for the prefixes; the gap cap row is written by the test setup (conftest TEST_GAP_CAP)
 
 
 def test_a_test_may_change_and_add_settings(conn) -> None:

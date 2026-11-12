@@ -65,7 +65,7 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $f$
 BEGIN
-    IF p_key IS NULL OR p_key NOT IN ('flight_quiet_hours', 'airborne_gap_cap_seconds') THEN
+    IF p_key IS NULL OR p_key NOT IN ('flight_quiet_hours', 'airborne_gap_cap_seconds', 'flight_quiet_check_grace_minutes') THEN
         RAISE EXCEPTION 'setting % is not available through ops_setting_num', p_key USING ERRCODE = 'insufficient_privilege';
     END IF;
     RETURN setting_num(p_key);
@@ -77,11 +77,15 @@ COMMENT ON FUNCTION ops_setting_num(text) IS
 
 DELETE FROM app_setting WHERE key = 'airborne_gap_cap_seconds' AND value = '40';
 
+-- Owner decision 12-11-2026 ("30 mins"): the watchdog's overdue check fires at flight_quiet_hours + this many minutes, so the writer's own
+-- run interval is not mistaken for a stopped writer. Its own setting row, read through setting_num; the owner may change it.
+INSERT INTO app_setting (key, value) VALUES ('flight_quiet_check_grace_minutes', '30') ON CONFLICT (key) DO NOTHING;
+
 CREATE VIEW ops_setting AS
 SELECT k AS key, ops_setting_num(k) AS value
-  FROM unnest(ARRAY['flight_quiet_hours', 'airborne_gap_cap_seconds']) AS k;
+  FROM unnest(ARRAY['flight_quiet_hours', 'airborne_gap_cap_seconds', 'flight_quiet_check_grace_minutes']) AS k;
 COMMENT ON VIEW ops_setting IS
-    'The two settings that production numbers depend on (flight_quiet_hours in hours, airborne_gap_cap_seconds in seconds), read through ops_setting_num (setting_num): a missing or non-numeric row raises. For the watchdog role only; grafana_ro has no access.';
+    'The settings that production numbers depend on (flight_quiet_hours in hours, airborne_gap_cap_seconds in seconds, flight_quiet_check_grace_minutes in minutes), read through ops_setting_num (setting_num): a missing or non-numeric row raises. For the watchdog role only; grafana_ro has no access.';
 
 CREATE VIEW ops_pending_flight AS
 WITH g AS (
@@ -102,12 +106,14 @@ WITH g AS (
     UNION ALL
     SELECT g.cid, g.callsign, g.dep, g.arr, g.last_seen, 1 FROM g WHERE g.dep IS NULL OR g.arr IS NULL),
   ref AS (SELECT CASE WHEN max(observed_at) IS NOT NULL THEN LEAST(max(observed_at), now() + interval '5 minutes') END AS t FROM network_snapshot),
-  cfg AS (SELECT make_interval(secs => (ops_setting_num('flight_quiet_hours') * 3600)::double precision) AS quiet)
+  cfg AS (SELECT make_interval(secs => (ops_setting_num('flight_quiet_hours') * 3600)::double precision) AS quiet,
+                 make_interval(secs => (ops_setting_num('flight_quiet_check_grace_minutes') * 60)::double precision) AS grace)
 SELECT grp.cid, grp.callsign, grp.departure, grp.arrival, grp.session_count, grp.newest_seen,
-       (grp.newest_seen <= ref.t - cfg.quiet) AS is_quiet
+       (grp.newest_seen <= ref.t - cfg.quiet) AS is_quiet,
+       (grp.newest_seen <= ref.t - cfg.quiet - cfg.grace) AS is_overdue
   FROM grp CROSS JOIN ref CROSS JOIN cfg;
 COMMENT ON VIEW ops_pending_flight IS
-    'The one definition of the pending-flight rule (issues 200, 238): one row per flight (v1 groups of unprocessed sessions: same cid, callsign, departure and arrival, a session joins when its logon_time is within 120 minutes of the latest earlier last_seen; a session without a plan is its own row) with the flight''s newest last_seen and is_quiet, true when that is flight_quiet_hours or more behind the newest stored snapshot (capped at now() + 5 minutes), the writer''s rule. Reads the setting through ops_setting_num (setting_num), so a missing row raises; without any snapshot nothing is quiet. Not for Grafana.';
+    'The one definition of the pending-flight rule (issues 200, 238): one row per flight (v1 groups of unprocessed sessions: same cid, callsign, departure and arrival, a session joins when its logon_time is within 120 minutes of the latest earlier last_seen; a session without a plan is its own row) with the flight''s newest last_seen and is_quiet, true when that is flight_quiet_hours or more behind the newest stored snapshot (capped at now() + 5 minutes), the writer''s rule. Reads the setting through ops_setting_num (setting_num), so a missing row raises; without any snapshot nothing is quiet. is_overdue is the same test with flight_quiet_check_grace_minutes added: what the watchdog invariant checks. Not for Grafana.';
 
 DO $do$
 DECLARE

@@ -105,30 +105,43 @@ def test_grafana_ro_is_not_granted_the_ops_views() -> None:
 
 
 # ------------------------------------------------------------------ the alert wording follows the setting
-def _text(detail_hours: str | None) -> str:
-    finding = integrity.Finding(QUIET, 2, None if detail_hours is None else f"flight_quiet_hours={detail_hours}")
+def tok(hours: str, grace: str) -> str:
+    return f"flight_quiet_hours={hours} flight_quiet_check_grace_minutes={grace}"
+
+
+def _text(token: str | None) -> str:
+    finding = integrity.Finding(QUIET, 2, token)
     _, detail = integrity.summarise_invariants([finding], [], 20)
     return m.humanise("data_integrity", "warn", detail, now=NOW)
 
 
-@pytest.mark.parametrize("hours", ["8", "6", "12", "2.5"])
-def test_the_alert_wording_quotes_the_setting_the_check_used(hours: str) -> None:
-    t = _text(hours)
-    assert f"ended over {hours} hours ago" in t and "nine" not in t.lower() and "9 hours" not in t
-    assert m.invariant_words(QUIET, f"[flight_quiet_hours={hours}]") in t
+@pytest.mark.parametrize("hours,grace,words", [("8", "30", "8 hours 30 minutes"), ("8", "0", "8 hours"), ("6", "30", "6 hours 30 minutes"),
+                                               ("12", "90", "13 hours 30 minutes"), ("2.5", "30", "3 hours"), ("1", "30", "1 hour 30 minutes")])
+def test_the_alert_wording_is_built_from_both_settings(hours: str, grace: str, words: str) -> None:
+    t = _text(tok(hours, grace))
+    assert f"ended over {words} ago" in t and "nine" not in t.lower() and "9 hours" not in t
+    assert m.invariant_words(QUIET, f"[{tok(hours, grace)}]") in t
 
 
-def test_the_alert_wording_names_no_number_when_the_setting_was_not_reported() -> None:
+def test_the_alert_wording_names_no_number_when_the_settings_were_not_reported() -> None:
     t = _text(None)
     assert "longer ago than the quiet period" in t and not re.search(r"over \d", t.splitlines()[0])
 
 
-def test_the_setting_travels_in_the_sweep_detail_and_in_the_new_violation_notice() -> None:
-    finding = integrity.Finding(QUIET, 1, "flight_quiet_hours=8")
+def test_the_settings_travel_in_the_sweep_detail_and_in_the_new_violation_notice() -> None:
+    finding = integrity.Finding(QUIET, 1, tok("8", "30"))
     _, detail = integrity.summarise_invariants([finding, integrity.Finding("daily partitions missing for today..today+3", 1)], [], 20)
-    assert "[flight_quiet_hours=8]" in detail
+    assert f"[{tok('8', '30')}]" in detail
     _, other = integrity.summarise_invariants([integrity.Finding(QUIET, 1, "not a setting")], [], 20)
-    assert "flight_quiet_hours" not in other  # only a well-formed setting token is carried
-    notice = f"WARN data_integrity: new violations since the last sweep: {QUIET} [flight_quiet_hours=6]"
-    text = m.from_alert_text(notice, now=NOW)
-    assert "ended over 6 hours ago" in text
+    assert "flight_quiet_hours" not in other  # only a well-formed token is carried
+    _, half = integrity.summarise_invariants([integrity.Finding(QUIET, 1, "flight_quiet_hours=8")], [], 20)
+    assert "flight_quiet_hours" not in half
+    notice = f"WARN data_integrity: new violations since the last sweep: {QUIET} [{tok('6', '45')}]"
+    assert "ended over 6 hours 45 minutes ago" in m.from_alert_text(notice, now=NOW)
+
+
+def test_the_grace_is_a_setting_row_seeded_by_the_migration_and_not_a_typed_number() -> None:
+    sql = NEW.read_text(encoding="utf-8")
+    assert "('flight_quiet_check_grace_minutes', '30') ON CONFLICT (key) DO NOTHING" in sql
+    inv = code_only(read("ops", "audit", "invariants.sql"))
+    assert "is_overdue" in inv and not re.search(r"interval '\d+ (minutes?|hours?)'", inv.split("flights written in the last 3 days")[0].split("'daily")[0][-900:])

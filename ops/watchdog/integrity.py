@@ -34,8 +34,8 @@ Result = tuple[str, str]
 log = logging.getLogger("watchdog.integrity")
 
 INVARIANTS_KEY, CROSSCHECK_KEY = "data_integrity", "feed_crosscheck"
-QUIET_INVARIANT = "flights quiet longer than the quiet period with unprocessed positions"  # detail: `flight_quiet_hours=N` (#200, #238)
-_QUIET_TOKEN = re.compile(r"flight_quiet_hours=\d+(?:\.\d+)?")
+QUIET_INVARIANT = "flights quiet longer than the quiet period with unprocessed positions"  # detail: both settings (#200, #238)
+_QUIET_TOKEN = re.compile(r"flight_quiet_hours=\d+(?:\.\d+)? flight_quiet_check_grace_minutes=\d+(?:\.\d+)?")
 RETRY_AFTER_ERROR_S = 3600.0  # a run that could not complete is tried again after an hour
 RECHECK_AFTER_FINDINGS_S = 6 * 3600.0  # a sweep with violations is repeated sooner, so RECOVERED does not wait 3 days
 MAX_NAMES_IN_ALERT = 6

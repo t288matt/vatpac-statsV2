@@ -160,7 +160,7 @@ def test_ops_setting_shows_exactly_the_two_settings_and_follows_them(conn: Any) 
     set_setting(conn, "flight_quiet_hours", "6")
     set_setting(conn, "airborne_gap_cap_seconds", "55")
     got = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM ops_setting").fetchall()}
-    assert got == {"flight_quiet_hours": Decimal(6), "airborne_gap_cap_seconds": Decimal(55)}
+    assert got == {"flight_quiet_hours": Decimal(6), "airborne_gap_cap_seconds": Decimal(55), "flight_quiet_check_grace_minutes": Decimal(30)}
     conn.execute("DELETE FROM app_setting WHERE key = 'airborne_gap_cap_seconds'")
     with pytest.raises(psycopg.errors.NoDataFound):
         conn.execute("SELECT key, value FROM ops_setting").fetchall()
@@ -222,29 +222,59 @@ def _alert(dsn: str, role: str | None) -> str:
     return messages.humanise("data_integrity", "warn", detail, now=datetime(2026, 11, 12, 10, 0, tzinfo=UTC))
 
 
-def test_the_invariant_and_the_alert_wording_follow_a_changed_flight_quiet_hours(conn: Any, dsn: str) -> None:
+def tok(hours: str, grace: str) -> str:
+    return f"flight_quiet_hours={hours} flight_quiet_check_grace_minutes={grace}"
+
+
+def test_the_invariant_and_the_alert_wording_follow_both_settings(conn: Any, dsn: str) -> None:
     role = _role(conn)
     w = World(conn)
     gone = w.ts[0] - timedelta(hours=7)                      # an unprocessed flight whose last position is 7 hours before the newest snapshot
     conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
                  "VALUES (4201, 'GONE7', %s, %s, %s, 'YSSY', 'YMML')", (gone.replace(microsecond=0), gone, gone))
+    grace = lambda v: set_setting(conn, "flight_quiet_check_grace_minutes", v)  # noqa: E731
+    assert conn.execute("SELECT value FROM app_setting WHERE key = 'flight_quiet_check_grace_minutes'").fetchone()["value"] == "30"   # the seed
     set_setting(conn, "flight_quiet_hours", "8")
-    assert _pack(dsn, role)[QUIET] == (0, "flight_quiet_hours=8")          # 7 hours is not 8: not overdue
+    assert _pack(dsn, role)[QUIET] == (0, tok("8", "30"))                  # 7 hours is below 8 h 30 min: not overdue
+    set_setting(conn, "flight_quiet_hours", "6.5")
+    assert _pack(dsn, role)[QUIET] == (1, tok("6.5", "30"))                # 6 h 30 + 30 min = 7 h: the boundary is inclusive, it fires
     set_setting(conn, "flight_quiet_hours", "6")
-    count, detail = _pack(dsn, role)[QUIET]
-    assert (count, detail) == (1, "flight_quiet_hours=6")
-    first = _alert(dsn, role).splitlines()[0]
-    assert "some flights ended over 6 hours ago" in first and "nine" not in first and "8 hours" not in first
-    set_setting(conn, "flight_quiet_hours", "2.5")
-    assert _pack(dsn, role)[QUIET] == (1, "flight_quiet_hours=2.5")
-    assert "some flights ended over 2.5 hours ago" in _alert(dsn, role)
+    assert _pack(dsn, role)[QUIET] == (1, tok("6", "30"))
+    assert "some flights ended over 6 hours 30 minutes ago" in _alert(dsn, role).splitlines()[0]
+    grace("90")                                                            # a larger grace moves the check: 6 h + 90 min = 7 h 30 min > 7 h
+    assert _pack(dsn, role)[QUIET] == (0, tok("6", "90"))
+    grace("0")
+    assert _pack(dsn, role)[QUIET] == (1, tok("6", "0"))
+    assert "some flights ended over 6 hours ago" in _alert(dsn, role).splitlines()[0]
+    grace("30")
     set_setting(conn, "flight_quiet_hours", "12")
-    assert _pack(dsn, role)[QUIET] == (0, "flight_quiet_hours=12")         # a larger setting loosens the check
     older = w.ts[0] - timedelta(hours=13)
     conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
                  "VALUES (4202, 'GONE13', %s, %s, %s, 'YSSY', 'YMML')", (older.replace(microsecond=0), older, older))
-    assert _pack(dsn, role)[QUIET] == (1, "flight_quiet_hours=12")
-    assert "some flights ended over 12 hours ago" in _alert(dsn, role)
+    assert _pack(dsn, role)[QUIET] == (1, tok("12", "30"))                 # 13 h is past 12 h 30 min
+    assert "some flights ended over 12 hours 30 minutes ago" in _alert(dsn, role).splitlines()[0]
+
+
+def test_a_flight_quiet_for_less_than_quiet_hours_plus_grace_does_not_trip_the_invariant(conn: Any, dsn: str) -> None:
+    role = _role(conn)
+    w = World(conn)
+    for cid, mins in ((4211, 8 * 60 + 5), (4212, 8 * 60 + 29)):            # quiet past 8 h (the writer would write it) but inside the 30 minute grace
+        t = w.ts[0] - timedelta(minutes=mins)
+        conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
+                     "VALUES (%s, %s, %s, %s, %s, 'YSSY', 'YMML')", (cid, f"G{cid}", t.replace(microsecond=0), t, t))
+    assert _pack(dsn, role)[QUIET][0] == 0
+    assert conn.execute("SELECT count(*) AS n FROM ops_pending_flight WHERE is_quiet AND cid IN (4211, 4212)").fetchone()["n"] == 2
+    t = w.ts[0] - timedelta(minutes=8 * 60 + 31)
+    conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen, departure, arrival) "
+                 "VALUES (4213, 'G4213', %s, %s, %s, 'YSSY', 'YMML')", (t.replace(microsecond=0), t, t))
+    assert _pack(dsn, role)[QUIET][0] == 1
+
+
+def test_a_missing_grace_row_makes_the_sweep_fail(conn: Any, dsn: str) -> None:
+    World(conn)
+    conn.execute("DELETE FROM app_setting WHERE key = 'flight_quiet_check_grace_minutes'")
+    with psycopg.connect(dsn) as c, pytest.raises(psycopg.errors.NoDataFound, match="flight_quiet_check_grace_minutes"):
+        integrity.run_invariants(c, SQL, timeout_s=60, role=_role(conn))
 
 
 def test_the_second_pending_flight_invariant_still_counts_sessions_of_flights_ended_over_two_days_ago(conn: Any, dsn: str) -> None:
@@ -278,7 +308,7 @@ def test_watchdog_ro_reads_the_two_views(conn: Any, as_watchdog: Any) -> None:
     set_setting(conn, "flight_quiet_hours", "8")
     set_setting(conn, "airborne_gap_cap_seconds", "75")
     got = {r[0]: r[1] for r in as_watchdog.execute("SELECT key, value FROM ops_setting").fetchall()}
-    assert got == {"flight_quiet_hours": 8, "airborne_gap_cap_seconds": 75}
+    assert got == {"flight_quiet_hours": 8, "airborne_gap_cap_seconds": 75, "flight_quiet_check_grace_minutes": 30}
     as_watchdog.execute("SELECT count(*) FROM ops_pending_flight").fetchone()
     assert as_watchdog.execute("SELECT ops_setting_num('flight_quiet_hours')").fetchone()[0] == 8   # the wrapper answers for the two settings
 

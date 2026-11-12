@@ -81,18 +81,26 @@ INVARIANT_ACTIONS: dict[str, str] = {
 }
 
 
-_QUIET_HOURS = re.compile(r"flight_quiet_hours=(\d+(?:\.\d+)?)")
+_QUIET_HOURS = re.compile(r"flight_quiet_hours=(\d+(?:\.\d+)?) flight_quiet_check_grace_minutes=(\d+(?:\.\d+)?)")
+
+
+def _hours_minutes(hours: str, grace_minutes: str) -> str:
+    """'8' and '30' -> '8 hours 30 minutes': the age at which the check fires, built from both settings."""
+    total = round(float(hours) * 60 + float(grace_minutes))
+    h, mi = divmod(total, 60)
+    parts = ([f"{h} hour{'s' if h != 1 else ''}"] if h else []) + ([f"{mi} minute{'s' if mi != 1 else ''}"] if mi else [])
+    return " ".join(parts) or "0 minutes"
 
 
 def invariant_words(name: str, detail: str) -> str:
     """The plain wording of one invariant. The quiet-period check quotes the flight_quiet_hours setting that the check itself
-    used (the invariant pack reports it as `flight_quiet_hours=N`, integrity.summarise_invariants carries it into the detail);
+    used (the invariant pack reports it with the grace as `flight_quiet_hours=N flight_quiet_check_grace_minutes=M`, integrity.summarise_invariants carries it into the detail);
     without it the wording says "longer ago than the quiet period" and names no number."""
     words = INVARIANT_WORDS[name]
     if "{when}" not in words:
         return words
     m = _QUIET_HOURS.search(detail)
-    return words.format(when=f"over {m.group(1)} hours ago" if m else "longer ago than the quiet period")
+    return words.format(when=f"over {_hours_minutes(m.group(1), m.group(2))} ago" if m else "longer ago than the quiet period")
 
 
 def _clip(text: str, n: int = MAX_TECH) -> str:

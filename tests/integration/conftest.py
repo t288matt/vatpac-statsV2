@@ -83,7 +83,7 @@ _settings_baseline: dict[str, str] = {}
 # A fresh database has NO airborne_gap_cap_seconds row (migration 20261112000010 removes the stale seed; the collector publishes the real
 # value at every start, 75 s at 30 s polling) and the flight writer raises without it. The tests play the collector's part with this
 # fixed value, so every writer test sees the same number; tests that need another value set it themselves.
-TEST_GAP_CAP = "40"
+TEST_GAP_CAP = "75"
 
 
 def _restore_app_settings(c) -> None:
