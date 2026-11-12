@@ -107,7 +107,7 @@ MSYS_NO_PATHCONV=1 docker compose exec -T -e RESTORE_CONFIRM=vatpac backup resto
 It takes a safety dump of the current local database, restores into `vatpac_restoring`, runs the same sanity checks as the weekly restore test, and only then swaps by renaming: the previous local database stays as `vatpac_old`. Nothing is overwritten until you drop it (see "How `restore.sh` protects you" above), and it will not run again while a `vatpac_old` exists: drop it first (step 6). On 21-10-2026 this took a few seconds.
 
 ### 4. Re-apply the roles and start again
-Roles and their passwords are not in a dump, so run the migrate job once more (it re-applies `db/roles.sql` and the watchdog grants, and finds no new migration), then start everything:
+Roles and their passwords are not in a dump, so run the migrate job once more (it re-applies `db/roles.sql`, which holds the watchdog grants too, and finds no new migration), then start everything:
 ```sh
 docker compose up migrate
 docker compose up -d

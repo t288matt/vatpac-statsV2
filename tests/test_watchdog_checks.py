@@ -129,8 +129,8 @@ def test_archive_check_is_skipped_while_the_collector_is_unhealthy() -> None:
     assert wd.check_archive(body(last_write_age_seconds=99999), False)[0] == wd.OK
 
 
-def test_migrate_grants_the_watchdog_role_the_session_tables() -> None:
-    sh = (REPO / "ops" / "migrate" / "migrate.sh").read_text(encoding="utf-8")
+def test_roles_sql_grants_the_watchdog_role_the_session_tables() -> None:
+    sh = (REPO / "db" / "roles.sql").read_text(encoding="utf-8").split("\n-- watchdog_ro\n")[-1]
     tables = re.search(r"GRANT SELECT ON %I TO watchdog_ro.*?ARRAY\[(.*?)\]", sh, re.S)
     assert tables
     names = set(re.findall(r"'(\w+)'", tables.group(1)))

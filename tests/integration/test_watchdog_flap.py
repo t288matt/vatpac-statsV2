@@ -1,7 +1,7 @@
 """Issue 20: the watchdog's identity-flap queries against a real database, and the least-privilege role they run as.
 
-The queries run as the owner (they need no more than SELECT); the role tests run as watchdog_ro, which migrate.sh
-creates (CI creates it from the same SQL block), and skip when it does not exist."""
+The queries run as the owner (they need no more than SELECT); the role tests run as watchdog_ro, which db/roles.sql
+creates (the migrate job and CI apply it), and skip when it does not exist."""
 from __future__ import annotations
 
 import importlib.util
@@ -67,7 +67,7 @@ def test_old_pairs_age_out_of_the_window_so_the_alert_recovers(conn) -> None:
 @pytest.fixture()
 def as_watchdog(conn):
     if conn.execute("SELECT 1 FROM pg_roles WHERE rolname = 'watchdog_ro'").fetchone() is None:
-        pytest.skip("role watchdog_ro not created (migrate.sh creates it; see the CI step)")
+        pytest.skip("role watchdog_ro not created (db/roles.sql creates it; see the CI step)")
     conn.execute("SET ROLE watchdog_ro")
     try:
         yield conn
