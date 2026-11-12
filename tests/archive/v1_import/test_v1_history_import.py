@@ -1,5 +1,5 @@
 """Issue 279 / ADR-035: the one-off loader ops/v1_import/load.sh (v1 flight_summaries and controller_summaries into flight_summary and
-controller_session), run for real against the throwaway `_test` database with SYNTHETIC files (tests/tools/v1_import_synth.py).
+controller_session), run for real against the throwaway `_test` database with SYNTHETIC files (tests/archive/v1_import/v1_import_synth.py).
 
 The mapping test compares every loaded column of every row with a reference written from the owner's field map and the collector's own
 text helpers, so it fails if a mapping rule (the airborne cap, the start time, the home ICAO, the frequency, the whole-second logon, the
@@ -19,8 +19,8 @@ import pytest
 pytest.importorskip("psycopg")
 pytestmark = pytest.mark.integration
 
-REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "tests" / "tools"))
+REPO = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import v1_import_synth as synth  # noqa: E402
 from drop_gate_helpers import process_flights, unreconciled  # noqa: E402
 from test_integrity_checks import World, failing, sweep  # noqa: E402

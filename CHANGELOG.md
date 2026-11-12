@@ -10,6 +10,10 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 - **New panel.** "CTR hours staffed per day (last 14 months)" on ATC: controllers, directly below "CTR hours staffed per week": one bar per UTC day showing the hours CTR positions (facility 6) were staffed. Three CTR positions staffed together for one hour count as 3 hours; a session that crosses midnight UTC is split between the two days; a day with no CTR sessions shows 0. No view or migration changes.
 
+## v1 import tests archived (12-11-2026, issue 347)
+
+- **Out of the CI run.** The tests for the one-off v1 history import and its file generator moved to `tests/archive/v1_import/`. CI and `pytest tests` no longer run them; they run on demand by naming the folder (see its README.md). No test was removed.
+
 ## CI changes (11-11-2026, issues 339 to 345)
 
 - **One UTC integration pass.** The integration tests run once, in UTC, with the test session time zone set explicitly. The Australia/Sydney pass is removed; the check that `grafana_ro` is pinned to UTC stays.
