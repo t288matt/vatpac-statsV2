@@ -174,19 +174,19 @@ class World:
 
 # ---- the only functions that know how a case reaches the Alerter ------------------------------------------------------
 def raise_alert(a: Any, name: str, level: str, detail: str, facts: dict[str, Any]) -> None:
-    a.update(name, level, detail)
+    a.update(name, level, detail, facts)
 
 
 def raise_notice(a: Any, detail: str, facts: dict[str, Any]) -> None:
-    a.send(f"WARN data_integrity: {detail}")
+    a.notify("data_integrity", m.Checked("warn", detail, **facts))
 
 
 def raise_near_miss(a: Any, callsigns: str) -> None:
-    a.send(f"NEAR-MISS controller callsign(s) not on whitelist: {callsigns}")
+    a.notify("near-miss", ("warn", callsigns))
 
 
 def raise_restarted(a: Any, svc: str, counts: str, why: str) -> None:
-    a.send(f"RESTARTED {svc} ({counts}): {why}")
+    a.notify(f"restarted:{svc}", m.Checked("warn", f"{counts}: {why}", counts=counts, why=why))
 
 
 def raise_unrecognised(a: Any, text: str) -> None:

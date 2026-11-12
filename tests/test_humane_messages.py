@@ -20,6 +20,7 @@ sys.path.insert(0, str(REPO / "ops" / "watchdog"))
 sys.path.insert(0, str(REPO / "ops" / "audit"))
 import integrity  # noqa: E402
 import messages as m  # noqa: E402
+from test_watchdog_alert_wording import CASES as WORDING_CASES  # noqa: E402
 
 spec = importlib.util.spec_from_file_location("watchdog_under_test_humane", REPO / "ops" / "watchdog" / "watchdog.py")
 assert spec and spec.loader
@@ -28,6 +29,12 @@ sys.modules["watchdog_under_test_humane"] = wd
 spec.loader.exec_module(wd)
 
 NOW = datetime(2026, 10, 9, 14, 5, tzinfo=UTC)
+
+
+def summary(findings: list[Any], problems: list[str], total: int) -> tuple[str, dict[str, Any]]:
+    """The detail and the facts the real sweep summary hands to the wording."""
+    res = integrity.summarise_invariants(findings, problems, total)
+    return res[1], integrity.facts_of(res)
 SQL = (REPO / "ops" / "audit" / "invariants.sql").read_text(encoding="utf-8")
 NAMES = integrity.invariant_names(SQL)
 
@@ -77,6 +84,19 @@ CASES: list[tuple[str, str, str, str]] = [
 ]
 OK_CHECKS = sorted({c for c, *_ in CASES})
 
+# The key numbers each check hands over with its detail (tests/test_watchdog_alert_wording.py holds the same table for the Alerter path).
+FACTS: dict[tuple[str, str], dict[str, Any]] = {(n, d): f for n, _, d, f in WORDING_CASES}
+_GAP = "snapshot gaps over 5 minutes (last 3 days)"
+FACTS[("data_integrity", f"1 of 18 invariants report violations: {_GAP} (1). Details are in the watchdog log")] = {
+    "state": "violations", "names": [_GAP], "failing": 1, "of": 18}
+FACTS[("data_integrity", "new violations since the last sweep: identity duplicates (cid, callsign, logon_time)")] = {
+    "state": "new", "names": ["identity duplicates (cid, callsign, logon_time)"]}
+
+
+def hm(name: str, level: str, detail: str, *args: Any, **kw: Any) -> str:
+    """humanise() with the facts the check would have handed over for this detail."""
+    return m.humanise(name, level, detail, *args, facts=FACTS.get((name, detail), {}), **kw)
+
 
 def check_shape(text: str, name: str) -> None:
     assert text.isascii(), text
@@ -89,7 +109,7 @@ def check_shape(text: str, name: str) -> None:
 
 @pytest.mark.parametrize("name,level,detail,plain", CASES)
 def test_every_check_and_level_has_a_plain_message(name: str, level: str, detail: str, plain: str) -> None:
-    text = m.humanise(name, level, detail, now=NOW)
+    text = hm(name, level, detail, now=NOW)
     check_shape(text, name)
     assert text.splitlines()[0].startswith(f"{m.PREFIX} {m.LABELS[level]} (14:05 UTC). ")
     assert plain in text.splitlines()[0], text
@@ -112,32 +132,32 @@ def test_duration_words(secs: float, words: str) -> None:
 
 
 def test_the_examples_in_the_brief() -> None:
-    t = m.humanise("poll_log_ok_age", "crit", "newest ok poll is 312s old", now=NOW)
+    t = hm("poll_log_ok_age", "crit", "newest ok poll is 312s old", now=NOW)
     assert t.splitlines()[0] == ("VATPAC Stats: problem (14:05 UTC). No fresh VATSIM data for about 5 minutes. The system keeps "
                                  "retrying; if this lasts, the collector may be stuck (see docs/RUNBOOKS/stuck-collector.md on the VM).")
     assert t.splitlines()[1] == "Technical: poll_log_ok_age, newest ok poll is 312s old"
-    d = m.humanise("disk", "warn", "/ 82% used", now=NOW)
+    d = hm("disk", "warn", "/ 82% used", now=NOW)
     assert "A disk on the VM (/) is 82% full. Nothing breaks yet, but it needs clearing within days" in d
 
 
 def test_a_step_down_from_crit_to_warn_says_so() -> None:
-    t = m.humanise("disk", "warn", "/ 85% used", previous_level="crit", now=NOW)
+    t = hm("disk", "warn", "/ 85% used", previous_level="crit", now=NOW)
     assert "eased from a problem to a warning" in t
 
 
 def test_near_miss_and_restarted() -> None:
-    t = m.from_alert_text("NEAR-MISS controller callsign(s) not on whitelist: YSSY_X_TWR, YMML_N_APP", now=NOW)
+    t = m.humanise("near-miss", "warn", "YSSY_X_TWR, YMML_N_APP", now=NOW)
     assert "not on the whitelist" in t and "add it to the whitelist" in t
     assert t.splitlines()[-1] == "Technical: near-miss YSSY_X_TWR, YMML_N_APP"
     assert t.isascii() and t.startswith(m.PREFIX)
-    r = m.from_alert_text("RESTARTED collector (1/3 this hour, ok=True): collector HTTP 503 and no failures counted", now=NOW)
+    r = m.humanise("restarted:collector", "warn", "1/3 this hour, ok=True: collector HTTP 503 and no failures counted", now=NOW)
     assert "restarted the collector container" in r and r.splitlines()[-1].startswith("Technical: restarted collector")
 
 
 def test_an_unknown_check_name_gets_a_generic_message_with_the_technical_line() -> None:
-    t = m.humanise("brand_new_check", "crit", "x is 5", now=NOW)
+    t = hm("brand_new_check", "crit", "x is 5", now=NOW)
     assert "brand_new_check" in t.splitlines()[0] and t.splitlines()[-1] == "Technical: brand_new_check, x is 5"
-    assert m.from_alert_text("something nobody planned", now=NOW).splitlines()[-1] == "Technical: something nobody planned"
+    assert m.telegram_text("something nobody planned").splitlines()[-1] == "Technical: something nobody planned"
 
 
 def test_a_long_or_non_ascii_detail_is_clipped_and_stays_ascii() -> None:
@@ -148,7 +168,7 @@ def test_a_long_or_non_ascii_detail_is_clipped_and_stays_ascii() -> None:
 def test_no_banned_jargon_in_any_plain_sentence() -> None:
     banned = ("invariant", "snapshot age", "logon_time", "partition", "poll_log", "cid ", "gs_kt")
     for name, level, detail, _ in CASES:
-        first = m.humanise(name, level, detail, now=NOW).splitlines()[0].lower()
+        first = hm(name, level, detail, now=NOW).splitlines()[0].lower()
         assert not any(b in first for b in banned), first
     for words, _ in m.INVARIANTS.values():
         assert words.isascii() and not any(b in words.lower() for b in banned), words
@@ -166,27 +186,27 @@ def test_every_invariant_has_a_plain_wording_and_none_is_stale() -> None:
 @pytest.mark.parametrize("name", NAMES)
 def test_each_invariant_produces_a_sentence_from_the_real_summary_text(name: str) -> None:
     findings = [integrity.Finding(name, 3)]
-    _, detail = integrity.summarise_invariants(findings, [], len(NAMES))
-    t = m.humanise("data_integrity", "warn", detail, now=NOW)
+    detail, facts = summary(findings, [], len(NAMES))
+    t = m.humanise("data_integrity", "warn", detail, now=NOW, facts=facts)
     check_shape(t, "data_integrity")
-    assert m.invariant_words(name, detail) in t
+    assert m.invariant_words(name) in t
     assert "data_integrity" in t.splitlines()[-1]
 
 
 def test_several_failing_invariants_are_counted_in_words() -> None:
     # NAMES[0], [1] and [4]: none is a same-day invariant, so the first listed still leads (the same-day order has its own tests below)
     findings = [integrity.Finding(NAMES[i], 1) for i in (0, 1, 4)]
-    _, detail = integrity.summarise_invariants(findings, [], len(NAMES))
-    t = m.humanise("data_integrity", "warn", detail, now=NOW)
+    detail, facts = summary(findings, [], len(NAMES))
+    t = m.humanise("data_integrity", "warn", detail, now=NOW, facts=facts)
     assert "(plus 2 others)" in t and m.INVARIANTS[NAMES[0]][0] in t
     check_shape(t, "data_integrity")
 
 
 def test_more_than_six_failing_are_counted_from_the_n_of_20_figure() -> None:
     findings = [integrity.Finding(n, 1) for n in NAMES[:10]]
-    _, detail = integrity.summarise_invariants(findings, [], len(NAMES))
+    detail, facts = summary(findings, [], len(NAMES))
     assert "10 of 20 invariants" in detail and "and 4 more" in detail
-    t = m.humanise("data_integrity", "warn", detail, now=NOW)
+    t = m.humanise("data_integrity", "warn", detail, now=NOW, facts=facts)
     assert "(plus 9 others)" in t
     last = t.splitlines()[-1]
     assert "10 of 20 checks failing" in last and "(+" in last and "more)" in last  # the Technical line now lists names, bounded, with the rest counted
@@ -201,30 +221,30 @@ def test_every_invariant_has_its_own_action_hint() -> None:
 
 @pytest.mark.parametrize("name", NAMES)
 def test_each_invariant_message_carries_its_own_hint_not_a_blanket_reassurance(name: str) -> None:
-    _, detail = integrity.summarise_invariants([integrity.Finding(name, 1)], [], len(NAMES))
-    first = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[0]
+    detail, facts = summary([integrity.Finding(name, 1)], [], len(NAMES))
+    first = m.humanise("data_integrity", "warn", detail, now=NOW, facts=facts).splitlines()[0]
     assert m.INVARIANTS[name][1] in first
     if name != "snapshot gaps over 5 minutes (last 3 days)":
         assert "Nothing to do unless it keeps happening" not in first
 
 
 def test_a_missing_partition_is_not_told_to_wait() -> None:
-    _, detail = integrity.summarise_invariants([integrity.Finding("daily partitions missing for today..today+3", 1)], [], len(NAMES))
-    first = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[0]
+    detail, facts = summary([integrity.Finding("daily partitions missing for today..today+3", 1)], [], len(NAMES))
+    first = m.humanise("data_integrity", "warn", detail, now=NOW, facts=facts).splitlines()[0]
     assert "Writes will start to fail" in first and "maintenance log today" in first and "keeps happening" not in first
 
 
 def test_the_new_violations_notice_from_integrity_is_humanised() -> None:
-    notice = f"WARN data_integrity: new violations since the last sweep: {NAMES[9]}, {NAMES[6]}"
-    t = m.from_alert_text(notice, now=NOW)
+    detail = f"new violations since the last sweep: {NAMES[9]}, {NAMES[6]}"
+    t = m.humanise("data_integrity", "warn", detail, now=NOW, facts={"state": "new", "names": [NAMES[9], NAMES[6]]})
     # issue 79 re-review: the sentence now follows the MOST URGENT failing invariant (NAMES[6], the stale newest snapshot), not the first listed
     assert "new problem" in t and m.INVARIANTS[NAMES[6]][0] in t and "(and 1 more)" in t and "Some need action today" in t
     check_shape(t, "data_integrity")
 
 
 def test_the_pack_incomplete_problem_is_not_called_a_data_problem() -> None:
-    _, detail = integrity.summarise_invariants([], ["1 invariant(s) did not report: x"], 18)
-    assert "could not run properly" in m.humanise("data_integrity", "warn", detail, now=NOW)
+    detail, facts = summary([], ["1 invariant(s) did not report: x"], 18)
+    assert "could not run properly" in m.humanise("data_integrity", "warn", detail, now=NOW, facts=facts)
 
 
 # ---------------------------------------------------------------- every check the watchdog produces has wording
@@ -285,7 +305,7 @@ def test_a_formatting_bug_falls_back_to_the_old_technical_text(monkeypatch: pyte
 
     monkeypatch.setattr(m, "humanise", boom)
     with caplog.at_level(logging.ERROR, logger="watchdog.messages"):
-        assert m.telegram_text("CRIT disk: 95%") == "vatpac-stats: CRIT disk: 95%"
+        assert m.telegram_text("CRIT disk: 95%", m.Alert("disk", "crit", "/ 95% used")) == "vatpac-stats: CRIT disk: 95%"
     assert "could not format" in caplog.text and "RuntimeError" in caplog.text
 
 
@@ -301,8 +321,8 @@ def test_the_alert_is_still_sent_when_formatting_fails(monkeypatch: pytest.Monke
         seen.append(json.loads(r.content))
         return httpx.Response(200)
 
-    monkeypatch.setattr(m, "from_alert_text", lambda *a, **k: 1 / 0)
-    alerter(handler).send("WARN x: y")
+    monkeypatch.setattr(m, "humanise", lambda *a, **k: 1 / 0)
+    alerter(handler).update("x", "warn", "y")
     assert seen == [{"chat_id": "42", "text": "vatpac-stats: WARN x: y"}]
 
 
@@ -362,13 +382,13 @@ PARTITIONS = "daily partitions missing for today..today+3"
 GAPS = "snapshot gaps over 5 minutes (last 3 days)"
 
 
-def _detail_for(first_names: list[str]) -> str:
-    return integrity.summarise_invariants([integrity.Finding(n, 1) for n in first_names], [], len(NAMES))[1]
+def _detail_for(first_names: list[str]) -> tuple[str, dict[str, Any]]:
+    return summary([integrity.Finding(n, 1) for n in first_names], [], len(NAMES))
 
 
 def test_a_same_day_failure_listed_second_is_not_hidden() -> None:
-    detail = _detail_for([GAPS, PARTITIONS])                 # the poll-record style failure is listed first
-    t = m.humanise("data_integrity", "warn", detail, now=NOW)
+    detail, facts = _detail_for([GAPS, PARTITIONS])                 # the poll-record style failure is listed first
+    t = m.humanise("data_integrity", "warn", detail, now=NOW, facts=facts)
     first = t.splitlines()[0]
     assert m.INVARIANTS[PARTITIONS][0] in first and "Writes will start to fail" in first
     assert "Some need action today" in first and "(plus 1 other)" in first
@@ -377,23 +397,24 @@ def test_a_same_day_failure_listed_second_is_not_hidden() -> None:
 
 
 def test_several_failures_none_urgent_do_not_claim_action_today() -> None:
-    detail = _detail_for([NAMES[0], NAMES[1]])
-    first = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[0]
+    detail, facts = _detail_for([NAMES[0], NAMES[1]])
+    first = m.humanise("data_integrity", "warn", detail, now=NOW, facts=facts).splitlines()[0]
     assert m.INVARIANTS[NAMES[0]][0] in first and "action today" not in first
 
 
 def test_urgency_order_is_explicit_and_every_entry_is_a_real_invariant() -> None:
     assert set(m.SAME_DAY_INVARIANTS) <= set(NAMES) and len(set(m.SAME_DAY_INVARIANTS)) == len(m.SAME_DAY_INVARIANTS)
-    detail = _detail_for([NAMES[0], m.SAME_DAY_INVARIANTS[3], m.SAME_DAY_INVARIANTS[0]])
-    first = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[0]
+    detail, facts = _detail_for([NAMES[0], m.SAME_DAY_INVARIANTS[3], m.SAME_DAY_INVARIANTS[0]])
+    first = m.humanise("data_integrity", "warn", detail, now=NOW, facts=facts).splitlines()[0]
     assert m.INVARIANTS[m.SAME_DAY_INVARIANTS[0]][0] in first
 
 
 def test_the_technical_line_names_every_failing_check_it_has_room_for_and_counts_the_rest() -> None:
-    detail = _detail_for([GAPS, PARTITIONS])
-    last = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[-1]
+    detail, facts = _detail_for([GAPS, PARTITIONS])
+    last = m.humanise("data_integrity", "warn", detail, now=NOW, facts=facts).splitlines()[-1]
     assert PARTITIONS in last and GAPS in last and "more)" not in last and len(last) <= len("Technical: data_integrity, ") + m.MAX_TECH
-    many = m.humanise("data_integrity", "warn", _detail_for(NAMES[:10]), now=NOW).splitlines()[-1]
+    many_detail, many_facts = _detail_for(NAMES[:10])
+    many = m.humanise("data_integrity", "warn", many_detail, now=NOW, facts=many_facts).splitlines()[-1]
     assert "10 of 20 checks failing" in many and "more)" in many and len(many) <= len("Technical: data_integrity, ") + m.MAX_TECH
 
 
