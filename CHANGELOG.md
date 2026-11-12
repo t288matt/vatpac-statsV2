@@ -6,6 +6,10 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## v1 import tests archived (12-11-2026, issue 347)
+
+- **Out of the CI run.** The tests for the one-off v1 history import and its file generator moved to `tests/archive/v1_import/`. CI and `pytest tests` no longer run them; they run on demand by naming the folder (see its README.md). No test was removed.
+
 ## CI changes (11-11-2026, issues 339 to 345)
 
 - **One UTC integration pass.** The integration tests run once, in UTC, with the test session time zone set explicitly. The Australia/Sydney pass is removed; the check that `grafana_ro` is pinned to UTC stays.
