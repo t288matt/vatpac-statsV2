@@ -109,10 +109,9 @@ def _tracked_files() -> list[str]:
 
 # Files that intentionally keep an old name, and why. Migrations are history (replayed in order on a fresh install).
 ALLOWED_OLD_NAMES = {
-    "ops/backup/restore-lib.sh": "reads a pre-phase-5 dump, where the finished flights are still called flight_record (requirement 6)",
     "tests/test_phase3_switch.py": "pins the phase 3 migration and the validator's refusal list",
     "tests/integration/test_phase5_remove_old.py": "this file",
-    "tests/integration/test_restore_sanity.py": "builds a pre-phase-5 dump",
+    "tests/integration/test_restore_sanity.py": "checks that a pre-phase-5 dump (flight_record) fails the restore check",
     "tests/integration/test_logon_whole_seconds_migration.py": "pinned to migration 100, before the pieces were removed",
     "grafana/validate_dashboards.py": "the refusal list: no panel may read a name that history still creates",
     "tests/test_data_dictionary_tests.py": "asserts the old names are gone",

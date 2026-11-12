@@ -11,12 +11,13 @@ use_owner_role() {
 }
 
 # sanity_check DB [DUMP_FILE] : the checks that decide whether a restored database is plausible.
-# Prints "poll_log=N pilot_session=N flight_summary=N" on success (flight_summary, the finished flights, is left out for a dump that predates the flight table). Return codes:
+# Prints "poll_log=N pilot_session=N flight_summary=N" on success. Return codes:
 #   0  all good
 #   1  the restore is not plausible (missing or empty tables, unreadable data): the reason is on stderr
 #   2  STALE ONLY: everything else is fine, but the newest poll_log row is older than the age limit before the dump
-#      (a long collector outage or a quiet period). Prints "STALE poll_log=N pilot_session=N [flight_summary=N]: <reason>" on stdout.
+#      (a long collector outage or a quiet period). Prints "STALE poll_log=N pilot_session=N flight_summary=N: <reason>" on stdout.
 # Beyond "the tables exist" (issue 90, a schema-only dump used to pass) it requires:
+#   - flight_summary (the finished flights) exists with a session_ids column and can be read (issue 231; RESTORE_SANITY_ALLOW_EMPTY does not waive this);
 #   - pilot_session and poll_log each hold at least one row. RESTORE_SANITY_ALLOW_EMPTY=1 waives ONLY this, for restoring a
 #     dump of a genuinely new, empty install;
 #   - the newest poll_log row is at most RESTORE_MAX_POLL_AGE_HOURS (default 48; a number, decimals allowed; 0 turns this
@@ -35,21 +36,15 @@ sanity_check() {
   [ "$out" -gt 0 ] || { echo "schema_migrations empty" >&2; return 1; }
   pl="$(q "SELECT count(*) FROM poll_log")" || { echo "poll_log unreadable" >&2; return 1; }
   ps="$(q "SELECT count(*) FROM pilot_session")" || { echo "pilot_session unreadable" >&2; return 1; }
-  # The finished-flights table (issue 89) must be readable and is counted, reported as flight_summary. Dumps are kept for 14 days, so
-  # three shapes are valid: (1) a dump taken before phase 5 has the new table under its old name flight_record (and flight_summary
-  # holds the old pieces): count flight_record; (2) a dump before phase 1 has only the old pieces under flight_summary (no
-  # session_ids column): not counted; (3) a dump after phase 5 has the finished flights under flight_summary: counted.
-  fr=""
-  ftab=""
-  if [ "$(q "SELECT to_regclass('public.flight_record') IS NOT NULL")" = "t" ]; then
-    ftab="flight_record"
-  elif [ "$(q "SELECT to_regclass('public.flight_summary') IS NOT NULL AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'flight_summary' AND column_name = 'session_ids')")" = "t" ]; then
-    ftab="flight_summary"
+  # The finished-flights table (issue 89, phase 5, live since 13-10-2026) must exist with its session_ids column and be readable; it is
+  # counted and reported as flight_summary. Dumps from before phase 5 (finished flights under their old name, or only the old pieces under
+  # flight_summary) are no longer accepted: they fail here with a clear reason instead of passing without the check.
+  if [ "$(q "SELECT to_regclass('public.flight_summary') IS NOT NULL AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'flight_summary' AND column_name = 'session_ids')")" != "t" ]; then
+    echo "flight_summary (the finished flights, with a session_ids column) is missing: this is not a dump taken after the phase 5 migration of 13-10-2026, or the table is damaged; older dumps are not supported" >&2
+    return 1
   fi
-  if [ -n "$ftab" ]; then
-    fr="$(q "SELECT count(*) FROM ${ftab}")" || { echo "flight_summary unreadable" >&2; return 1; }
-    fr=" flight_summary=${fr}"
-  fi
+  fr="$(q "SELECT count(*) FROM flight_summary")" || { echo "flight_summary unreadable" >&2; return 1; }
+  fr=" flight_summary=${fr}"
   if [ "${RESTORE_SANITY_ALLOW_EMPTY:-0}" != "1" ]; then
     [ "$pl" -gt 0 ] || { echo "poll_log is empty (a schema-only or empty dump; set RESTORE_SANITY_ALLOW_EMPTY=1 only for a new install)" >&2; return 1; }
     [ "$ps" -gt 0 ] || { echo "pilot_session is empty (a schema-only or empty dump; set RESTORE_SANITY_ALLOW_EMPTY=1 only for a new install)" >&2; return 1; }
