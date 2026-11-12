@@ -16,9 +16,9 @@
 --      removed here, so a fresh database has NO gap cap until the collector has started and the writer raises instead of using 40. A row with any other
 --      value (production: 75) is not touched. flight_quiet_hours (seeded 8 by migration 20261012000190) is not published by the collector, so its row stays.
 --   4. ops_setting_num, ops_setting and ops_pending_flight: for the watchdog role (watchdog_ro). ops_setting_num is a SECURITY DEFINER wrapper
---      of setting_num that answers for the two settings above only (a view calls its functions with the rights of the role that queries it,
+--      of setting_num that answers for the three settings above only (a view calls its functions with the rights of the role that queries it,
 --      so watchdog_ro needs EXECUTE on this one function; the grant is in ops/migrate/migrate.sh, with the SELECT on the two views).
---      ops_setting shows the two settings. ops_pending_flight is the ONE definition of the pending-flight (quiet hours) rule: the unprocessed
+--      ops_setting shows the three settings. ops_pending_flight is the ONE definition of the pending-flight (quiet hours) rule: the unprocessed
 --      sessions grouped into flights by the v1 join rule, with the flight's newest last_seen and whether it is quiet, measured against the
 --      newest stored snapshot (capped at now() + 5 minutes) with the setting read here. ops/audit/invariants.sql and ops/backfill_flights.sh read
 --      it instead of their own copies. db/roles.sql keeps views named ops_* away from grafana_ro.
@@ -73,7 +73,7 @@ END
 $f$;
 REVOKE ALL ON FUNCTION ops_setting_num(text) FROM PUBLIC;
 COMMENT ON FUNCTION ops_setting_num(text) IS
-    'setting_num for the two flight settings only (flight_quiet_hours, airborne_gap_cap_seconds); any other key is refused. SECURITY DEFINER so the watchdog role, which has no right on app_setting, can read the two through the ops_* views. EXECUTE is granted to watchdog_ro only (ops/migrate/migrate.sh).';
+    'setting_num for the three flight settings only (flight_quiet_hours, airborne_gap_cap_seconds, flight_quiet_check_grace_minutes); any other key is refused. SECURITY DEFINER so the watchdog role, which has no right on app_setting, can read the two through the ops_* views. EXECUTE is granted to watchdog_ro only (ops/migrate/migrate.sh).';
 
 DELETE FROM app_setting WHERE key = 'airborne_gap_cap_seconds' AND value = '40';
 
