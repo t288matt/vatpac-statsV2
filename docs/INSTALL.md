@@ -69,7 +69,7 @@ The default above builds the four project images on the machine (`VATPAC_IMAGE_P
 
 What happens, in order:
 1. `db` (PostgreSQL 16, data checksums on, a named volume `pgdata`) starts and becomes healthy.
-2. The one-shot `migrate` container runs **dbmate** over every SQL file in `db/migrations/`, then applies `db/roles.sql` (it creates the least-privilege roles from the passwords in `.env`) and the read grants for the watchdog role, then exits. In `docker compose ps`, `migrate` showing `exited (0)` is correct and expected. It runs again on every `docker compose up`; re-running changes nothing.
+2. The one-shot `migrate` container runs **dbmate** over every SQL file in `db/migrations/`, then applies `db/roles.sql` (it creates the four least-privilege roles, with the watchdog role's read grants, from the passwords in `.env`), then exits. In `docker compose ps`, `migrate` showing `exited (0)` is correct and expected. It runs again on every `docker compose up`; re-running changes nothing.
 3. `collector`, `grafana`, `backup` and `watchdog` start once `migrate` has finished.
 
 **Grafana 12.x and an existing `grafana_data` volume:** the image is `grafana/grafana:12.4`, so a `docker compose pull` can bring a newer 12.4.x patch version. The first start of a newer Grafana version (12.x minors included) migrates the `grafana_data` volume one way. There is no downgrade: an older Grafana cannot read the upgraded volume without the tarball taken before the upgrade. If you upgrade an install from before Grafana 12 (production did on 11-10-2026), copy the volume first (the command is in RUNBOOKS/public-access.md, "Roll back") and keep the copy until you are sure. A fresh install with an empty volume is not affected.

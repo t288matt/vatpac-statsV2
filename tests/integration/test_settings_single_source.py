@@ -298,7 +298,7 @@ def test_a_missing_setting_makes_the_sweep_fail_instead_of_passing_silently(conn
 @pytest.fixture()
 def as_watchdog(conn: Any, dsn: str) -> Any:
     if _role(conn) is None:
-        pytest.skip("role watchdog_ro not created (migrate.sh creates it; see the CI step)")
+        pytest.skip("role watchdog_ro not created (db/roles.sql creates it; see the CI step)")
     with psycopg.connect(dsn, autocommit=True) as c:
         c.execute("SET ROLE watchdog_ro")
         yield c

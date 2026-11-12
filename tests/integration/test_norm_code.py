@@ -180,7 +180,7 @@ def test_a_reconnect_spelt_two_ways_is_one_flight(conn: Any) -> None:
 
 def test_the_pending_flight_view_groups_with_the_rule_for_the_watchdog_role(conn: Any, dsn: str) -> None:
     if not conn.execute("SELECT 1 FROM pg_roles WHERE rolname = 'watchdog_ro'").fetchone():
-        pytest.skip("role watchdog_ro not created (migrate.sh creates it; see the CI step)")
+        pytest.skip("role watchdog_ro not created (db/roles.sql creates it; see the CI step)")
     now = datetime.now(UTC)
     conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (now,))
     make_session(conn, BASE + 500, run(10, start=now - timedelta(days=2)), dep="\tymml\r\n", arr=" ysSy ")

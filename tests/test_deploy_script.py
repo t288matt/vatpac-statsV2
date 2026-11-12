@@ -15,6 +15,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import integrity  # noqa: E402  (tests/conftest.py puts ops/watchdog on sys.path)
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
@@ -94,8 +95,7 @@ esac
 }
 
 GAPS = "snapshot gaps over 5 minutes (last 3 days)"
-PACK = [ln for ln in (REPO / "ops" / "audit" / "invariants.sql").read_text(encoding="utf-8").splitlines() if re.search(r"SELECT +'[^']+'( +AS +check_name)? *, *count\(", ln)]
-NAMES = [re.search(r"SELECT +'([^']+)'", ln).group(1) for ln in PACK]  # type: ignore[union-attr]
+NAMES = integrity.invariant_names((REPO / "ops" / "audit" / "invariants.sql").read_text(encoding="utf-8"))
 
 
 def _inspect(restarts: str = "0", health: str = "healthy") -> str:

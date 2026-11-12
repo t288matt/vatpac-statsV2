@@ -1,9 +1,9 @@
 """Role hardening: issue 95 (collector may DELETE only from poll_log) and issue 84 (re-applying roles is atomic).
 
-The atomicity test runs the real db/roles.sql and the watchdog_ro block of ops/migrate/migrate.sh with the psql binary while
+The atomicity test runs the real db/roles.sql (all four roles, watchdog_ro included) with the psql binary while
 a second connection, acting as collector / watchdog_ro, keeps reading and writing. Before the fix the REVOKE and the GRANT
 were separate statements, so the reader could see "permission denied" in between; now there must be none. ROLES_SQL_PATH
-(and MIGRATE_SH_PATH at another migrate.sh) point the test at other copies, used to show that the old files fail this test.
+points the test at another copy of roles.sql, used to show that an old file fails this test.
 """
 from __future__ import annotations
 
@@ -69,13 +69,6 @@ def test_nothing_in_the_collector_source_deletes_except_the_poll_log_trim() -> N
 
 
 # ---------------------------------------------------------------- issue 84
-def _watchdog_block() -> str:
-    text = Path(os.environ.get("MIGRATE_SH_PATH", REPO / "ops" / "migrate" / "migrate.sh")).read_text(encoding="utf-8")
-    m = re.search(r"<<'SQL'\n(.*?)\nSQL\n", text, re.S)
-    assert m, "watchdog_ro SQL block not found in migrate.sh"
-    return m.group(1)
-
-
 class Hammer(threading.Thread):
     """Reads and writes as `role` in a loop and records every error."""
 
@@ -99,7 +92,7 @@ class Hammer(threading.Thread):
                 self.errors.append(f"{type(exc).__name__}: {str(exc).splitlines()[0]}")
 
 
-def test_reapplying_roles_never_shows_permission_denied(dsn: str, conn, tmp_path: Path) -> None:
+def test_reapplying_roles_never_shows_permission_denied(dsn: str, conn) -> None:
     psql = shutil.which("psql")
     if psql is None:
         pytest.skip("psql binary not available")
@@ -107,8 +100,6 @@ def test_reapplying_roles_never_shows_permission_denied(dsn: str, conn, tmp_path
         if not _role(conn, r):
             pytest.skip(f"role {r} not created")
     roles_sql = Path(os.environ.get("ROLES_SQL_PATH", REPO / "db" / "roles.sql"))
-    wd_sql = tmp_path / "watchdog_ro.sql"
-    wd_sql.write_text(_watchdog_block(), encoding="utf-8")
     # the scripts reset the passwords: remember the hashes and put them back afterwards so the other tests can still log in
     hashes = {r["rolname"]: r["rolpassword"] for r in conn.execute(
         "SELECT rolname, rolpassword FROM pg_authid WHERE rolname IN ('collector','grafana_ro','backup_ro','watchdog_ro')").fetchall()}
@@ -124,10 +115,9 @@ def test_reapplying_roles_never_shows_permission_denied(dsn: str, conn, tmp_path
         for _ in range(25):
             common = [psql, dsn, "-X", "-q", "-v", "ON_ERROR_STOP=1"]
             r1 = subprocess.run(common + ["-v", "grafana_ro_password=tmp1", "-v", "collector_password=tmp2",
-                                          "-v", "backup_password=tmp3", "-f", str(roles_sql)], capture_output=True, text=True, timeout=120)
+                                          "-v", "backup_password=tmp3", "-v", "watchdog_password=tmp4", "-f", str(roles_sql)],
+                                capture_output=True, text=True, timeout=120)
             assert r1.returncode == 0, r1.stderr
-            r2 = subprocess.run(common + ["-v", "wd_pw=tmp4", "-f", str(wd_sql)], capture_output=True, text=True, timeout=120)
-            assert r2.returncode == 0, r2.stderr
     finally:
         for h in hammers:
             h.stop_flag.set()

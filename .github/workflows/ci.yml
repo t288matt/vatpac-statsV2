@@ -150,7 +150,7 @@ jobs:
           cache: pip
           cache-dependency-path: collector/requirements*.txt
       # The database is built by the SAME image production uses (ops/migrate: dbmate with --no-dump-schema, then db/roles.sql
-      # in one transaction, then the watchdog_ro block), not by piping the migration files through psql (issue 96). That also
+      # in one transaction, all four roles), not by piping the migration files through psql (issue 96). That also
       # creates schema_migrations, so dbmate-only behaviour (per-migration transactions, the up/down split, the version table)
       # is exercised by CI. It runs on the host network, with the name `db` pointing at the service container, because
       # migrate.sh connects to host `db`. The passwords are test-only values for this throwaway service container.

@@ -86,8 +86,13 @@ def test_the_only_other_sql_sources_of_the_two_numbers_are_the_applied_migration
 
 
 # ------------------------------------------------------------------ grants
+def watchdog_section() -> str:
+    """The watchdog_ro section of db/roles.sql (the last one in the file)."""
+    return read("db", "roles.sql").split("\n-- watchdog_ro\n")[-1]
+
+
 def test_the_watchdog_role_is_granted_the_two_views_and_nothing_wider() -> None:
-    sh = read("ops", "migrate", "migrate.sh")
+    sh = watchdog_section()
     block = re.search(r"GRANT SELECT ON %I TO watchdog_ro.*?ARRAY\[(.*?)\]", sh, re.S)
     assert block
     names = set(re.findall(r"'(\w+)'", block.group(1)))
@@ -101,7 +106,9 @@ def test_the_watchdog_role_is_granted_the_two_views_and_nothing_wider() -> None:
 def test_grafana_ro_is_not_granted_the_ops_views() -> None:
     roles = read("db", "roles.sql")
     assert "left(viewname, 4) <> 'ops_'" in roles
-    assert "ops_" not in re.sub(r"--[^\n]*", "", roles).replace("left(viewname, 4) <> 'ops_'", "")
+    other_roles = roles.split("\n-- watchdog_ro\n")[0]  # the grafana_ro, collector and backup_ro sections: the ops_* views are for the watchdog only
+    assert "ops_" not in re.sub(r"--[^\n]*", "", other_roles).replace("left(viewname, 4) <> 'ops_'", "")
+    assert "TO grafana_ro" not in watchdog_section()
 
 
 # ------------------------------------------------------------------ the alert wording follows the setting
