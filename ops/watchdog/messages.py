@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 log = logging.getLogger("watchdog.messages")
@@ -21,32 +22,6 @@ LABELS = {"warn": "heads up", "crit": "problem", "ok": "all clear"}
 MAX_TECH = 170  # characters of detail kept on the Technical line, so a whole message stays near 400
 MAX_TECH_INTEGRITY = 120  # the integrity line lists several long check names; the plain part above it is already long
 
-# One plain wording for every invariant in ops/audit/invariants.sql, keyed by the exact invariant name.
-# tests/test_humane_messages.py fails if the pack gains, loses or renames an invariant without this table following.
-INVARIANT_WORDS: dict[str, str] = {
-    "snapshot rows without an ok poll_log row": "a saved snapshot of the network has no matching record of a successful poll",
-    "ok poll_log counts differ from network_snapshot": "the poll records and the saved snapshots disagree on how many pilots or controllers there were",
-    "in-region count above global count": "a snapshot counts more pilots or controllers in our region than on the whole network",
-    "positions per snapshot differ from pilots_in_region": "the number of stored aircraft positions does not match the pilot count of a snapshot",
-    "position rows at a timestamp with no network_snapshot": "aircraft positions are stored for a moment that has no snapshot",
-    "snapshot gaps over 5 minutes (last 3 days)": "no data was recorded for more than 5 minutes at some point in the last 3 days",
-    "newest snapshot in the future or older than 5 minutes": "the newest snapshot is more than 5 minutes old or has a time in the future",
-    "pilot session first/last seen differ from first/last stored position": "a flight's first or last seen time does not match its stored positions",
-    "pilot sessions with no position (active in last 3 days)": "a recent flight was recorded without any positions",
-    "identity duplicates (cid, callsign, logon_time)": "the same flight appears to be stored twice",
-    "pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)": "one pilot connection may have been stored as two flights",
-    "controller session pairs, same cid+callsign, logon_time within 2 s (identity flap)": "one controller connection may have been stored as two sessions",
-    "snapshots that created sessions for more than 50% of in-region pilots": "a snapshot started new flights for over half the pilots in our region, as if everyone had reconnected",
-    # {when} is built from the flight_quiet_hours setting the check used (invariant_words below): never a typed number
-    "flights quiet longer than the quiet period with unprocessed positions": "some flights ended {when} and are not yet in the finished-flights table",
-    "flights written in the last 3 days whose sample_count differs from the stored positions of their sessions": "a finished flight counts a different number of positions from those stored for it",
-    "sessions ended more than 2 days ago with unprocessed positions": "some flights that ended over two days ago are not yet in the finished-flights table",
-    "processed flight-plan sessions in no written flight (ended 2 to 30 days ago)": "some flights that ended days ago are marked done but are missing from the finished-flights table",
-    "raw-position days kept by the deletion check for more than 3 days": "old position data is being kept because the safety check before deleting it keeps refusing",
-    "daily partitions missing for today..today+3": "the storage tables for today or the next three days have not been created",
-    "reference file hashes in poll_log differ from reference_data_change": "the airspace or callsign list used for polling does not match the recorded change history",
-}
-
 _IG = "docs/RUNBOOKS/integrity-checks.md"
 _ENGINEER = f"Not urgent, but an engineer should look (see {_IG} on the VM)."
 _LOGON = "VATSIM may have changed how it stamps logon times; an engineer should look (docs/RUNBOOKS/alerts.md on the VM, identity_flap)."
@@ -54,30 +29,93 @@ _WRITER_STALLED = f"Look today: the flight writer may be failing (see the collec
 _WRITER = f"Not urgent: charts show these flights once they are written. It clears at the next writer run (every 5 minutes); if it does not, check the collector log and see {_IG} on the VM."
 _GATE = f"Nothing is lost: the old position data of those flights is simply not deleted until they are written. An engineer should look (see {_IG} on the VM)."
 
-# What to do about each invariant, same keys as INVARIANT_WORDS (a test checks both). Wording only: the alert stays one level (WARN).
-# Based on the "what a violation means" table in docs/RUNBOOKS/integrity-checks.md.
-INVARIANT_ACTIONS: dict[str, str] = {
-    "snapshot rows without an ok poll_log row": _ENGINEER,
-    "ok poll_log counts differ from network_snapshot": _ENGINEER,
-    "in-region count above global count": f"The live dashboard counts may be wrong. An engineer should look today (see {_IG} on the VM).",
-    "positions per snapshot differ from pilots_in_region": f"The live dashboard counts may be wrong. An engineer should look today (see {_IG} on the VM).",
-    "position rows at a timestamp with no network_snapshot": _ENGINEER,
-    "snapshot gaps over 5 minutes (last 3 days)": f"Nothing to do if the time matches an outage you already know about; otherwise see {_IG} on the VM.",
-    "newest snapshot in the future or older than 5 minutes": "Data may have stopped: check the collector and the VATSIM feed now (docs/RUNBOOKS/stuck-collector.md on the VM).",
-    "pilot session first/last seen differ from first/last stored position": _ENGINEER,
-    "pilot sessions with no position (active in last 3 days)": _ENGINEER,
-    "identity duplicates (cid, callsign, logon_time)": _LOGON,
-    "pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)": _LOGON,
-    "controller session pairs, same cid+callsign, logon_time within 2 s (identity flap)": _LOGON,
-    "snapshots that created sessions for more than 50% of in-region pilots": _LOGON,
-    "flights quiet longer than the quiet period with unprocessed positions": _WRITER_STALLED,
-    "flights written in the last 3 days whose sample_count differs from the stored positions of their sessions": _WRITER,
-    "sessions ended more than 2 days ago with unprocessed positions": _WRITER,
-    "processed flight-plan sessions in no written flight (ended 2 to 30 days ago)": _GATE,
-    "raw-position days kept by the deletion check for more than 3 days": _GATE,
-    "daily partitions missing for today..today+3": ("Writes will start to fail if today's table is missing. Check the collector and maintenance log today "
-                                                    "(docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM)."),
-    "reference file hashes in poll_log differ from reference_data_change": "An engineer should look (docs/RUNBOOKS/update-reference-files.md on the VM).",
+# One entry per invariant in ops/audit/invariants.sql, keyed by the exact invariant name: (plain wording, what to do about it).
+# The wording is for the Telegram text; the action is wording only (the alert stays one level, WARN), based on the
+# "what a violation means" table in docs/RUNBOOKS/integrity-checks.md.
+# tests/test_humane_messages.py fails if the pack gains, loses or renames an invariant without this table following.
+INVARIANTS: dict[str, tuple[str, str]] = {
+    "snapshot rows without an ok poll_log row": (
+        "a saved snapshot of the network has no matching record of a successful poll",
+        _ENGINEER,
+    ),
+    "ok poll_log counts differ from network_snapshot": (
+        "the poll records and the saved snapshots disagree on how many pilots or controllers there were",
+        _ENGINEER,
+    ),
+    "in-region count above global count": (
+        "a snapshot counts more pilots or controllers in our region than on the whole network",
+        f"The live dashboard counts may be wrong. An engineer should look today (see {_IG} on the VM).",
+    ),
+    "positions per snapshot differ from pilots_in_region": (
+        "the number of stored aircraft positions does not match the pilot count of a snapshot",
+        f"The live dashboard counts may be wrong. An engineer should look today (see {_IG} on the VM).",
+    ),
+    "position rows at a timestamp with no network_snapshot": (
+        "aircraft positions are stored for a moment that has no snapshot",
+        _ENGINEER,
+    ),
+    "snapshot gaps over 5 minutes (last 3 days)": (
+        "no data was recorded for more than 5 minutes at some point in the last 3 days",
+        f"Nothing to do if the time matches an outage you already know about; otherwise see {_IG} on the VM.",
+    ),
+    "newest snapshot in the future or older than 5 minutes": (
+        "the newest snapshot is more than 5 minutes old or has a time in the future",
+        "Data may have stopped: check the collector and the VATSIM feed now (docs/RUNBOOKS/stuck-collector.md on the VM).",
+    ),
+    "pilot session first/last seen differ from first/last stored position": (
+        "a flight's first or last seen time does not match its stored positions",
+        _ENGINEER,
+    ),
+    "pilot sessions with no position (active in last 3 days)": (
+        "a recent flight was recorded without any positions",
+        _ENGINEER,
+    ),
+    "identity duplicates (cid, callsign, logon_time)": (
+        "the same flight appears to be stored twice",
+        _LOGON,
+    ),
+    "pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)": (
+        "one pilot connection may have been stored as two flights",
+        _LOGON,
+    ),
+    "controller session pairs, same cid+callsign, logon_time within 2 s (identity flap)": (
+        "one controller connection may have been stored as two sessions",
+        _LOGON,
+    ),
+    "snapshots that created sessions for more than 50% of in-region pilots": (
+        "a snapshot started new flights for over half the pilots in our region, as if everyone had reconnected",
+        _LOGON,
+    ),
+    # {when} in the wording is built from the flight_quiet_hours setting the check used (invariant_words below): never a typed number
+    "flights quiet longer than the quiet period with unprocessed positions": (
+        "some flights ended {when} and are not yet in the finished-flights table",
+        _WRITER_STALLED,
+    ),
+    "flights written in the last 3 days whose sample_count differs from the stored positions of their sessions": (
+        "a finished flight counts a different number of positions from those stored for it",
+        _WRITER,
+    ),
+    "sessions ended more than 2 days ago with unprocessed positions": (
+        "some flights that ended over two days ago are not yet in the finished-flights table",
+        _WRITER,
+    ),
+    "processed flight-plan sessions in no written flight (ended 2 to 30 days ago)": (
+        "some flights that ended days ago are marked done but are missing from the finished-flights table",
+        _GATE,
+    ),
+    "raw-position days kept by the deletion check for more than 3 days": (
+        "old position data is being kept because the safety check before deleting it keeps refusing",
+        _GATE,
+    ),
+    "daily partitions missing for today..today+3": (
+        "the storage tables for today or the next three days have not been created",
+        ("Writes will start to fail if today's table is missing. Check the collector and maintenance log today "
+                                                            "(docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM)."),
+    ),
+    "reference file hashes in poll_log differ from reference_data_change": (
+        "the airspace or callsign list used for polling does not match the recorded change history",
+        "An engineer should look (docs/RUNBOOKS/update-reference-files.md on the VM).",
+    ),
 }
 
 
@@ -96,7 +134,7 @@ def invariant_words(name: str, detail: str) -> str:
     """The plain wording of one invariant. The quiet-period check quotes the flight_quiet_hours setting that the check itself
     used (the invariant pack reports it with the grace as `flight_quiet_hours=N flight_quiet_check_grace_minutes=M`, integrity.summarise_invariants carries it into the detail);
     without it the wording says "longer ago than the quiet period" and names no number."""
-    words = INVARIANT_WORDS[name]
+    words = INVARIANTS[name][0]
     if "{when}" not in words:
         return words
     m = _QUIET_HOURS.search(detail)
@@ -243,7 +281,7 @@ def _feed_archive(level: str, detail: str) -> str:
 
 def _integrity_failing_names(detail: str) -> list[str]:
     """The invariant names in the detail, in the order the detail lists them."""
-    return sorted((n for n in INVARIANT_WORDS if n in detail), key=detail.index)
+    return sorted((n for n in INVARIANTS if n in detail), key=detail.index)
 
 
 # Invariants whose failure needs action TODAY (data may stop or be wrong now), most urgent first. When several invariants fail
@@ -265,7 +303,7 @@ def _by_urgency(names: list[str]) -> list[str]:
 
 def _several_todo(names: list[str]) -> str:
     """The action sentence when more than one invariant failed: the most urgent one's action, plus where to read the rest."""
-    todo = INVARIANT_ACTIONS[_by_urgency(names)[0]]
+    todo = INVARIANTS[_by_urgency(names)[0]][1]
     today = " Some need action today." if any(n in SAME_DAY_INVARIANTS for n in names) else ""
     return f"{todo}{today} The rest: watchdog log."
 
@@ -281,7 +319,7 @@ def _data_integrity(level: str, detail: str) -> str:
         names = _by_urgency(_integrity_failing_names(detail))
         what = invariant_words(names[0], detail) if names else "another rule is now broken"
         more = f" (and {len(names) - 1} more)" if len(names) > 1 else ""
-        todo = _several_todo(names) if len(names) > 1 else INVARIANT_ACTIONS[names[0]] if names else f"See {_IG} on the VM."
+        todo = _several_todo(names) if len(names) > 1 else INVARIANTS[names[0]][1] if names else f"See {_IG} on the VM."
         return f"The routine data check found a new problem on top of the earlier one: {what}{more}. {todo}"
     if "could not run" in detail or "did not report" in detail or "unexpected row" in detail or "no invariants found" in detail:
         return ("The routine data check could not run properly (it retries in an hour). Data collection is not affected. "
@@ -293,7 +331,7 @@ def _data_integrity(level: str, detail: str) -> str:
     others = _failing_count(detail, names) - 1
     more = f" (plus {others} other{'s' if others > 1 else ''})" if others > 0 else ""
     # more than the six names the detail lists can fail: then at least two did, so the several-failed wording applies
-    todo = _several_todo(names) if others > 0 else INVARIANT_ACTIONS[names[0]]
+    todo = _several_todo(names) if others > 0 else INVARIANTS[names[0]][1]
     return f"A routine data check found a problem: {first}{more}. {todo}"
 
 
@@ -334,54 +372,35 @@ def _generic(name: str, level: str, detail: str) -> str:
     return f"A monitoring check ({name}) {what}. See docs/RUNBOOKS/alerts.md on the VM for what it means."
 
 
-_FIXED = {
-    "collector_health": _collector_health,
-    "poll_log_ok_age": _poll_age,
-    "network_snapshot_age": _snapshot_age,
-    "grafana_health": _grafana,
-    "database": _database,
-    "db_size": _db_size,
-    "disk": _disk,
-    "backup_age": _backup_age,
-    "backup_remote": _backup_remote,
-    "telegram_outbox": _telegram_outbox,
-    "restore_test": _restore_test,
-    "identity_flap": _identity_flap,
-    "feed_archive": _feed_archive,
-    "data_integrity": _data_integrity,
-    "feed_crosscheck": _feed_crosscheck,
-    "docker_proxy": _docker_proxy,
-}
-
-# What a RECOVERED message says in plain words (the "all clear" sentence).
-_RECOVERED = {
-    "collector_health": "The data collector is answering again.",
-    "poll_log_ok_age": "Data is flowing again.",
-    "network_snapshot_age": "Fresh network snapshots are being stored again.",
-    "grafana_health": "The dashboards (Grafana) are back.",
-    "database": "The watchdog can read the database again.",
-    "db_size": "The database size is back within the expected range.",
-    "disk": "The disk has enough free space again.",
-    "backup_age": "A fresh database backup now exists.",
-    "backup_remote": "The off-box backup copy is working again.",
-    "telegram_outbox": "Alert messages are reaching Telegram again.",
-    "restore_test": "The weekly backup restore test is in order again.",
-    "identity_flap": "No duplicated sessions are left in the last 24 hours.",
-    "feed_archive": "The raw-data archive is being written again.",
-    "data_integrity": "The routine data check is clean again.",
-    "feed_crosscheck": "The cross-check against saved raw data is clean again.",
-    "docker_proxy": "The watchdog can reach Docker again.",
+# One entry per check with its own wording: (the plain sentence for a problem, the plain sentence for RECOVERED, the "all clear").
+_CHECKS: dict[str, tuple[Callable[[str, str], str], str]] = {
+    "collector_health": (_collector_health, "The data collector is answering again."),
+    "poll_log_ok_age": (_poll_age, "Data is flowing again."),
+    "network_snapshot_age": (_snapshot_age, "Fresh network snapshots are being stored again."),
+    "grafana_health": (_grafana, "The dashboards (Grafana) are back."),
+    "database": (_database, "The watchdog can read the database again."),
+    "db_size": (_db_size, "The database size is back within the expected range."),
+    "disk": (_disk, "The disk has enough free space again."),
+    "backup_age": (_backup_age, "A fresh database backup now exists."),
+    "backup_remote": (_backup_remote, "The off-box backup copy is working again."),
+    "telegram_outbox": (_telegram_outbox, "Alert messages are reaching Telegram again."),
+    "restore_test": (_restore_test, "The weekly backup restore test is in order again."),
+    "identity_flap": (_identity_flap, "No duplicated sessions are left in the last 24 hours."),
+    "feed_archive": (_feed_archive, "The raw-data archive is being written again."),
+    "data_integrity": (_data_integrity, "The routine data check is clean again."),
+    "feed_crosscheck": (_feed_crosscheck, "The cross-check against saved raw data is clean again."),
+    "docker_proxy": (_docker_proxy, "The watchdog can reach Docker again."),
 }
 
 
 def known_checks() -> list[str]:
     """Check names with their own wording (the names the watchdog's cycle produces; container and restart-cap are prefixes)."""
-    return sorted(_FIXED)
+    return sorted(_CHECKS)
 
 
 def _plain(name: str, level: str, detail: str) -> str:
-    if name in _FIXED:
-        return _FIXED[name](level, detail)
+    if name in _CHECKS:
+        return _CHECKS[name][0](level, detail)
     if name.startswith("container:"):
         return _container(level, detail, name.split(":", 1)[1])
     if name.startswith("restart-cap:"):
@@ -390,8 +409,8 @@ def _plain(name: str, level: str, detail: str) -> str:
 
 
 def _recovered_plain(name: str, detail: str) -> str:
-    if name in _RECOVERED:
-        return _RECOVERED[name]
+    if name in _CHECKS:
+        return _CHECKS[name][1]
     if name.startswith("container:"):
         return f"The {name.split(':', 1)[1]} container is running normally again."
     if name.startswith("restart-cap:"):
@@ -436,7 +455,6 @@ def _tech_detail(name: str, detail: str) -> str:
         counts = re.search(r"(\d+) of (\d+) invariants", detail)
         if names and counts:
             return _integrity_tech(names, _failing_count(detail, names), counts.group(1), counts.group(2))
-    if name == "data_integrity":
         short = detail.replace("new violations since the last sweep:", "new violations:", 1)
         return _clip(_strip_log_pointer(short), MAX_TECH_INTEGRITY + 20)
     return _clip(_strip_log_pointer(detail))

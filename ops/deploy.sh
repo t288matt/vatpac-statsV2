@@ -35,6 +35,7 @@ CMD_TIMEOUT="${DEPLOY_CMD_TIMEOUT:-60}"
 LOG_SINCE="${DEPLOY_LOG_SINCE:-6h}"
 SERVICES="db collector grafana backup watchdog"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY=python; command -v python >/dev/null 2>&1 || PY=python3   # counts the invariant pack with ops/watchdog/integrity.py (stdlib only, no psycopg needed)
 EXPECTED_FILE="${DEPLOY_EXPECTED_FILE:-$HERE/deploy_expected_warnings.txt}"
 ROOT="$(cd "$HERE/.." && pwd)"
 # shellcheck source=ops/release_common.sh
@@ -476,7 +477,7 @@ EOF
   fi
 
   # invariant pack: exactly as many rows as the local file defines, every row parseable (a NULL or text count is a FAIL)
-  total="$(grep -cE "SELECT +'[^']+'( +AS +check_name)? *, *count\(" "$HERE/audit/invariants.sql")"
+  total="$("$PY" "$HERE/watchdog/integrity.py" --names "$HERE/audit/invariants.sql" 2>/dev/null | grep -c .)"
   now="$(vm_now)"
   out="$( { echo "SET default_transaction_read_only = on;"; cat "$HERE/audit/invariants.sql"; } | vm_in "$PSQL" 2>/dev/null | tr -d '\r' | grep -v '^$')"
   seen=0; bad=0

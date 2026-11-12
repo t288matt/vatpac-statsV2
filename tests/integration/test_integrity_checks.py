@@ -120,7 +120,7 @@ def test_the_sweep_is_read_only_and_leaves_the_data_alone(conn: Any, dsn: str) -
 
 def test_watchdog_ro_can_read_everything_the_sweep_and_the_cross_check_need(conn: Any, dsn: str, role: str | None) -> None:
     if role is None:
-        pytest.skip("role watchdog_ro not created (migrate.sh creates it; see the CI step)")
+        pytest.skip("role watchdog_ro not created (db/roles.sql creates it; see the CI step)")
     World(conn)
     with psycopg.connect(dsn, autocommit=True) as c:  # autocommit, so the role is not rolled back between statements
         c.execute("SET ROLE watchdog_ro")
@@ -480,7 +480,7 @@ def arc(conn: Any, refdata: Any, tmp_path: Path) -> Archive:
 def test_cross_check_is_clean_when_stored_rows_match_the_archive(arc: Archive, conn: Any, dsn: str, role: str | None) -> None:
     res = cross(conn, dsn, arc, role)
     assert res.compared == 1 and res.mismatches == [] and res.skipped == 0
-    assert integrity.summarise_crosscheck(res, 1)[0] == "ok"
+    assert integrity.summarise_crosscheck(res)[0] == "ok"
 
 
 @pytest.mark.parametrize("column,word", [("pilots_global", "pilots_global"), ("pilots_in_region", "pilots_in_region"),
@@ -490,7 +490,7 @@ def test_cross_check_fires_when_a_stored_count_is_wrong(arc: Archive, conn: Any,
     conn.execute(f"UPDATE network_snapshot SET {column} = {column} + 1")  # noqa: S608
     res = cross(conn, dsn, arc)
     assert any(word in m and "independent" in m for m in res.mismatches), res.mismatches
-    assert integrity.summarise_crosscheck(res, 1)[0] == "warn"
+    assert integrity.summarise_crosscheck(res)[0] == "warn"
 
 
 def test_cross_check_fires_when_a_stored_pilot_is_missing_even_though_the_counts_agree(arc: Archive, conn: Any, dsn: str) -> None:
@@ -538,7 +538,7 @@ def test_cross_check_skips_samples_older_than_a_reference_file_change(arc: Archi
     conn.execute("UPDATE network_snapshot SET pilots_in_region = pilots_in_region + 5")  # would be a mismatch, but the rules differed then
     res = cross(conn, dsn, arc)
     assert res.compared == 0 and res.skipped == 1 and res.mismatches == []
-    assert integrity.summarise_crosscheck(res, 1)[0] == "warn"  # nothing compared is never reported as a pass
+    assert integrity.summarise_crosscheck(res)[0] == "warn"  # nothing compared is never reported as a pass
 
 
 def test_cross_check_reports_a_damaged_archive_file(arc: Archive, conn: Any, dsn: str) -> None:
