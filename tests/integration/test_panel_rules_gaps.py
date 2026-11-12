@@ -321,10 +321,12 @@ def test_controller_charts_label_bars_name_cid_and_highest_rank_like_the_median_
         _named_ctrl(conn, 9971001, d + 10, "Old Name", 3)                    # three sessions; the name and rating change
     _named_ctrl(conn, 9971001, 0.5, "Tom", 5)                                # latest name Tom, highest rating C1
     _named_ctrl(conn, 9971001, 0.2, "", 3)                                   # the latest session has an empty name: Tom stays
-    for cid, name, rating in [(9971002, None, 8), (9971003, "", 4), (9971004, "   ", 2), (9971005, "Ann", None)]:
+    for cid, name, rating in [(9971002, None, 8), (9971003, "", 4), (9971004, "   ", 2), (9971005, "Ann", None),
+                              (9971006, "Obs", 1), (9971007, "Two", 6)]:
         for d in (1, 2, 3):
             _named_ctrl(conn, cid, d, name, rating)
     want = {9971001: "Tom (9971001, C1)", 9971002: "9971002 (9971002, I1+)", 9971003: "9971003 (9971003, S3)",
-            9971004: "9971004 (9971004, S1)", 9971005: "Ann (9971005, Unknown)"}
+            9971004: "9971004 (9971004, S1)", 9971005: "Ann (9971005, Unknown)",
+            9971006: "Obs (9971006, Unknown)", 9971007: "Two (9971007, Unknown)"}   # ratings 1 and 6 read Unknown, as on the median charts
     for title in ("Top 30 service providers (last 30 days)", "Controllers with the shortest average session (last 30 days)"):
         assert _label_rows(conn, title) == want, title
