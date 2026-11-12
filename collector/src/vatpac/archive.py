@@ -1,7 +1,7 @@
 """Rolling raw-feed archive (issue 20, audit section 6.2): compact/, full/ and anomaly/ gzipped files under ARCHIVE_DIR,
 each written to a temporary name and renamed. Layout, retention and reasons: docs/RUNBOOKS/feed-archive.md.
 The archive can never block or fail a poll: submit() only queues work for one worker thread, which runs after the
-snapshot is stored; any error is counted, logged once and swallowed. Counters appear in /health and /metrics."""
+snapshot is stored; any error is counted, logged once and swallowed. Counters appear in /health."""
 
 from __future__ import annotations
 

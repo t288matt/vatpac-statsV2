@@ -61,7 +61,7 @@ Tables (final DDL lives in `db/migrations/`; this is the contract):
 - Migrations are forward-only SQL; each file idempotent where possible.
 
 ## 7. Collector layout (`collector/src/vatpac/`)
-`settings.py` (pydantic-settings; every variable documented, defaults, validation), `feed.py` (fetch, retry, conditional, discovery), `filters.py` (the three filters + reference loading + near-miss), `model.py` (typed dataclasses and parsing/plausibility), `store.py` (one transaction per snapshot, upserts, events, network_snapshot, poll_log), `maintenance.py` (settings sync, partitions, retention, flight summary refresh, view refresh, poll_log trimming), `health.py` (aiohttp `/health` and `/metrics`), `main.py` (supervisor, signals). Budget: whole package under 1400 physical lines (ADR-014), no module over 300. One DB driver. Type-annotated, ruff + mypy clean.
+`settings.py` (pydantic-settings; every variable documented, defaults, validation), `feed.py` (fetch, retry, conditional, discovery), `filters.py` (the three filters + reference loading + near-miss), `model.py` (typed dataclasses and parsing/plausibility), `store.py` (one transaction per snapshot, upserts, events, network_snapshot, poll_log), `maintenance.py` (settings sync, partitions, retention, flight summary refresh, view refresh, poll_log trimming), `health.py` (aiohttp `/health`), `main.py` (supervisor, signals). Budget: whole package under 1400 physical lines (ADR-014), no module over 300. One DB driver. Type-annotated, ruff + mypy clean.
 
 ### Public interfaces (contract so QA can test independently of the builder)
 - `vatpac.errors.ReferenceDataError(Exception)`.
@@ -81,8 +81,8 @@ Upsert rules per snapshot (store.py):
 - Controller on whitelist: upsert `controller_session`; if `rating` changed insert `controller_rating_event`; if `frequency_hz` changed insert `controller_frequency_event` (first sighting also inserts both).
 - Always insert `network_snapshot` (`ON CONFLICT DO NOTHING`).
 
-## 8. Health, metrics, watchdog
-- Collector `/health`: 200 when the last successful poll is under 60 s old and the newest stored snapshot is under 120 s old, 503 otherwise (an unchanged feed does not count as a successful poll); JSON with last_ok, last_snapshot_ts, consecutive_failures, breaker_open, reload_rejected, last_reload_error and the SHA-256 of the reference files. `/metrics`: Prometheus text (polls total/ok/error/skipped, last snapshot age, rows written, filter counts).
+## 8. Health, watchdog
+- Collector `/health`: 200 when the last successful poll is under 60 s old and the newest stored snapshot is under 120 s old, 503 otherwise (an unchanged feed does not count as a successful poll); JSON with last_ok, last_snapshot_ts, consecutive_failures, breaker_open, reload_rejected, last_reload_error and the SHA-256 of the reference files.
 - Watchdog (`ops/watchdog/`, Python): every 60 s checks collector `/health`, newest `poll_log.ok` age (warn 60 s, page 300 s), `network_snapshot` freshness, DB size and disk (alert above 80%), newest backup age (alert above 26 h), the result and age of the weekly restore test, Grafana `/api/health`, near-miss sightings. **Alert-only**: it has no Docker access (the socket proxy is out of this repo, ADR-012); container state checks and capped restarts only activate if `DOCKER_HOST_URL` is set to an endpoint provided externally. It sends Telegram alerts (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` from `.env`; plain text, no emoji; send on state change only). Writes `watchdog_status` (JSON file on a volume).
 
 ## 9. Docker (compose)

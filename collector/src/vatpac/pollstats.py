@@ -16,22 +16,14 @@ log = logging.getLogger("vatpac")
 def update_stats(st: Stats, s: Settings, status: str, result: ApplyResult | None, snap_ts: datetime | None,
                  err: str | None) -> None:
     if status == "error":
-        st.polls_error += 1
         st.consecutive_failures += 1
         log.warning("poll error", extra={"error": err, "consecutive_failures": st.consecutive_failures})
     else:
-        st.polls_skipped += status == "skipped_unchanged"
-        st.polls_ok += status == "ok"
         st.consecutive_failures = 0
         if status == "ok":  # an unchanged feed is not progress (see health.py)
             st.last_ok_wall = time.time()
     if result is not None and snap_ts is not None:
         st.last_snapshot_ts = snap_ts
-        st.positions_written += result.positions_inserted
-        st.rejected_values += result.rejected_values
-        st.near_misses += len(result.new_near_misses)
-        for name in ("pilots_seen", "pilots_inside", "pilots_kept", "controllers_seen", "controllers_kept"):
-            setattr(st, name, getattr(result, name))
         for callsign in result.new_near_misses:
             log.warning("near-miss controller callsign not on whitelist", extra={"callsign": callsign})
     was_open = st.breaker_open

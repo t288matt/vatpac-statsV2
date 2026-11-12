@@ -6,6 +6,11 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Unused collector page and two unused views removed (12-11-2026, issues 225 and 227)
+
+- **No `/metrics` page.** The collector served a second page, `/metrics`, that nothing read. It is gone; `/health` is unchanged. The counters only that page used are gone too, and the poll log in the database keeps the per-poll counts.
+- **Two views dropped.** `near_miss_controllers` and `controller_activity_daily` had no reader. No dashboard is affected. The daily-checks runbook now reads the near-miss callsigns from `controller_unlisted_sighting`. Migration `20261112000180`.
+
 ## One rule for airport and aircraft codes (12-11-2026, issue 207)
 
 - **One function.** The rule for tidying an airport, aircraft type or prefix code (strip spaces, tabs and line breaks from both ends, upper-case, and read an empty result as no value) is now one database function, `norm_code()`. About twenty copies of it, in two slightly different spellings, are gone: every view, function, index and script calls it. Migrations `20261112000100` to `20261112000170`.

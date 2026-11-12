@@ -14,7 +14,7 @@ import pytest
 from vatpac import main as vmain
 from vatpac.feed import FetchResult
 from vatpac.filters import load_reference
-from vatpac.health import Stats, health_body
+from vatpac.health import Stats, build_app, health_body
 from vatpac.main import Collector
 from vatpac.model import _s, parse_snapshot
 from vatpac.settings import Settings
@@ -48,6 +48,10 @@ def test_healthy_needs_fresh_ok_poll_and_fresh_snapshot() -> None:
     st.last_snapshot_ts, st.last_ok_wall = datetime.fromtimestamp(now - 10, UTC), now - 61
     assert not st.healthy(now)
     assert not Stats(last_ok_wall=now).healthy(now)  # no snapshot stored yet
+
+
+def test_only_health_is_served() -> None:
+    assert {r.resource.canonical for r in build_app(Stats()).router.routes()} == {"/health"}
 
 
 def test_health_body_reports_reload_state() -> None:
@@ -128,7 +132,7 @@ def test_stuck_apply_becomes_error_poll(tmp_path: Path, ref_files: tuple[Path, P
     monkeypatch.setattr(col, "_apply", lambda *_: time.sleep(0.3))
     status, row = _poll(col, monkeypatch)
     assert status == "error" and row["error"] == "apply timed out"
-    assert col.stats.polls_error == 1 and col.stats.last_ok_wall is None
+    assert col.stats.consecutive_failures == 1 and col.stats.last_ok_wall is None
 
 
 def test_malformed_over_20_percent_is_an_error_poll(tmp_path: Path, ref_files: tuple[Path, Path],
@@ -158,7 +162,7 @@ def test_skipped_unchanged_does_not_count_as_successful_poll(tmp_path: Path, ref
     col = _collector(tmp_path, *ref_files, feed=_Feed(fixture_payload))
     col.last_ts = datetime.now(UTC) + timedelta(days=1)  # feed timestamp is not newer
     status, _ = _poll(col, monkeypatch)
-    assert status == "skipped_unchanged" and col.stats.polls_skipped == 1 and col.stats.last_ok_wall is None
+    assert status == "skipped_unchanged" and col.stats.last_ok_wall is None
 
 
 def test_pool_options_set_timeouts() -> None:

@@ -1,4 +1,4 @@
-"""Collector health state and the /health and /metrics HTTP endpoints (aiohttp).
+"""Collector health state and the /health HTTP endpoint (aiohttp).
 
 /health is 200 only when the last "ok" poll is under max(60, 2 x POLL_INTERVAL_SECONDS) s old AND the newest stored
 snapshot is under max(120, 4 x POLL_INTERVAL_SECONDS) s old (60 s and 120 s at the default 30 s; ADR-024).
@@ -25,21 +25,10 @@ HEALTH_MAX_AGE_S, SNAPSHOT_MAX_AGE_S = 60.0, 120.0  # floors, reached at the def
 class Stats:
     """Mutable runtime state shared by the poll loop and the HTTP handlers."""
 
-    polls_ok: int = 0
-    polls_error: int = 0
-    polls_skipped: int = 0
     consecutive_failures: int = 0
     breaker_open: bool = False
     last_ok_wall: float | None = None
     last_snapshot_ts: datetime | None = None
-    positions_written: int = 0
-    pilots_seen: int = 0
-    pilots_inside: int = 0
-    pilots_kept: int = 0
-    controllers_seen: int = 0
-    controllers_kept: int = 0
-    rejected_values: int = 0
-    near_misses: int = 0
     reload_rejected: int = 0
     last_reload_error: str | None = None
     reference: dict[str, str] = field(default_factory=dict)
@@ -76,48 +65,12 @@ def health_body(stats: Stats) -> dict[str, Any]:
     }
 
 
-def render_metrics(stats: Stats) -> str:
-    age = stats.snapshot_age()
-    rows: list[tuple[str, str, str, float]] = [
-        ("polls_total", "counter", 'status="ok"', stats.polls_ok),
-        ("polls_total", "counter", 'status="error"', stats.polls_error),
-        ("polls_total", "counter", 'status="skipped_unchanged"', stats.polls_skipped),
-        ("positions_written_total", "counter", "", stats.positions_written),
-        ("rejected_values_total", "counter", "", stats.rejected_values),
-        ("near_miss_controllers_total", "counter", "", stats.near_misses),
-        ("reference_reload_rejected_total", "counter", "", stats.reload_rejected),
-        ("circuit_breaker_open", "gauge", "", int(stats.breaker_open)),
-        ("last_snapshot_age_seconds", "gauge", "", age if age is not None else -1),
-        *((n, "gauge", "", getattr(stats, n)) for n in ("consecutive_failures", "pilots_seen", "pilots_inside",
-                                                         "pilots_kept", "controllers_seen", "controllers_kept")),
-    ]
-    arc = stats.archive_info() if stats.archive_info else {"enabled": False}
-    if arc["enabled"]:
-        rows += [("archive_size_bytes", "gauge", "", arc["size_bytes"]),
-                 ("archive_last_write_age_seconds", "gauge", "", arc["last_write_age_seconds"]),
-                 *((f"archive_{n}_total", "counter", "", arc[n])
-                   for n in ("files_written", "errors", "dropped", "anomalies"))]
-    lines: list[str] = []
-    typed: set[str] = set()
-    for name, kind, labels, value in rows:
-        full = f"vatpac_{name}"
-        if full not in typed:
-            typed.add(full)
-            lines.append(f"# TYPE {full} {kind}")
-        lines.append(f"{full}{{{labels}}} {value}" if labels else f"{full} {value}")
-    return "\n".join(lines) + "\n"
-
-
 def build_app(stats: Stats) -> web.Application:
     async def health(_: web.Request) -> web.Response:
         return web.json_response(health_body(stats), status=200 if stats.healthy() else 503)
 
-    async def metrics(_: web.Request) -> web.Response:
-        return web.Response(text=render_metrics(stats), content_type="text/plain")
-
     app = web.Application()
     app.router.add_get("/health", health)
-    app.router.add_get("/metrics", metrics)
     return app
 
 

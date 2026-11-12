@@ -12,7 +12,7 @@ psycopg = pytest.importorskip("psycopg")
 pytestmark = pytest.mark.integration
 
 # A few views are named so a failure names the one that broke; every other view is found in pg_views (below).
-NAMED_VIEWS = ["flight", "controller_session_merged", "controller_activity_daily", "movements", "cohorts",
+NAMED_VIEWS = ["flight", "controller_session_merged", "movements", "cohorts",
                "online_now", "data_freshness"]
 LOOKUPS = ["controller_rating", "facility", "pilot_rating", "airline", "aircraft_type", "region_map"]
 RAW = ["pilot_session", "pilot_position", "controller_session", "controller_rating_event",

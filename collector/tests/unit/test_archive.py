@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from vatpac.archive import PILOT_KEYS, Archive, compact, fraction_share
-from vatpac.health import Stats, health_body, render_metrics
+from vatpac.health import Stats, health_body
 from vatpac.model import parse_snapshot
 from vatpac.settings import Settings
 
@@ -255,21 +255,15 @@ def test_disabled_archive_does_nothing(tmp_path: Path, fixture_payload: dict[str
     a.submit(raw_at(fixture_payload, T0), T0, "ok", 200, None)
     assert not (tmp_path / "arc").exists() and a._pool is None
     assert health_body(stats)["archive"]["enabled"] is False
-    assert "archive_" not in render_metrics(stats)
 
 
-def test_health_and_metrics_expose_the_archive(tmp_path: Path, fixture_payload: dict[str, Any]) -> None:
+def test_health_exposes_the_archive(tmp_path: Path, fixture_payload: dict[str, Any]) -> None:
     a, stats = make(tmp_path)
     assert health_body(stats)["archive"]["last_write"] is None  # nothing written yet
     feed(a, raw_at(fixture_payload, T0), T0)
     body = health_body(stats)["archive"]
     assert body["enabled"] and body["files_written"] == 2 and body["size_bytes"] > 0 and body["last_write"]
     assert body["compact_every_s"] == 300 and body["last_write_age_seconds"] < 5
-    text = render_metrics(stats)
-    for name in ("size_bytes", "last_write_age_seconds"):
-        assert f"vatpac_archive_{name} " in text
-    for name in ("files_written", "errors", "dropped", "anomalies"):
-        assert f"vatpac_archive_{name}_total " in text
 
 
 def test_submit_swallows_a_dead_worker(tmp_path: Path, fixture_payload: dict[str, Any]) -> None:
