@@ -52,7 +52,7 @@ Dashboards (as code in `grafana/dashboards/`): Pilots: traffic and aircraft, Pil
 
 All fourteen dashboards can be shown to anyone on the internet, read-only, without a login. Each dashboard has its own public link, with a fixed time range, and a short address such as `https://vpac.mpengor.com/traffic` that redirects to it; visitors cannot send their own queries, change the time range or edit anything. Anonymous access in Grafana stays off. The links are created by `ops/grafana_public.py`, and traffic reaches Grafana through Cloudflare, a Cloudflare Tunnel and a small forwarder on the owner's Traefik machine. Setup, checks and how to switch it off: [docs/RUNBOOKS/public-access.md](docs/RUNBOOKS/public-access.md); what runs on the Traefik machine (<TRAEFIK_HOST_IP>, outside this repository) is in its section "The Traefik machine". The public address is `https://vpac.mpengor.com` (DNS and Cloudflare are outside this repository).
 
-The collector serves `/health` and `/metrics` on port 8080 inside the Docker network only (not published). The database is not published either; the dev overlay (`make dev`) publishes it on `127.0.0.1:55432` only.
+The collector serves `/health` on port 8080 inside the Docker network only (not published). The database is not published either; the dev overlay (`make dev`) publishes it on `127.0.0.1:55432` only.
 
 ## For dashboard users
 

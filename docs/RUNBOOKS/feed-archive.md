@@ -31,7 +31,6 @@ Expected writes at the defaults: 12 compact files and 1 full file per hour, abou
 ## Where to see it
 
 - `docker compose exec collector python -c "import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8080/health').read().decode())"` shows the `archive` block: `enabled`, `size_bytes`, `files_written`, `errors`, `dropped`, `anomalies`, `last_write`, `last_write_age_seconds`.
-- `/metrics` has `vatpac_archive_size_bytes`, `vatpac_archive_last_write_age_seconds` and the counters `vatpac_archive_{files_written,errors,dropped,anomalies}_total`.
 - The watchdog warns (`feed_archive`, see [alerts.md](alerts.md)) when the archive is enabled and nothing was written for twice the compact interval (10 minutes).
 - A new anomaly is logged by the collector: `archive anomaly kept`, with the reasons.
 
