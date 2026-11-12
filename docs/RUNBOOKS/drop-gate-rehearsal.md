@@ -27,7 +27,7 @@ A call drops **at most one day**. After a DROP the parent table `pilot_position`
 
 ## 2. How you hear about a refusal
 
-- The collector log: `docker compose logs --since 24h collector | grep "DROP REFUSED"`. The line is written on every daily maintenance run (and on every call of the catch-up loop) while the day stays refused.
+- The collector log: `docker compose logs --since 24h collector | grep "DROP REFUSED"`. The line is written on every full maintenance run, which is about a minute after start-up and then daily (and on every call of the catch-up loop) while the day stays refused.
 - The watchdog: the integrity sweep (every 72 hours, repeated every 6 hours while it fails) has a check, `processed flight-plan sessions in no written flight (ended 2 to 30 days ago)`. It sees the session-side cause of a refusal (a session marked processed that no written flight lists) long before a day is due. The older check `sessions ended more than 2 days ago with unprocessed positions` sees the other cause (the writer has stopped). So the alert comes from the data, not from the maintenance run, and can be up to 3 days late.
 - Not alerted: a flight whose `sample_count` is wrong more than 3 days after it was written (the existing check looks only at flights written in the last 3 days), and a position inside the time range of a flight but outside the range of the flight's own session list. These show only as `DROP REFUSED` in the log.
 

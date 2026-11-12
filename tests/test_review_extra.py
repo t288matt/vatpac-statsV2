@@ -50,13 +50,14 @@ def test_run_loads_the_last_snapshot_time_after_the_first_maintenance(monkeypatc
             self.stop = asyncio.Event()
             self.archive = type("A", (), {"stopping": threading.Event()})()
 
-        async def maintain_once(self) -> bool:
+        async def maintain_once(self, only: tuple[str, ...] | None = None) -> bool:
             calls.append("maintain")
+            calls.append(only)
             return True
 
         async def load_last_ts(self) -> None: calls.append("load_last_ts")
         async def poll_loop(self) -> None: calls.append("poll_loop")
-        async def maintenance_loop(self, ok: bool) -> None: ...
+        async def maintenance_loop(self) -> None: ...
         async def flight_summary_loop(self) -> None: ...
         def request_reload(self) -> None: ...
 
@@ -70,6 +71,7 @@ def test_run_loads_the_last_snapshot_time_after_the_first_maintenance(monkeypatc
     s = Settings(_env_file=None, archive_enabled=False)  # type: ignore[call-arg]
     asyncio.run(vmain.run(s, None))  # type: ignore[arg-type]
     assert calls.index("maintain") < calls.index("load_last_ts") < calls.index("poll_loop")
+    assert calls[calls.index("maintain") + 1] == ("settings", "partitions_created")  # not the full daily job (#204)
 
 
 # ---- parsing: a non-finite number is not a value (found in review) ----
