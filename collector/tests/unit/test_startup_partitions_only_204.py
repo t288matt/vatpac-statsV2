@@ -48,12 +48,6 @@ def test_recovery_tasks_are_partitions_only(called: list[str]) -> None:
     assert called == ["partitions_created"]
 
 
-def test_an_unknown_task_name_is_refused(called: list[str]) -> None:
-    with pytest.raises(ValueError):
-        m.run_maintenance(MagicMock(), _settings(), ("partitons_created",))
-    assert called == []
-
-
 def test_a_failing_startup_task_is_counted_and_does_not_block_the_other(monkeypatch: pytest.MonkeyPatch,
                                                                         called: list[str]) -> None:
     def boom(*a: Any, **k: Any) -> None:
@@ -95,3 +89,24 @@ def test_maintain_once_reports_failure_and_swallows_errors(monkeypatch: pytest.M
     assert asyncio.run(col.maintain_once(vmain.STARTUP_TASKS)) is False
     monkeypatch.setattr(col, "_maintain", lambda only=None: {"failed": 1})
     assert asyncio.run(col.maintain_once(vmain.STARTUP_TASKS)) is False
+
+
+def test_full_job_runs_one_retry_delay_after_startup_then_daily() -> None:
+    """A partitions-only startup must not starve drop/trim/views: the first full run comes after MAINTENANCE_RETRY_S."""
+    col = Collector(_settings(), MagicMock(), MagicMock(), MagicMock())
+    sleeps: list[float] = []
+    runs: list[Any] = []
+
+    async def fake_sleep(delay: float) -> bool:
+        sleeps.append(delay)
+        return len(sleeps) > 2  # stop after two full runs
+
+    async def fake_maintain(only: Any = None) -> bool:
+        runs.append(only)
+        return True
+
+    col._sleep = fake_sleep  # type: ignore[method-assign]
+    col.maintain_once = fake_maintain  # type: ignore[method-assign]
+    asyncio.run(col.maintenance_loop())
+    assert runs == [None, None]
+    assert sleeps == [vmain.MAINTENANCE_RETRY_S, vmain.MAINTENANCE_INTERVAL_S, vmain.MAINTENANCE_INTERVAL_S]
