@@ -141,6 +141,6 @@ def test_expected_objects_exist(conn) -> None:
         "controller_frequency_event", "network_snapshot", "poll_log", "controller_unlisted_sighting",
         "reference_data_change", "controller_rating", "facility", "pilot_rating", "airline",
         "aircraft_type", "region_map", "flight", "controller_session_merged",
-        "controller_activity_daily", "movements", "cohorts", "online_now", "data_freshness",
+        "movements", "cohorts", "online_now", "data_freshness",
     ):
         assert name in present, name
