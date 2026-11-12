@@ -6,6 +6,13 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## One source for the airborne gap cap and the flight quiet hours (12-11-2026, issues 200 and 238)
+
+- **One setting each.** The airborne gap cap (`airborne_gap_cap_seconds`, 75 s: 2.5 times the 30 s poll interval) and the flight quiet hours (`flight_quiet_hours`, 8) are now read from `app_setting` and nowhere else. No number for either is written in SQL, shell or watchdog code.
+- **A missing setting stops the writer.** If either row is missing or is not a number, the flight writer stops with an error and the watchdog alerts, instead of using a built-in number. The stale 40 s gap cap seed is gone; the collector writes 75 at every start.
+- **Health check and alert wording follow the setting.** The check for flights that are overdue now uses the quiet hours setting plus a new setting, `flight_quiet_check_grace_minutes` (30), instead of a fixed 9 hours. The alert quotes the figure, for example "some flights ended over 8 hours 30 minutes ago and are not yet in the finished-flights table". The check was renamed "flights quiet longer than the quiet period with unprocessed positions".
+- **New read-only objects for the watchdog.** The views `ops_setting` and `ops_pending_flight` and the function `ops_setting_num`, granted to `watchdog_ro` only. Migration `20261112000010`.
+
 ## CTR hours staffed per day (11-11-2026, issue 325)
 
 - **New panel.** "CTR hours staffed per day (last 14 months)" on ATC: controllers, directly below "CTR hours staffed per week": one bar per UTC day showing the hours CTR positions (facility 6) were staffed. Three CTR positions staffed together for one hour count as 3 hours; a session that crosses midnight UTC is split between the two days; a day with no CTR sessions shows 0. No view or migration changes.
