@@ -19,7 +19,6 @@ on:
   pull_request:
     # No path filter (issue 290). The scope job classifies the changed paths (ops/ci_scope.py) and ci-result always reports, so
     # a required check never waits on a workflow that did not start. A prose-only pull request runs the secret scan only.
-  workflow_call:  # reusable; release.yml no longer calls it (it checks the commit's main CI run instead, issue 173)
 
 permissions:
   contents: read
