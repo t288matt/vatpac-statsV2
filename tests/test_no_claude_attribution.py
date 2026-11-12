@@ -64,6 +64,7 @@ def test_ci_runs_the_check_in_every_scope_and_ci_result_waits_for_it() -> None:
     step = next(st for st in job["steps"] if str(st.get("name", "")).startswith("commit-attribution"))
     assert job["if"].replace(" ", "") == "${{!cancelled()}}"   # no scope condition: every scope, even if scope fails
     assert "scope" not in step["if"]                            # nor on the step
-    assert "ops/check_no_claude_attribution.py" in step["run"]
+    assert step["run"] == "sh ops/run_checks.sh attribution"
+    assert "ops/check_no_claude_attribution.py" in (REPO / "ops" / "run_checks.sh").read_text(encoding="utf-8")
     assert all("github.event.pull_request" not in st.get("run", "") for st in job["steps"])   # PR text goes through env only
     assert "quick-checks" in ci["jobs"]["ci-result"]["needs"]

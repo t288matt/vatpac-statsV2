@@ -89,37 +89,28 @@ jobs:
         run: pip install "ruff==${RUFF_VERSION}" "mypy==${MYPY_VERSION}" types-PyYAML==6.0.12.20260906
       - name: ruff (collector)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
-        run: cd collector && ruff check .
+        run: sh ops/run_checks.sh ruff-collector
       - name: mypy (collector)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
-        run: cd collector && mypy src
+        run: sh ops/run_checks.sh mypy-collector
       - name: ruff (ops python)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
-        run: ruff check --config ops/ruff.toml ops
+        run: sh ops/run_checks.sh ruff-ops
       - name: mypy (ops python)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
-        run: >
-          mypy --strict --ignore-missing-imports
-          ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py
-          ops/check_panels.py ops/grafana_public.py ops/grafana_api.py ops/env_file.py ops/ci_scope.py ops/check_skips.py
+        run: sh ops/run_checks.sh mypy-ops
       - name: shell syntax (ops scripts)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
-        run: |
-          for f in ops/*.sh ops/migrate/*.sh; do [ "$f" = ops/deploy.sh ] || [ "$f" = ops/stale_issues.sh ] || sh -n "$f"; done
-          for f in ops/backup/*.sh ops/deploy.sh ops/stale_issues.sh; do bash -n "$f"; done
-
+        run: sh ops/run_checks.sh shell-syntax
       - name: pytest (unit; integration tests need Postgres and are marked)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
-        env:
-          PYTHONPATH: collector/src
-          PYTEST_ADDOPTS: --junitxml=${{ runner.temp }}/unit.xml
-        run: pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv
+        run: sh ops/run_checks.sh pytest-unit
       # Issue 343: a skipped test is a test that did not run. The expected number is kept in one place, ops/check_skips.py
       # (23 here: the watchdog auto-restart tests switched off on purpose, issue 232). A new skip, or one switched back on,
       # fails this step until the number is changed in a reviewed diff.
       - name: unit skips (the number of skipped tests is the expected one)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
-        run: python ops/check_skips.py "$RUNNER_TEMP/unit.xml"
+        run: sh ops/run_checks.sh unit-skips
       # Dashboards scope: the same command on the dashboard test files only (the list lives in ops/ci_scope.py, and
       # tests/test_ci_scope.py fails if a test that reads the dashboards is missing from it). Nothing is deselected.
       - name: pytest (unit, dashboards scope)
@@ -242,7 +233,7 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
-        run: python3 ops/check_no_claude_attribution.py
+        run: sh ops/run_checks.sh attribution
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
         with:
@@ -252,56 +243,36 @@ jobs:
         run: pip install pyyaml==6.0.2 sqlglot==30.31.0 actionlint-py==1.7.12.25
       - name: config-drift (collector settings vs compose vs .env.example)
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
-        run: python ops/check_config_drift.py
+        run: sh ops/run_checks.sh config-drift
       # sqlglot is installed (issue 343), so every dashboard query is parsed as PostgreSQL; the second line fails the step if
       # the validator ever goes back to "sql parsing: skipped".
       - name: dashboards (validator, with SQL parsing)
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
-        run: |
-          set -o pipefail   # the default shell has no pipefail: without it tee's exit status would hide a validator failure
-          python grafana/validate_dashboards.py | tee "$RUNNER_TEMP/dashboards.txt"
-          grep -q '^sql statements parsed with sqlglot' "$RUNNER_TEMP/dashboards.txt"
+        run: sh ops/run_checks.sh dashboards
       - name: dashboards (navigation check)
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
-        run: python ops/dashboard_nav.py --check
+        run: sh ops/run_checks.sh dashboard-nav
       - name: size-budget
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
-        run: python ops/check_size_budget.py
+        run: sh ops/run_checks.sh size-budget
       # Issue 343: workflow syntax and expression errors. Shellcheck of the run scripts is off (-shellcheck=): it was not
       # measured on these scripts, so it is a separate decision.
       - name: actionlint (workflow files)
         if: ${{ !cancelled() && needs.scope.outputs.scope != 'docs' }}
-        run: actionlint -shellcheck= .github/workflows/*.yml
+        run: sh ops/run_checks.sh actionlint
       - name: compose-config (compose files with a generated throwaway env)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         # .env.example has blank secrets by design, so compose would fail on it
-        run: |
-          sh ops/gen_env.sh "$RUNNER_TEMP/ci.env"
-          sh ops/check_env.sh "$RUNNER_TEMP/ci.env"
-          docker compose --env-file "$RUNNER_TEMP/ci.env" config -q
-          docker compose --env-file "$RUNNER_TEMP/ci.env" -f docker-compose.yml -f docker-compose.dev.yml config -q
+        run: sh ops/run_checks.sh compose-config
       - name: compose-config (image names resolve in local and registry mode, issue 173)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         # The four built services must resolve to vatpac-stats-<name>:latest with both variables unset, to
         # <prefix>vatpac-stats-<name>:latest with the prefix alone, and to <prefix>...:<tag> with a tag override (the names the release workflow publishes).
         # It reads the env file the previous step generated.
-        run: |
-          want="collector watchdog backup migrate"
-          got="$(env -u VATPAC_IMAGE_PREFIX -u VATPAC_IMAGE_TAG docker compose --env-file "$RUNNER_TEMP/ci.env" config --images | grep 'vatpac-stats-' | sort)"
-          exp="$(for n in $want; do echo "vatpac-stats-$n:latest"; done | sort)"
-          [ "$got" = "$exp" ] || { echo "local mode images differ"; echo "$got"; exit 1; }
-          got="$(env -u VATPAC_IMAGE_TAG VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/ docker compose --env-file "$RUNNER_TEMP/ci.env" config --images | grep 'vatpac-stats-' | sort)"
-          exp="$(for n in $want; do echo "ghcr.io/t288matt/vatpac-stats-$n:latest"; done | sort)"
-          [ "$got" = "$exp" ] || { echo "registry default images differ"; echo "$got"; exit 1; }
-          got="$(VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/ VATPAC_IMAGE_TAG=sha-abc1234 docker compose --env-file "$RUNNER_TEMP/ci.env" config --images | grep 'vatpac-stats-' | sort)"
-          exp="$(for n in $want; do echo "ghcr.io/t288matt/vatpac-stats-$n:sha-abc1234"; done | sort)"
-          [ "$got" = "$exp" ] || { echo "registry mode images differ"; echo "$got"; exit 1; }
+        run: sh ops/run_checks.sh compose-images
       - name: compose-config (blank secrets must fail, H4 guard)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
-        run: |
-          if docker compose --env-file .env.example config -q 2>/dev/null; then
-            echo ".env.example boots with blank secrets"; exit 1
-          fi
+        run: sh ops/run_checks.sh compose-blank-secrets
 
   image-build:
     runs-on: ubuntu-latest
