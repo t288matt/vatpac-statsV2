@@ -331,12 +331,12 @@ def test_samples_are_spread_over_the_window_and_limited(tmp_path: Path) -> None:
 
 
 def test_cross_check_summaries() -> None:
-    ok = integrity.summarise_crosscheck(integrity.CrossResult(compared=48, skipped=2), 50)
+    ok = integrity.summarise_crosscheck(integrity.CrossResult(compared=48, skipped=2))
     assert ok[0] == integrity.OK and "48 archived snapshots match" in ok[1]
-    bad = integrity.summarise_crosscheck(integrity.CrossResult(compared=48, mismatches=["a", "b", "c", "d", "e"]), 48)
+    bad = integrity.summarise_crosscheck(integrity.CrossResult(compared=48, mismatches=["a", "b", "c", "d", "e"]))
     assert bad[0] == integrity.WARN and "5 difference(s) in 48" in bad[1] and "and 2 more" in bad[1] and "a; b; c" in bad[1]
     for res in (integrity.CrossResult(), integrity.CrossResult(skipped=4)):  # nothing to compare is never a silent pass
-        assert integrity.summarise_crosscheck(res, 0)[0] == integrity.WARN
+        assert integrity.summarise_crosscheck(res)[0] == integrity.WARN
 
 
 # ------------------------------------------------------------------ settings and wiring
@@ -381,8 +381,8 @@ def test_the_image_files_are_the_repository_files_and_independent_imports_nothin
     assert not re.search(r"^\s*(from|import)\s+(vatpac|collector|shapely)", src, re.M)
 
 
-def test_migrate_grants_the_watchdog_role_what_the_checks_read() -> None:
-    sh = (REPO / "ops" / "migrate" / "migrate.sh").read_text(encoding="utf-8")
+def test_roles_sql_grants_the_watchdog_role_what_the_checks_read() -> None:
+    sh = (REPO / "db" / "roles.sql").read_text(encoding="utf-8").split("\n-- watchdog_ro\n")[-1]
     block = re.search(r"GRANT SELECT ON %I TO watchdog_ro.*?ARRAY\[(.*?)\]", sh, re.S)
     assert block
     names = set(re.findall(r"'(\w+)'", block.group(1)))

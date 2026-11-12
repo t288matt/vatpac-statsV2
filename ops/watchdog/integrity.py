@@ -25,9 +25,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import psycopg
-from psycopg import sql as pgsql
-
 OK, WARN = "ok", "warn"
 Result = tuple[str, str]
 
@@ -78,6 +75,9 @@ def executable_sql(sql: str) -> str:
 
 def run_invariants(conn: Any, sql: str, timeout_s: int = 120, role: str | None = None) -> list[tuple[str, int, str | None]]:
     """Run the pack on an open, non-autocommit connection. Read only, repeatable read, one statement timeout for the pack."""
+    import psycopg  # imported here so that `integrity.py --names` (ops/deploy.sh) runs without psycopg
+    from psycopg import sql as pgsql
+
     conn.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
     conn.read_only = True
     with conn.cursor() as cur:
@@ -219,7 +219,7 @@ def run_crosscheck(cur: Any, files: list[Path], config_dir: Path) -> CrossResult
     return res
 
 
-def summarise_crosscheck(res: CrossResult, requested: int) -> Result:
+def summarise_crosscheck(res: CrossResult) -> Result:
     if res.compared == 0:
         why = f"{res.skipped} older than the last reference-file change" if res.skipped else "no archive samples found"
         return WARN, (f"cross-check had nothing to compare ({why}); is the feed archive enabled and writing "
@@ -250,10 +250,6 @@ def is_due(entry: dict[str, Any], interval_s: float, now: float) -> bool:
     return bool(now >= float(last) + interval_s)
 
 
-def _failing_names(result: dict[str, Any]) -> set[str]:
-    return set(result.get("failing", []))
-
-
 def _record(entry: dict[str, Any], now: float, res: Result, *, failing: list[str], retry_after: float | None) -> None:
     entry.update(last_run=now, level=res[0], detail=res[1], failing=sorted(failing),
                  last_run_utc=datetime.fromtimestamp(now, UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -267,7 +263,7 @@ def _guard(entry: dict[str, Any], now: float, what: str, fn: Any) -> list[str]:
     except Exception as exc:  # never log exception text: it can hold connection details
         log.warning("%s could not run (%s)", what, type(exc).__name__)
         res, failing, retry_after = (WARN, f"{what} could not run ({type(exc).__name__}); retrying in 1 h"), None, RETRY_AFTER_ERROR_S
-    before = _failing_names(entry)
+    before = set(entry.get("failing", []))
     if failing is None:  # keep what the last good run found, so the next good run can tell what is new
         failing = sorted(before)
     _record(entry, now, res, failing=failing, retry_after=retry_after)
@@ -317,6 +313,8 @@ def find_pack(path: Path) -> Path:
 def sweep(plan: Plan) -> tuple[Result, list[str], float | None]:
     sql = find_pack(plan.sql_path).read_text(encoding="utf-8")
     expected = invariant_names(sql)
+    import psycopg
+
     with psycopg.connect(plan.dsn) as conn:
         rows = run_invariants(conn, sql)
     findings, problems = evaluate(rows, expected)
@@ -334,12 +332,28 @@ def crosscheck(plan: Plan, now: float) -> tuple[Result, list[str], float | None]
     until = datetime.fromtimestamp(now, UTC) - timedelta(seconds=SETTLE_S)
     since = until - timedelta(seconds=max(plan.crosscheck_interval_s, 86400.0))
     files = pick_samples(plan.archive_dir, since, until, plan.samples)
+    import psycopg
+
     with psycopg.connect(plan.dsn) as conn, conn.cursor() as cur:
         conn.read_only = True
         res = run_crosscheck(cur, files, plan.config_dir)
     for m in res.mismatches:
         log.warning("cross-check difference: %s", m)
-    out = summarise_crosscheck(res, len(files))
+    out = summarise_crosscheck(res)
     log.info("archive cross-check: %s", out[1])
     unavailable = res.compared == 0
     return out, (["mismatch"] if res.mismatches else []), RETRY_AFTER_ERROR_S if unavailable else None
+
+
+def main(argv: list[str]) -> int:
+    """`python integrity.py --names <invariants.sql>`: print the invariant names of the pack, one per line, as the watchdog reads them.
+    ops/deploy.sh counts the pack with this, so the deploy check and the watchdog cannot disagree about what an invariant is."""
+    if len(argv) != 3 or argv[1] != "--names":
+        print("usage: integrity.py --names <invariants.sql>", file=sys.stderr)
+        return 2
+    print(*invariant_names(Path(argv[2]).read_text(encoding="utf-8")), sep="\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

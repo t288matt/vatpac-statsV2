@@ -19,6 +19,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import integrity  # tests/conftest.py puts ops/watchdog on sys.path
 import psycopg
 import pytest
 from psycopg.conninfo import make_conninfo
@@ -92,7 +93,7 @@ def test_the_collector_calls_the_writer_with_a_small_batch_and_contains_a_cancel
 
 def test_the_watchdog_has_no_check_for_the_pieces_and_counts_21() -> None:
     sql = (REPO / "ops" / "audit" / "invariants.sql").read_text(encoding="utf-8")
-    assert len(re.findall(r"SELECT +'[^']+'( +AS +check_name)? *, *count\(", sql)) == 20        # requirement 4
+    assert len(integrity.invariant_names(sql)) == 20        # requirement 4
     assert "rows missing for sessions older than 12 h" not in sql and "final or settled" not in sql
     msg = (REPO / "ops" / "watchdog" / "messages.py").read_text(encoding="utf-8")
     assert "rows missing for sessions older than 12 h" not in msg and "_MAINTENANCE" not in msg

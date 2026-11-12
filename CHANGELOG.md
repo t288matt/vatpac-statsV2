@@ -6,6 +6,12 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Watchdog role with the other roles, watchdog tidy-up, one invariant reader (12-11-2026, issues 218, 221 and 223)
+
+- **`watchdog_ro` is created by `db/roles.sql`.** The migrate job used to create the watchdog's database role in a separate block of `ops/migrate/migrate.sh`; it now lives in `db/roles.sql` beside the other three roles, in the same transaction, with the same name, privileges, settings and password handling. `db/roles.sql` needs a fourth password variable, `watchdog_password`, which the migrate job passes from `WATCHDOG_DB_PASSWORD`; anyone running the file against a throwaway database must pass it too. The migrate image and `db/roles.sql` must be at the same commit.
+- **One way to read the invariant names.** `ops/deploy.sh --verify` now counts the integrity checks with `python ops/watchdog/integrity.py --names`, the reader the watchdog itself uses, instead of its own pattern, so a check written across two lines is counted the same by both. The output of `--verify` is unchanged. The tests use the same reader.
+- **Watchdog code tidy-up.** No alert wording or behaviour changes. The plain wording and the action for each integrity check sit in one table, and the problem and all-clear wording for each check sit in one table. Two small redundancies in `ops/watchdog/integrity.py` and `ops/watchdog/messages.py` are removed.
+
 ## Unused materialised-view refresh removed (12-11-2026, issue 226)
 
 - **Dead code removed.** The database has no materialised views, so the daily maintenance task that refreshed them did nothing. The task, the database function `refresh_materialized_views()` (dropped by migration 20261112000020) and the collector's right to run it are gone. The other daily maintenance tasks are unchanged; the "maintenance finished" log line no longer carries a `views_refreshed` field.

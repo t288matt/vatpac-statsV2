@@ -150,7 +150,7 @@ def test_no_banned_jargon_in_any_plain_sentence() -> None:
     for name, level, detail, _ in CASES:
         first = m.humanise(name, level, detail, now=NOW).splitlines()[0].lower()
         assert not any(b in first for b in banned), first
-    for words in m.INVARIANT_WORDS.values():
+    for words, _ in m.INVARIANTS.values():
         assert words.isascii() and not any(b in words.lower() for b in banned), words
 
 
@@ -158,9 +158,9 @@ def test_no_banned_jargon_in_any_plain_sentence() -> None:
 
 
 def test_every_invariant_has_a_plain_wording_and_none_is_stale() -> None:
-    """Fails when invariants.sql gains, loses or renames an invariant and messages.INVARIANT_WORDS does not follow."""
+    """Fails when invariants.sql gains, loses or renames an invariant and messages.INVARIANTS does not follow."""
     assert len(NAMES) == 20
-    assert sorted(m.INVARIANT_WORDS) == sorted(NAMES)
+    assert sorted(m.INVARIANTS) == sorted(NAMES)
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -178,7 +178,7 @@ def test_several_failing_invariants_are_counted_in_words() -> None:
     findings = [integrity.Finding(NAMES[i], 1) for i in (0, 1, 4)]
     _, detail = integrity.summarise_invariants(findings, [], len(NAMES))
     t = m.humanise("data_integrity", "warn", detail, now=NOW)
-    assert "(plus 2 others)" in t and m.INVARIANT_WORDS[NAMES[0]] in t
+    assert "(plus 2 others)" in t and m.INVARIANTS[NAMES[0]][0] in t
     check_shape(t, "data_integrity")
 
 
@@ -194,8 +194,7 @@ def test_more_than_six_failing_are_counted_from_the_n_of_20_figure() -> None:
 
 
 def test_every_invariant_has_its_own_action_hint() -> None:
-    assert sorted(m.INVARIANT_ACTIONS) == sorted(NAMES)
-    for name, hint in m.INVARIANT_ACTIONS.items():
+    for name, (_, hint) in m.INVARIANTS.items():
         assert hint.isascii() and len(hint) > 20 and hint.endswith("."), name
         assert "docs/RUNBOOKS/" in hint or "Nothing to do" in hint, name
 
@@ -204,7 +203,7 @@ def test_every_invariant_has_its_own_action_hint() -> None:
 def test_each_invariant_message_carries_its_own_hint_not_a_blanket_reassurance(name: str) -> None:
     _, detail = integrity.summarise_invariants([integrity.Finding(name, 1)], [], len(NAMES))
     first = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[0]
-    assert m.INVARIANT_ACTIONS[name] in first
+    assert m.INVARIANTS[name][1] in first
     if name != "snapshot gaps over 5 minutes (last 3 days)":
         assert "Nothing to do unless it keeps happening" not in first
 
@@ -219,7 +218,7 @@ def test_the_new_violations_notice_from_integrity_is_humanised() -> None:
     notice = f"WARN data_integrity: new violations since the last sweep: {NAMES[9]}, {NAMES[6]}"
     t = m.from_alert_text(notice, now=NOW)
     # issue 79 re-review: the sentence now follows the MOST URGENT failing invariant (NAMES[6], the stale newest snapshot), not the first listed
-    assert "new problem" in t and m.INVARIANT_WORDS[NAMES[6]] in t and "(and 1 more)" in t and "Some need action today" in t
+    assert "new problem" in t and m.INVARIANTS[NAMES[6]][0] in t and "(and 1 more)" in t and "Some need action today" in t
     check_shape(t, "data_integrity")
 
 
@@ -371,7 +370,7 @@ def test_a_same_day_failure_listed_second_is_not_hidden() -> None:
     detail = _detail_for([GAPS, PARTITIONS])                 # the poll-record style failure is listed first
     t = m.humanise("data_integrity", "warn", detail, now=NOW)
     first = t.splitlines()[0]
-    assert m.INVARIANT_WORDS[PARTITIONS] in first and "Writes will start to fail" in first
+    assert m.INVARIANTS[PARTITIONS][0] in first and "Writes will start to fail" in first
     assert "Some need action today" in first and "(plus 1 other)" in first
     assert "Several checks failed" not in first
     check_shape(t, "data_integrity")
@@ -380,14 +379,14 @@ def test_a_same_day_failure_listed_second_is_not_hidden() -> None:
 def test_several_failures_none_urgent_do_not_claim_action_today() -> None:
     detail = _detail_for([NAMES[0], NAMES[1]])
     first = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[0]
-    assert m.INVARIANT_WORDS[NAMES[0]] in first and "action today" not in first
+    assert m.INVARIANTS[NAMES[0]][0] in first and "action today" not in first
 
 
 def test_urgency_order_is_explicit_and_every_entry_is_a_real_invariant() -> None:
     assert set(m.SAME_DAY_INVARIANTS) <= set(NAMES) and len(set(m.SAME_DAY_INVARIANTS)) == len(m.SAME_DAY_INVARIANTS)
     detail = _detail_for([NAMES[0], m.SAME_DAY_INVARIANTS[3], m.SAME_DAY_INVARIANTS[0]])
     first = m.humanise("data_integrity", "warn", detail, now=NOW).splitlines()[0]
-    assert m.INVARIANT_WORDS[m.SAME_DAY_INVARIANTS[0]] in first
+    assert m.INVARIANTS[m.SAME_DAY_INVARIANTS[0]][0] in first
 
 
 def test_the_technical_line_names_every_failing_check_it_has_room_for_and_counts_the_rest() -> None:
