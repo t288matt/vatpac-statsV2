@@ -24,7 +24,6 @@ command -v python >/dev/null 2>&1 || PY=python3
 WORK="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 command -v cygpath >/dev/null 2>&1 && WORK="$(cygpath -m "$WORK")"
 JUNIT="$WORK/vatpac-unit.xml"
-export PYTHONPATH=collector/src
 
 need() { # need <command...>: fail loudly when a tool is missing
   "$@" >/dev/null 2>&1 || { echo "missing tool: $* (install it as CI does: see the pip install lines in .github/workflows/ci.yml)" >&2; return 1; }
@@ -47,7 +46,7 @@ ck_shell_syntax() {
 }
 ck_pytest_unit() {
   rm -f "$JUNIT"
-  $PY -m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv --junitxml="$JUNIT"
+  PYTHONPATH=collector/src $PY -m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv --junitxml="$JUNIT"
 }
 # Issue 343: the expected number of skipped tests is kept in ops/check_skips.py; this reads the report the previous check wrote.
 ck_unit_skips() { $PY ops/check_skips.py "$JUNIT"; }

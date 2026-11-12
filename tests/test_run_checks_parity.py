@@ -114,3 +114,24 @@ def test_the_ops_python_files_checked_strictly_include_the_new_ones() -> None:
     listed = set(re.findall(r"ops/[\w/]+\.py", m.group(1)))
     assert {"ops/check_tool_versions.py", "ops/check_skips.py", "ops/ci_scope.py"} <= listed
     assert all((REPO / f).is_file() for f in listed)
+
+
+def check_bodies() -> dict[str, str]:
+    """name -> text of every ck_ function: the first line alone when it closes itself, else up to the `}` at column 0."""
+    bodies: dict[str, str] = {}
+    for chunk in re.split(r"(?m)^(?=ck_\w+\(\) \{)", SCRIPT)[1:]:
+        lines = chunk.splitlines()
+        end = 1 if lines[0].rstrip().endswith("}") else next(i for i, ln in enumerate(lines) if ln.startswith("}")) + 1
+        bodies[re.match(r"ck_(\w+)", lines[0]).group(1).replace("_", "-")] = "\n".join(lines[:end])  # type: ignore[union-attr]
+    return bodies
+
+
+def test_no_check_can_swallow_a_failure_and_every_check_runs_a_real_command() -> None:
+    bodies = check_bodies()
+    assert set(bodies) == script_checks()
+    for name, body in bodies.items():
+        code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("#"))
+        assert "|| true" not in code and "||true" not in code, f"{name}: swallows a failure with || true"
+        assert not re.search(r"\breturn 0\b", code), f"{name}: a bare return 0 can hide a failure"
+        assert not re.search(r"[{;]\s*(true|:)\s*[;}]", code), f"{name}: runs a no-op"
+        assert re.search(r"\$PY |actionlint |docker compose |\bsh -n\b|\bbash -n\b|sh ops/", code), f"{name}: runs no real command"
