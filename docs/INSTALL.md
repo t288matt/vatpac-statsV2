@@ -84,7 +84,7 @@ make smoke                                  # or: sh ops/smoke.sh   ends with SM
 python3 ops/check_panels.py                 # runs every dashboard query through Grafana; expect 0 errors (EMPTY panels are fine while data is young)
 docker compose logs --tail=20 collector     # an ok poll about every 30 seconds
 ```
-`ops/smoke.sh` waits up to four minutes for containers to settle, then checks container health, the collector `/health`, a recent `ok` row in `poll_log`, Grafana's health, and that the Grafana role cannot write. The collector's `/health` and `/metrics` are on port 8080 inside the Docker network only and are not published; the smoke test reaches them for you. The database is not published either (the dev overlay `make dev` publishes it on `127.0.0.1:55432` only).
+`ops/smoke.sh` waits up to four minutes for containers to settle, then checks container health, the collector `/health`, a recent `ok` row in `poll_log`, Grafana's health, and that the Grafana role cannot write. The collector's `/health` is on port 8080 inside the Docker network only and is not published; the smoke test reaches it for you. The database is not published either (the dev overlay `make dev` publishes it on `127.0.0.1:55432` only).
 
 Charts: the "Monitoring: collector and data freshness" dashboard shows whether data is arriving. The rest fill over the first hours and days. Routine checks afterwards: [RUNBOOKS/daily-checks.md](RUNBOOKS/daily-checks.md).
 

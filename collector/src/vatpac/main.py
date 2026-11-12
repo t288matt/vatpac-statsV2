@@ -25,7 +25,7 @@ from .feed import FeedClient
 from .filters import ReferenceData, load_reference
 from .health import Stats, start_server
 from .logsetup import setup_logging
-from .maintenance import FLIGHT_REFRESH_INTERVAL_S, refresh_flights, run_maintenance
+from .maintenance import FLIGHT_REFRESH_INTERVAL_S, PARTITION_TASKS, STARTUP_TASKS, refresh_flights, run_maintenance
 from .model import Snapshot, parse_snapshot, update_timestamp
 from .pollstats import update_stats
 from .resume import load_last_ts
@@ -93,11 +93,11 @@ class Collector:
                 if record_reference_change(conn, name, sha):
                     log.info("reference data changed", extra={"file": name, "sha": sha})
 
-    def _maintain(self) -> dict[str, int]:
+    def _maintain(self, only: tuple[str, ...] = ()) -> dict[str, int]:
         with self.pool.connection() as conn:
             conn.execute("SET statement_timeout = '15min'")  # lock_timeout stays 5 s
             try:
-                out = run_maintenance(conn, self.settings)
+                out = run_maintenance(conn, self.settings, only)
             finally:
                 conn.execute("RESET statement_timeout")
         self._record_reference(self.ref)  # idempotent; also covers a database that was down at startup
@@ -143,8 +143,8 @@ class Collector:
             err, http = str(exc), exc.http_status
         except psycopg.errors.CheckViolation as exc:  # no partition for observed_at: create them now
             err = f"CheckViolation: {exc}"
-            log.error("snapshot rejected by database check, running maintenance", extra={"error": str(exc)})
-            await self.maintain_once()
+            log.error("snapshot rejected by database check, creating partitions", extra={"error": str(exc)})
+            await self.maintain_once(PARTITION_TASKS)
         except TimeoutError:  # the worker thread is ended by the database statement/lock timeouts
             err = "apply timed out"
             log.error("snapshot apply timed out after %ss", APPLY_TIMEOUT_S)
@@ -191,16 +191,16 @@ class Collector:
                 if next_at <= now:  # overran: skip missed ticks instead of bursting
                     next_at += interval * math.ceil((now - next_at) / interval + 1e-9)
 
-    async def maintain_once(self) -> bool:
+    async def maintain_once(self, only: tuple[str, ...] = ()) -> bool:
         try:
-            return (await asyncio.to_thread(self._maintain))["failed"] == 0
+            return (await asyncio.to_thread(self._maintain, only))["failed"] == 0
         except Exception:
             log.exception("maintenance failed")
             return False
 
-    async def maintenance_loop(self, first_ok: bool) -> None:
-        """Daily after the startup run (retry after a minute while it keeps failing)."""
-        ok = first_ok
+    async def maintenance_loop(self) -> None:
+        """Full job a minute after startup (which ran only partitions), then daily; a failure retries after a minute."""
+        ok = False
         while not await self._sleep(MAINTENANCE_INTERVAL_S if ok else MAINTENANCE_RETRY_S):
             ok = await self.maintain_once()
 
@@ -265,10 +265,10 @@ async def run(settings: Settings, ref: ReferenceData) -> None:
         loop.add_signal_handler(signal.SIGHUP, collector.request_reload)
     try:
         await feed.discover()
-        first_ok = await collector.maintain_once()  # partitions must exist before the first poll
+        await collector.maintain_once(STARTUP_TASKS)  # settings, partitions: before the first poll
         await collector.load_last_ts()
         log.info("collector started", extra={"version": __version__, **collector.stats.reference})
-        await asyncio.gather(collector.poll_loop(), collector.maintenance_loop(first_ok),
+        await asyncio.gather(collector.poll_loop(), collector.maintenance_loop(),
                              collector.flight_summary_loop())
     finally:
         collector.archive.stopping.set()  # an in-flight archive write must not hold the exit past the grace period

@@ -29,7 +29,8 @@ from psycopg.conninfo import make_conninfo
 
 OK, WARN, CRIT = "ok", "warn", "crit"
 RANK = {OK: 0, WARN: 1, CRIT: 2}
-Result = tuple[str, str]  # (level, detail)
+Result = tuple[str, str]  # (level, detail); a Checked is the same tuple plus .facts, the key numbers for the Telegram wording
+Checked = messages.Checked
 
 log = logging.getLogger("watchdog")
 
@@ -103,12 +104,13 @@ def now_iso() -> str:
 
 def age_level(age: float | None, cfg: Config, what: str) -> Result:
     if age is None:
-        return WARN, f"no {what} yet"
+        return Checked(WARN, f"no {what} yet", missing=True)
+    secs = int(f"{age:.0f}")
     if age >= cfg.page_s:
-        return CRIT, f"{what} is {age:.0f}s old"
+        return Checked(CRIT, f"{what} is {secs}s old", age_s=secs)
     if age >= cfg.warn_s:
-        return WARN, f"{what} is {age:.0f}s old"
-    return OK, f"{what} {age:.0f}s old"
+        return Checked(WARN, f"{what} is {secs}s old", age_s=secs)
+    return Checked(OK, f"{what} {secs}s old", age_s=secs)
 
 
 # ---------------------------------------------------------------- checks
@@ -143,6 +145,10 @@ def check_http(client: httpx.Client, url: str) -> tuple[Result, dict[str, Any] |
 #     return int(body.get("consecutive_failures", 0) or 0) == 0
 
 
+def db_size_level(gb: float, limit_gb: float) -> Result:
+    return Checked(WARN if gb > limit_gb else OK, f"{gb:.2f} GB (limit {limit_gb:g})", gb=float(f"{gb:.2f}"))
+
+
 def check_db(cfg: Config) -> dict[str, Result]:
     out: dict[str, Result] = {}
     try:
@@ -156,7 +162,7 @@ def check_db(cfg: Config) -> dict[str, Result]:
             cur.execute("SELECT pg_database_size(current_database())")
             row = cur.fetchone()
             gb = (int(row[0]) if row else 0) / 1024**3
-            out["db_size"] = (WARN if gb > cfg.db_max_gb else OK, f"{gb:.2f} GB (limit {cfg.db_max_gb:g})")
+            out["db_size"] = db_size_level(gb, cfg.db_max_gb)
             cur.execute("SELECT callsign FROM controller_unlisted_sighting ORDER BY first_seen")
             out["_near_miss"] = (OK, ",".join(r[0] for r in cur.fetchall()))
             out["identity_flap"] = check_identity_flap(cur)  # last, so a failure here cannot hide the checks above
@@ -187,8 +193,8 @@ def flap_level(pilot_pairs: int, controller_pairs: int, first: datetime | None) 
     if not (pilot_pairs or controller_pairs):
         return OK, f"no identity flap in the last {FLAP_WINDOW_HOURS} h"
     when = first.astimezone(UTC).strftime("%d-%m-%Y %H:%M:%S UTC") if first else "unknown time"
-    return WARN, (f"{pilot_pairs} pilot and {controller_pairs} controller session pairs (same cid and callsign, logon_time "
-                  f"within 2 s), first seen {when}; run ops/audit/identity_flap.sql")
+    return Checked(WARN, f"{pilot_pairs} pilot and {controller_pairs} controller session pairs (same cid and callsign, logon_time "
+                        f"within 2 s), first seen {when}; run ops/audit/identity_flap.sql", query_failed=False)
 
 
 def check_identity_flap(cur: Any) -> Result:
@@ -204,7 +210,7 @@ def check_identity_flap(cur: Any) -> Result:
                 firsts.append(first)
         return flap_level(counts["pilot"], counts["controller"], min(firsts) if firsts else None)
     except (psycopg.Error, OSError) as exc:
-        return WARN, f"identity-flap query failed ({type(exc).__name__})"
+        return Checked(WARN, f"identity-flap query failed ({type(exc).__name__})", query_failed=True)
 
 
 def check_archive(body: dict[str, Any] | None, collector_ok: bool) -> Result:
@@ -225,6 +231,7 @@ def check_disk(cfg: Config) -> Result:
     """Worst level across WATCHDOG_DISK_PATHS (paths on the same device are checked once)."""
     worst: Result = (OK, "no path to check")
     parts: list[str] = []
+    disks: list[list[Any]] = []  # [path, percent used] for each path that could be read
     seen_dev: set[int] = set()
     for path in cfg.disk_paths:
         try:
@@ -241,9 +248,10 @@ def check_disk(cfg: Config) -> Result:
         pct = usage.used / usage.total * 100
         level = CRIT if pct >= cfg.disk_pct + 10 else WARN if pct >= cfg.disk_pct else OK
         parts.append(f"{path} {pct:.0f}% used")
+        disks.append([str(path), int(f"{pct:.0f}")])
         if RANK[level] > RANK[worst[0]]:
             worst = (level, "")
-    return worst[0], ", ".join(parts) if parts else worst[1]
+    return Checked(worst[0], ", ".join(parts) if parts else worst[1], disks=disks)
 
 
 def check_backup(cfg: Config, first_run: float) -> Result:
@@ -259,8 +267,10 @@ def check_backup(cfg: Config, first_run: float) -> Result:
             continue
     newest = max(mtimes, default=first_run)
     age_h = (time.time() - newest) / 3600
-    detail = f"newest backup {age_h:.1f} h old" if mtimes else f"no backup yet ({age_h:.1f} h since watchdog first ran)"
-    return (CRIT if age_h > cfg.backup_max_h else OK), detail
+    level = CRIT if age_h > cfg.backup_max_h else OK
+    if not mtimes:
+        return Checked(level, f"no backup yet ({age_h:.1f} h since watchdog first ran)", none_yet=True)
+    return Checked(level, f"newest backup {age_h:.1f} h old", age_h=float(f"{age_h:.1f}"))
 
 
 def read_marker(path: Path) -> tuple[str, float] | None:
@@ -315,9 +325,9 @@ def check_telegram_outbox(cfg: Config, state: dict[str, Any], now: float | None 
     detail = f"{len(waiting)} undelivered telegram message(s), oldest {age / 60:.0f} min old"
     refused = state.get("outbox_refused")
     if isinstance(refused, dict):  # the last failure was a configuration fault: not transient, so warn at once
-        return WARN, (f"Telegram refuses the messages (HTTP {refused.get('status')}): check TELEGRAM_CHAT_ID and the bot token; "
-                      f"{detail}")
-    return (WARN if age >= OUTBOX_WARN_AGE_S else OK), detail
+        return Checked(WARN, f"Telegram refuses the messages (HTTP {refused.get('status')}): check TELEGRAM_CHAT_ID and the bot token; "
+                             f"{detail}", refused=True)
+    return Checked(WARN if age >= OUTBOX_WARN_AGE_S else OK, detail, refused=False)
 
 
 def parse_restore_result(text: str) -> tuple[datetime | None, str]:
@@ -338,20 +348,20 @@ def check_restore_test(cfg: Config, first_run: float) -> Result:
     if marker is None:
         age_d = (time.time() - first_run) / 86400
         if age_d > cfg.restore_test_max_days:
-            return WARN, f"no restore test result after {age_d:.1f} days"
+            return Checked(WARN, f"no restore test result after {age_d:.1f} days", state="overdue")
         return OK, "no restore test yet"
     text, mtime = marker
     when, verdict = parse_restore_result(text)
     ts = when.timestamp() if when else mtime
     age_d = (time.time() - ts) / 86400
     if verdict == "FAIL":
-        return CRIT, f"last restore test FAILED {age_d:.1f} days ago"
+        return Checked(CRIT, f"last restore test FAILED {age_d:.1f} days ago", state="failed")
     if verdict == "WARN":
-        return WARN, f"last restore test restored fine but the data in the dump was stale ({age_d:.1f} days ago)"
+        return Checked(WARN, f"last restore test restored fine but the data in the dump was stale ({age_d:.1f} days ago)", state="stale")
     if verdict != "OK":
-        return WARN, "last restore test result unreadable"
+        return Checked(WARN, "last restore test result unreadable", state="unreadable")
     if age_d > cfg.restore_test_max_days:
-        return WARN, f"last successful restore test {age_d:.1f} days ago (limit {cfg.restore_test_max_days:g})"
+        return Checked(WARN, f"last successful restore test {age_d:.1f} days ago (limit {cfg.restore_test_max_days:g})", state="overdue")
     return OK, f"last restore test OK {age_d:.1f} days ago"
 
 
@@ -384,7 +394,7 @@ def check_containers(cfg: Config, containers: dict[str, dict[str, Any]], state: 
         ins = containers.get(svc)
         name = f"container:{svc}"
         if ins is None:
-            out[name] = (CRIT, "missing")
+            out[name] = Checked(CRIT, "missing", missing=True)
             continue
         st = ins.get("State", {})
         status = st.get("Status", "unknown")
@@ -465,20 +475,28 @@ class Alerter:
         # When each check went bad (epoch seconds), persisted in the status file so a restart keeps it. Used only to say how
         # long the alert was active in the RECOVERED message; absent (an older status file) means the duration is left out.
         self.bad_since: dict[str, float] = state.setdefault("bad_since", {})
-        self._context: tuple[str | None, float | None] = (None, None)  # (previous level, seconds bad) for the next send
 
-    def send(self, text: str) -> None:
+    def notify(self, name: str, result: Result, previous: str | None = None, down_for: float | None = None) -> None:
+        """Send one alert that needs no de-duplication (a near-miss callsign, a follow-up notice, a restart). The result's facts
+        go to the wording as they are; nothing is parsed back out of its text."""
+        self.send(*self._alert(name, result, previous, down_for))
+
+    @staticmethod
+    def _alert(name: str, result: Result, previous: str | None, down_for: float | None) -> tuple[str, messages.Alert]:
+        alert = messages.Alert(name, result[0], result[1], previous, down_for, messages.facts_of(result))
+        return alert.technical(), alert
+
+    def send(self, text: str, alert: messages.Alert | None = None) -> None:
         """Log the technical text; queue the plain-language version for Telegram (messages.py) and try to deliver the queue.
+        text is the technical wording; alert carries the same alert as values (None = free text, sent with a generic wrapper).
 
         A message that cannot be delivered stays in a small outbox in the watchdog state (the status file) and is retried on
         later cycles, oldest first, until Telegram answers HTTP 200 (issue 83)."""
         log.info("ALERT %s", text)
-        previous, down_for = self._context
-        self._context = (None, None)
         if not (self.cfg.tg_token and self.cfg.tg_chat):
             return
-        body = messages.telegram_text(text, down_for, previous)  # the time shown in it is the time of the event
-        self._enqueue({"body": body, "at": time.time(), "tries": 0, "ok": text.startswith("RECOVERED")})
+        body = messages.telegram_text(text, alert)  # the time shown in it is the time of the event
+        self._enqueue({"body": body, "at": time.time(), "tries": 0, "ok": alert is not None and alert.level == OK})
         self.flush()
 
     def begin_cycle(self) -> None:
@@ -562,8 +580,8 @@ class Alerter:
             self.state["outbox_next_try"] = time.time() + max(delay, wait or 0.0)
             return
 
-    def _track(self, name: str, level: str, current: str) -> None:
-        """Keep the time a check went bad (best effort; never raises) and hand the context to the next send."""
+    def _track(self, name: str, level: str, current: str) -> tuple[str | None, float | None]:
+        """Keep the time a check went bad (best effort; never raises). Returns (previous level, seconds the alert was active)."""
         try:
             since = self.bad_since
             now = time.time()
@@ -574,11 +592,11 @@ class Alerter:
                     down_for = now - started
             elif current == OK:
                 since[name] = now
-            self._context = (current if current != OK else None, down_for)
+            return (current if current != OK else None, down_for)
         except Exception:  # noqa: BLE001 - timing is a nicety; the alert matters more
-            self._context = (None, None)
+            return (None, None)
 
-    def update(self, name: str, level: str, detail: str) -> None:
+    def update(self, name: str, level: str, detail: str, facts: dict[str, Any] | None = None) -> None:
         current = self.confirmed.get(name, OK)
         if level == current:
             self.pending.pop(name, None)
@@ -590,11 +608,9 @@ class Alerter:
             return
         self.pending.pop(name, None)
         self.confirmed[name] = level
-        self._track(name, level, current)
-        if level == OK:
-            self.send(f"RECOVERED {name} (was {current}): {detail}")
-        else:
-            self.send(f"{level.upper()} {name}: {detail}")
+        previous, down_for = self._track(name, level, current)
+        # RECOVERED says what it was (current); a WARN says what it eased from (previous, None unless it was already bad)
+        self.send(*self._alert(name, Checked(level, detail, **(facts or {})), current if level == OK else previous, down_for))
 
 
 # DISABLED 21-10-2026: automatic restart code, see the note above collector_is_stuck (issue #232).
@@ -613,7 +629,8 @@ class Alerter:
 #         log.warning("restart %s failed (%s)", svc, type(exc).__name__)
 #         return
 #     stamps.append(time.time())
-#     alerter.send(f"RESTARTED {svc} ({len(stamps)}/{cfg.restart_cap} this hour, ok={done}): {why}")
+#     counts = f"{len(stamps)}/{cfg.restart_cap} this hour, ok={done}"
+#     alerter.notify(f"restarted:{svc}", Checked(WARN, f"{counts}: {why}", counts=counts, why=why))
 
 
 # ---------------------------------------------------------------- main loop
@@ -682,17 +699,17 @@ def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, 
         except (httpx.HTTPError, ValueError) as exc:
             results["docker_proxy"] = (CRIT, f"unreachable ({type(exc).__name__})")
 
-    for name, (level, detail) in results.items():
-        alerter.update(name, level, detail)
+    for name, result in results.items():
+        alerter.update(name, result[0], result[1], messages.facts_of(result))
 
-    for text in notices:  # violations that are new since the previous sweep, while the integrity alert is already active
-        alerter.send(text)
+    for notice in notices:  # violations that are new since the previous sweep, while the integrity alert is already active
+        alerter.notify(integrity.INVARIANTS_KEY, notice)
 
     # New near-miss controller callsigns: alert once each, ever (persisted).
     known = set(state.setdefault("known_near_miss", []))
     fresh = [c for c in near_miss.split(",") if c and c not in known]
     if fresh:
-        alerter.send(f"NEAR-MISS controller callsign(s) not on whitelist: {', '.join(fresh[:10])}")
+        alerter.notify("near-miss", (WARN, ", ".join(fresh[:10])))
         state["known_near_miss"] = sorted(known | set(fresh))
 
     # DISABLED 21-10-2026 (owner decision): the watchdog's automatic restart code is commented out, so it is alert-only again.

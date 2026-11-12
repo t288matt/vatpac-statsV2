@@ -653,3 +653,31 @@ def test_every_panel_query_runs_as_grafana_ro(conn) -> None:
     finally:
         conn.execute("RESET ROLE")
     assert not failures, "\n".join(failures)
+
+
+def test_startup_tasks_create_the_same_partitions_and_publish_the_settings_but_do_nothing_else(conn) -> None:
+    """Issue 204: the startup step makes the partitions of the daily job and writes app_setting, nothing more."""
+    from vatpac.maintenance import STARTUP_TASKS, run_maintenance
+    from vatpac.settings import Settings
+
+    conn.execute("DELETE FROM app_setting WHERE key = 'airborne_gap_cap_seconds'")
+    out = run_maintenance(conn, Settings(airborne_gap_cap_seconds=555), STARTUP_TASKS)
+    assert set(out) == {"settings", "partitions_created", "failed"} and out["failed"] == 0
+    today = datetime.now(timezone.utc).date()
+    assert {f"pilot_position_{today + timedelta(days=d):%Y%m%d}" for d in range(-1, 8)} <= set(_partitions(conn))
+    row = conn.execute("SELECT value FROM app_setting WHERE key = 'airborne_gap_cap_seconds'").fetchone()
+    assert row["value"] == "555"
+
+
+def test_partition_only_recovery_creates_the_missing_partition(conn) -> None:
+    """Issue 204: after the partition is dropped, the recovery step alone brings it back."""
+    from vatpac.maintenance import PARTITION_TASKS, run_maintenance
+    from vatpac.settings import Settings
+
+    today = datetime.now(timezone.utc).date()
+    name = f"pilot_position_{today:%Y%m%d}"
+    conn.execute(f"DROP TABLE IF EXISTS {name}")
+    assert name not in _partitions(conn)
+    out = run_maintenance(conn, Settings(), PARTITION_TASKS)
+    assert set(out) == {"partitions_created", "failed"} and out["failed"] == 0
+    assert name in _partitions(conn)

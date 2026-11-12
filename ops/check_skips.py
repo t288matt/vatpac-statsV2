@@ -5,7 +5,8 @@ A skipped test is a test that did not run, and a green result hides it. The expe
   python ops/check_skips.py JUNIT_XML [--expected N]     counts <skipped> in a pytest --junitxml file, exits 1 on a difference
 
 EXPECTED_UNIT_SKIPS is what the CI unit job (Linux, bash and sh present) skips: the 23 watchdog auto-restart tests that are
-switched off on purpose (issue 232, owner decision 11-11-2026: leave them).
+switched off on purpose (issue 232, owner decision 11-11-2026: leave them), plus the golden-file writer in
+tests/test_watchdog_alert_wording.py, which runs only when WRITE_GOLDEN=1 is set (issue 199).
 Changing the number is a deliberate act that a reviewer sees in the diff.
 """
 from __future__ import annotations
@@ -13,7 +14,7 @@ from __future__ import annotations
 import sys
 import xml.etree.ElementTree as ET
 
-EXPECTED_UNIT_SKIPS = 23
+EXPECTED_UNIT_SKIPS = 24
 
 
 def count_skipped(xml_text: str) -> int:

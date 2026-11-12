@@ -43,7 +43,7 @@ The watchdog already alerts by Telegram on the worst failures ([alerts.md](alert
    ```
    Steady state is about 2 to 3 GB for 90 days of positions. Trend upwards means [db-full.md](db-full.md).
 3. **Partitions are rolling.** `docker compose exec db psql -U vatpac -d vatpac -c '\dt pilot_position_*'` should show days from today minus the retention up to a week ahead.
-4. **Near-miss callsigns.** `docker compose exec db psql -U vatpac -d vatpac -c "SELECT * FROM near_miss_controllers"`. Any row is a controller position missing from the whitelist: [update-reference-files.md](update-reference-files.md).
+4. **Near-miss callsigns.** `docker compose exec db psql -U vatpac -d vatpac -c "SELECT * FROM controller_unlisted_sighting"`. Any row is a controller position missing from the whitelist: [update-reference-files.md](update-reference-files.md).
 5. **Dashboards still answer.** `python3 ops/check_panels.py` (on the VM, from the stack folder). Expect `0 errors`; empty panels are fine while data is young.
 6. **Open items.** Skim the GitHub Dependabot pull requests.
 

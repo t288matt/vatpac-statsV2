@@ -25,14 +25,16 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from messages import Checked
+
 OK, WARN = "ok", "warn"
-Result = tuple[str, str]
+Result = tuple[str, str]  # (level, detail); a Checked result also carries .facts, the key numbers for the Telegram wording
 
 log = logging.getLogger("watchdog.integrity")
 
 INVARIANTS_KEY, CROSSCHECK_KEY = "data_integrity", "feed_crosscheck"
 QUIET_INVARIANT = "flights quiet longer than the quiet period with unprocessed positions"  # detail: both settings (#200, #238)
-_QUIET_TOKEN = re.compile(r"flight_quiet_hours=\d+(?:\.\d+)? flight_quiet_check_grace_minutes=\d+(?:\.\d+)?")
+_QUIET_TOKEN = re.compile(r"flight_quiet_hours=(\d+(?:\.\d+)?) flight_quiet_check_grace_minutes=(\d+(?:\.\d+)?)")
 RETRY_AFTER_ERROR_S = 3600.0  # a run that could not complete is tried again after an hour
 RECHECK_AFTER_FINDINGS_S = 6 * 3600.0  # a sweep with violations is repeated sooner, so RECOVERED does not wait 3 days
 MAX_NAMES_IN_ALERT = 6
@@ -110,6 +112,9 @@ def evaluate(rows: list[tuple[str, int, str | None]], expected: list[str]) -> tu
 
 
 def summarise_invariants(findings: list[Finding], problems: list[str], total: int) -> Result:
+    """The sweep's result. Facts for the wording: state (incomplete when the pack had a structural problem, else violations),
+    names (the failing invariants listed, at most MAX_NAMES_IN_ALERT), failing and of (how many failed, how many checked), and
+    quiet (the quiet-period settings the check used, as [hours, grace minutes], or None)."""
     if not findings and not problems:
         return OK, f"all {total} invariants hold"
     parts = [f"{f.name} ({f.count})" for f in findings[:MAX_NAMES_IN_ALERT]]
@@ -118,9 +123,13 @@ def summarise_invariants(findings: list[Finding], problems: list[str], total: in
     head = f"{len(findings)} of {total} invariants report violations: " + "; ".join(parts) if findings else ""
     tail = ("; " if findings else "") + "; ".join(problems) if problems else ""
     # the setting the quiet-period check used goes with the text, so the plain-language alert quotes it (messages.invariant_words)
-    quiet = next((f.detail for f in findings if f.name == QUIET_INVARIANT and f.detail and _QUIET_TOKEN.fullmatch(f.detail)), None)
-    setting = f" [{quiet}]" if quiet else ""
-    return WARN, head + tail + setting + ". Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+    token = next((m for f in findings if f.name == QUIET_INVARIANT and f.detail and (m := _QUIET_TOKEN.fullmatch(f.detail))), None)
+    setting = f" [{token.group(0)}]" if token else ""
+    pointer = ". Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+    return Checked(WARN, head + tail + setting + pointer,
+                   state="incomplete" if problems else "violations", names=[f.name for f in findings[:MAX_NAMES_IN_ALERT]],
+                   failing=len(findings) if findings else None, of=total if findings else None,
+                   quiet=list(token.groups()) if token else None)
 
 
 # ---------------------------------------------------------------- the archive cross-check
@@ -220,16 +229,17 @@ def run_crosscheck(cur: Any, files: list[Path], config_dir: Path) -> CrossResult
 
 
 def summarise_crosscheck(res: CrossResult) -> Result:
+    """The cross-check's result. Facts for the wording: state (nothing to compare, or differences) and n (how many differences)."""
     if res.compared == 0:
         why = f"{res.skipped} older than the last reference-file change" if res.skipped else "no archive samples found"
-        return WARN, (f"cross-check had nothing to compare ({why}); is the feed archive enabled and writing "
-                      "(docs/RUNBOOKS/feed-archive.md)?")
+        return Checked(WARN, f"cross-check had nothing to compare ({why}); is the feed archive enabled and writing "
+                             "(docs/RUNBOOKS/feed-archive.md)?", state="nothing")
     if not res.mismatches:
         return OK, f"{res.compared} archived snapshots match the stored rows ({res.skipped} skipped, before a reference change)"
     shown = "; ".join(res.mismatches[:3])
     more = f" (and {len(res.mismatches) - 3} more)" if len(res.mismatches) > 3 else ""
-    return WARN, (f"{len(res.mismatches)} difference(s) in {res.compared} archived snapshots: {shown}{more}. "
-                  "Details are in the watchdog log (docs/RUNBOOKS/alerts.md)")
+    return Checked(WARN, f"{len(res.mismatches)} difference(s) in {res.compared} archived snapshots: {shown}{more}. "
+                         "Details are in the watchdog log (docs/RUNBOOKS/alerts.md)", state="differences", n=len(res.mismatches))
 
 
 # ---------------------------------------------------------------- schedule (persisted in the watchdog state)
@@ -251,18 +261,20 @@ def is_due(entry: dict[str, Any], interval_s: float, now: float) -> bool:
 
 
 def _record(entry: dict[str, Any], now: float, res: Result, *, failing: list[str], retry_after: float | None) -> None:
-    entry.update(last_run=now, level=res[0], detail=res[1], failing=sorted(failing),
+    entry.update(last_run=now, level=res[0], detail=res[1], facts=facts_of(res), failing=sorted(failing),
                  last_run_utc=datetime.fromtimestamp(now, UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                  retry_at=None if retry_after is None else now + retry_after)
 
 
-def _guard(entry: dict[str, Any], now: float, what: str, fn: Any) -> list[str]:
-    """Run fn() -> (Result, failing names, retry_after) and store the outcome; a crash becomes a warning and a retry."""
+def _guard(entry: dict[str, Any], now: float, what: str, fn: Any, crash_state: str) -> list[str]:
+    """Run fn() -> (Result, failing names, retry_after) and store the outcome; a crash becomes a warning (facts state
+    crash_state) and a retry."""
     try:
         res, failing, retry_after = fn()
     except Exception as exc:  # never log exception text: it can hold connection details
         log.warning("%s could not run (%s)", what, type(exc).__name__)
-        res, failing, retry_after = (WARN, f"{what} could not run ({type(exc).__name__}); retrying in 1 h"), None, RETRY_AFTER_ERROR_S
+        res = Checked(WARN, f"{what} could not run ({type(exc).__name__}); retrying in 1 h", state=crash_state)
+        failing, retry_after = None, RETRY_AFTER_ERROR_S
     before = set(entry.get("failing", []))
     if failing is None:  # keep what the last good run found, so the next good run can tell what is new
         failing = sorted(before)
@@ -270,31 +282,38 @@ def _guard(entry: dict[str, Any], now: float, what: str, fn: Any) -> list[str]:
     return sorted(set(failing) - before) if before else []
 
 
-def run_due(plan: Plan, state: dict[str, Any], now: float | None = None) -> tuple[dict[str, Result], list[str]]:
+def run_due(plan: Plan, state: dict[str, Any], now: float | None = None) -> tuple[dict[str, Result], list[Result]]:
     """Run whichever checks are due and return (current result of each enabled check, notices).
-    A notice is a follow-up alert text: violations that are new since the previous sweep while it was already failing."""
+    A notice is a follow-up alert (a warn result for data_integrity): violations that are new since the previous sweep while
+    it was already failing."""
     now = time.time() if now is None else now
     sched: dict[str, Any] = state.setdefault("integrity", {})
-    notices: list[str] = []
+    notices: list[Result] = []
     if plan.invariants_interval_s > 0:
         entry = sched.setdefault(INVARIANTS_KEY, {})
         if is_due(entry, plan.invariants_interval_s, now):
-            new = _guard(entry, now, "invariant sweep", lambda: sweep(plan))
+            new = _guard(entry, now, "invariant sweep", lambda: sweep(plan), "incomplete")
             if new:
-                token = _QUIET_TOKEN.search(str(entry.get("detail", ""))) if QUIET_INVARIANT in new else None
-                setting = f" [{token.group(0)}]" if token else ""
-                names = ", ".join(new[:MAX_NAMES_IN_ALERT])
-                notices.append(f"WARN {INVARIANTS_KEY}: new violations since the last sweep: {names}{setting}")
+                quiet = (entry.get("facts") or {}).get("quiet") if QUIET_INVARIANT in new else None
+                setting = f" [flight_quiet_hours={quiet[0]} flight_quiet_check_grace_minutes={quiet[1]}]" if quiet else ""
+                listed = new[:MAX_NAMES_IN_ALERT]
+                notices.append(Checked(WARN, f"new violations since the last sweep: {', '.join(listed)}{setting}",
+                                       state="new", names=listed, quiet=quiet))
     if plan.crosscheck_interval_s > 0:
         entry = sched.setdefault(CROSSCHECK_KEY, {})
         if is_due(entry, plan.crosscheck_interval_s, now):
-            _guard(entry, now, "archive cross-check", lambda: crosscheck(plan, now))
+            _guard(entry, now, "archive cross-check", lambda: crosscheck(plan, now), "could_not_run")
     results: dict[str, Result] = {}
     for key, on in ((INVARIANTS_KEY, plan.invariants_interval_s > 0), (CROSSCHECK_KEY, plan.crosscheck_interval_s > 0)):
         e = sched.get(key, {})
         if on and e.get("level"):
-            results[key] = (e["level"], f"{e['detail']} (checked {_checked_text(e)})")
+            results[key] = Checked(e["level"], f"{e['detail']} (checked {_checked_text(e)})", **(e.get("facts") or {}))
     return results, notices
+
+
+def facts_of(res: Result) -> dict[str, Any]:
+    """The key numbers a result carries, as plain JSON-safe values (the status file keeps them with the schedule)."""
+    return dict(res.facts) if isinstance(res, Checked) else {}
 
 
 def _checked_text(entry: dict[str, Any]) -> str:

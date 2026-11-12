@@ -1,0 +1,944 @@
+{
+ "alert:00:collector_health:crit": {
+  "log": [
+   "ALERT CRIT collector_health: unreachable (ConnectError)"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The data collector is not answering properly, so new VATSIM data may not be arriving. It keeps trying; if this lasts, check whether VATSIM is down or the collector is stuck (see docs/RUNBOOKS/stuck-collector.md on the VM).\nTechnical: collector_health, unreachable (ConnectError)"
+ },
+ "alert:01:collector_health:crit": {
+  "log": [
+   "ALERT CRIT collector_health: HTTP 503"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The data collector is not answering properly, so new VATSIM data may not be arriving. It keeps trying; if this lasts, check whether VATSIM is down or the collector is stuck (see docs/RUNBOOKS/stuck-collector.md on the VM).\nTechnical: collector_health, HTTP 503"
+ },
+ "alert:02:poll_log_ok_age:warn": {
+  "log": [
+   "ALERT WARN poll_log_ok_age: newest ok poll is 75s old"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). No fresh VATSIM data for about 1 minute. Usually a brief hiccup; no action unless it grows.\nTechnical: poll_log_ok_age, newest ok poll is 75s old"
+ },
+ "alert:03:poll_log_ok_age:crit": {
+  "log": [
+   "ALERT CRIT poll_log_ok_age: newest ok poll is 312s old"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). No fresh VATSIM data for about 5 minutes. The system keeps retrying; if this lasts, the collector may be stuck (see docs/RUNBOOKS/stuck-collector.md on the VM).\nTechnical: poll_log_ok_age, newest ok poll is 312s old"
+ },
+ "alert:04:poll_log_ok_age:crit": {
+  "log": [
+   "ALERT CRIT poll_log_ok_age: newest ok poll is 7300s old"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). No fresh VATSIM data for about 2 hours. The system keeps retrying; if this lasts, the collector may be stuck (see docs/RUNBOOKS/stuck-collector.md on the VM).\nTechnical: poll_log_ok_age, newest ok poll is 7300s old"
+ },
+ "alert:05:poll_log_ok_age:warn": {
+  "log": [
+   "ALERT WARN poll_log_ok_age: no newest ok poll yet"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). No successful VATSIM data fetch has been recorded yet. If this is not a fresh install, see docs/RUNBOOKS/stuck-collector.md on the VM.\nTechnical: poll_log_ok_age, no newest ok poll yet"
+ },
+ "alert:06:poll_log_ok_age:warn": {
+  "log": [
+   "ALERT WARN poll_log_ok_age: something the check never writes"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). No fresh VATSIM data for a while. Usually a brief hiccup; no action unless it grows.\nTechnical: poll_log_ok_age, something the check never writes"
+ },
+ "alert:07:network_snapshot_age:warn": {
+  "log": [
+   "ALERT WARN network_snapshot_age: newest snapshot is 90s old"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The newest stored picture of the network is about 2 minutes old. Usually a brief hiccup; no action unless it grows.\nTechnical: network_snapshot_age, newest snapshot is 90s old"
+ },
+ "alert:08:network_snapshot_age:crit": {
+  "log": [
+   "ALERT CRIT network_snapshot_age: newest snapshot is 400s old"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The newest stored picture of the network is about 7 minutes old. Data is not being recorded; if the poll alert is also active, see docs/RUNBOOKS/stuck-collector.md on the VM, otherwise the VATSIM feed may have frozen (see docs/RUNBOOKS/feed-outage.md on the VM).\nTechnical: network_snapshot_age, newest snapshot is 400s old"
+ },
+ "alert:09:network_snapshot_age:crit": {
+  "log": [
+   "ALERT CRIT network_snapshot_age: no newest snapshot yet"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). No snapshot of the network has been stored yet. If this is not a fresh install, see docs/RUNBOOKS/stuck-collector.md on the VM.\nTechnical: network_snapshot_age, no newest snapshot yet"
+ },
+ "alert:10:network_snapshot_age:warn": {
+  "log": [
+   "ALERT WARN network_snapshot_age: gibberish"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The newest stored picture of the network is a while old. Usually a brief hiccup; no action unless it grows.\nTechnical: network_snapshot_age, gibberish"
+ },
+ "alert:11:grafana_health:crit": {
+  "log": [
+   "ALERT CRIT grafana_health: unreachable (ConnectError)"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The dashboards (Grafana) are down or unwell. Data collection is not affected. Restart Grafana when convenient (docker compose restart grafana, from ~/vatpac-statsV2 on the VM).\nTechnical: grafana_health, unreachable (ConnectError)"
+ },
+ "alert:12:database:crit": {
+  "log": [
+   "ALERT CRIT database: query/connect failed (OperationalError)"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The watchdog cannot read the database, so the checks that need it are blind. Collection may still be running. Check the database container and its log (see docs/RUNBOOKS/db-full.md on the VM if the disk is full).\nTechnical: database, query/connect failed (OperationalError)"
+ },
+ "alert:13:db_size:warn": {
+  "log": [
+   "ALERT WARN db_size: 21.40 GB (limit 20)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The database has grown to 21.4 GB, more than expected (normally 2 to 3 GB). Nothing is broken yet, but old data may not be being cleared away; see docs/RUNBOOKS/db-full.md on the VM when you can.\nTechnical: db_size, 21.40 GB (limit 20)"
+ },
+ "alert:14:db_size:warn": {
+  "log": [
+   "ALERT WARN db_size: 25.00 GB (limit 20)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The database has grown to 25.0 GB, more than expected (normally 2 to 3 GB). Nothing is broken yet, but old data may not be being cleared away; see docs/RUNBOOKS/db-full.md on the VM when you can.\nTechnical: db_size, 25.00 GB (limit 20)"
+ },
+ "alert:15:db_size:warn": {
+  "log": [
+   "ALERT WARN db_size: something else"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The database has grown to larger than expected, more than expected (normally 2 to 3 GB). Nothing is broken yet, but old data may not be being cleared away; see docs/RUNBOOKS/db-full.md on the VM when you can.\nTechnical: db_size, something else"
+ },
+ "alert:16:disk:warn": {
+  "log": [
+   "ALERT WARN disk: /backups 82% used, / 50% used"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A disk on the VM (/backups) is 82% full. Nothing breaks yet, but it needs clearing within days (see docs/RUNBOOKS/db-full.md on the VM).\nTechnical: disk, /backups 82% used, / 50% used"
+ },
+ "alert:17:disk:warn": {
+  "log": [
+   "ALERT WARN disk: / 82% used"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A disk on the VM (/) is 82% full. Nothing breaks yet, but it needs clearing within days (see docs/RUNBOOKS/db-full.md on the VM).\nTechnical: disk, / 82% used"
+ },
+ "alert:18:disk:crit": {
+  "log": [
+   "ALERT CRIT disk: / 95% used"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). A disk on the VM (/) is 95% full. Writes could start to fail soon, so clear space today (see docs/RUNBOOKS/db-full.md on the VM).\nTechnical: disk, / 95% used"
+ },
+ "alert:19:disk:crit": {
+  "log": [
+   "ALERT CRIT disk: / 95% used, /backups 99% used"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). A disk on the VM (/backups) is 99% full. Writes could start to fail soon, so clear space today (see docs/RUNBOOKS/db-full.md on the VM).\nTechnical: disk, / 95% used, /backups 99% used"
+ },
+ "alert:20:disk:warn": {
+  "log": [
+   "ALERT WARN disk: /backups unreadable"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A disk the watchdog watches could not be read. Check the VM when convenient (see docs/RUNBOOKS/db-full.md on the VM).\nTechnical: disk, /backups unreadable"
+ },
+ "alert:21:disk:warn": {
+  "log": [
+   "ALERT WARN disk: /backups unreadable, / 81% used"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A disk on the VM (/) is 81% full. Nothing breaks yet, but it needs clearing within days (see docs/RUNBOOKS/db-full.md on the VM).\nTechnical: disk, /backups unreadable, / 81% used"
+ },
+ "alert:22:backup_age:crit": {
+  "log": [
+   "ALERT CRIT backup_age: newest backup 27.3 h old"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The newest database backup is 27 hours old; one should be made every night. Take one by hand (run make backup from ~/vatpac-statsV2 on the VM) and check the backup log.\nTechnical: backup_age, newest backup 27.3 h old"
+ },
+ "alert:23:backup_age:crit": {
+  "log": [
+   "ALERT CRIT backup_age: newest backup 30.0 h old"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The newest database backup is 30 hours old; one should be made every night. Take one by hand (run make backup from ~/vatpac-statsV2 on the VM) and check the backup log.\nTechnical: backup_age, newest backup 30.0 h old"
+ },
+ "alert:24:backup_age:crit": {
+  "log": [
+   "ALERT CRIT backup_age: no backup yet (30.0 h since watchdog first ran)"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). No database backup has been found. Take one by hand (run make backup from ~/vatpac-statsV2 on the VM) and check the backup log.\nTechnical: backup_age, no backup yet (30.0 h since watchdog first ran)"
+ },
+ "alert:25:backup_age:crit": {
+  "log": [
+   "ALERT CRIT backup_age: odd"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The newest database backup is over a day old; one should be made every night. Take one by hand (run make backup from ~/vatpac-statsV2 on the VM) and check the backup log.\nTechnical: backup_age, odd"
+ },
+ "alert:26:backup_remote:warn": {
+  "log": [
+   "ALERT WARN backup_remote: last off-box copy 30.1 h ago (limit 26)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The nightly backup is being made, but the copy to the second location (off the VM) has not succeeded recently, so losing the VM disk could lose the backups too. Check the backup log (docker compose logs --tail=50 backup, from ~/vatpac-statsV2 on the VM) and the copy destination (see docs/RUNBOOKS/restore.md on the VM, Off-box copies).\nTechnical: backup_remote, last off-box copy 30.1 h ago (limit 26)"
+ },
+ "alert:27:backup_remote:warn": {
+  "log": [
+   "ALERT WARN backup_remote: no off-box copy recorded after 27.0 h since watchdog first ran"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The nightly backup is being made, but the copy to the second location (off the VM) has not succeeded recently, so losing the VM disk could lose the backups too. Check the backup log (docker compose logs --tail=50 backup, from ~/vatpac-statsV2 on the VM) and the copy destination (see docs/RUNBOOKS/restore.md on the VM, Off-box copies).\nTechnical: backup_remote, no off-box copy recorded after 27.0 h since watchdog first ran"
+ },
+ "alert:28:telegram_outbox:warn": {
+  "log": [
+   "ALERT WARN telegram_outbox: 3 undelivered telegram message(s), oldest 12 min old"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). Alert messages are not reaching Telegram: the oldest has been waiting for a while and the watchdog keeps retrying. Check the bot token and chat id in .env and whether Telegram is reachable from the VM (docker compose logs --tail=50 watchdog, from ~/vatpac-statsV2 on the VM); problems are still visible in the status file.\nTechnical: telegram_outbox, 3 undelivered telegram message(s), oldest 12 min old"
+ },
+ "alert:29:telegram_outbox:warn": {
+  "log": [
+   "ALERT WARN telegram_outbox: Telegram refuses the messages (HTTP 400): check TELEGRAM_CHAT_ID and the bot token; 2 undelivered telegram message(s), oldest 3 min old"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). Telegram is refusing the alert messages, which usually means a wrong chat id or a wrong, revoked or blocked bot. Nothing is lost yet: they are kept and retried. Check TELEGRAM_CHAT_ID and TELEGRAM_BOT_TOKEN in .env on the VM (see docs/RUNBOOKS/alerts.md on the VM, telegram_outbox).\nTechnical: telegram_outbox, Telegram refuses the messages (HTTP 400): check TELEGRAM_CHAT_ID and the bot token; 2 undelivered telegram message(s), oldest 3 min old"
+ },
+ "alert:30:restore_test:crit": {
+  "log": [
+   "ALERT CRIT restore_test: last restore test FAILED 2.1 days ago"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The weekly test that proves a backup can really be restored has failed, so a recent backup may be unusable. Run make backup-test from ~/vatpac-statsV2 on the VM and read the result (see docs/RUNBOOKS/restore.md on the VM).\nTechnical: restore_test, last restore test FAILED 2.1 days ago"
+ },
+ "alert:31:restore_test:warn": {
+  "log": [
+   "ALERT WARN restore_test: last restore test restored fine but the data in the dump was stale (3.0 days ago)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The weekly restore test worked, but the newest data in the backup was old (a long outage or a quiet period before the dump). Backups are probably fine; check the collector was running, then run make backup-test from ~/vatpac-statsV2 on the VM (see docs/RUNBOOKS/restore.md on the VM).\nTechnical: restore_test, last restore test restored fine but the data in the dump was stale (3.0 days ago)"
+ },
+ "alert:32:restore_test:warn": {
+  "log": [
+   "ALERT WARN restore_test: last restore test result unreadable"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The result of the weekly backup restore test cannot be read. Run make backup-test from ~/vatpac-statsV2 on the VM to check (see docs/RUNBOOKS/restore.md on the VM).\nTechnical: restore_test, last restore test result unreadable"
+ },
+ "alert:33:restore_test:warn": {
+  "log": [
+   "ALERT WARN restore_test: last successful restore test 10.0 days ago (limit 9)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The weekly test that proves a backup can really be restored is overdue. Backups are probably fine, but run make backup-test from ~/vatpac-statsV2 on the VM when convenient (see docs/RUNBOOKS/restore.md on the VM).\nTechnical: restore_test, last successful restore test 10.0 days ago (limit 9)"
+ },
+ "alert:34:restore_test:warn": {
+  "log": [
+   "ALERT WARN restore_test: no restore test result after 10.0 days"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The weekly test that proves a backup can really be restored is overdue. Backups are probably fine, but run make backup-test from ~/vatpac-statsV2 on the VM when convenient (see docs/RUNBOOKS/restore.md on the VM).\nTechnical: restore_test, no restore test result after 10.0 days"
+ },
+ "alert:35:identity_flap:warn": {
+  "log": [
+   "ALERT WARN identity_flap: 1 pilot and 0 controller session pairs (same cid and callsign, logon_time within 2 s), first seen 09-10-2026 12:00:03 UTC; run ops/audit/identity_flap.sql"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). VATSIM may have changed how it stamps logon times again, so one connection could be stored as two and flight counts inflated. Not urgent today, but an engineer should look (the exact command is in docs/RUNBOOKS/alerts.md on the VM, under identity_flap).\nTechnical: identity_flap, 1 pilot and 0 controller session pairs (same cid and callsign, logon_time within 2 s), first seen 09-10-2026 12:00:03 UTC; run ops/audit/identity_flap.sql"
+ },
+ "alert:36:identity_flap:warn": {
+  "log": [
+   "ALERT WARN identity_flap: identity-flap query failed (OperationalError)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The check for duplicated flight sessions could not run. An engineer should look at it; no action needed today.\nTechnical: identity_flap, identity-flap query failed (OperationalError)"
+ },
+ "alert:37:feed_archive:warn": {
+  "log": [
+   "ALERT WARN feed_archive: last write 601s ago (limit 600s), 4 write errors, 12 MB"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The safety copy of the raw VATSIM data (the archive) has stopped being written. Live collection is not affected. Check the disk space and the collector log (see docs/RUNBOOKS/feed-archive.md on the VM).\nTechnical: feed_archive, last write 601s ago (limit 600s), 4 write errors, 12 MB"
+ },
+ "alert:38:data_integrity:warn": {
+  "log": [
+   "ALERT WARN data_integrity: 1 of 20 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: no data was recorded for more than 5 minutes at some point in the last 3 days. Nothing to do if the time matches an outage you already know about; otherwise see docs/RUNBOOKS/integrity-checks.md on the VM.\nTechnical: data_integrity, 1 of 20 checks failing: snapshot gaps over 5 minutes (last 3 days)"
+ },
+ "alert:39:data_integrity:warn": {
+  "log": [
+   "ALERT WARN data_integrity: 2 of 20 invariants report violations: daily partitions missing for today..today+3 (1); snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: the storage tables for today or the next three days have not been created (plus 1 other). Writes will start to fail if today's table is missing. Check the collector and maintenance log today (docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 2 of 20 checks failing: daily partitions missing for today..today+3; snapshot gaps over 5 minutes (last 3 days)"
+ },
+ "alert:40:data_integrity:warn": {
+  "log": [
+   "ALERT WARN data_integrity: 8 of 20 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1); identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1); ok poll_log counts differ from network_snapshot (1); in-region count above global count (1); positions per snapshot differ from pilots_in_region (1); and 2 more. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: a snapshot counts more pilots or controllers in our region than on the whole network (plus 7 others). The live dashboard counts may be wrong. An engineer should look today (see docs/RUNBOOKS/integrity-checks.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 8 of 20 checks failing: in-region count above global count (+7 more)"
+ },
+ "alert:41:data_integrity:warn": {
+  "log": [
+   "ALERT WARN data_integrity: 1 of 20 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1) [flight_quiet_hours=6.75 flight_quiet_check_grace_minutes=0]. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: some flights ended over 6 hours 45 minutes ago and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 20 checks failing: flights quiet longer than the quiet period with unprocessed positions"
+ },
+ "alert:42:data_integrity:warn": {
+  "log": [
+   "ALERT WARN data_integrity: 1 of 20 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: some flights ended longer ago than the quiet period and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 20 checks failing: flights quiet longer than the quiet period with unprocessed positions"
+ },
+ "alert:43:data_integrity:warn": {
+  "log": [
+   "ALERT WARN data_integrity: 2 of 20 invariants report violations: identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: the same flight appears to be stored twice (plus 1 other). VATSIM may have changed how it stamps logon times; an engineer should look (docs/RUNBOOKS/alerts.md on the VM, identity_flap). The rest: watchdog log.\nTechnical: data_integrity, 2 of 20 checks failing: identity duplicates (cid, callsign, logon_time); snapshot rows without an ok poll_log row"
+ },
+ "alert:44:data_integrity:warn": {
+  "log": [
+   "ALERT WARN data_integrity: invariant sweep could not run (InsufficientPrivilege); retrying in 1 h"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The routine data check could not run properly (it retries in an hour). Data collection is not affected. If it keeps failing, an engineer should look (see docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, invariant sweep could not run (InsufficientPrivilege); retrying in 1 h"
+ },
+ "alert:45:data_integrity:warn": {
+  "log": [
+   "ALERT WARN data_integrity: 1 invariant(s) did not report: x. Details are in the watchdog log"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The routine data check could not run properly (it retries in an hour). Data collection is not affected. If it keeps failing, an engineer should look (see docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 invariant(s) did not report: x"
+ },
+ "alert:46:data_integrity:warn": {
+  "log": [
+   "ALERT WARN data_integrity: mystery"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem. See docs/RUNBOOKS/integrity-checks.md on the VM for what to do.\nTechnical: data_integrity, mystery"
+ },
+ "alert:47:feed_crosscheck:warn": {
+  "log": [
+   "ALERT WARN feed_crosscheck: 1 difference(s) in 24 archived snapshots: 09-10-2026 12:00:03 UTC: pilots_in_region independent 41, stored 40"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The fortnightly check against saved raw VATSIM data found 1 difference: the system may have kept or dropped some pilots or controllers wrongly. Not urgent; an engineer should look (see docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: feed_crosscheck, 1 difference(s) in 24 archived snapshots: 09-10-2026 12:00:03 UTC: pilots_in_region independent 41, stored 40"
+ },
+ "alert:48:feed_crosscheck:warn": {
+  "log": [
+   "ALERT WARN feed_crosscheck: 3 difference(s) in 24 archived snapshots: a; b; c. Details are in the watchdog log"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The fortnightly check against saved raw VATSIM data found 3 differences: the system may have kept or dropped some pilots or controllers wrongly. Not urgent; an engineer should look (see docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: feed_crosscheck, 3 difference(s) in 24 archived snapshots: a; b; c"
+ },
+ "alert:49:feed_crosscheck:warn": {
+  "log": [
+   "ALERT WARN feed_crosscheck: cross-check had nothing to compare (no archive samples found); is the feed archive enabled"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The fortnightly check that compares saved raw VATSIM data with what the system stored had nothing to compare. Check that the raw-data archive is switched on and writing (see docs/RUNBOOKS/feed-archive.md on the VM).\nTechnical: feed_crosscheck, cross-check had nothing to compare (no archive samples found); is the feed archive enabled"
+ },
+ "alert:50:feed_crosscheck:warn": {
+  "log": [
+   "ALERT WARN feed_crosscheck: archive cross-check could not run (OperationalError); retrying in 1 h"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The fortnightly cross-check of saved raw data against stored data could not run; it retries in an hour. No action unless it keeps failing.\nTechnical: feed_crosscheck, archive cross-check could not run (OperationalError); retrying in 1 h"
+ },
+ "alert:51:feed_crosscheck:warn": {
+  "log": [
+   "ALERT WARN feed_crosscheck: odd"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The fortnightly check against saved raw VATSIM data found differences: the system may have kept or dropped some pilots or controllers wrongly. Not urgent; an engineer should look (see docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: feed_crosscheck, odd"
+ },
+ "alert:52:container:collector:crit": {
+  "log": [
+   "ALERT CRIT container:collector: state exited"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The collector container is not running properly. Check docker compose ps and its log (from ~/vatpac-statsV2 on the VM), then restart it if needed.\nTechnical: container:collector, state exited"
+ },
+ "alert:53:container:collector:crit": {
+  "log": [
+   "ALERT CRIT container:collector: unhealthy"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The collector container is not running properly. Check docker compose ps and its log (from ~/vatpac-statsV2 on the VM), then restart it if needed.\nTechnical: container:collector, unhealthy"
+ },
+ "alert:54:container:db:crit": {
+  "log": [
+   "ALERT CRIT container:db: missing"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The db container is missing. Run docker compose up -d from ~/vatpac-statsV2 on the VM and check it comes back.\nTechnical: container:db, missing"
+ },
+ "alert:55:container:migrate:crit": {
+  "log": [
+   "ALERT CRIT container:migrate: exited exit=1"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The migrate container (a one-off job that updates the database layout when the system starts) is reported as not healthy. It is not meant to keep running; read its log (docker compose logs migrate, from ~/vatpac-statsV2 on the VM).\nTechnical: container:migrate, exited exit=1"
+ },
+ "alert:56:container:migrate:crit": {
+  "log": [
+   "ALERT CRIT container:migrate: missing"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The migrate container (a one-off job that updates the database layout when the system starts) is reported as not healthy. It is not meant to keep running; read its log (docker compose logs migrate, from ~/vatpac-statsV2 on the VM).\nTechnical: container:migrate, missing"
+ },
+ "alert:57:container:grafana:warn": {
+  "log": [
+   "ALERT WARN container:grafana: restarted by Docker (count 2)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). Docker restarted the grafana container by itself. It should be fine; check it stays up.\nTechnical: container:grafana, restarted by Docker (count 2)"
+ },
+ "alert:58:docker_proxy:crit": {
+  "log": [
+   "ALERT CRIT docker_proxy: unreachable (ConnectError)"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The watchdog cannot reach Docker to check the containers. Container checks are blind until it is back; check the Docker proxy.\nTechnical: docker_proxy, unreachable (ConnectError)"
+ },
+ "alert:59:restart-cap:db:crit": {
+  "log": [
+   "ALERT CRIT restart-cap:db: restart cap 3/hour reached; not restarting (state exited)"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). The db container keeps failing and has hit the hourly limit on automatic restarts, so the watchdog has stopped restarting it. Look at its log and restart it by hand.\nTechnical: restart-cap:db, restart cap 3/hour reached; not restarting (state exited)"
+ },
+ "alert:60:restart-cap:db:warn": {
+  "log": [
+   "ALERT WARN restart-cap:db: x"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The db container keeps failing and has hit the hourly limit on automatic restarts, so the watchdog has stopped restarting it. Look at its log and restart it by hand.\nTechnical: restart-cap:db, x"
+ },
+ "alert:61:mystery_check:warn": {
+  "log": [
+   "ALERT WARN mystery_check: something odd"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A monitoring check (mystery_check) has a warning. See docs/RUNBOOKS/alerts.md on the VM for what it means.\nTechnical: mystery_check, something odd"
+ },
+ "alert:62:mystery_check:crit": {
+  "log": [
+   "ALERT CRIT mystery_check: something odd"
+  ],
+  "telegram": "VATPAC Stats: problem (08:00 UTC). A monitoring check (mystery_check) has a problem. See docs/RUNBOOKS/alerts.md on the VM for what it means.\nTechnical: mystery_check, something odd"
+ },
+ "near_miss": {
+  "log": [
+   "ALERT NEAR-MISS controller callsign(s) not on whitelist: YSSY_X_TWR, YMML_N_APP"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A controller logged on with a callsign that is not on the whitelist, so they are not being recorded: YSSY_X_TWR, YMML_N_APP. It looks like a new position; add it to the whitelist if it is real.\nTechnical: near-miss YSSY_X_TWR, YMML_N_APP"
+ },
+ "near_miss_single": {
+  "log": [
+   "ALERT NEAR-MISS controller callsign(s) not on whitelist: X_TWR"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A controller logged on with a callsign that is not on the whitelist, so they are not being recorded: X_TWR. It looks like a new position; add it to the whitelist if it is real.\nTechnical: near-miss X_TWR"
+ },
+ "notice_quiet_period": {
+  "log": [
+   "ALERT WARN data_integrity: new violations since the last sweep: flights quiet longer than the quiet period with unprocessed positions [flight_quiet_hours=6.75 flight_quiet_check_grace_minutes=0]"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The routine data check found a new problem on top of the earlier one: some flights ended over 6 hours 45 minutes ago and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, new violations: flights quiet longer than the quiet period with unprocessed positions [flight_quiet_hours=6.75 flight_quiet_check_grace_m..."
+ },
+ "notice_two_names": {
+  "log": [
+   "ALERT WARN data_integrity: new violations since the last sweep: identity duplicates (cid, callsign, logon_time), newest snapshot in the future or older than 5 minutes"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The routine data check found a new problem on top of the earlier one: the newest snapshot is more than 5 minutes old or has a time in the future (and 1 more). Data may have stopped: check the collector and the VATSIM feed now (docs/RUNBOOKS/stuck-collector.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, new violations: identity duplicates (cid, callsign, logon_time), newest snapshot in the future or older than 5 minutes"
+ },
+ "recovered_hours:data_integrity": {
+  "log": [
+   "ALERT RECOVERED data_integrity (was warn): all 20 invariants hold (checked 09-10-2026 12:00 UTC)"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The routine data check is clean again. The alert was active for about 5 hours.\nTechnical: data_integrity recovered (was warn), all 20 invariants hold (checked 09-10-2026 12:00 UTC)"
+ },
+ "recovered_long:disk": {
+  "log": [
+   "ALERT RECOVERED disk (was warn): / 40% used"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The disk has enough free space again. The alert was active for about 3 days.\nTechnical: disk recovered (was warn), / 40% used"
+ },
+ "recovered_with_duration:backup_age": {
+  "log": [
+   "ALERT RECOVERED backup_age (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). A fresh database backup now exists. The alert was active for about 4 minutes.\nTechnical: backup_age recovered (was crit), fine now"
+ },
+ "recovered_with_duration:backup_remote": {
+  "log": [
+   "ALERT RECOVERED backup_remote (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The off-box backup copy is working again. The alert was active for about 4 minutes.\nTechnical: backup_remote recovered (was crit), fine now"
+ },
+ "recovered_with_duration:collector_health": {
+  "log": [
+   "ALERT RECOVERED collector_health (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The data collector is answering again. The alert was active for about 4 minutes.\nTechnical: collector_health recovered (was crit), fine now"
+ },
+ "recovered_with_duration:container:collector": {
+  "log": [
+   "ALERT RECOVERED container:collector (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The collector container is running normally again. The alert was active for about 4 minutes.\nTechnical: container:collector recovered (was crit), fine now"
+ },
+ "recovered_with_duration:container:db": {
+  "log": [
+   "ALERT RECOVERED container:db (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The db container is running normally again. The alert was active for about 4 minutes.\nTechnical: container:db recovered (was crit), fine now"
+ },
+ "recovered_with_duration:container:grafana": {
+  "log": [
+   "ALERT RECOVERED container:grafana (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The grafana container is running normally again. The alert was active for about 4 minutes.\nTechnical: container:grafana recovered (was crit), fine now"
+ },
+ "recovered_with_duration:container:migrate": {
+  "log": [
+   "ALERT RECOVERED container:migrate (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The migrate container is running normally again. The alert was active for about 4 minutes.\nTechnical: container:migrate recovered (was crit), fine now"
+ },
+ "recovered_with_duration:container:other": {
+  "log": [
+   "ALERT RECOVERED container:other (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The other container is running normally again. The alert was active for about 4 minutes.\nTechnical: container:other recovered (was crit), fine now"
+ },
+ "recovered_with_duration:data_integrity": {
+  "log": [
+   "ALERT RECOVERED data_integrity (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The routine data check is clean again. The alert was active for about 4 minutes.\nTechnical: data_integrity recovered (was crit), fine now"
+ },
+ "recovered_with_duration:database": {
+  "log": [
+   "ALERT RECOVERED database (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The watchdog can read the database again. The alert was active for about 4 minutes.\nTechnical: database recovered (was crit), fine now"
+ },
+ "recovered_with_duration:db_size": {
+  "log": [
+   "ALERT RECOVERED db_size (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The database size is back within the expected range. The alert was active for about 4 minutes.\nTechnical: db_size recovered (was crit), fine now"
+ },
+ "recovered_with_duration:disk": {
+  "log": [
+   "ALERT RECOVERED disk (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The disk has enough free space again. The alert was active for about 4 minutes.\nTechnical: disk recovered (was crit), fine now"
+ },
+ "recovered_with_duration:docker_proxy": {
+  "log": [
+   "ALERT RECOVERED docker_proxy (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The watchdog can reach Docker again. The alert was active for about 4 minutes.\nTechnical: docker_proxy recovered (was crit), fine now"
+ },
+ "recovered_with_duration:feed_archive": {
+  "log": [
+   "ALERT RECOVERED feed_archive (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The raw-data archive is being written again. The alert was active for about 4 minutes.\nTechnical: feed_archive recovered (was crit), fine now"
+ },
+ "recovered_with_duration:feed_crosscheck": {
+  "log": [
+   "ALERT RECOVERED feed_crosscheck (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The cross-check against saved raw data is clean again. The alert was active for about 4 minutes.\nTechnical: feed_crosscheck recovered (was crit), fine now"
+ },
+ "recovered_with_duration:grafana_health": {
+  "log": [
+   "ALERT RECOVERED grafana_health (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The dashboards (Grafana) are back. The alert was active for about 4 minutes.\nTechnical: grafana_health recovered (was crit), fine now"
+ },
+ "recovered_with_duration:identity_flap": {
+  "log": [
+   "ALERT RECOVERED identity_flap (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). No duplicated sessions are left in the last 24 hours. The alert was active for about 4 minutes.\nTechnical: identity_flap recovered (was crit), fine now"
+ },
+ "recovered_with_duration:mystery_check": {
+  "log": [
+   "ALERT RECOVERED mystery_check (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). A monitoring check (mystery_check) is back to normal. The alert was active for about 4 minutes.\nTechnical: mystery_check recovered (was crit), fine now"
+ },
+ "recovered_with_duration:network_snapshot_age": {
+  "log": [
+   "ALERT RECOVERED network_snapshot_age (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). Fresh network snapshots are being stored again. The alert was active for about 4 minutes.\nTechnical: network_snapshot_age recovered (was crit), fine now"
+ },
+ "recovered_with_duration:poll_log_ok_age": {
+  "log": [
+   "ALERT RECOVERED poll_log_ok_age (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). Data is flowing again. The alert was active for about 4 minutes.\nTechnical: poll_log_ok_age recovered (was crit), fine now"
+ },
+ "recovered_with_duration:restart-cap:db": {
+  "log": [
+   "ALERT RECOVERED restart-cap:db (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The db container is below the restart limit again. The alert was active for about 4 minutes.\nTechnical: restart-cap:db recovered (was crit), fine now"
+ },
+ "recovered_with_duration:restore_test": {
+  "log": [
+   "ALERT RECOVERED restore_test (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The weekly backup restore test is in order again. The alert was active for about 4 minutes.\nTechnical: restore_test recovered (was crit), fine now"
+ },
+ "recovered_with_duration:telegram_outbox": {
+  "log": [
+   "ALERT RECOVERED telegram_outbox (was crit): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). Alert messages are reaching Telegram again. The alert was active for about 4 minutes.\nTechnical: telegram_outbox recovered (was crit), fine now"
+ },
+ "recovered_without_duration:backup_age": {
+  "log": [
+   "ALERT RECOVERED backup_age (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). A fresh database backup now exists.\nTechnical: backup_age recovered (was warn), fine now"
+ },
+ "recovered_without_duration:backup_remote": {
+  "log": [
+   "ALERT RECOVERED backup_remote (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The off-box backup copy is working again.\nTechnical: backup_remote recovered (was warn), fine now"
+ },
+ "recovered_without_duration:collector_health": {
+  "log": [
+   "ALERT RECOVERED collector_health (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The data collector is answering again.\nTechnical: collector_health recovered (was warn), fine now"
+ },
+ "recovered_without_duration:container:collector": {
+  "log": [
+   "ALERT RECOVERED container:collector (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The collector container is running normally again.\nTechnical: container:collector recovered (was warn), fine now"
+ },
+ "recovered_without_duration:container:db": {
+  "log": [
+   "ALERT RECOVERED container:db (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The db container is running normally again.\nTechnical: container:db recovered (was warn), fine now"
+ },
+ "recovered_without_duration:container:grafana": {
+  "log": [
+   "ALERT RECOVERED container:grafana (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The grafana container is running normally again.\nTechnical: container:grafana recovered (was warn), fine now"
+ },
+ "recovered_without_duration:container:migrate": {
+  "log": [
+   "ALERT RECOVERED container:migrate (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The migrate container is running normally again.\nTechnical: container:migrate recovered (was warn), fine now"
+ },
+ "recovered_without_duration:container:other": {
+  "log": [
+   "ALERT RECOVERED container:other (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The other container is running normally again.\nTechnical: container:other recovered (was warn), fine now"
+ },
+ "recovered_without_duration:data_integrity": {
+  "log": [
+   "ALERT RECOVERED data_integrity (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The routine data check is clean again.\nTechnical: data_integrity recovered (was warn), fine now"
+ },
+ "recovered_without_duration:database": {
+  "log": [
+   "ALERT RECOVERED database (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The watchdog can read the database again.\nTechnical: database recovered (was warn), fine now"
+ },
+ "recovered_without_duration:db_size": {
+  "log": [
+   "ALERT RECOVERED db_size (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The database size is back within the expected range.\nTechnical: db_size recovered (was warn), fine now"
+ },
+ "recovered_without_duration:disk": {
+  "log": [
+   "ALERT RECOVERED disk (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The disk has enough free space again.\nTechnical: disk recovered (was warn), fine now"
+ },
+ "recovered_without_duration:docker_proxy": {
+  "log": [
+   "ALERT RECOVERED docker_proxy (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The watchdog can reach Docker again.\nTechnical: docker_proxy recovered (was warn), fine now"
+ },
+ "recovered_without_duration:feed_archive": {
+  "log": [
+   "ALERT RECOVERED feed_archive (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The raw-data archive is being written again.\nTechnical: feed_archive recovered (was warn), fine now"
+ },
+ "recovered_without_duration:feed_crosscheck": {
+  "log": [
+   "ALERT RECOVERED feed_crosscheck (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The cross-check against saved raw data is clean again.\nTechnical: feed_crosscheck recovered (was warn), fine now"
+ },
+ "recovered_without_duration:grafana_health": {
+  "log": [
+   "ALERT RECOVERED grafana_health (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The dashboards (Grafana) are back.\nTechnical: grafana_health recovered (was warn), fine now"
+ },
+ "recovered_without_duration:identity_flap": {
+  "log": [
+   "ALERT RECOVERED identity_flap (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). No duplicated sessions are left in the last 24 hours.\nTechnical: identity_flap recovered (was warn), fine now"
+ },
+ "recovered_without_duration:mystery_check": {
+  "log": [
+   "ALERT RECOVERED mystery_check (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). A monitoring check (mystery_check) is back to normal.\nTechnical: mystery_check recovered (was warn), fine now"
+ },
+ "recovered_without_duration:network_snapshot_age": {
+  "log": [
+   "ALERT RECOVERED network_snapshot_age (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). Fresh network snapshots are being stored again.\nTechnical: network_snapshot_age recovered (was warn), fine now"
+ },
+ "recovered_without_duration:poll_log_ok_age": {
+  "log": [
+   "ALERT RECOVERED poll_log_ok_age (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). Data is flowing again.\nTechnical: poll_log_ok_age recovered (was warn), fine now"
+ },
+ "recovered_without_duration:restart-cap:db": {
+  "log": [
+   "ALERT RECOVERED restart-cap:db (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The db container is below the restart limit again.\nTechnical: restart-cap:db recovered (was warn), fine now"
+ },
+ "recovered_without_duration:restore_test": {
+  "log": [
+   "ALERT RECOVERED restore_test (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The weekly backup restore test is in order again.\nTechnical: restore_test recovered (was warn), fine now"
+ },
+ "recovered_without_duration:telegram_outbox": {
+  "log": [
+   "ALERT RECOVERED telegram_outbox (was warn): fine now"
+  ],
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). Alert messages are reaching Telegram again.\nTechnical: telegram_outbox recovered (was warn), fine now"
+ },
+ "restarted": {
+  "log": [
+   "ALERT RESTARTED collector (1/3 this hour, ok=True): collector HTTP 503 and no failures counted"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The watchdog restarted the collector container because it looked stuck. Check that it stays up; no other action.\nTechnical: restarted collector, 1/3 this hour, ok=True: collector HTTP 503 and no failures counted"
+ },
+ "stepdown:02:poll_log_ok_age": {
+  "log": [
+   "ALERT WARN poll_log_ok_age: newest ok poll is 75s old"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. No fresh VATSIM data for about 1 minute. Usually a brief hiccup; no action unless it grows.\nTechnical: poll_log_ok_age, newest ok poll is 75s old"
+ },
+ "stepdown:05:poll_log_ok_age": {
+  "log": [
+   "ALERT WARN poll_log_ok_age: no newest ok poll yet"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. No successful VATSIM data fetch has been recorded yet. If this is not a fresh install, see docs/RUNBOOKS/stuck-collector.md on the VM.\nTechnical: poll_log_ok_age, no newest ok poll yet"
+ },
+ "stepdown:06:poll_log_ok_age": {
+  "log": [
+   "ALERT WARN poll_log_ok_age: something the check never writes"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. No fresh VATSIM data for a while. Usually a brief hiccup; no action unless it grows.\nTechnical: poll_log_ok_age, something the check never writes"
+ },
+ "stepdown:07:network_snapshot_age": {
+  "log": [
+   "ALERT WARN network_snapshot_age: newest snapshot is 90s old"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The newest stored picture of the network is about 2 minutes old. Usually a brief hiccup; no action unless it grows.\nTechnical: network_snapshot_age, newest snapshot is 90s old"
+ },
+ "stepdown:10:network_snapshot_age": {
+  "log": [
+   "ALERT WARN network_snapshot_age: gibberish"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The newest stored picture of the network is a while old. Usually a brief hiccup; no action unless it grows.\nTechnical: network_snapshot_age, gibberish"
+ },
+ "stepdown:13:db_size": {
+  "log": [
+   "ALERT WARN db_size: 21.40 GB (limit 20)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The database has grown to 21.4 GB, more than expected (normally 2 to 3 GB). Nothing is broken yet, but old data may not be being cleared away; see docs/RUNBOOKS/db-full.md on the VM when you can.\nTechnical: db_size, 21.40 GB (limit 20)"
+ },
+ "stepdown:14:db_size": {
+  "log": [
+   "ALERT WARN db_size: 25.00 GB (limit 20)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The database has grown to 25.0 GB, more than expected (normally 2 to 3 GB). Nothing is broken yet, but old data may not be being cleared away; see docs/RUNBOOKS/db-full.md on the VM when you can.\nTechnical: db_size, 25.00 GB (limit 20)"
+ },
+ "stepdown:15:db_size": {
+  "log": [
+   "ALERT WARN db_size: something else"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The database has grown to larger than expected, more than expected (normally 2 to 3 GB). Nothing is broken yet, but old data may not be being cleared away; see docs/RUNBOOKS/db-full.md on the VM when you can.\nTechnical: db_size, something else"
+ },
+ "stepdown:16:disk": {
+  "log": [
+   "ALERT WARN disk: /backups 82% used, / 50% used"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A disk on the VM (/backups) is 82% full. Nothing breaks yet, but it needs clearing within days (see docs/RUNBOOKS/db-full.md on the VM).\nTechnical: disk, /backups 82% used, / 50% used"
+ },
+ "stepdown:17:disk": {
+  "log": [
+   "ALERT WARN disk: / 82% used"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A disk on the VM (/) is 82% full. Nothing breaks yet, but it needs clearing within days (see docs/RUNBOOKS/db-full.md on the VM).\nTechnical: disk, / 82% used"
+ },
+ "stepdown:20:disk": {
+  "log": [
+   "ALERT WARN disk: /backups unreadable"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A disk the watchdog watches could not be read. Check the VM when convenient (see docs/RUNBOOKS/db-full.md on the VM).\nTechnical: disk, /backups unreadable"
+ },
+ "stepdown:21:disk": {
+  "log": [
+   "ALERT WARN disk: /backups unreadable, / 81% used"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A disk on the VM (/) is 81% full. Nothing breaks yet, but it needs clearing within days (see docs/RUNBOOKS/db-full.md on the VM).\nTechnical: disk, /backups unreadable, / 81% used"
+ },
+ "stepdown:26:backup_remote": {
+  "log": [
+   "ALERT WARN backup_remote: last off-box copy 30.1 h ago (limit 26)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The nightly backup is being made, but the copy to the second location (off the VM) has not succeeded recently, so losing the VM disk could lose the backups too. Check the backup log (docker compose logs --tail=50 backup, from ~/vatpac-statsV2 on the VM) and the copy destination (see docs/RUNBOOKS/restore.md on the VM, Off-box copies).\nTechnical: backup_remote, last off-box copy 30.1 h ago (limit 26)"
+ },
+ "stepdown:27:backup_remote": {
+  "log": [
+   "ALERT WARN backup_remote: no off-box copy recorded after 27.0 h since watchdog first ran"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The nightly backup is being made, but the copy to the second location (off the VM) has not succeeded recently, so losing the VM disk could lose the backups too. Check the backup log (docker compose logs --tail=50 backup, from ~/vatpac-statsV2 on the VM) and the copy destination (see docs/RUNBOOKS/restore.md on the VM, Off-box copies).\nTechnical: backup_remote, no off-box copy recorded after 27.0 h since watchdog first ran"
+ },
+ "stepdown:28:telegram_outbox": {
+  "log": [
+   "ALERT WARN telegram_outbox: 3 undelivered telegram message(s), oldest 12 min old"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. Alert messages are not reaching Telegram: the oldest has been waiting for a while and the watchdog keeps retrying. Check the bot token and chat id in .env and whether Telegram is reachable from the VM (docker compose logs --tail=50 watchdog, from ~/vatpac-statsV2 on the VM); problems are still visible in the status file.\nTechnical: telegram_outbox, 3 undelivered telegram message(s), oldest 12 min old"
+ },
+ "stepdown:29:telegram_outbox": {
+  "log": [
+   "ALERT WARN telegram_outbox: Telegram refuses the messages (HTTP 400): check TELEGRAM_CHAT_ID and the bot token; 2 undelivered telegram message(s), oldest 3 min old"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. Telegram is refusing the alert messages, which usually means a wrong chat id or a wrong, revoked or blocked bot. Nothing is lost yet: they are kept and retried. Check TELEGRAM_CHAT_ID and TELEGRAM_BOT_TOKEN in .env on the VM (see docs/RUNBOOKS/alerts.md on the VM, telegram_outbox).\nTechnical: telegram_outbox, Telegram refuses the messages (HTTP 400): check TELEGRAM_CHAT_ID and the bot token; 2 undelivered telegram message(s), oldest 3 min old"
+ },
+ "stepdown:31:restore_test": {
+  "log": [
+   "ALERT WARN restore_test: last restore test restored fine but the data in the dump was stale (3.0 days ago)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The weekly restore test worked, but the newest data in the backup was old (a long outage or a quiet period before the dump). Backups are probably fine; check the collector was running, then run make backup-test from ~/vatpac-statsV2 on the VM (see docs/RUNBOOKS/restore.md on the VM).\nTechnical: restore_test, last restore test restored fine but the data in the dump was stale (3.0 days ago)"
+ },
+ "stepdown:32:restore_test": {
+  "log": [
+   "ALERT WARN restore_test: last restore test result unreadable"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The result of the weekly backup restore test cannot be read. Run make backup-test from ~/vatpac-statsV2 on the VM to check (see docs/RUNBOOKS/restore.md on the VM).\nTechnical: restore_test, last restore test result unreadable"
+ },
+ "stepdown:33:restore_test": {
+  "log": [
+   "ALERT WARN restore_test: last successful restore test 10.0 days ago (limit 9)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The weekly test that proves a backup can really be restored is overdue. Backups are probably fine, but run make backup-test from ~/vatpac-statsV2 on the VM when convenient (see docs/RUNBOOKS/restore.md on the VM).\nTechnical: restore_test, last successful restore test 10.0 days ago (limit 9)"
+ },
+ "stepdown:34:restore_test": {
+  "log": [
+   "ALERT WARN restore_test: no restore test result after 10.0 days"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The weekly test that proves a backup can really be restored is overdue. Backups are probably fine, but run make backup-test from ~/vatpac-statsV2 on the VM when convenient (see docs/RUNBOOKS/restore.md on the VM).\nTechnical: restore_test, no restore test result after 10.0 days"
+ },
+ "stepdown:35:identity_flap": {
+  "log": [
+   "ALERT WARN identity_flap: 1 pilot and 0 controller session pairs (same cid and callsign, logon_time within 2 s), first seen 09-10-2026 12:00:03 UTC; run ops/audit/identity_flap.sql"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. VATSIM may have changed how it stamps logon times again, so one connection could be stored as two and flight counts inflated. Not urgent today, but an engineer should look (the exact command is in docs/RUNBOOKS/alerts.md on the VM, under identity_flap).\nTechnical: identity_flap, 1 pilot and 0 controller session pairs (same cid and callsign, logon_time within 2 s), first seen 09-10-2026 12:00:03 UTC; run ops/audit/identity_flap.sql"
+ },
+ "stepdown:36:identity_flap": {
+  "log": [
+   "ALERT WARN identity_flap: identity-flap query failed (OperationalError)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The check for duplicated flight sessions could not run. An engineer should look at it; no action needed today.\nTechnical: identity_flap, identity-flap query failed (OperationalError)"
+ },
+ "stepdown:37:feed_archive": {
+  "log": [
+   "ALERT WARN feed_archive: last write 601s ago (limit 600s), 4 write errors, 12 MB"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The safety copy of the raw VATSIM data (the archive) has stopped being written. Live collection is not affected. Check the disk space and the collector log (see docs/RUNBOOKS/feed-archive.md on the VM).\nTechnical: feed_archive, last write 601s ago (limit 600s), 4 write errors, 12 MB"
+ },
+ "stepdown:38:data_integrity": {
+  "log": [
+   "ALERT WARN data_integrity: 1 of 20 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: no data was recorded for more than 5 minutes at some point in the last 3 days. Nothing to do if the time matches an outage you already know about; otherwise see docs/RUNBOOKS/integrity-checks.md on the VM.\nTechnical: data_integrity, 1 of 20 checks failing: snapshot gaps over 5 minutes (last 3 days)"
+ },
+ "stepdown:39:data_integrity": {
+  "log": [
+   "ALERT WARN data_integrity: 2 of 20 invariants report violations: daily partitions missing for today..today+3 (1); snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: the storage tables for today or the next three days have not been created (plus 1 other). Writes will start to fail if today's table is missing. Check the collector and maintenance log today (docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 2 of 20 checks failing: daily partitions missing for today..today+3; snapshot gaps over 5 minutes (last 3 days)"
+ },
+ "stepdown:40:data_integrity": {
+  "log": [
+   "ALERT WARN data_integrity: 8 of 20 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1); identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1); ok poll_log counts differ from network_snapshot (1); in-region count above global count (1); positions per snapshot differ from pilots_in_region (1); and 2 more. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: a snapshot counts more pilots or controllers in our region than on the whole network (plus 7 others). The live dashboard counts may be wrong. An engineer should look today (see docs/RUNBOOKS/integrity-checks.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 8 of 20 checks failing: in-region count above global count (+7 more)"
+ },
+ "stepdown:41:data_integrity": {
+  "log": [
+   "ALERT WARN data_integrity: 1 of 20 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1) [flight_quiet_hours=6.75 flight_quiet_check_grace_minutes=0]. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: some flights ended over 6 hours 45 minutes ago and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 20 checks failing: flights quiet longer than the quiet period with unprocessed positions"
+ },
+ "stepdown:42:data_integrity": {
+  "log": [
+   "ALERT WARN data_integrity: 1 of 20 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: some flights ended longer ago than the quiet period and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 20 checks failing: flights quiet longer than the quiet period with unprocessed positions"
+ },
+ "stepdown:43:data_integrity": {
+  "log": [
+   "ALERT WARN data_integrity: 2 of 20 invariants report violations: identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: the same flight appears to be stored twice (plus 1 other). VATSIM may have changed how it stamps logon times; an engineer should look (docs/RUNBOOKS/alerts.md on the VM, identity_flap). The rest: watchdog log.\nTechnical: data_integrity, 2 of 20 checks failing: identity duplicates (cid, callsign, logon_time); snapshot rows without an ok poll_log row"
+ },
+ "stepdown:44:data_integrity": {
+  "log": [
+   "ALERT WARN data_integrity: invariant sweep could not run (InsufficientPrivilege); retrying in 1 h"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The routine data check could not run properly (it retries in an hour). Data collection is not affected. If it keeps failing, an engineer should look (see docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, invariant sweep could not run (InsufficientPrivilege); retrying in 1 h"
+ },
+ "stepdown:45:data_integrity": {
+  "log": [
+   "ALERT WARN data_integrity: 1 invariant(s) did not report: x. Details are in the watchdog log"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The routine data check could not run properly (it retries in an hour). Data collection is not affected. If it keeps failing, an engineer should look (see docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 invariant(s) did not report: x"
+ },
+ "stepdown:46:data_integrity": {
+  "log": [
+   "ALERT WARN data_integrity: mystery"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem. See docs/RUNBOOKS/integrity-checks.md on the VM for what to do.\nTechnical: data_integrity, mystery"
+ },
+ "stepdown:47:feed_crosscheck": {
+  "log": [
+   "ALERT WARN feed_crosscheck: 1 difference(s) in 24 archived snapshots: 09-10-2026 12:00:03 UTC: pilots_in_region independent 41, stored 40"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The fortnightly check against saved raw VATSIM data found 1 difference: the system may have kept or dropped some pilots or controllers wrongly. Not urgent; an engineer should look (see docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: feed_crosscheck, 1 difference(s) in 24 archived snapshots: 09-10-2026 12:00:03 UTC: pilots_in_region independent 41, stored 40"
+ },
+ "stepdown:48:feed_crosscheck": {
+  "log": [
+   "ALERT WARN feed_crosscheck: 3 difference(s) in 24 archived snapshots: a; b; c. Details are in the watchdog log"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The fortnightly check against saved raw VATSIM data found 3 differences: the system may have kept or dropped some pilots or controllers wrongly. Not urgent; an engineer should look (see docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: feed_crosscheck, 3 difference(s) in 24 archived snapshots: a; b; c"
+ },
+ "stepdown:49:feed_crosscheck": {
+  "log": [
+   "ALERT WARN feed_crosscheck: cross-check had nothing to compare (no archive samples found); is the feed archive enabled"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The fortnightly check that compares saved raw VATSIM data with what the system stored had nothing to compare. Check that the raw-data archive is switched on and writing (see docs/RUNBOOKS/feed-archive.md on the VM).\nTechnical: feed_crosscheck, cross-check had nothing to compare (no archive samples found); is the feed archive enabled"
+ },
+ "stepdown:50:feed_crosscheck": {
+  "log": [
+   "ALERT WARN feed_crosscheck: archive cross-check could not run (OperationalError); retrying in 1 h"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The fortnightly cross-check of saved raw data against stored data could not run; it retries in an hour. No action unless it keeps failing.\nTechnical: feed_crosscheck, archive cross-check could not run (OperationalError); retrying in 1 h"
+ },
+ "stepdown:51:feed_crosscheck": {
+  "log": [
+   "ALERT WARN feed_crosscheck: odd"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The fortnightly check against saved raw VATSIM data found differences: the system may have kept or dropped some pilots or controllers wrongly. Not urgent; an engineer should look (see docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: feed_crosscheck, odd"
+ },
+ "stepdown:57:container:grafana": {
+  "log": [
+   "ALERT WARN container:grafana: restarted by Docker (count 2)"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. Docker restarted the grafana container by itself. It should be fine; check it stays up.\nTechnical: container:grafana, restarted by Docker (count 2)"
+ },
+ "stepdown:60:restart-cap:db": {
+  "log": [
+   "ALERT WARN restart-cap:db: x"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. The db container keeps failing and has hit the hourly limit on automatic restarts, so the watchdog has stopped restarting it. Look at its log and restart it by hand.\nTechnical: restart-cap:db, x"
+ },
+ "stepdown:61:mystery_check": {
+  "log": [
+   "ALERT WARN mystery_check: something odd"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A monitoring check (mystery_check) has a warning. See docs/RUNBOOKS/alerts.md on the VM for what it means.\nTechnical: mystery_check, something odd"
+ },
+ "unrecognised_text": {
+  "log": [
+   "ALERT something nobody planned"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). The monitoring system sent a message; see docs/RUNBOOKS/alerts.md on the VM.\nTechnical: something nobody planned"
+ }
+}
