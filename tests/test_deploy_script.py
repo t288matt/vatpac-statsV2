@@ -448,7 +448,7 @@ def test_read_only_modes_write_nothing_and_run_nothing_forbidden(tmp_path: Path)
 
 
 def test_ci_checks_deploy_sh_with_bash_not_sh() -> None:
-    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    ci = (REPO / "ops" / "run_checks.sh").read_text(encoding="utf-8")   # the shell syntax check lives in the shared script (issue 241)
     assert "ops/backup/*.sh ops/deploy.sh ops/stale_issues.sh; do bash -n" in ci
     assert '"$f" = ops/deploy.sh ] || [ "$f" = ops/stale_issues.sh ] || sh -n' in ci
 

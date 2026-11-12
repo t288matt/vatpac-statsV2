@@ -1,4 +1,4 @@
-.PHONY: soak up deploy down dev logs ps config test lint smoke size backup backup-test restore gen-env check-env drift
+.PHONY: soak up deploy down dev logs ps config test lint smoke size backup backup-test restore gen-env check-env drift checks
 
 # Local builds. Refuses to start with blank/weak secrets (ops/check_env.sh). No .env yet? run: make gen-env
 # Refuses when VATPAC_IMAGE_PREFIX is set (environment or .env): compose would build locally and tag the
@@ -53,31 +53,32 @@ gen-env:
 check-env:
 	sh ops/check_env.sh .env
 
-# Validates the compose files with a generated throwaway env: .env.example has blank secrets by
-# design, so compose cannot be validated against it.
+# The checks are defined once, in ops/run_checks.sh (issue 241); CI, make and a plain Git Bash all call it, so green here is green in CI.
+# make is optional: on a PC without it run  sh ops/run_checks.sh all  (or one group: lint, tests, repo-checks, config).
+# config validates the compose files with a generated throwaway env (.env.example has blank secrets by design).
 config:
-	@tmp="$$(mktemp)"; rm -f "$$tmp"; \
-	sh ops/gen_env.sh "$$tmp" >/dev/null && \
-	docker compose --env-file "$$tmp" config -q && \
-	docker compose --env-file "$$tmp" -f docker-compose.yml -f docker-compose.dev.yml config -q; \
-	rc=$$?; rm -f "$$tmp"; exit $$rc
+	sh ops/run_checks.sh config
 
 lint:
-	cd collector && ruff check . && mypy src
-	ruff check --config ops/ruff.toml ops
+	sh ops/run_checks.sh lint
 
 # collector settings vs compose vs .env.example
 drift:
-	python ops/check_config_drift.py
+	sh ops/run_checks.sh config-drift
 
+# unit tests and the skip count
 test:
-	PYTHONPATH=collector/src pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv
+	sh ops/run_checks.sh tests
+
+# every check CI runs that needs no secret or service
+checks:
+	sh ops/run_checks.sh all
 
 smoke:
 	sh ops/smoke.sh
 
 size:
-	python ops/check_size_budget.py
+	sh ops/run_checks.sh size-budget
 
 # take a backup now
 backup:

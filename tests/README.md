@@ -25,7 +25,7 @@ collector/.venv/Scripts/python -m pytest collector/tests/unit -q
 
 Linux/macOS: `collector/.venv/bin/python -m pytest collector/tests/unit -q`. The suite adds
 `collector/src` to `sys.path` itself, so an editable install is optional. CI and `make test` run the wider
-command `PYTHONPATH=collector/src pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv`. Two groups are slow and carry markers: `slow_fuzz` (the full fuzz grids) and `slow_shell` (the `ops/deploy.sh` harness, `tests/test_deploy_script.py`); add `and not slow_fuzz and not slow_shell` to skip them locally. CI runs them.
+set through one script, `sh ops/run_checks.sh tests` (from Git Bash on Windows; `make` is optional), which runs `PYTHONPATH=collector/src pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv` and then checks the skip count. The other checks (lint, config drift, dashboards, size budget, compose) are in the runbook, section 1. Two groups are slow and carry markers: `slow_fuzz` (the full fuzz grids) and `slow_shell` (the `ops/deploy.sh` harness, `tests/test_deploy_script.py`); add `and not slow_fuzz and not slow_shell` to skip them locally. CI runs them.
 
 ## Integration tests
 

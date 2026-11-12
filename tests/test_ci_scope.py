@@ -176,6 +176,7 @@ READS_DASHBOARDS = re.compile(r"grafana[\"' /]+dashboards|\bDASH\b|run_panel|CHA
 EXEMPT = {
     "tests/integration/helpers.py": "shared helpers: any change to it is a full run (it is not classified as dashboards)",
     "tests/test_ci_scope.py": "this file",
+    "tests/test_run_checks_parity.py": "names the validator command only to check that CI does not run it outside ops/run_checks.sh",
     "tests/scale/run_panels.py": "scale tool, not a test that CI runs",
 }
 
@@ -319,14 +320,16 @@ def test_no_check_can_pass_by_being_allowed_to_fail() -> None:
 
 
 def test_the_checks_that_used_to_be_jobs_still_run_these_commands() -> None:
-    """The old jobs, by the command each ran; each must still be a step of quick-checks or unit-tests (issue 340)."""
+    """The old jobs, by the command each ran; each must still be run by a step of quick-checks or unit-tests (issue 340).
+    Since issue 241 the steps call ops/run_checks.sh, so the commands are read from the steps plus that script."""
     runs = "\n".join(str(st.get("run", "")) for j in ("quick-checks", "unit-tests") for st in steps_of(j))
-    for cmd in ("python ops/check_config_drift.py", "python grafana/validate_dashboards.py", "python ops/dashboard_nav.py --check",
-                "python ops/check_size_budget.py", "python3 ops/check_no_claude_attribution.py", "sh ops/gen_env.sh",
-                "sh ops/check_env.sh", 'docker compose --env-file "$RUNNER_TEMP/ci.env" config -q', "config --images",
+    runs += "\n" + (REPO / "ops" / "run_checks.sh").read_text(encoding="utf-8")
+    for cmd in ("ops/check_config_drift.py", "grafana/validate_dashboards.py", "ops/dashboard_nav.py --check",
+                "ops/check_size_budget.py", "ops/check_no_claude_attribution.py", "sh ops/gen_env.sh",
+                "sh ops/check_env.sh", 'docker compose --env-file "$f" config -q', "config --images",
                 "docker compose --env-file .env.example config -q",
-                "cd collector && ruff check .", "cd collector && mypy src", "ruff check --config ops/ruff.toml ops",
-                "mypy --strict --ignore-missing-imports", "sh -n", "bash -n"):
+                "(cd collector && $PY -m ruff check .)", "(cd collector && $PY -m mypy src)", "ruff check --config ops/ruff.toml ops",
+                "mypy --strict --ignore-missing-imports", "sh -n", "bash -n", "actionlint -shellcheck="):
         assert cmd in runs, cmd
     assert any(str(st.get("uses", "")).startswith("gitleaks/gitleaks-action@") for st in steps_of("quick-checks"))
 
@@ -349,8 +352,9 @@ def test_the_scope_steps_run_the_exact_commands_and_the_full_steps_are_untouched
     dash_runs = sorted(str(st["run"]) for st in unit + integ if "'dashboards'" in str(st["if"]))
     assert dash_runs == sorted([UNIT_RUN, INTEG_RUN])   # exact text: widening them to all of tests/ fails
     full_runs = {str(st["run"]) for st in unit + integ if "'full'" in str(st["if"])}
-    assert full_runs == {'pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv',
-                         "pytest tests/integration -m integration -q"}
+    assert full_runs == {"sh ops/run_checks.sh pytest-unit", "pytest tests/integration -m integration -q"}
+    script = (REPO / "ops" / "run_checks.sh").read_text(encoding="utf-8")   # the unit command itself lives in the shared script
+    assert '-m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv' in script
 
 
 def test_no_pytest_command_deselects_or_skips_anything() -> None:
@@ -396,7 +400,10 @@ def test_a_checking_command_piped_into_tee_runs_under_pipefail() -> None:
             if re.search(r"\|\s*tee\b", run) and "scope" != name:   # the scope job's tee only prints a summary line
                 seen += 1
                 assert "set -o pipefail" in run.split("|")[0] or run.lstrip().startswith("set -o pipefail"), (name, st.get("name"))
-    assert seen >= 1
+    # The validator's output used to go through tee. Since issue 241 it lives in ops/run_checks.sh, which writes to a file and
+    # tests the validator's own exit status, so no pipe can hide it.
+    script = (REPO / "ops" / "run_checks.sh").read_text(encoding="utf-8")
+    assert seen == 0 and "validate_dashboards.py > " in script and '[ "$rc" -eq 0 ] || return 1' in script
 
 
 def test_image_build_does_not_wait_for_quick_checks_and_ci_result_still_needs_it() -> None:

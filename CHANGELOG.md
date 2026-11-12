@@ -10,6 +10,11 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 - **New panel.** "CTR hours staffed per day (last 14 months)" on ATC: controllers, directly below "CTR hours staffed per week": one bar per UTC day showing the hours CTR positions (facility 6) were staffed. Three CTR positions staffed together for one hour count as 3 hours; a session that crosses midnight UTC is split between the two days; a day with no CTR sessions shows 0. No view or migration changes.
 
+## One checks script for CI and make (12-11-2026, issue 241)
+
+- **Same checks everywhere.** The lint, unit-test, skip-count, config-drift, dashboard, size-budget, workflow-lint, attribution and compose checks now live in one script, `ops/run_checks.sh`. CI, `make` and Git Bash on the owner's PC all call it, so green on the PC means the same commands passed as in CI. `sh ops/run_checks.sh all` runs them all; `make checks` does the same, and a new local check, `tool-versions`, compares installed tool versions with the ones CI pins. The secret scan, integration tests, image build and registry steps stay CI-only. No check was dropped.
+- **Unused trigger removed.** The `workflow_call` trigger on the CI workflow, which nothing called, is gone.
+
 ## v1 import tests archived (12-11-2026, issue 347)
 
 - **Out of the CI run.** The tests for the one-off v1 history import and its file generator moved to `tests/archive/v1_import/`. CI and `pytest tests` no longer run them; they run on demand by naming the folder (see its README.md). No test was removed.
