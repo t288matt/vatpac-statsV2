@@ -13,8 +13,7 @@ from vatpac import maintenance as m
 from vatpac.main import Collector
 from vatpac.settings import Settings
 
-ALL_TASKS = ["settings", "partitions_created", "flights_refreshed", "partitions_dropped", "poll_log_trimmed",
-             "views_refreshed"]
+ALL_TASKS = ["settings", "partitions_created", "flights_refreshed", "partitions_dropped", "poll_log_trimmed"]
 
 
 def _settings() -> Settings:
@@ -29,7 +28,6 @@ def called(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     monkeypatch.setattr(m, "refresh_flights", lambda *a, **k: calls.append("flights_refreshed") or 0)
     monkeypatch.setattr(m, "drop_old_partitions", lambda *a, **k: calls.append("partitions_dropped") or 0)
     monkeypatch.setattr(m, "trim_poll_log", lambda *a, **k: calls.append("poll_log_trimmed") or 0)
-    monkeypatch.setattr(m, "refresh_materialized_views", lambda *a, **k: calls.append("views_refreshed") or 0)
     return calls
 
 
@@ -41,6 +39,11 @@ def test_the_scheduled_daily_job_still_runs_every_task_in_order(called: list[str
 def test_startup_tasks_are_settings_then_partitions_only(called: list[str]) -> None:
     out = m.run_maintenance(MagicMock(), _settings(), m.STARTUP_TASKS)
     assert called == ["settings", "partitions_created"] and out["failed"] == 0
+
+
+def test_startup_and_recovery_task_names_are_real_tasks() -> None:
+    # A typo would match nothing, so startup would run no task and still report success.
+    assert set(m.STARTUP_TASKS) <= set(ALL_TASKS) and set(m.PARTITION_TASKS) <= set(ALL_TASKS)
 
 
 def test_recovery_tasks_are_partitions_only(called: list[str]) -> None:
