@@ -8,22 +8,36 @@ Last reviewed: 12-11-2026 (sections 1, 1b, 1c and 5); the rest 10-10-2026. The u
 
 ## 1. Checks that need no database
 
-From the repository root. These are the same commands CI runs.
+From the repository root. The checks are defined once, in `ops/run_checks.sh`, and CI, `make` and Git Bash all call that script, so a check that passes on your PC runs the same commands as the one in CI. It is plain `sh`; on Windows run it from Git Bash.
 
 ```sh
-# unit tests (pytest, pyyaml, shapely and the collector requirements installed; Python 3.11 or newer)
-PYTHONPATH=collector/src python -m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv    # expect all passed; add -m "not integration and not slow_fuzz" for the quick local run (section 6); the strict xfails (known defects pinned by tests) are integration tests and show as xfailed there
-python grafana/validate_dashboards.py          # dashboard shape and SQL syntax; pip install sqlglot to parse SQL
-python ops/check_config_drift.py               # collector settings, compose and .env.example agree (needs PyYAML)
-python ops/check_size_budget.py                # collector package under 1700 lines, no module over 300
-ruff check --config ops/ruff.toml ops          # lint of the ops scripts
-# the ops tooling tests run with the unit tests above: tests/test_deploy_script.py (deploy.sh, including the stale-checkout refusal), tests/test_env_readers.py (the shell and Python .env readers must agree) and tests/test_grafana_public.py (the shared Grafana client)
-cd collector && ruff check . && mypy src       # lint and strict typing of the collector
-# strict typing of the watchdog and ops scripts (the exact list is in .github/workflows/ci.yml; the watchdog needs the two audit files on its path)
-mypy --strict --ignore-missing-imports ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py ops/check_panels.py ops/grafana_public.py ops/grafana_api.py ops/env_file.py ops/ci_scope.py ops/check_skips.py
+sh ops/run_checks.sh all                    # every check below that needs no secret or service
+sh ops/run_checks.sh lint tests             # groups and single checks can be mixed
+sh ops/run_checks.sh ruff-ops               # one check
+make lint test config drift size checks     # the same through make (optional, see below)
 ```
 
-`make test`, `make drift`, `make size` and `make lint` wrap the same commands. On Windows without `make`, run the commands above. Set up the Python environment once: `python -m venv collector/.venv`, then `collector/.venv/bin/pip install pytest -r collector/requirements.txt` (Windows: `collector\.venv\Scripts\pip`).
+Every named check runs even when an earlier one failed. Each prints `PASS` or `FAIL` with its time, and the exit status is 1 if any failed. A missing tool is a failure, never a skip; install it as the `pip install` lines in `.github/workflows/ci.yml` do.
+
+| Group | Checks in it |
+|---|---|
+| `lint` | `ruff-collector`, `mypy-collector`, `ruff-ops`, `mypy-ops` (strict typing of the watchdog and ops scripts; the file list is in `ops/run_checks.sh`), `shell-syntax` |
+| `tests` | `pytest-unit` (the unit tests, `-m "not integration"`), `unit-skips` (the skip count, below) |
+| `repo-checks` | `config-drift` (collector settings, compose and `.env.example` agree), `dashboards` (the validator, with SQL parsing), `dashboard-nav`, `size-budget`, `actionlint`, `attribution` |
+| `config` | `compose-config`, `compose-images`, `compose-blank-secrets` (need the `docker` CLI; no daemon is used) |
+| `all` | `tool-versions`, then the four groups above |
+
+`tool-versions` runs only here, never in CI: it compares the ruff, mypy, sqlglot and actionlint installed on your PC with the versions `ci.yml` pins, and prints the `pip install` line that fixes a difference.
+
+**`make` is optional.** The `Makefile` targets only call the script: `make lint`, `make test` (the `tests` group), `make config`, `make drift` (`config-drift`), `make size` (`size-budget`) and `make checks` (`all`). The owner's Windows PC has no `make`; Git Bash runs `sh ops/run_checks.sh` directly.
+
+**What stays CI-only** because it needs a secret, a service or a registry: the secret scan, the integration tests (a Postgres service and the production migrate image; section 1b runs them locally), the image build, the dashboards-scope pytest runs, the `scope` job and the `ci-result` job.
+
+**Skip count.** `unit-skips` reads the report `pytest-unit` wrote and fails when the number of skipped tests differs from `EXPECTED_UNIT_SKIPS` in `ops/check_skips.py`; its output prints the number found and the number expected. Run `tests` as a group, or `pytest-unit` before `unit-skips`, so the report is current. A Windows machine skips one more test than Linux (a POSIX file-mode test), so there `unit-skips` reports a difference of one; the number to pass is in the docstring of `ops/check_skips.py` (`python ops/check_skips.py <report> --expected N`). Quick local run of the unit tests only: `PYTHONPATH=collector/src python -m pytest -q -m "not integration and not slow_fuzz" tests collector/tests --ignore=tests/.venv` (section 6). The strict xfails (known defects pinned by tests) are integration tests and show as xfailed there.
+
+The ops tooling tests run with the unit tests: `tests/test_deploy_script.py` (`deploy.sh`, including the stale-checkout refusal), `tests/test_env_readers.py` (the shell and Python `.env` readers must agree), `tests/test_grafana_public.py` (the shared Grafana client) and `tests/test_run_checks_parity.py` (the script and `ci.yml` run the same checks).
+
+Set up the Python environment once: `python -m venv collector/.venv`, then `collector/.venv/bin/pip install pytest -r collector/requirements.txt` (Windows: `collector\.venv\Scripts\pip`).
 
 ## 1c. What CI runs for which pull request (issue 290, 06-11-2026)
 
@@ -45,8 +59,8 @@ The scope job classifies with the base branch's copy of `ops/ci_scope.py` and fo
 **Other checks in `quick-checks` and `unit-tests`.**
 
 - *SQL parsing.* CI installs `sqlglot`, so `grafana/validate_dashboards.py` parses every dashboard query as PostgreSQL; the step fails if the output does not report the statements parsed. Locally, `pip install sqlglot` before running the validator.
-- *Workflow lint.* `actionlint -shellcheck= .github/workflows/*.yml` checks the workflow files (`pip install actionlint-py`).
-- *Skip count.* After the unit tests, `python ops/check_skips.py JUNIT_XML` counts skipped tests in the pytest `--junitxml` file and fails when the number differs from the expected one. The expected number is `EXPECTED_UNIT_SKIPS` in `ops/check_skips.py`; change it only in a reviewed diff. On Windows pass `--expected N` with the number the script's docstring gives for that platform.
+- *Workflow lint.* The `actionlint` check (section 1) checks the workflow files (`pip install actionlint-py`).
+- *Skip count.* The `unit-skips` check (section 1) fails when the number of skipped unit tests differs from the expected one. Change `EXPECTED_UNIT_SKIPS` in `ops/check_skips.py` only in a reviewed diff.
 - *Dependabot.* Version updates arrive as one grouped pull request per entry in `.github/dependabot.yml`; security updates stay separate.
 
 **Mutation harness (reviewers, on demand).** `tests/tools/mutation` plants one small fault at a time in a copy of the repository and runs the tests to see whether any test fails. CI never runs it. Usage is in `tests/tools/mutation/README.md`: make a throwaway worktree (`git worktree add --detach .worktrees/mut <commit>`), have a CI-like test database ready (section 1b), then `VATPAC_MUT_PORT=<port> VATPAC_MUT_PASSWORD=... python tests/tools/mutation/mutate.py ABCDFW .worktrees/mut out.json <name>`. A full run takes about 90 minutes; `SURV=out.json` re-runs only the survivors.

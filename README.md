@@ -105,12 +105,13 @@ Both files are loaded when the collector starts and reloaded without a restart w
 
 ## Testing and development
 
-On Windows without `make`, run the underlying commands.
+`make` is optional. Every check is defined once in `ops/run_checks.sh`, which CI and `make` both call; on Windows without `make`, run it from Git Bash, for example `sh ops/run_checks.sh all` (or one group: `lint`, `tests`, `repo-checks`, `config`). The runbook [docs/RUNBOOKS/run-tests.md](docs/RUNBOOKS/run-tests.md) lists the checks.
 
 | Command | What it does |
 |---|---|
-| `make test` | Unit tests (no database, no network). Integration tests are skipped without `VATPAC_TEST_DSN`. Slow groups carry the markers `slow_fuzz` and `slow_shell`; skip them locally with `-m "not slow_fuzz and not slow_shell"` (CI runs them) |
-| `make lint` | ruff and mypy on the collector, ruff on `ops/` |
+| `make test` | Unit tests and the skip count (no database, no network). Integration tests are skipped without `VATPAC_TEST_DSN`. Slow groups carry the markers `slow_fuzz` and `slow_shell`; skip them locally with `-m "not slow_fuzz and not slow_shell"` (CI runs them) |
+| `make lint` | ruff and mypy on the collector, ruff and mypy on `ops/`, shell syntax |
+| `make checks` | Every check CI runs that needs no secret or service (`sh ops/run_checks.sh all`) |
 | `make drift` | Collector settings, compose and `.env.example` agree |
 | `make size` | Collector size budget (package under 1800 lines, no module over 300) |
 | `make smoke` | Health checks on a running stack |
