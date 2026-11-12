@@ -41,9 +41,10 @@ def test_can_select_views_and_lookups(ro, name: str) -> None:
 
 def test_can_select_every_view_in_the_schema(conn, ro) -> None:
     """The list is derived from pg_views and pg_matviews, so a view added by a later migration is covered without
-    editing this file (db/roles.sql grants every view)."""
+    editing this file (db/roles.sql grants every view except the ops_* views for the watchdog role, issues 200 and 238: those are
+    refused to grafana_ro, see test_cannot_select_the_ops_views_meant_for_the_watchdog)."""
     names = [r["n"] for r in conn.execute(
-        "SELECT viewname AS n FROM pg_views WHERE schemaname = 'public' "
+        "SELECT viewname AS n FROM pg_views WHERE schemaname = 'public' AND left(viewname, 4) <> 'ops_' "
         "UNION SELECT matviewname FROM pg_matviews WHERE schemaname = 'public' ORDER BY 1").fetchall()]
     assert set(NAMED_VIEWS) <= set(names) and len(names) >= 20, names
     denied = []
@@ -53,6 +54,15 @@ def test_can_select_every_view_in_the_schema(conn, ro) -> None:
         except psycopg.errors.InsufficientPrivilege:
             denied.append(name)
     assert denied == []
+
+
+@pytest.mark.parametrize("name", ["ops_setting", "ops_pending_flight"])
+def test_cannot_select_the_ops_views_meant_for_the_watchdog(conn, ro, name: str) -> None:
+    # the table privilege itself, not only the missing EXECUTE on the wrapper function the view calls
+    granted = conn.execute("SELECT has_table_privilege('grafana_ro', %s, 'SELECT') AS p", (name,)).fetchone()["p"]
+    assert granted is False
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        ro.execute(f"SELECT * FROM {name} LIMIT 1")  # noqa: S608
 
 
 @pytest.mark.parametrize("name", RAW)

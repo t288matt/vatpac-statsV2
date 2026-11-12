@@ -34,6 +34,8 @@ Result = tuple[str, str]
 log = logging.getLogger("watchdog.integrity")
 
 INVARIANTS_KEY, CROSSCHECK_KEY = "data_integrity", "feed_crosscheck"
+QUIET_INVARIANT = "flights quiet longer than the quiet period with unprocessed positions"  # detail: both settings (#200, #238)
+_QUIET_TOKEN = re.compile(r"flight_quiet_hours=\d+(?:\.\d+)? flight_quiet_check_grace_minutes=\d+(?:\.\d+)?")
 RETRY_AFTER_ERROR_S = 3600.0  # a run that could not complete is tried again after an hour
 RECHECK_AFTER_FINDINGS_S = 6 * 3600.0  # a sweep with violations is repeated sooner, so RECOVERED does not wait 3 days
 MAX_NAMES_IN_ALERT = 6
@@ -115,7 +117,10 @@ def summarise_invariants(findings: list[Finding], problems: list[str], total: in
         parts.append(f"and {len(findings) - MAX_NAMES_IN_ALERT} more")
     head = f"{len(findings)} of {total} invariants report violations: " + "; ".join(parts) if findings else ""
     tail = ("; " if findings else "") + "; ".join(problems) if problems else ""
-    return WARN, head + tail + ". Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+    # the setting the quiet-period check used goes with the text, so the plain-language alert quotes it (messages.invariant_words)
+    quiet = next((f.detail for f in findings if f.name == QUIET_INVARIANT and f.detail and _QUIET_TOKEN.fullmatch(f.detail)), None)
+    setting = f" [{quiet}]" if quiet else ""
+    return WARN, head + tail + setting + ". Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
 
 
 # ---------------------------------------------------------------- the archive cross-check
@@ -280,7 +285,10 @@ def run_due(plan: Plan, state: dict[str, Any], now: float | None = None) -> tupl
         if is_due(entry, plan.invariants_interval_s, now):
             new = _guard(entry, now, "invariant sweep", lambda: sweep(plan))
             if new:
-                notices.append(f"WARN {INVARIANTS_KEY}: new violations since the last sweep: {', '.join(new[:MAX_NAMES_IN_ALERT])}")
+                token = _QUIET_TOKEN.search(str(entry.get("detail", ""))) if QUIET_INVARIANT in new else None
+                setting = f" [{token.group(0)}]" if token else ""
+                names = ", ".join(new[:MAX_NAMES_IN_ALERT])
+                notices.append(f"WARN {INVARIANTS_KEY}: new violations since the last sweep: {names}{setting}")
     if plan.crosscheck_interval_s > 0:
         entry = sched.setdefault(CROSSCHECK_KEY, {})
         if is_due(entry, plan.crosscheck_interval_s, now):

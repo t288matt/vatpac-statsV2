@@ -19,7 +19,7 @@ Roles: dumping needs only `backup_ro`. Restores and the restore test must `CREAT
 docker compose exec backup ls -lh /backups
 docker compose exec backup cat /backups/.last_success /backups/.last_restore_test
 ```
-`.last_restore_test` is one line: `<UTC timestamp> OK|FAIL <detail>`. On success `restore-test.sh` prints `OK /backups/<dump> poll_log=<n> pilot_session=<n> flight_summary=<n>` (the owner's run of 13-10-2026 10:07 UTC); `flight_summary` is the table of finished flights (the check also reads dumps made before the phase 5 deploy of 13-10-2026, where that table had another name, so the figure may be absent or the dump older). A dump taken at 10:07 UTC on 13-10-2026, after the phase 4 and 5 deploy, restored and passed with `flight_summary=1797`.
+`.last_restore_test` is one line: `<UTC timestamp> OK|FAIL <detail>`. On success `restore-test.sh` prints `OK /backups/<dump> poll_log=<n> pilot_session=<n> flight_summary=<n>` (the owner's run of 13-10-2026 10:07 UTC); `flight_summary` is the table of finished flights. The check requires it, with its `session_ids` column, and fails with a clear message if it is missing or damaged; it also fails for a dump taken before the phase 5 deploy of 13-10-2026, which is not supported. A dump taken at 10:07 UTC on 13-10-2026, after the phase 4 and 5 deploy, restored and passed with `flight_summary=1797`.
 
 ## Take one now
 ```sh
@@ -50,7 +50,7 @@ These are the options `restore-test.sh` and `restore.sh` use. Never restore into
 2. Requires `RESTORE_CONFIRM` to equal the target database name exactly (not `yes`).
 3. Refuses if any other session is connected to the target (`pg_stat_activity`). Stop the writers first.
 4. If the target exists and has tables, takes a safety dump first: `/backups/<target>_prerestore_<stamp>.prerestore`. It is not counted as a nightly backup and rotates with `BACKUP_RETENTION_DAYS`.
-5. Restores into `<target>_restoring` and runs the same sanity checks as the restore test (`pilot_session`, `poll_log`, non-empty `schema_migrations`). If they fail, the live database is untouched and `<target>_restoring` is dropped.
+5. Restores into `<target>_restoring` and runs the same sanity checks as the restore test (`pilot_session`, `poll_log`, `flight_summary`, non-empty `schema_migrations`). If they fail, the live database is untouched and `<target>_restoring` is dropped.
 6. Swaps with two `ALTER DATABASE ... RENAME`: `<target>` becomes `<target>_old`, then `<target>_restoring` becomes `<target>`. It will not run again while `<target>_old` exists: check it, then drop it.
 
 ## Restore into a scratch database (safe, to inspect data)

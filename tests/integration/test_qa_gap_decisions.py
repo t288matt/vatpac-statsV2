@@ -17,8 +17,9 @@ psycopg = pytest.importorskip("psycopg")
 pytestmark = pytest.mark.integration
 
 
-def test_gap1_the_seed_airborne_cap_is_40_seconds_and_a_missed_poll_counts_that_cap(conn: Any) -> None:
-    """40 s is only the migration SEED (a fresh test database, before a collector has started); live the collector sets 75 s. With the seed, a 60 s gap at 250 kt counts 40 s."""
+def test_gap1_an_airborne_cap_of_40_seconds_is_the_setting_and_a_missed_poll_counts_that_cap(conn: Any) -> None:
+    """The test setup writes 75 s (as the collector does); this test needs a cap BELOW the 60 s gap to show the cap works, so it sets 40 itself. With 40, a 60 s gap at 250 kt counts 40 s."""
+    conn.execute("UPDATE app_setting SET value = '40' WHERE key = 'airborne_gap_cap_seconds'")
     assert conn.execute("SELECT value FROM app_setting WHERE key = 'airborne_gap_cap_seconds'").fetchone()["value"] == "40"
     ts = [BASE, BASE + MIN, BASE + 2 * MIN]                          # two 60 s gaps (a missed 30 s poll)
     mk(conn, 800, ts)

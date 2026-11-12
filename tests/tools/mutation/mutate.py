@@ -88,7 +88,7 @@ sql("F04", "flight writer", WF, "THEN LEAST(extract(epoch FROM lead(p.observed_a
 sql("F05", "flight writer", WF, "ref - f.newest_seen >= quiet", "ref - f.newest_seen > quiet")
 sql("F06", "flight writer", WF, "HAVING ref - min(ps.last_seen) >= quiet", "HAVING ref - min(ps.last_seen) > quiet")
 sql("F07", "flight writer", WF, "UPDATE pilot_session ps SET flown_upto = ps.last_seen", "UPDATE pilot_session ps SET flown_upto = ps.first_seen")
-sql("F08", "flight writer", WF, "'airborne_gap_cap_seconds'), 40)", "'airborne_gap_cap_seconds'), 400)")
+sql("F08", "flight writer", WF, "gap_cap := setting_num('airborne_gap_cap_seconds');", "gap_cap := setting_num('airborne_gap_cap_seconds') * 10;")
 sql("F09", "flight writer", WF, "(sum(c.air_s) / 60.0)::numeric, 2)", "(sum(c.air_s) / 60.0)::numeric, 0)")
 sql("F10", "flight writer", WF, "ref := LEAST(ref, now() + interval '5 minutes');", "ref := GREATEST(ref, now() + interval '5 minutes');")
 # lane 2: throttle, pacing, watchdog (unit tests only; survivors are re-run later against the database)

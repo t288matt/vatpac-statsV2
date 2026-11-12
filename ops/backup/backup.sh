@@ -29,7 +29,7 @@ log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) backup: $*"; }
 take_backup() {
   # Every step is checked explicitly: take_backup is called as `take_backup || ...` in the loop, and bash ignores
   # `set -e` inside a function called that way, so a failing step would otherwise be silently carried past (issue 81).
-  local stamp file tmp
+  local stamp file tmp toc
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
   file="${BACKUP_DIR}/${PGDATABASE}_${stamp}.dump"
   tmp="${file}.partial"
@@ -43,7 +43,8 @@ take_backup() {
   fi
   # A dump that pg_restore cannot list is not a backup: no rename, no success marker, no off-box copy, no rotation.
   rc=0
-  timeout -k 30 "$VALIDATE_TIMEOUT_S" pg_restore -l "$tmp" > /dev/null || rc=$?
+  # The listing is kept (issue 217) and handed to check_content: the same file, not touched in between, so one pg_restore -l serves both.
+  toc="$(timeout -k 30 "$VALIDATE_TIMEOUT_S" pg_restore -l "$tmp")" || rc=$?
   if [ "$rc" -ne 0 ]; then
     rm -f "$tmp"
     log "FAILED validation (pg_restore -l could not read the dump, rc=${rc}); nothing kept, older backups untouched"
@@ -51,7 +52,7 @@ take_backup() {
   fi
   # Readable is not enough: an empty or wrong database also lists fine. Rejected dumps are moved aside, never deleted.
   local why
-  if ! why="$(check_content "$tmp")"; then
+  if ! why="$(check_content "$tmp" "$toc")"; then
     log "FAILED content check: ${why}; dump moved aside to ${file}.rejected, older backups untouched, nothing rotated"
     mv "$tmp" "${file}.rejected" || rm -f "$tmp"
     return 1
@@ -72,10 +73,10 @@ take_backup() {
   return 0
 }
 
-# check_content DUMP : prints the reason and returns 1 when the dump is too small or lacks data for a key table.
+# check_content DUMP TOC : TOC is the output of pg_restore -l on DUMP (already taken by take_backup). Prints the reason and returns 1 when the dump is too small or lacks data for a key table.
 # The previous good dump is the newest *.dump; rejected dumps are named *.rejected and so never count.
 check_content() {
-  local dump="$1" size prev prev_size min toc t
+  local dump="$1" toc="$2" size prev prev_size min t
   size="$(stat -c %s "$dump")"
   prev="$(ls -1t "$BACKUP_DIR"/*.dump 2>/dev/null | head -n 1 || true)"
   if [ -n "$prev" ]; then
@@ -85,7 +86,6 @@ check_content() {
   else
     [ "$size" -ge "$MIN_FIRST_BYTES" ] || { echo "first dump is ${size} bytes, under the minimum ${MIN_FIRST_BYTES}"; return 1; }
   fi
-  toc="$(timeout -k 30 "$VALIDATE_TIMEOUT_S" pg_restore -l "$dump")" || { echo "could not list the dump"; return 1; }
   for t in $KEY_TABLES; do
     # TOC data lines look like "123; 0 16400 TABLE DATA public poll_log owner"; a partitioned table has <name>_<yyyymmdd> entries.
     # A here-string, not a pipe: grep -q exits at the first match and an echo into it would get SIGPIPE (status 141 under pipefail)

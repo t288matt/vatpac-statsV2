@@ -50,12 +50,12 @@ BEGIN
         RETURN 0;
     END IF;
 
-    quiet_h := COALESCE((SELECT value::numeric FROM app_setting WHERE key = 'flight_quiet_hours'), 8);
+    quiet_h := setting_num('flight_quiet_hours');           -- the one reader: raises when the row is missing; no default
     IF quiet_h < 2.5 THEN
         RAISE EXCEPTION 'flight_quiet_hours is % but must be at least 2.5 (the 120 minute join rule needs a longer quiet period); nothing written', quiet_h;
     END IF;
     quiet := make_interval(secs => (quiet_h * 3600)::double precision);
-    gap_cap := COALESCE((SELECT value::numeric FROM app_setting WHERE key = 'airborne_gap_cap_seconds'), 40);
+    gap_cap := setting_num('airborne_gap_cap_seconds');      -- 75 s = 2.5 x the 30 s poll interval; raises when the row is missing
 
     SELECT max(observed_at) INTO ref FROM network_snapshot;
     IF ref IS NULL THEN
