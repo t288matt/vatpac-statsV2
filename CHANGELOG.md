@@ -12,6 +12,10 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 - **One way to read the invariant names.** `ops/deploy.sh --verify` now counts the integrity checks with `python ops/watchdog/integrity.py --names`, the reader the watchdog itself uses, instead of its own pattern, so a check written across two lines is counted the same by both. The output of `--verify` is unchanged. The tests use the same reader.
 - **Watchdog code tidy-up.** No alert wording or behaviour changes. The plain wording and the action for each integrity check sit in one table, and the problem and all-clear wording for each check sit in one table. Two small redundancies in `ops/watchdog/integrity.py` and `ops/watchdog/messages.py` are removed.
 
+## Unused materialised-view refresh removed (12-11-2026, issue 226)
+
+- **Dead code removed.** The database has no materialised views, so the daily maintenance task that refreshed them did nothing. The task, the database function `refresh_materialized_views()` (dropped by migration 20261112000020) and the collector's right to run it are gone. The other daily maintenance tasks are unchanged; the "maintenance finished" log line no longer carries a `views_refreshed` field.
+
 ## Controller chart labels, removed charts and UK-style dates (12-11-2026, issue 353)
 
 - **Controller labels.** On ATC: controllers, "Top 30 service providers (last 30 days)" and "Controllers with the shortest average session (last 30 days)" label each bar `Name (CID, rank)`, like the median-session charts: the latest non-empty name (the CID where there is none) and the controller's highest rating in the period as its rank group. The bars, order, values and limits are unchanged. Ratings other than S1 to I1+ (such as 1 and 6) read Unknown, and a name of only spaces counts as missing on these two charts.

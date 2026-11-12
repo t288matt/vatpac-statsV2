@@ -8,7 +8,7 @@
 --
 -- Safe to re-run (every deploy): it re-applies the grants so objects added by later migrations are
 -- picked up. Roles:
---   grafana_ro  SELECT on views, materialized views and lookup tables only; no base tables, no writes,
+--   grafana_ro  SELECT on views and lookup tables only; no base tables, no writes,
 --               statement timeout, at most 10 connections.
 --   collector   the application role: SELECT, INSERT, UPDATE on the tables the collector writes (DELETE on poll_log only), USAGE on sequences, EXECUTE
 --               on the maintenance functions. No DDL (the partition functions are SECURITY DEFINER), no
@@ -67,15 +67,13 @@ GRANT USAGE ON SCHEMA public TO grafana_ro;
 -- Lookups.
 GRANT SELECT ON controller_rating, facility, pilot_rating, airline, aircraft_type, region_map TO grafana_ro;
 
--- Every view and materialized view in public is intended for Grafana, except the views named ops_* (issues 200, 238): those are
+-- Every view in public is intended for Grafana, except the views named ops_* (issues 200, 238): those are
 -- read-only views for the watchdog role (the watchdog_ro section below grants them to watchdog_ro only).
 DO $$
 DECLARE r record;
 BEGIN
     FOR r IN
         SELECT schemaname, viewname AS name FROM pg_views WHERE schemaname = 'public' AND left(viewname, 4) <> 'ops_'
-        UNION ALL
-        SELECT schemaname, matviewname FROM pg_matviews WHERE schemaname = 'public'
     LOOP
         EXECUTE format('GRANT SELECT ON %I.%I TO grafana_ro', r.schemaname, r.name);
     END LOOP;
@@ -109,14 +107,13 @@ TO collector;
 GRANT DELETE ON poll_log TO collector;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO collector;
 
--- Maintenance functions. The partition functions, the flight writer (write_finished_flights, which fills flight_summary) and the materialized view
--- refresh are SECURITY DEFINER (owner rights), so the collector needs no DDL or table rights for them.
+-- Maintenance functions. The partition functions, the flight writer (write_finished_flights, which fills flight_summary)
+-- are SECURITY DEFINER (owner rights), so the collector needs no DDL or table rights for them.
 -- Not granted: unreconciled_partition_sessions (internal helper).
 GRANT EXECUTE ON FUNCTION
     ensure_pilot_position_partitions(int, date),
     drop_old_pilot_position_partitions(int, date),
-    write_finished_flights(int),
-    refresh_materialized_views()
+    write_finished_flights(int)
 TO collector;
 
 -- ---------------------------------------------------------------------------------------------
