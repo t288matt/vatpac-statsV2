@@ -1,6 +1,6 @@
 # Archived: tests for the one-off v1 history import
 
-Issue 347 (owner decision 12-11-2026). These tests cover `ops/v1_import/` (issue 279, ADR-035: `extract.sh`, `load.sh` and the SQL they join, including the rollback). The import was loaded on 05-11-2026, so they no longer run in CI. None was weakened or edited in meaning; they were moved here and still run on demand.
+These tests cover `ops/v1_import/` (`extract.sh`, `load.sh` and the SQL they join, including the rollback). CI and `pytest tests` do not run them; run them on demand as shown below.
 
 | File | What it covers |
 |---|---|
