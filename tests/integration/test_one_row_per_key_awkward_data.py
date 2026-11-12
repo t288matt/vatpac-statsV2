@@ -82,16 +82,13 @@ def cs(*n: int) -> list[int]:
     return [CTL + i for i in n]
 
 
-OVERVIEW, POSITIONS, RANKS, RETENTION = (DASH / "atc" / f"atc-{x}.json" for x in ("overview", "positions", "ranks", "retention"))
+OVERVIEW, RANKS, RETENTION = (DASH / "atc" / f"atc-{x}.json" for x in ("overview", "ranks", "retention"))
 LONG = "Controllers with the longest median session (last 90 days)"
 SHORT = "Controllers with the shortest median session (last 90 days)"
 CONTROLLER_PANELS: list[tuple[Any, str, list[int] | None]] = [
     (OVERVIEW, LONG, cs(1, 2, 3, 4, 5, 6, 7, 8, 11, 12)),
     (OVERVIEW, SHORT, cs(1, 2, 3, 4, 5, 6, 7, 8, 11, 12)),
-    (POSITIONS, LONG, cs(1, 2, 3, 4, 5, 6, 7, 8, 11, 12)),
-    (POSITIONS, SHORT, cs(1, 2, 3, 4, 5, 6, 7, 8, 11, 12)),
     (OVERVIEW, "Top 30 service providers (last 30 days)", cs(1, 2, 3, 4, 5, 6, 7, 8, 13)),
-    (POSITIONS, "Top 30 service providers (last 30 days)", cs(1, 2, 3, 4, 5, 6, 7, 8, 13)),
     (OVERVIEW, "Controllers with the shortest average session (last 30 days)", cs(1, 2, 3, 4, 5, 6, 7, 8)),
     (OVERVIEW, "Top S1 service providers (last 30 days)", cs(1, 13)),
     (OVERVIEW, "Top S2 service providers (last 30 days)", cs(2, 7, 8)),

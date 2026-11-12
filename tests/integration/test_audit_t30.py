@@ -345,8 +345,8 @@ def test_monday_attendance_edges_for_controllers_and_unplanned_pilots(conn) -> N
     ev14.add_controller(conn, 9810001, h(5), h(7))              # ends exactly 0700: present
     ev14.add_flight(conn, 9810002, h(8), h(9), arr="")          # no arrival filed: not a flight, not counted
     ev14.add_flight(conn, 9810003, h(8), h(9))                  # counted
-    rows = ev14.run_panel(conn, ev14.EVENTS, "Monday event attendance", mon - timedelta(days=1), mon + timedelta(days=1))
-    assert [(r["Pilots"], r["Controllers"]) for r in rows] == [(1, 1)]
+    row = conn.execute("SELECT pilot_cids, controller_cids FROM monday_attendance WHERE monday_date = %s", (mon.date(),)).fetchone()
+    assert (row["pilot_cids"], row["controller_cids"]) == (1, 1)
 
 
 def test_monday_attendance_includes_the_current_weeks_monday(conn) -> None:

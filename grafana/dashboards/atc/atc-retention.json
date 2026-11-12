@@ -528,7 +528,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "-- S1 Cohort Retention (v1 card 173)\nWITH cohort_definition AS (\n    SELECT\n        cid,\n        DATE_TRUNC('month', MIN(session_start_time)) as cohort_month,\n        MIN(session_start_time) as first_session\n    FROM controller_summaries\n    GROUP BY cid\n    HAVING MIN(session_start_time) >= NOW() - INTERVAL '12 months'\n),\ns1_cohorts AS (\n    SELECT cd.*\n    FROM cohort_definition cd\n    WHERE EXISTS (\n        SELECT 1 FROM controller_summaries cs\n        WHERE cs.cid = cd.cid\n          AND cs.session_start_time = cd.first_session\n          AND cs.rating = 2\n    )\n),\ncohort_retention AS (\n    SELECT\n        cd.cohort_month,\n        cd.cid,\n        cd.first_session,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '30 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '25 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '35 days'\n            )\n        ELSE NULL END as active_day_30,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '60 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '55 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '65 days'\n            )\n        ELSE NULL END as active_day_60,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '90 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '85 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '95 days'\n            )\n        ELSE NULL END as active_day_90\n    FROM s1_cohorts cd\n),\ncohort_stats AS (\n    SELECT\n        cohort_month,\n        COUNT(*) as cohort_size,\n        ROUND(SUM(CASE WHEN active_day_30 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_30 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_30,\n        ROUND(SUM(CASE WHEN active_day_60 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_60 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_60,\n        ROUND(SUM(CASE WHEN active_day_90 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_90 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_90\n    FROM cohort_retention\n    GROUP BY cohort_month\n)\nSELECT TO_CHAR(cohort_month, 'YYYY-MM') AS cohort, cohort_size,\n       retention_rate_30 AS \"Day 30 (%)\", retention_rate_60 AS \"Day 60 (%)\", retention_rate_90 AS \"Day 90 (%)\"\nFROM cohort_stats\nORDER BY cohort"
+          "rawSql": "-- S1 Cohort Retention (v1 card 173)\nWITH cohort_definition AS (\n    SELECT\n        cid,\n        DATE_TRUNC('month', MIN(session_start_time)) as cohort_month,\n        MIN(session_start_time) as first_session\n    FROM controller_summaries\n    GROUP BY cid\n    HAVING MIN(session_start_time) >= NOW() - INTERVAL '12 months'\n),\ns1_cohorts AS (\n    SELECT cd.*\n    FROM cohort_definition cd\n    WHERE EXISTS (\n        SELECT 1 FROM controller_summaries cs\n        WHERE cs.cid = cd.cid\n          AND cs.session_start_time = cd.first_session\n          AND cs.rating = 2\n    )\n),\ncohort_retention AS (\n    SELECT\n        cd.cohort_month,\n        cd.cid,\n        cd.first_session,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '30 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '25 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '35 days'\n            )\n        ELSE NULL END as active_day_30,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '60 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '55 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '65 days'\n            )\n        ELSE NULL END as active_day_60,\n        CASE WHEN cd.first_session <= NOW() - INTERVAL '90 days' THEN\n            EXISTS (\n                SELECT 1 FROM controller_summaries cs\n                WHERE cs.cid = cd.cid\n                  AND cs.session_start_time >= cd.first_session + INTERVAL '85 days'\n                  AND cs.session_start_time <= cd.first_session + INTERVAL '95 days'\n            )\n        ELSE NULL END as active_day_90\n    FROM s1_cohorts cd\n),\ncohort_stats AS (\n    SELECT\n        cohort_month,\n        COUNT(*) as cohort_size,\n        ROUND(SUM(CASE WHEN active_day_30 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_30 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_30,\n        ROUND(SUM(CASE WHEN active_day_60 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_60 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_60,\n        ROUND(SUM(CASE WHEN active_day_90 = TRUE THEN 1 ELSE 0 END) * 100.0 /\n              NULLIF(COUNT(CASE WHEN active_day_90 IS NOT NULL THEN 1 END), 0), 1) as retention_rate_90\n    FROM cohort_retention\n    GROUP BY cohort_month\n)\nSELECT TO_CHAR(cohort_month, 'MM-YYYY') AS cohort, cohort_size,\n       retention_rate_30 AS \"Day 30 (%)\", retention_rate_60 AS \"Day 60 (%)\", retention_rate_90 AS \"Day 90 (%)\"\nFROM cohort_stats\nORDER BY cohort_month"
         }
       ],
       "options": {
@@ -606,7 +606,32 @@
             "filterable": false
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "first_session"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:DD-MM-YYYY"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_session"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:DD-MM-YYYY"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -659,7 +684,32 @@
             "filterable": false
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "first_session"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:DD-MM-YYYY"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_session"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:DD-MM-YYYY"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -754,6 +804,30 @@
                 "value": {
                   "type": "pill"
                 }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_active"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:DD-MM-YYYY"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "first_ever_session"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:DD-MM-YYYY"
               }
             ]
           }
