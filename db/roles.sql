@@ -61,12 +61,13 @@ GRANT USAGE ON SCHEMA public TO grafana_ro;
 -- Lookups.
 GRANT SELECT ON controller_rating, facility, pilot_rating, airline, aircraft_type, region_map TO grafana_ro;
 
--- Every view and materialized view in public is intended for Grafana.
+-- Every view and materialized view in public is intended for Grafana, except the views named ops_* (issues 200, 238): those are
+-- read-only views for the watchdog role (ops/migrate/migrate.sh grants them to watchdog_ro only).
 DO $$
 DECLARE r record;
 BEGIN
     FOR r IN
-        SELECT schemaname, viewname AS name FROM pg_views WHERE schemaname = 'public'
+        SELECT schemaname, viewname AS name FROM pg_views WHERE schemaname = 'public' AND left(viewname, 4) <> 'ops_'
         UNION ALL
         SELECT schemaname, matviewname FROM pg_matviews WHERE schemaname = 'public'
     LOOP

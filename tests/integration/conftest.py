@@ -80,6 +80,10 @@ def dsn() -> str:
 
 
 _settings_baseline: dict[str, str] = {}
+# A fresh database has NO airborne_gap_cap_seconds row (migration 20261112000010 removes the stale seed; the collector publishes the real
+# value at every start, 75 s at 30 s polling) and the flight writer raises without it. The tests play the collector's part with this
+# fixed value, so every writer test sees the same number; tests that need another value set it themselves.
+TEST_GAP_CAP = "75"
 
 
 def _restore_app_settings(c) -> None:
@@ -87,6 +91,8 @@ def _restore_app_settings(c) -> None:
     Tests that change a setting would leak it into the next test, so put back exactly what the first test of the
     session found: delete rows that were added, restore values that were changed."""
     if not _settings_baseline:
+        c.execute("INSERT INTO app_setting (key, value) VALUES ('airborne_gap_cap_seconds', %s) "
+                  "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (TEST_GAP_CAP,))
         _settings_baseline.update({r["key"]: r["value"] for r in c.execute("SELECT key, value FROM app_setting").fetchall()})
     c.execute("DELETE FROM app_setting WHERE key <> ALL(%s)", (list(_settings_baseline),))
     for key, value in _settings_baseline.items():

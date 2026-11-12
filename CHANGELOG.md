@@ -11,6 +11,13 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 - **Restore check is stricter.** It now accepts only the current finished-flights layout: `flight_summary` with a `session_ids` column. A dump from before the 13-10-2026 change, or one with a damaged table, fails with a clear message and is not supported.
 - **Backup reads the dump contents once.** The backup lists the dump's table of contents once and reuses it for the content check; the validation gate is unchanged.
 
+## One source for the airborne gap cap and the flight quiet hours (12-11-2026, issues 200 and 238)
+
+- **One setting each.** The airborne gap cap (`airborne_gap_cap_seconds`, 75 s: 2.5 times the 30 s poll interval) and the flight quiet hours (`flight_quiet_hours`, 8) are now read from `app_setting` and nowhere else. No number for either is written in SQL, shell or watchdog code.
+- **A missing setting stops the writer.** If either row is missing or is not a number, the flight writer stops with an error and the watchdog alerts, instead of using a built-in number. The stale 40 s gap cap seed is gone; the collector writes 75 at every start.
+- **Health check and alert wording follow the setting.** The check for flights that are overdue now uses the quiet hours setting plus a new setting, `flight_quiet_check_grace_minutes` (30), instead of a fixed 9 hours. The alert quotes the figure, for example "some flights ended over 8 hours 30 minutes ago and are not yet in the finished-flights table". The check was renamed "flights quiet longer than the quiet period with unprocessed positions".
+- **New read-only objects for the watchdog.** The views `ops_setting` and `ops_pending_flight` and the function `ops_setting_num`, granted to `watchdog_ro` only. Migration `20261112000010`.
+
 ## CTR hours staffed per day (11-11-2026, issue 325)
 
 - **New panel.** "CTR hours staffed per day (last 14 months)" on ATC: controllers, directly below "CTR hours staffed per week": one bar per UTC day showing the hours CTR positions (facility 6) were staffed. Three CTR positions staffed together for one hour count as 3 hours; a session that crosses midnight UTC is split between the two days; a day with no CTR sessions shows 0. No view or migration changes.

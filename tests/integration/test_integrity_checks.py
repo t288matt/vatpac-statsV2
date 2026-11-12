@@ -275,14 +275,14 @@ def test_gaps_of_a_tick_or_two_and_ordinary_restarts_are_not_violations(conn: An
 
 
 @case("pilot sessions with no position (active in last 3 days)",
-      "flights quiet longer than the quiet period plus 1 hour with unprocessed positions")
+      "flights quiet longer than the quiet period with unprocessed positions")
 def _(conn: Any, w: World) -> None:
     old = w.now - timedelta(hours=13)
     conn.execute("INSERT INTO pilot_session (cid, callsign, logon_time, first_seen, last_seen) VALUES (1600, 'OLD1', %s, %s, %s)",
                  (old, old, old))
 
 
-@case("flights quiet longer than the quiet period plus 1 hour with unprocessed positions",
+@case("flights quiet longer than the quiet period with unprocessed positions",
       "pilot sessions with no position (active in last 3 days)")
 def _(conn: Any, w: World) -> None:
     gone = w.ts[0] - timedelta(hours=10)  # ten hours before the newest snapshot, so quiet for longer than 9 h, but not older than 12 h from now
@@ -299,7 +299,7 @@ def _(conn: Any, w: World) -> None:
 
 
 @case("sessions ended more than 2 days ago with unprocessed positions",
-      "flights quiet longer than the quiet period plus 1 hour with unprocessed positions",
+      "flights quiet longer than the quiet period with unprocessed positions",
       "pilot sessions with no position (active in last 3 days)")
 def _(conn: Any, w: World) -> None:
     old = w.ts[0] - timedelta(days=2, hours=1)
@@ -336,7 +336,7 @@ def test_a_processed_session_that_is_in_a_written_flight_does_not_fire_the_gate_
 def test_the_unprocessed_flight_checks_work_per_flight_not_per_pilot(conn: Any, dsn: str) -> None:
     """Owner decision 12-10-2026 (quiet per flight): a pilot with an old finished flight AND a recent different flight is flagged for
     the old one only if it is overdue; a quiet pilot is flagged; a flight kept open by an active reconnect (joined by the v1 rule) is not."""
-    n1 = "flights quiet longer than the quiet period plus 1 hour with unprocessed positions"
+    n1 = "flights quiet longer than the quiet period with unprocessed positions"
     n3 = "sessions ended more than 2 days ago with unprocessed positions"
     w = World(conn)
     ref = w.ts[0]
