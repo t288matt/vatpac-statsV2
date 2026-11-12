@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "tests" / "tools"))
+REPO = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import v1_import_synth as synth  # noqa: E402
 
 BASH = shutil.which("bash")

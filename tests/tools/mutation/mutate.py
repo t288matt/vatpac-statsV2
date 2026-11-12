@@ -23,8 +23,7 @@ PSQL_ARGS = [PSQL, "-h", HOST, "-p", PORT, "-U", USER, "-d", DB]
 UNIT = ["-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "-m", "not integration", "collector/tests", "tests",
         "--ignore=tests/test_deploy_script.py", "--ignore=tests/test_backup_script.py"]
 INT = ["-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "-m", "integration", "tests/integration",
-       "--ignore=tests/integration/test_restore_sanity.py", "--ignore=tests/integration/test_logon_whole_seconds_migration.py",
-       "--deselect=tests/integration/test_v1_history_import.py::test_the_mapping_matches_the_reference_for_every_row_and_the_month_counts"]
+       "--ignore=tests/integration/test_restore_sanity.py", "--ignore=tests/integration/test_logon_whole_seconds_migration.py"]
 WDINT = ["-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "-m", "integration",
          "tests/integration/test_watchdog_flap.py", "tests/integration/test_integrity_checks.py"]
 

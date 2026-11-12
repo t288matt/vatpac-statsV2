@@ -110,12 +110,12 @@ The files hold names and CIDs. When the load is verified or abandoned, delete th
 
 ## Rehearsal (no production)
 
-Use a throwaway Postgres whose database name ends in `_test` ([run-tests.md](run-tests.md)); never a copy of production. Synthetic files, never real rows, come from `tests/tools/v1_import_synth.py`:
+Use a throwaway Postgres whose database name ends in `_test` ([run-tests.md](run-tests.md)); never a copy of production. Synthetic files, never real rows, come from `tests/archive/v1_import/v1_import_synth.py`:
 
 ```sh
-python tests/tools/v1_import_synth.py generate /tmp/v1_synth --full     # the real monthly counts, invented rows
+python tests/archive/v1_import/v1_import_synth.py generate /tmp/v1_synth --full     # the real monthly counts, invented rows
 V1_IMPORT_PSQL="psql -X -q -v ON_ERROR_STOP=1 '$VATPAC_TEST_DSN'" sh ops/v1_import/load.sh --expect-db vatpac_test --data-dir /tmp/v1_synth --apply
-python tests/tools/v1_import_synth.py compare "$VATPAC_TEST_DSN" /tmp/v1_synth     # row by row against the reference mapping
+python tests/archive/v1_import/v1_import_synth.py compare "$VATPAC_TEST_DSN" /tmp/v1_synth     # row by row against the reference mapping
 ```
 
-The automated checks are in `tests/integration/test_v1_history_import.py` and `tests/test_v1_import_extract.py` ([../../tests/README.md](../../tests/README.md)).
+The automated checks are in `tests/archive/v1_import/` (`test_v1_history_import.py`, `test_v1_import_extract.py`, `test_v1_import_default_command.py`). CI does not run them; run them on demand as described in [../../tests/archive/v1_import/README.md](../../tests/archive/v1_import/README.md).

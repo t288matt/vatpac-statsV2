@@ -21,3 +21,8 @@ os.environ.setdefault("DATABASE_URL", "postgresql://unit:unit@localhost:5432/uni
 def pytest_configure(config):  # type: ignore[no-untyped-def]
     config.addinivalue_line("markers", "slow_fuzz: the full fuzz grids (about 20 s); CI runs them, skip locally with -m 'not slow_fuzz'")
     config.addinivalue_line("markers", "slow_shell: many shell processes (ops/deploy.sh harness); skip locally with -m 'not slow_shell'")
+
+
+# Archived tests (issue 347) are run on demand only, by naming the folder: `pytest tests/archive/v1_import`. A folder named on the
+# command line is still collected; this only keeps `pytest tests` and `pytest .` from picking it up.
+collect_ignore = ["archive"]
