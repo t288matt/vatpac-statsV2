@@ -56,10 +56,10 @@
       }
     },
     {
-      "id": 2,
-      "type": "timeseries",
-      "title": "Monday event attendance (0700-1200Z)",
-      "description": "Pilots and controllers present between 0700 and 1200 UTC on each Monday.",
+      "id": 3,
+      "type": "barchart",
+      "title": "Share of YMML-YSSY airborne time flown by local pilots (Mondays 0700-1200Z)",
+      "description": "Share of Melbourne-Sydney airborne time flown by home-region pilots on flights that ended between 0700 and 1200 UTC on a Monday; one bar per Monday (UTC), labelled DD-MM-YYYY.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -78,26 +78,29 @@
           },
           "refId": "A",
           "editorMode": "code",
-          "format": "time_series",
+          "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT win_start AS time, pilot_cids AS \"Pilots\", controller_cids AS \"Controllers\"\nFROM monday_attendance\nWHERE win_start BETWEEN $__timeFrom() AND $__timeTo()\nORDER BY win_start"
+          "rawSql": "SELECT to_char(date_trunc('week', f.end_time AT TIME ZONE 'UTC'), 'DD-MM-YYYY') AS \"Monday (UTC)\",\n       round(100.0 * COALESCE(sum(f.airborne_minutes) FILTER (WHERE f.pilot_is_local), 0)\n             / NULLIF(sum(f.airborne_minutes), 0), 1) AS \"Local pilots (%)\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND extract(isodow FROM f.end_time AT TIME ZONE 'UTC') = 1\n  AND (f.end_time AT TIME ZONE 'UTC')::time >= time '07:00'\n  AND (f.end_time AT TIME ZONE 'UTC')::time < time '12:00'\n  AND ((f.departure = 'YMML' AND f.arrival = 'YSSY') OR (f.departure = 'YSSY' AND f.arrival = 'YMML'))\n  AND f.airborne_minutes > 0\nGROUP BY date_trunc('week', f.end_time AT TIME ZONE 'UTC')\nORDER BY date_trunc('week', f.end_time AT TIME ZONE 'UTC')"
         }
       ],
       "options": {
+        "orientation": "vertical",
+        "xField": "Monday (UTC)",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "showValue": "auto",
+        "stacking": "none",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 0,
         "legend": {
-          "displayMode": "table",
+          "showLegend": false,
+          "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
-          ]
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "fieldConfig": {
@@ -107,139 +110,17 @@
             "fixedColor": "#3AA0DD"
           },
           "decimals": 0,
-          "custom": {
-            "drawStyle": "bars",
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "fillOpacity": 70,
-            "gradientMode": "opacity",
-            "showPoints": "never",
-            "spanNulls": true,
-            "axisPlacement": "left",
-            "axisSoftMin": 0,
-            "axisBorderShow": false,
-            "barAlignment": 0
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Pilots"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#3AA0DD"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Controllers"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#E69F00"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": 3,
-      "type": "timeseries",
-      "title": "Share of YMML-YSSY airborne time flown by local pilots (Mondays 0700-1200Z)",
-      "description": "Weekly share of Melbourne-Sydney airborne time flown by home-region pilots, Mondays 0700 to 1200 UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 14,
-        "w": 24,
-        "h": 9
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "time_series",
-          "rawQuery": true,
-          "rawSql": "SELECT (date_trunc('week', f.end_time AT TIME ZONE 'UTC')) AT TIME ZONE 'UTC' AS time,\n       round(100.0 * COALESCE(sum(f.airborne_minutes) FILTER (WHERE f.pilot_is_local), 0)\n             / NULLIF(sum(f.airborne_minutes), 0), 1) AS \"Local pilots (%)\"\nFROM flight_ext f\nWHERE f.end_time BETWEEN $__timeFrom() AND $__timeTo()\n  AND extract(isodow FROM f.end_time AT TIME ZONE 'UTC') = 1\n  AND (f.end_time AT TIME ZONE 'UTC')::time >= time '07:00'\n  AND (f.end_time AT TIME ZONE 'UTC')::time < time '12:00'\n  AND ((f.departure = 'YMML' AND f.arrival = 'YSSY') OR (f.departure = 'YSSY' AND f.arrival = 'YMML'))\n  AND f.airborne_minutes > 0\nGROUP BY 1\nORDER BY 1"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#3AA0DD"
-          },
-          "decimals": 0,
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "fillOpacity": 28,
-            "gradientMode": "opacity",
-            "showPoints": "never",
-            "spanNulls": true,
-            "axisPlacement": "left",
-            "axisSoftMin": 0,
-            "axisBorderShow": false
-          },
           "unit": "percent",
           "min": 0,
-          "max": 100
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Local pilots (%)"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#3AA0DD"
-                }
-              }
-            ]
+          "max": 100,
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisPlacement": "auto"
           }
-        ]
+        },
+        "overrides": []
       }
     },
     {
@@ -253,7 +134,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 14,
         "w": 24,
         "h": 9
       },
@@ -317,6 +198,87 @@
               {
                 "id": "custom.axisLabel",
                 "value": "Aircraft airborne"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Controllers online during the Monday event window, each Monday (0700-1200Z)",
+      "description": "For each Monday (UTC) in the last 5 years that has any, the number of distinct controllers (CIDs) with a session connected at some moment between 0700 and 1200 UTC. A session that starts before 1200 and ends at or after 0700 counts, however long it spans the window or how short its overlap; a controller with several sessions in the window counts once. Sessions are the merged controller sessions (a reconnect within 5 minutes is one session). Only whitelisted positions are stored. A session appears once it has ended. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 9
+      },
+      "timeFrom": "1825d",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- Each session is expanded to the UTC days it touches; only Mondays are kept, so the query reads the sessions once\nSELECT to_char(m.monday, 'DD-MM-YYYY') AS \"Monday (UTC)\",\n       count(DISTINCT s.cid) AS \"Controllers online\"\nFROM controller_session_ranked s\nCROSS JOIN LATERAL generate_series(date_trunc('day', s.session_start AT TIME ZONE 'UTC'),\n                                   date_trunc('day', s.session_end AT TIME ZONE 'UTC'), interval '1 day') AS d(day)\nCROSS JOIN LATERAL (SELECT d.day::date AS monday,\n                           (d.day::date + time '07:00') AT TIME ZONE 'UTC' AS win_start,\n                           (d.day::date + time '12:00') AT TIME ZONE 'UTC' AS win_end) m\nWHERE s.session_end >= ($__timeFrom())::timestamptz\n  AND s.session_start <= ($__timeTo())::timestamptz\n  AND extract(isodow FROM d.day) = 1\n  AND s.session_start < m.win_end\n  AND s.session_end >= m.win_start\n  AND m.win_start BETWEEN ($__timeFrom())::timestamptz AND ($__timeTo())::timestamptz\nGROUP BY m.monday\nORDER BY m.monday"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "xField": "Monday (UTC)",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "showValue": "auto",
+        "stacking": "none",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Controllers online"
+            },
+            "properties": [
+              {
+                "id": "custom.axisLabel",
+                "value": "Controllers online"
               }
             ]
           }

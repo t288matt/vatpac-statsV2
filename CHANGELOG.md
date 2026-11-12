@@ -6,6 +6,13 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Controller chart labels, removed charts and UK-style dates (12-11-2026, issue 353)
+
+- **Controller labels.** On ATC: controllers, "Top 30 service providers (last 30 days)" and "Controllers with the shortest average session (last 30 days)" label each bar `Name (CID, rank)`, like the median-session charts: the latest non-empty name (the CID where there is none) and the controller's highest rating in the period as its rank group. The bars, order, values and limits are unchanged.
+- **Charts removed.** ATC: positions and controllers no longer has "Top 30 service providers", "Controllers with the longest median session" and "Controllers with the shortest median session" (they stay on ATC: controllers); its layout is repacked. ATC: hours by rank no longer has "Ranks that staffed the latest Monday event".
+- **Events: Monday event.** "Monday event attendance" is replaced by a bar chart, "Controllers online during the Monday event window, each Monday (0700-1200Z)", in the format of the aircraft chart: one bar per Monday, `DD-MM-YYYY` labels, 5-year range, counting distinct controllers connected at some moment between 0700 and 1200. "Share of YMML-YSSY airborne time flown by local pilots" is now a bar chart with one bar per Monday and `DD-MM-YYYY` labels; its window and numbers are unchanged.
+- **UK-style dates everywhere.** Grafana's date formats are set in `docker-compose.yml` (`GF_DATE_FORMATS_*`): `DD-MM-YYYY HH:mm:ss` for full dates, `DD-MM HH:mm`, `DD-MM`, `MM-YYYY` and `YYYY` on axes, 24-hour times. The cohort labels on "S1 new controller retention by cohort" read `MM-YYYY` and the date columns of three controller retention tables read `DD-MM-YYYY`. Applying the Grafana setting needs a Grafana restart.
+
 ## Backup and restore clean-ups (12-11-2026, issues 231 and 217)
 
 - **Restore check is stricter.** It now accepts only the current finished-flights layout: `flight_summary` with a `session_ids` column. A dump from before the 13-10-2026 change, or one with a damaged table, fails with a clear message and is not supported.

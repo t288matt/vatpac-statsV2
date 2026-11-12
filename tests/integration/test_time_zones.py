@@ -91,7 +91,7 @@ def test_card_134_monday_window_and_week_are_read_in_utc(conn, zone) -> None:
            .replace("$__timeFrom()", f"'{(mon - timedelta(days=2)).isoformat()}'::timestamptz")
            .replace("$__timeTo()", f"'{(mon + timedelta(days=3)).isoformat()}'::timestamptz"))
     rows = conn.execute(sql).fetchall()
-    assert [(r["time"], float(r["Local pilots (%)"])) for r in rows] == [(mon, 66.7)]   # (60 + 60) / (60 + 60 + 60)
+    assert [(r["Monday (UTC)"], float(r["Local pilots (%)"])) for r in rows] == [("12-01-2026", 66.7)]   # (60 + 60) / (60 + 60 + 60)
 
 
 # ------------------------------------------------------------------ cards 94 and 95 (U07)

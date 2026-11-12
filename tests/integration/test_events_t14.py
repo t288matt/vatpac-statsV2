@@ -7,8 +7,8 @@ timestamps, and the query is executed. Rules under test:
             hours per UTC week, summed over flights ending in the window.
   card 78   same RAAFv rule; last month; one count per session (v1 de-duplicated on callsign + logon time);
             per-route flights, distinct pilots and shares.
-  card 131  Monday window 0700-1200 UTC; a session counts if it overlaps the window (starts before 1200,
-            ends at or after 0700).
+  card 131  Monday window 0700-1200 UTC; a controller session counts if it overlaps the window (starts before 1200,
+            ends at or after 0700); one bar per Monday, distinct CIDs (issue 353 replaced the attendance chart).
   card 134  YMML-YSSY (either direction) flights ending Monday 0700-1200 UTC; share of airborne minutes flown
             by pilots whose home airfield is in the home region. (v1 still uses 0800.)
   card 133  stays dropped (frequency matching, ADR-002): no panel mentions it.
@@ -107,25 +107,42 @@ def test_raafv_routes_last_month_count_each_session_once(conn) -> None:
     assert [float(r["% of RAAFv pilots"]) for r in rows] == [66.67, 33.33]
 
 
-# ------------------------------------------------------------------ card 131
-def test_monday_attendance_window_0700_to_1200_utc(conn) -> None:
+# ------------------------------------------------------------------ card 131 (controllers per Monday, issue 353)
+CONTROLLERS = "Controllers online during the Monday event window"
+
+
+def test_monday_controllers_chart_counts_distinct_cids_in_the_window_0700_to_1200_utc(conn) -> None:
     mon = monday_utc(2)
-    conn.execute("INSERT INTO network_snapshot (observed_at, pilots_in_region, controllers_in_region, "
-                 "pilots_global, controllers_global) VALUES (%s,0,0,0,0)", (mon,))
+    other = mon - timedelta(days=7)
 
-    def h(x: float) -> datetime:
-        return mon + timedelta(hours=x)
+    def h(x: float, day: datetime = mon) -> datetime:
+        return day + timedelta(hours=x)
 
-    add_flight(conn, 9400021, h(5), h(7.5))             # in: overlaps the start
-    add_flight(conn, 9400022, h(6), h(7))               # in: ends exactly 0700
-    add_flight(conn, 9400023, h(5), h(6.99))            # out: ended before 0700
-    add_flight(conn, 9400024, h(11.5), h(14))           # in: starts before 1200
-    add_flight(conn, 9400025, h(12), h(14))             # out: starts exactly 1200
-    add_controller(conn, 9400026, h(6), h(7.5))         # in
-    add_controller(conn, 9400027, h(12), h(13))         # out
-    rows = run_panel(conn, EVENTS, "Monday event attendance", mon - timedelta(days=1), mon + timedelta(days=1))
-    assert [(r["Pilots"], r["Controllers"]) for r in rows] == [(3, 1)]
-    assert rows[0]["time"] == h(7)
+    add_controller(conn, 9400021, h(5), h(7.5))                  # in: overlaps the start
+    add_controller(conn, 9400022, h(6), h(7))                    # in: ends exactly 0700 (card 131 rule: ends at or after 0700)
+    add_controller(conn, 9400023, h(5), h(6.99))                 # out: ended before 0700
+    add_controller(conn, 9400024, h(11.5), h(14))                # in: starts before 1200
+    add_controller(conn, 9400025, h(12), h(13))                  # out: starts exactly 1200
+    add_controller(conn, 9400026, h(8), h(9))                    # in
+    add_controller(conn, 9400026, h(10), h(11))                  # the same CID twice in the window: counted once
+    add_controller(conn, 9400027, h(-3), h(30))                  # in: spans the whole day and more, counted once, and only on Mondays
+    add_controller(conn, 9400028, h(8, other), h(9, other))      # the Monday before: another bar
+    add_controller(conn, 9400029, h(8) + timedelta(days=1), h(9) + timedelta(days=1))   # Tuesday: out
+    add_flight(conn, 9400030, h(8), h(9))                        # a pilot: not counted here
+    rows = run_panel(conn, EVENTS, CONTROLLERS, other - timedelta(days=1), mon + timedelta(days=2))
+    assert [(r["Monday (UTC)"], r["Controllers online"]) for r in rows] == [
+        (other.strftime("%d-%m-%Y"), 1), (mon.strftime("%d-%m-%Y"), 5)]   # other: 28; mon: 21, 22, 24, 26, 27
+
+
+def test_monday_controllers_chart_has_the_aircraft_chart_format() -> None:
+    aircraft = panel(EVENTS, "Aircraft airborne during the Monday event window")
+    mine = panel(EVENTS, CONTROLLERS)
+    assert mine["type"] == aircraft["type"] == "barchart"
+    assert mine["timeFrom"] == aircraft["timeFrom"] == "1825d"
+    assert mine["options"] == aircraft["options"] and mine["gridPos"]["w"] == aircraft["gridPos"]["w"]
+    assert mine["targets"][0]["format"] == aircraft["targets"][0]["format"] == "table"
+    assert "to_char(m.monday, 'DD-MM-YYYY')" in mine["targets"][0]["rawSql"]
+    assert all(p.get("title") != "Monday event attendance (0700-1200Z)" for p in json.loads(EVENTS.read_text(encoding="utf-8"))["panels"])
 
 
 # ------------------------------------------------------------------ card 134
@@ -144,7 +161,7 @@ def test_local_share_of_ymml_yssy_airborne_time_monday_window(conn) -> None:
     add_flight(conn, 9400037, h(29), h(33), 500, dep="YMML", arr="YSSY", home="EGLL")  # Tuesday: out
     rows = run_panel(conn, EVENTS, "Share of YMML-YSSY", mon - timedelta(days=1), mon + timedelta(days=3))
     assert len(rows) == 1
-    assert rows[0]["time"] == mon
+    assert rows[0]["Monday (UTC)"] == mon.strftime("%d-%m-%Y")
     assert float(rows[0]["Local pilots (%)"]) == 50.0   # (60 + 60) / (60 + 120 + 60)
 
 

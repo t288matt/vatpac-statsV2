@@ -741,59 +741,6 @@
         "w": 24,
         "h": 9
       }
-    },
-    {
-      "type": "table",
-      "title": "Ranks that staffed the latest Monday event (0700-1200Z, current rank)",
-      "description": "Question E10 (new). Definition: per rank, the distinct controllers present at any time between 0700 and 1200 UTC on the most recent Monday whose 0700Z start has passed (before 0700Z on a Monday it shows the Monday before), and the hours they staffed inside that window. The event date is in the last column. A session counts if it overlaps the window. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "WITH mon AS (\n  -- the most recent Monday whose 0700Z start has passed (as the airborne-aircraft panel on the Monday event dashboard)\n  SELECT (date_trunc('day', (now() - interval '7 hours') AT TIME ZONE 'UTC')\n          - (extract(isodow FROM (now() - interval '7 hours') AT TIME ZONE 'UTC')::int - 1) * interval '1 day') AT TIME ZONE 'UTC' AS d\n),\nranks(rank_group, sort) AS (VALUES ('S1', 1), ('S2', 2), ('S3', 3), ('C1', 4), ('C3', 5), ('I1+', 6)),\ncur AS (\n  SELECT cid, rank_group_of((array_agg(rating ORDER BY session_end DESC) FILTER (WHERE rating IS NOT NULL))[1]) AS rank_group\n  FROM controller_session_ranked\n  GROUP BY cid\n),\nev AS (\n  SELECT s.cid, c.rank_group,\n         greatest(extract(epoch FROM least(s.session_end, m.d + interval '12 hours') - greatest(s.session_start, m.d + interval '7 hours')), 0) AS secs\n  FROM mon m JOIN controller_session_ranked s ON s.session_start < m.d + interval '12 hours' AND s.session_end >= m.d + interval '7 hours'\n  JOIN cur c ON c.cid = s.cid\n)\nSELECT r.rank_group AS \"Rank (current)\", count(DISTINCT e.cid) AS \"Controllers present\",\n       round(coalesce(sum(e.secs), 0) / 3600.0, 1) AS \"Hours staffed in the event\",\n       (SELECT to_char(d AT TIME ZONE 'UTC', 'DD-MM-YYYY') FROM mon) AS \"Event date (UTC)\"\nFROM ranks r LEFT JOIN ev e ON e.rank_group = r.rank_group\nGROUP BY r.sort, r.rank_group\nORDER BY r.sort"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "md",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "fields": ""
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          }
-        },
-        "overrides": []
-      },
-      "id": 17,
-      "gridPos": {
-        "x": 0,
-        "y": 54,
-        "w": 24,
-        "h": 9
-      }
     }
   ]
 }

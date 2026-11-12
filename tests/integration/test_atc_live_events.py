@@ -1,9 +1,9 @@
 """Groups D and E of the database-questions catalogue (issue #267, 04-11-2026): two fixed-panel dashboards (group F, Live now and events, was deleted in issue 323).
 
-  atc/atc-positions.json  "ATC: positions and controllers"  (D1 to D9, short address /atc-positions)
-  atc/atc-ranks.json      "ATC: hours by rank"               (E1 to E10, short address /atc-ranks)
+  atc/atc-positions.json  "ATC: positions and controllers"  (D2 to D5, D7 and D9, short address /atc-positions)
+  atc/atc-ranks.json      "ATC: hours by rank"               (E1 to E8, short address /atc-ranks)
 
-New queries under test: D2 to D5 (D6 was removed on 08-11-2026, issue 320) and E2 to E10. Panels copied from existing dashboards (D1, D7 to D9, E1)
+New queries under test: D2 to D5 (D6 was removed on 08-11-2026, issue 320) and E2 to E8. Panels copied from existing dashboards (D7 to D9, E1)
 are checked to be identical to their source panel; their rules are asserted by the tests of the original cards.
 
 Expected numbers are worked out by hand from synthetic sessions and flights, never by the SQL under test. Hours panels are
@@ -53,8 +53,8 @@ def add(conn, cid: int, callsign: str, start: datetime, minutes: int, rating: in
 
 # ------------------------------------------------------------------ the dashboards themselves
 @pytest.mark.parametrize("path,uid,title,questions", [
-    (POSITIONS, "vatpac-atc-positions", "ATC: positions and controllers", [f"D{i}" for i in range(1, 10) if i != 6]),
-    (RANKS, "vatpac-atc-ranks", "ATC: hours by rank", [f"E{i}" for i in range(1, 11) if i != 9]),   # E9 (hours by weekday and UTC hour) was removed on 10-11-2026, issue 326
+    (POSITIONS, "vatpac-atc-positions", "ATC: positions and controllers", ["D2", "D3", "D4", "D5", "D7", "D9"]),   # D1 (top 30 service providers), D6 (issue 320) and D8 (median sessions) are not on this page
+    (RANKS, "vatpac-atc-ranks", "ATC: hours by rank", [f"E{i}" for i in range(1, 9)]),   # E9 (hours by weekday and UTC hour) was removed on 10-11-2026 (issue 326) and E10 (ranks at the latest Monday event) on 12-11-2026 (issue 353)
 ])
 def test_dashboard_has_every_catalogue_question_and_no_inputs(path, uid, title, questions):
     d = json.loads(path.read_text(encoding="utf-8"))
@@ -82,16 +82,13 @@ def test_every_rank_panel_says_it_uses_the_current_rank_and_lists_the_ranks_incl
 def test_new_hours_panels_state_their_window_and_size_in_the_title():
     for path in (POSITIONS, RANKS):
         for p in panels(path):
-            if p.get("description", "").split(" ")[2:3] == ["(new)."] and not p["title"].startswith(("Ranks that staffed", "Whitelisted")):
+            if p.get("description", "").split(" ")[2:3] == ["(new)."] and not p["title"].startswith("Whitelisted"):
                 assert "(last 30 days)" in p["title"] or "(current rank, last 30 days)" in p["title"], p["title"]
 
 
 COPIES = [  # (dashboard, title, source file)
-    (POSITIONS, "Top 30 service providers (last 30 days)", "atc/atc-overview.json"),
     (POSITIONS, "CTR and FSS controllers active (30 days to month end, monthly)", "atc/atc-overview.json"),
     (POSITIONS, "Controllers active (30 days to week end, weekly)", "atc/atc-overview.json"),
-    (POSITIONS, "Controllers with the longest median session (last 90 days)", "atc/atc-overview.json"),
-    (POSITIONS, "Controllers with the shortest median session (last 90 days)", "atc/atc-overview.json"),
     (RANKS, "Controllers logged on (last 30 days)", "atc/atc-overview.json"),
     (RANKS, "Controllers logged on each week, by rating group", "atc/atc-overview.json"),
 ]
@@ -300,52 +297,3 @@ def test_e8_centre_and_fss_hours_by_rank_with_shares_of_all(conn):
     # 5.0 centre and FSS hours in all (3.0 + 1.0 + the observer's 1.0)
     assert got == [("C1", 2.0, 1.0, 3.0, 60.0), ("S3", 1.0, 0.0, 1.0, 20.0), ("S1", 0.0, 0.0, 0.0, 0.0), ("S2", 0.0, 0.0, 0.0, 0.0),
                    ("C3", 0.0, 0.0, 0.0, 0.0), ("I1+", 0.0, 0.0, 0.0, 0.0)]
-
-
-def last_monday(n: datetime) -> datetime:
-    """00:00 UTC on the most recent Monday whose 0700Z start has passed (an independent version of the panel's rule)."""
-    m = n - timedelta(hours=7)
-    return datetime(m.year, m.month, m.day, tzinfo=UTC) - timedelta(days=m.weekday())
-
-
-def test_e10_counts_ranks_present_in_the_latest_monday_window_only(conn):
-    n = now()
-    mon = last_monday(n)
-    add(conn, 1, "T_A_CTR", mon + timedelta(hours=6), 120, rating=C1)             # 06:00 to 08:00: 1.0 h inside the window
-    add(conn, 2, "T_B_TWR", mon + timedelta(hours=11, minutes=30), 90, rating=S2)  # 11:30 to 13:00: 0.5 h inside
-    add(conn, 3, "T_C_TWR", mon + timedelta(hours=5), 119, rating=S1)             # ends 06:59: outside
-    add(conn, 4, "T_D_TWR", mon - timedelta(days=7) + timedelta(hours=8), 120, rating=S3)   # the Monday before: outside
-    add(conn, 5, "T_E_TWR", mon + timedelta(hours=8), 60, rating=OBS)             # an observer: not one of the six ranks
-    add(conn, 1, "T_F_TWR", mon + timedelta(hours=8), 60, rating=C1)              # the same controller on a second position: one controller, 2.0 h
-    rows = rank_rows(conn, "Ranks that staffed the latest Monday event (0700-1200Z, current rank)")
-    assert list(rows) == SIX
-    assert {k: (r["Controllers present"], float(r["Hours staffed in the event"])) for k, r in rows.items()} == {
-        "S1": (0, 0.0), "S2": (1, 0.5), "S3": (0, 0.0), "C1": (1, 2.0), "C3": (0, 0.0), "I1+": (0, 0.0)}
-    assert {r["Event date (UTC)"] for r in rows.values()} == {mon.strftime("%d-%m-%Y")}
-
-
-# ------------------------------------------------------------------ the latest-Monday rule at fixed clock times
-E10 = "Ranks that staffed the latest Monday event (0700-1200Z, current rank)"
-
-
-@pytest.mark.parametrize("offset,event_offset_days", [
-    (timedelta(minutes=-1), -7),                    # Sunday 23:59Z: the Monday before is the latest event
-    (timedelta(hours=6, minutes=59), -7),           # Monday 06:59Z: the event has not started, still last Monday's
-    (timedelta(hours=7), 0),                        # Monday 07:00Z: the new event
-    (timedelta(hours=12), 0),                       # Monday 12:00Z: still that event
-])
-def test_latest_monday_rule_with_a_fixed_clock(conn, offset, event_offset_days):
-    """now() in each panel is replaced by a fixed instant, so reverting the '- interval 7 hours' rule fails without waiting for a Monday."""
-    today = datetime.now(UTC)
-    monday = datetime(today.year, today.month, today.day, tzinfo=UTC) - timedelta(days=today.weekday() + 14)   # a Monday two weeks back
-    clock = monday + offset
-    event = monday + timedelta(days=event_offset_days)
-    conn.execute("INSERT INTO network_snapshot VALUES (%s,1,1,1,1)", (monday - timedelta(days=35),))   # go-live, so monday_attendance lists these Mondays
-
-    def at_clock(path, title):
-        sql = panel(path, title)["targets"][0]["rawSql"]
-        assert "now()" in sql
-        return conn.execute(sql.replace("now()", f"TIMESTAMPTZ '{clock.isoformat()}'")).fetchall()
-
-    want = event.strftime("%d-%m-%Y")
-    assert {r["Event date (UTC)"] for r in at_clock(RANKS, E10)} == {want}

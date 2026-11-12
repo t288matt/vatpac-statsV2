@@ -176,7 +176,7 @@ def test_engagement_index_quadrants_and_risk(conn) -> None:
 
 
 def test_s1_cohort_retention(conn) -> None:
-    label = lambda days: conn.execute("SELECT to_char(date_trunc('month', now() - make_interval(days => %s)), 'YYYY-MM') AS m", (days,)).fetchone()["m"]  # noqa: E731
+    label = lambda days: conn.execute("SELECT to_char(date_trunc('month', now() - make_interval(days => %s)), 'MM-YYYY') AS m", (days,)).fetchone()["m"]  # noqa: E731
     ctrl(conn, 9967001, 100, rating=2)                      # S1 joiner, active again around day 30, 60 and 90
     for extra in (30, 60, 90):
         ctrl(conn, 9967001, 100 - extra, rating=3)
@@ -185,6 +185,7 @@ def test_s1_cohort_retention(conn) -> None:
     ctrl(conn, 9967004, 40, rating=2)                       # younger cohort: only the day 30 figure exists yet
     ctrl(conn, 9967004, 10, rating=3)
     rows = {r["cohort"]: r for r in run(conn, "S1 new controller retention by cohort")}
+    assert list(rows) == [label(100), label(40)]            # labelled MM-YYYY, oldest month first (sorted by the month, not by the text)
     old, young = rows[label(100)], rows[label(40)]
     assert old["cohort_size"] == 2
     assert [float(old[c]) for c in ("Day 30 (%)", "Day 60 (%)", "Day 90 (%)")] == [50.0, 50.0, 50.0]
@@ -295,5 +296,35 @@ def test_shortest_average_session_needs_three_sessions_in_the_window_and_shows_f
     rows = run(conn, "Controllers with the shortest average session (last 30 days)")
     assert len(rows) == 15
     assert [(r["controller"], float(r["Average session (minutes)"])) for r in rows[:3]] == [
-        ("Controller 9969001", 10.3), ("Controller 9969002", 40.0), ("Controller 9969100", 100.0)]
-    assert rows[-1]["controller"] == "Controller 9969112"   # ties are broken by CID; the 14th and 15th of the 100-minute group are cut
+        ("Controller 9969001 (9969001, S2)", 10.3), ("Controller 9969002 (9969002, S2)", 40.0),
+        ("Controller 9969100 (9969100, S2)", 100.0)]
+    assert rows[-1]["controller"] == "Controller 9969112 (9969112, S2)"   # ties are broken by CID; the 14th and 15th of the 100-minute group are cut
+
+
+def _label_rows(conn, title: str) -> dict[int, str]:
+    """Run the two relabelled overview charts and key each label by the CID it names."""
+    rows = run(conn, title)
+    return {int(r["controller"].rsplit("(", 1)[1].split(",")[0]): r["controller"] for r in rows}
+
+
+def _named_ctrl(conn, cid: int, days_ago: float, name: str | None, rating: int | None, minutes: int = 60) -> None:
+    start = (datetime.now(UTC) - timedelta(days=days_ago)).replace(microsecond=0)
+    conn.execute(
+        "INSERT INTO controller_session (cid, callsign, logon_time, name, rating, first_seen, last_seen) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+        (cid, f"LB{cid % 1000:03d}_TWR", start, name, rating, start, start + timedelta(minutes=minutes)))
+
+
+def test_controller_charts_label_bars_name_cid_and_highest_rank_like_the_median_charts(conn) -> None:
+    """Issue 353: "Name (CID, rank)" on the top 30 and the shortest average session charts. The name is the latest non-empty
+    one, the CID stands in for a missing, empty or blank name, and the rank is the highest rating in the window."""
+    for d in (1, 2, 3):
+        _named_ctrl(conn, 9971001, d + 10, "Old Name", 3)                    # three sessions; the name and rating change
+    _named_ctrl(conn, 9971001, 0.5, "Tom", 5)                                # latest name Tom, highest rating C1
+    _named_ctrl(conn, 9971001, 0.2, "", 3)                                   # the latest session has an empty name: Tom stays
+    for cid, name, rating in [(9971002, None, 8), (9971003, "", 4), (9971004, "   ", 2), (9971005, "Ann", None)]:
+        for d in (1, 2, 3):
+            _named_ctrl(conn, cid, d, name, rating)
+    want = {9971001: "Tom (9971001, C1)", 9971002: "9971002 (9971002, I1+)", 9971003: "9971003 (9971003, S3)",
+            9971004: "9971004 (9971004, S1)", 9971005: "Ann (9971005, Unknown)"}
+    for title in ("Top 30 service providers (last 30 days)", "Controllers with the shortest average session (last 30 days)"):
+        assert _label_rows(conn, title) == want, title
