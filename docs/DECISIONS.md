@@ -31,7 +31,7 @@ Raw positions 90 days; sessions and rollups permanent.
 As v1. When dashboards are exposed publicly (Cloudflare later) real names become visible; recommended: Cloudflare Access (login). Owner to check the VATSIM data-use policy before exposure.
 
 ## ADR-010 No REST data API (07-10-2026, amended)
-Only a `/health` endpoint. A `/metrics` endpoint was part of the first design; nothing scraped it, so it was removed (issue #225). Dashboards read the database through a read-only role.
+Only a `/health` endpoint (a first-design `/metrics` endpoint was removed because nothing scraped it). Dashboards read the database through a read-only role.
 
 ## ADR-011 No backfill (07-10-2026)
 Charts start empty at go-live and show "data since <go-live date>".

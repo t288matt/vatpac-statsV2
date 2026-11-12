@@ -144,3 +144,8 @@ def test_expected_objects_exist(conn) -> None:
         "movements", "cohorts", "online_now", "data_freshness",
     ):
         assert name in present, name
+
+
+def test_dropped_views_stay_dropped(conn) -> None:
+    gone = {r["v"] for r in conn.execute("SELECT viewname AS v FROM pg_views WHERE schemaname = 'public'").fetchall()}
+    assert not gone & {"near_miss_controllers", "controller_activity_daily"}

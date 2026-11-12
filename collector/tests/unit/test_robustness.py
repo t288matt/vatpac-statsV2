@@ -14,7 +14,7 @@ import pytest
 from vatpac import main as vmain
 from vatpac.feed import FetchResult
 from vatpac.filters import load_reference
-from vatpac.health import Stats, health_body
+from vatpac.health import Stats, build_app, health_body
 from vatpac.main import Collector
 from vatpac.model import _s, parse_snapshot
 from vatpac.settings import Settings
@@ -48,6 +48,10 @@ def test_healthy_needs_fresh_ok_poll_and_fresh_snapshot() -> None:
     st.last_snapshot_ts, st.last_ok_wall = datetime.fromtimestamp(now - 10, UTC), now - 61
     assert not st.healthy(now)
     assert not Stats(last_ok_wall=now).healthy(now)  # no snapshot stored yet
+
+
+def test_only_health_is_served() -> None:
+    assert {r.resource.canonical for r in build_app(Stats()).router.routes()} == {"/health"}
 
 
 def test_health_body_reports_reload_state() -> None:
