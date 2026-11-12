@@ -50,10 +50,7 @@ ck_pytest_unit() {
   $PY -m pytest -q -m "not integration" tests collector/tests --ignore=tests/.venv --junitxml="$JUNIT"
 }
 # Issue 343: the expected number of skipped tests is kept in ops/check_skips.py; this reads the report the previous check wrote.
-# A Windows machine skips one more test (a POSIX file mode test), so it expects 24 (see ops/check_skips.py).
-ck_unit_skips() {
-  case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) $PY ops/check_skips.py "$JUNIT" --expected 24 ;; *) $PY ops/check_skips.py "$JUNIT" ;; esac
-}
+ck_unit_skips() { $PY ops/check_skips.py "$JUNIT"; }
 ck_config_drift() { $PY ops/check_config_drift.py; }
 # sqlglot is installed in CI, so every dashboard query is parsed as PostgreSQL; the grep fails the step if the validator ever goes
 # back to "sql parsing: skipped". No pipe: the validator's exit status must not be hidden.
