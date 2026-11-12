@@ -96,15 +96,17 @@ def test_q7_a_no_plan_session_is_marked_when_it_is_itself_quiet(conn: Any) -> No
     assert write(conn) == 0 and flown(conn, other) is not None
 
 
-def test_q8_a_missing_setting_defaults_to_8_hours_and_a_non_numeric_one_raises(conn: Any) -> None:
+def test_q8_the_setting_row_is_the_quiet_period_and_a_non_numeric_one_raises(conn: Any) -> None:
+    """Issues 200, 238: there is no default any more (a missing row raises: test_a_missing_flight_quiet_hours_row_stops_the_writer...).
+    With the row at 8 the quiet period is 8 hours of stored data; a non-numeric value still raises."""
     ts = times(BASE, 20)
     mk(conn, 417, ts)
-    conn.execute("DELETE FROM app_setting WHERE key = 'flight_quiet_hours'")
+    conn.execute("INSERT INTO app_setting VALUES ('flight_quiet_hours', '8') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
     snap(conn, ts[-1] + 8 * HOUR - MIN)
     assert write(conn) == 0
     snap(conn, ts[-1] + 8 * HOUR)
     assert write(conn) == 1
-    conn.execute("INSERT INTO app_setting VALUES ('flight_quiet_hours', 'soon')")
+    conn.execute("UPDATE app_setting SET value = 'soon' WHERE key = 'flight_quiet_hours'")
     with pytest.raises(psycopg.errors.Error):
         write(conn)
 

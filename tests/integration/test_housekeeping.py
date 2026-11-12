@@ -7,7 +7,7 @@ from test_controller_retention import add_session
 
 pytestmark = pytest.mark.integration
 
-SEEDED = {"home_icao_prefixes": "Y", "airborne_gap_cap_seconds": "40"}
+SEEDED = {"home_icao_prefixes": "Y", "airborne_gap_cap_seconds": "40"}  # the migration seed for the prefixes; the gap cap row is written by the test setup (conftest TEST_GAP_CAP)
 
 
 def test_a_test_may_change_and_add_settings(conn) -> None:
@@ -17,7 +17,7 @@ def test_a_test_may_change_and_add_settings(conn) -> None:
     conn.execute("INSERT INTO app_setting (key, value) VALUES ('leak_probe', '1')")
 
 
-def test_the_next_test_sees_the_settings_the_migrations_seeded(conn) -> None:
+def test_the_next_test_sees_the_settings_the_test_setup_started_with(conn) -> None:
     got = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM app_setting").fetchall()}
     assert "leak_probe" not in got
     assert {k: got.get(k) for k in SEEDED} == SEEDED

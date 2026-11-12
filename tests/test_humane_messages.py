@@ -169,7 +169,7 @@ def test_each_invariant_produces_a_sentence_from_the_real_summary_text(name: str
     _, detail = integrity.summarise_invariants(findings, [], len(NAMES))
     t = m.humanise("data_integrity", "warn", detail, now=NOW)
     check_shape(t, "data_integrity")
-    assert m.INVARIANT_WORDS[name] in t
+    assert m.invariant_words(name, detail) in t
     assert "data_integrity" in t.splitlines()[-1]
 
 
@@ -406,6 +406,6 @@ def test_the_guard_reads_update_dict_literals_too() -> None:
 
 def test_a_stopped_flight_writer_is_a_same_day_invariant() -> None:
     """Issue 89 phase 5: the old same-day check for missing flight summaries went with the old table; this one replaces it."""
-    name = "flights quiet longer than the quiet period plus 1 hour with unprocessed positions"
+    name = "flights quiet longer than the quiet period with unprocessed positions"
     assert name in m.SAME_DAY_INVARIANTS and name in NAMES
     assert m._by_urgency([NAMES[0], name])[0] == name

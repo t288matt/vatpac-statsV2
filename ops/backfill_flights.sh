@@ -13,26 +13,11 @@ case "$BATCH" in ''|*[!0-9]*) echo "usage: [BATCH=500] backfill_flights.sh  (BAT
 cd "$(dirname "$0")/.."
 # q SQL : run one statement as the owner role through stdin (the SQL holds quotes), print the single value
 q() { printf '%s\n' "$1" | docker compose exec -T db sh -c 'psql -X -q -t -A -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f -' | tr -d '[:space:]'; }
-# Flights (v1 groups of unprocessed sessions) whose own newest last_seen is quiet_hours behind the newest snapshot: the work the writer still has
-# to do. Quiet is per FLIGHT (owner decision 12-10-2026), so a pilot who is flying again in a different flight does not count.
+# Flights (v1 groups of unprocessed sessions) whose own newest last_seen is flight_quiet_hours behind the newest snapshot: the work the writer still has
+# to do. Quiet is per FLIGHT (owner decision 12-10-2026), so a pilot who is flying again in a different flight does not count. The rule and the
+# setting are read from the view ops_pending_flight (migration 20261112000010, issues 200 and 238): no copy of the rule and no number here.
 REMAINING_SQL="$(cat <<'SQL'
-WITH g AS (
-    SELECT s.cid, s.id, s.callsign, s.logon_time, s.first_seen, s.last_seen,
-           NULLIF(upper(btrim(s.departure, E' \t\r\n')), '') AS dep, NULLIF(upper(btrim(s.arrival, E' \t\r\n')), '') AS arr
-    FROM pilot_session s WHERE s.flown_upto IS NULL OR s.last_seen > s.flown_upto),
-  o AS (
-    SELECT g.*, max(g.last_seen) OVER (PARTITION BY g.cid, g.callsign, g.dep, g.arr ORDER BY g.first_seen, g.id
-                                       ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev_end
-    FROM g WHERE g.dep IS NOT NULL AND g.arr IS NOT NULL),
-  c AS (
-    SELECT o.*, sum(CASE WHEN o.prev_end IS NULL OR o.logon_time - o.prev_end > interval '120 minutes' THEN 1 ELSE 0 END)
-                  OVER (PARTITION BY o.cid, o.callsign, o.dep, o.arr ORDER BY o.first_seen, o.id ROWS UNBOUNDED PRECEDING) AS chain
-    FROM o),
-  grp AS (
-    SELECT max(c.last_seen) AS newest, count(*) AS n FROM c GROUP BY c.cid, c.callsign, c.dep, c.arr, c.chain
-    UNION ALL SELECT g.last_seen, 1 FROM g WHERE g.dep IS NULL OR g.arr IS NULL)
-SELECT count(*) FROM grp WHERE grp.newest <= LEAST((SELECT max(observed_at) FROM network_snapshot), now() + interval '5 minutes')
-  - make_interval(secs => (3600 * COALESCE((SELECT value::numeric FROM app_setting WHERE key = 'flight_quiet_hours'), 8))::double precision)
+SELECT count(*) FROM ops_pending_flight WHERE is_quiet
 SQL
 )"
 prev=-1

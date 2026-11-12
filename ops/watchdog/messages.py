@@ -37,7 +37,8 @@ INVARIANT_WORDS: dict[str, str] = {
     "pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)": "one pilot connection may have been stored as two flights",
     "controller session pairs, same cid+callsign, logon_time within 2 s (identity flap)": "one controller connection may have been stored as two sessions",
     "snapshots that created sessions for more than 50% of in-region pilots": "a snapshot started new flights for over half the pilots in our region, as if everyone had reconnected",
-    "flights quiet longer than the quiet period plus 1 hour with unprocessed positions": "some flights ended over nine hours ago and are not yet in the finished-flights table",
+    # {when} is built from the flight_quiet_hours setting the check used (invariant_words below): never a typed number
+    "flights quiet longer than the quiet period with unprocessed positions": "some flights ended {when} and are not yet in the finished-flights table",
     "flights written in the last 3 days whose sample_count differs from the stored positions of their sessions": "a finished flight counts a different number of positions from those stored for it",
     "sessions ended more than 2 days ago with unprocessed positions": "some flights that ended over two days ago are not yet in the finished-flights table",
     "processed flight-plan sessions in no written flight (ended 2 to 30 days ago)": "some flights that ended days ago are marked done but are missing from the finished-flights table",
@@ -69,7 +70,7 @@ INVARIANT_ACTIONS: dict[str, str] = {
     "pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)": _LOGON,
     "controller session pairs, same cid+callsign, logon_time within 2 s (identity flap)": _LOGON,
     "snapshots that created sessions for more than 50% of in-region pilots": _LOGON,
-    "flights quiet longer than the quiet period plus 1 hour with unprocessed positions": _WRITER_STALLED,
+    "flights quiet longer than the quiet period with unprocessed positions": _WRITER_STALLED,
     "flights written in the last 3 days whose sample_count differs from the stored positions of their sessions": _WRITER,
     "sessions ended more than 2 days ago with unprocessed positions": _WRITER,
     "processed flight-plan sessions in no written flight (ended 2 to 30 days ago)": _GATE,
@@ -78,6 +79,20 @@ INVARIANT_ACTIONS: dict[str, str] = {
                                                     "(docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM)."),
     "reference file hashes in poll_log differ from reference_data_change": "An engineer should look (docs/RUNBOOKS/update-reference-files.md on the VM).",
 }
+
+
+_QUIET_HOURS = re.compile(r"flight_quiet_hours=(\d+(?:\.\d+)?)")
+
+
+def invariant_words(name: str, detail: str) -> str:
+    """The plain wording of one invariant. The quiet-period check quotes the flight_quiet_hours setting that the check itself
+    used (the invariant pack reports it as `flight_quiet_hours=N`, integrity.summarise_invariants carries it into the detail);
+    without it the wording says "longer ago than the quiet period" and names no number."""
+    words = INVARIANT_WORDS[name]
+    if "{when}" not in words:
+        return words
+    m = _QUIET_HOURS.search(detail)
+    return words.format(when=f"over {m.group(1)} hours ago" if m else "longer ago than the quiet period")
 
 
 def _clip(text: str, n: int = MAX_TECH) -> str:
@@ -228,7 +243,7 @@ def _integrity_failing_names(detail: str) -> list[str]:
 SAME_DAY_INVARIANTS: tuple[str, ...] = (
     "daily partitions missing for today..today+3",
     "newest snapshot in the future or older than 5 minutes",
-    "flights quiet longer than the quiet period plus 1 hour with unprocessed positions",  # a stopped writer (issue 89 phase 5: the old "rows missing" check went)
+    "flights quiet longer than the quiet period with unprocessed positions",  # a stopped writer (issue 89 phase 5: the old "rows missing" check went)
     "in-region count above global count",
     "positions per snapshot differ from pilots_in_region",
 )
@@ -256,7 +271,7 @@ def _failing_count(detail: str, names: list[str]) -> int:
 def _data_integrity(level: str, detail: str) -> str:
     if detail.startswith("new violations since the last sweep"):
         names = _by_urgency(_integrity_failing_names(detail))
-        what = INVARIANT_WORDS[names[0]] if names else "another rule is now broken"
+        what = invariant_words(names[0], detail) if names else "another rule is now broken"
         more = f" (and {len(names) - 1} more)" if len(names) > 1 else ""
         todo = _several_todo(names) if len(names) > 1 else INVARIANT_ACTIONS[names[0]] if names else f"See {_IG} on the VM."
         return f"The routine data check found a new problem on top of the earlier one: {what}{more}. {todo}"
@@ -266,7 +281,7 @@ def _data_integrity(level: str, detail: str) -> str:
     names = _integrity_failing_names(detail)
     if not names:
         return f"A routine data check found a problem. See {_IG} on the VM for what to do."
-    first = INVARIANT_WORDS[_by_urgency(names)[0]]
+    first = invariant_words(_by_urgency(names)[0], detail)
     others = _failing_count(detail, names) - 1
     more = f" (plus {others} other{'s' if others > 1 else ''})" if others > 0 else ""
     # more than the six names the detail lists can fail: then at least two did, so the several-failed wording applies

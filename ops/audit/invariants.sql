@@ -75,28 +75,14 @@ JOIN network_snapshot n ON n.observed_at = c.first_seen WHERE n.pilots_in_region
 UNION ALL
 -- Issue 89 phase 1: the flight writer (write_finished_flights, table flight_summary). A flight is written once THE FLIGHT has had no
 -- position for the quiet period (owner decision 12-10-2026: quiet per flight, not per pilot). "Quiet" is measured against the
--- newest stored snapshot, as the writer does, never the clock. The flights below are the v1 groups of unprocessed sessions (same
--- cid, callsign, departure, arrival; a session joins when its logon_time is within 120 minutes of the latest earlier last_seen),
--- built from session times (the writer uses position times, which differ by seconds). A session without a plan is its own group.
--- The 9 hours are the default quiet period of 8 hours plus 1; watchdog_ro cannot read app_setting, so if the owner changes
--- flight_quiet_hours this literal must follow (docs/CONFIG_MAP.md).
-SELECT 'flights quiet longer than the quiet period plus 1 hour with unprocessed positions', count(*), NULL FROM (
-WITH g AS (
-    SELECT s.cid, s.id, s.callsign, s.logon_time, s.first_seen, s.last_seen,
-           NULLIF(upper(btrim(s.departure, E' \t\r\n')), '') AS dep, NULLIF(upper(btrim(s.arrival, E' \t\r\n')), '') AS arr
-    FROM pilot_session s WHERE s.flown_upto IS NULL OR s.last_seen > s.flown_upto),
-  o AS (
-    SELECT g.*, max(g.last_seen) OVER (PARTITION BY g.cid, g.callsign, g.dep, g.arr ORDER BY g.first_seen, g.id
-                                       ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev_end
-    FROM g WHERE g.dep IS NOT NULL AND g.arr IS NOT NULL),
-  c AS (
-    SELECT o.*, sum(CASE WHEN o.prev_end IS NULL OR o.logon_time - o.prev_end > interval '120 minutes' THEN 1 ELSE 0 END)
-                  OVER (PARTITION BY o.cid, o.callsign, o.dep, o.arr ORDER BY o.first_seen, o.id ROWS UNBOUNDED PRECEDING) AS chain
-    FROM o),
-  grp AS (
-    SELECT max(c.last_seen) AS newest, count(*) AS n FROM c GROUP BY c.cid, c.callsign, c.dep, c.arr, c.chain
-    UNION ALL SELECT g.last_seen, 1 FROM g WHERE g.dep IS NULL OR g.arr IS NULL)
-  SELECT 1 FROM grp WHERE grp.newest <= (SELECT max(observed_at) FROM network_snapshot) - interval '9 hours') q
+-- newest stored snapshot, as the writer does, never the clock. The flights are the v1 groups of unprocessed sessions, defined ONCE in the
+-- view ops_pending_flight (migration 20261112000010, issues 200 and 238), which reads the setting flight_quiet_hours itself, so no number is
+-- written here and a changed setting is followed. The detail is the setting the check used; the watchdog builds its alert wording from it.
+-- A missing or non-numeric setting row makes this query fail, and the sweep reports that it could not run.
+-- The check fires as soon as the writer's own rule says a flight is due (the old copy added a 1 hour allowance, 9 hours in all).
+SELECT 'flights quiet longer than the quiet period with unprocessed positions', count(*),
+       (SELECT 'flight_quiet_hours=' || trim_scale(s.value)::text FROM ops_setting s WHERE s.key = 'flight_quiet_hours')
+FROM ops_pending_flight WHERE is_quiet
 UNION ALL
 SELECT 'flights written in the last 3 days whose sample_count differs from the stored positions of their sessions', count(*), NULL FROM (
   SELECT f.session_id, f.start_time, f.sample_count,
@@ -107,23 +93,9 @@ WHERE sample_count <> pc
 UNION ALL
 -- Per flight too: sessions of a flight whose newest last_seen is more than 2 days behind the newest snapshot and that is still
 -- unprocessed. A pilot who flew earlier and is online again in a DIFFERENT flight is not counted.
-SELECT 'sessions ended more than 2 days ago with unprocessed positions', count(*), NULL FROM (
-WITH g AS (
-    SELECT s.cid, s.id, s.callsign, s.logon_time, s.first_seen, s.last_seen,
-           NULLIF(upper(btrim(s.departure, E' \t\r\n')), '') AS dep, NULLIF(upper(btrim(s.arrival, E' \t\r\n')), '') AS arr
-    FROM pilot_session s WHERE s.flown_upto IS NULL OR s.last_seen > s.flown_upto),
-  o AS (
-    SELECT g.*, max(g.last_seen) OVER (PARTITION BY g.cid, g.callsign, g.dep, g.arr ORDER BY g.first_seen, g.id
-                                       ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev_end
-    FROM g WHERE g.dep IS NOT NULL AND g.arr IS NOT NULL),
-  c AS (
-    SELECT o.*, sum(CASE WHEN o.prev_end IS NULL OR o.logon_time - o.prev_end > interval '120 minutes' THEN 1 ELSE 0 END)
-                  OVER (PARTITION BY o.cid, o.callsign, o.dep, o.arr ORDER BY o.first_seen, o.id ROWS UNBOUNDED PRECEDING) AS chain
-    FROM o),
-  grp AS (
-    SELECT max(c.last_seen) AS newest, count(*) AS n FROM c GROUP BY c.cid, c.callsign, c.dep, c.arr, c.chain
-    UNION ALL SELECT g.last_seen, 1 FROM g WHERE g.dep IS NULL OR g.arr IS NULL)
-  SELECT generate_series(1, grp.n) FROM grp WHERE grp.newest < (SELECT max(observed_at) FROM network_snapshot) - interval '2 days') q
+SELECT 'sessions ended more than 2 days ago with unprocessed positions', count(*), NULL
+FROM ops_pending_flight p CROSS JOIN LATERAL generate_series(1, p.session_count) AS n(i)
+WHERE p.newest_seen < (SELECT max(observed_at) FROM network_snapshot) - interval '2 days'
 UNION ALL
 -- Issue 89 phase 4: the raw-position drop gate (drop_old_pilot_position_partitions) keeps a day when a position is processed but lies in
 -- no written flight. This is the same condition seen from the session side, so the owner hears of it long before a partition is

@@ -5,7 +5,9 @@
 #     psql variables grafana_ro_password, collector_password, backup_password)
 #   - watchdog_ro : created here (pg_monitor + SELECT on the few tables the watchdog reads; the two session tables are
 #     for the identity-flap check, and pilot_position, flight_summary (the finished flights) and reference_data_change are for the scheduled
-#     invariant sweep and archive cross-check, ops/audit/invariants.sql, issue 20)
+#     invariant sweep and archive cross-check, ops/audit/invariants.sql, issue 20; the two read-only views ops_setting and
+#     ops_pending_flight and the function ops_setting_num behind them, which show the flight settings and the pending-flight rule without a right on
+#     app_setting, issues 200 and 238)
 # This job is the only place the owner/superuser password is used for schema work.
 # Passwords never leave this container's environment and are not echoed.
 set -eu
@@ -36,8 +38,13 @@ GRANT USAGE ON SCHEMA public TO watchdog_ro;
 GRANT pg_monitor TO watchdog_ro;
 SELECT format('GRANT SELECT ON %I TO watchdog_ro', t)
   FROM unnest(ARRAY['poll_log', 'network_snapshot', 'controller_unlisted_sighting', 'pilot_session', 'controller_session',
-                'pilot_position', 'flight_summary', 'drop_gate_refusal', 'reference_data_change']) AS t
+                'pilot_position', 'flight_summary', 'drop_gate_refusal', 'reference_data_change', 'ops_setting', 'ops_pending_flight']) AS t
  WHERE to_regclass('public.' || t) IS NOT NULL \gexec
+-- a view calls its functions with the rights of the role that queries it, so the two ops_* views need this one function (it answers for the
+-- two flight settings only and refuses any other key; setting_num itself stays with the owner)
+SELECT format('GRANT EXECUTE ON FUNCTION %s TO watchdog_ro', f)
+  FROM unnest(ARRAY['ops_setting_num(text)']) AS f
+ WHERE to_regprocedure('public.' || f) IS NOT NULL \gexec
 COMMIT;
 SQL
 
