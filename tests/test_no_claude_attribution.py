@@ -60,8 +60,10 @@ def test_script_fails_on_a_dirty_commit_and_on_the_pr_text_and_passes_when_clean
 
 def test_ci_runs_the_check_in_every_scope_and_ci_result_waits_for_it() -> None:
     ci = yaml.safe_load((REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
-    job = ci["jobs"]["commit-attribution"]
-    assert "if" not in job and "needs" not in job          # runs for every scope, even if scope fails
-    assert "ops/check_no_claude_attribution.py" in str(job["steps"])
+    job = ci["jobs"]["quick-checks"]   # the check is a step of quick-checks since issue 340
+    step = next(st for st in job["steps"] if str(st.get("name", "")).startswith("commit-attribution"))
+    assert job["if"].replace(" ", "") == "${{!cancelled()}}"   # no scope condition: every scope, even if scope fails
+    assert "scope" not in step["if"]                            # nor on the step
+    assert "ops/check_no_claude_attribution.py" in step["run"]
     assert all("github.event.pull_request" not in st.get("run", "") for st in job["steps"])   # PR text goes through env only
-    assert "commit-attribution" in ci["jobs"]["ci-result"]["needs"]
+    assert "quick-checks" in ci["jobs"]["ci-result"]["needs"]

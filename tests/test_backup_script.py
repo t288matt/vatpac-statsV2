@@ -186,3 +186,12 @@ def test_a_rejected_dump_is_never_counted_as_good(tmp_path: Path) -> None:
     r, backups = _run(tmp_path, "good", old=2, BACKUP_MIN_KEEP="3")
     assert r.returncode == 0, r.stdout
     assert len(list(backups.glob("*.dump"))) == 3, "the two old good dumps must survive: only 3 good dumps exist"
+
+
+def test_a_dump_of_exactly_half_the_previous_size_is_kept_and_one_byte_less_is_rejected(tmp_path: Path) -> None:
+    """Issue 342, mutant W14 (`-gt` instead of `-ge`): the new dump is 9 bytes. A previous dump of 18 bytes makes the minimum
+    (50 percent) exactly 9, which is enough; one of 20 bytes makes it 10, which is not."""
+    r, backups = _run(tmp_path / "equal", "good", old_pad=10)
+    assert r.returncode == 0 and len(_new_dumps(backups)) == 1, r.stdout + r.stderr
+    r, backups = _run(tmp_path / "under", "good", old_pad=12)
+    assert r.returncode != 0 and "under 50%" in r.stdout and not _new_dumps(backups)

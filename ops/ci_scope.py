@@ -2,7 +2,7 @@
 """Tiered CI (issue 290): decide how much of the suite a pull request needs, and check that it all reported.
 
 Three scopes, in order of cost:
-  docs        only prose changed: the secret scan is the whole check.
+  docs        only prose changed: the secret scan and the attribution check are the whole check.
   dashboards  only dashboard JSON (and the tests and chart table that describe it) changed: validators, the dashboard
               tests, and the dashboard SQL tests against the real views.
   full        anything else, anything unknown, any mix, an empty or unreadable change list: the whole suite.
@@ -48,7 +48,7 @@ INTEGRATION_TARGETS = tuple(
         "test_flight_views_switch", "test_military_events_t15", "test_online_hours", "test_panel_rules_gaps",
         "test_phase5_remove_old", "test_pilot_latest_one_row_per_flight", "test_pilots_people_t15", "test_pilots_records",
         "test_pilots_t14", "test_routes_aircraft",
-        "test_time_zones",
+        "test_time_zones", "test_one_row_per_key_awkward_data",
     )
 )
 
@@ -57,10 +57,13 @@ FULL_DOCS_DIRS = ("docs/RUNBOOKS/", "docs/reference/")
 FULL_DOCS_FILES = ("docs/DATA_DICTIONARY.md", "docs/DEFINITIONS.md", "docs/CONFIG_MAP.md", "SPEC.md")
 DASHBOARD_DOCS = ("docs/CHART_DEFINITIONS.md",)  # test_chart_definitions_tests.py reads it against the dashboards
 
-# Jobs of ci.yml. The dashboards scope needs these; full needs all of them; docs needs the secret scan and the attribution check only.
-DOCS_JOBS = ("scope", "secret-scan", "commit-attribution")
-DASHBOARD_JOBS = (*DOCS_JOBS, "config-drift", "dashboards", "size-budget", "unit-tests", "integration-tests")
-FULL_JOBS = (*DASHBOARD_JOBS, "lint", "compose-config", "image-build")
+# Jobs of ci.yml. The dashboards scope needs these; full needs all of them; docs needs the scope job and quick-checks only.
+# quick-checks holds the small checks as steps (issue 340): the secret scan and the attribution check in every scope, config
+# drift, the dashboard validators and the size budget when not docs, the compose checks in full only. Those step conditions are
+# held by tests/test_ci_scope.py. Lint is a set of steps of unit-tests (full only).
+DOCS_JOBS = ("scope", "quick-checks")
+DASHBOARD_JOBS = (*DOCS_JOBS, "unit-tests", "integration-tests")
+FULL_JOBS = (*DASHBOARD_JOBS, "image-build")
 NEEDED = {DOCS: DOCS_JOBS, DASHBOARDS: DASHBOARD_JOBS, FULL: FULL_JOBS}
 
 
