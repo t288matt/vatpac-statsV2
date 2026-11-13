@@ -143,3 +143,13 @@ def refdata():
         load_polygon(REPO / "config" / "australian_airspace_polygon.json"),
         load_whitelist(REPO / "config" / "controller_callsigns_list.txt"),
     )
+
+
+@pytest.fixture(autouse=True)
+def _no_demoted_pilots_between_tests() -> Iterator[None]:
+    """maintenance.DEMOTED (pilots the 5-minute flight job leaves out after a timeout) lives in the process: start and end every test empty."""
+    from vatpac import maintenance
+
+    maintenance.DEMOTED.clear()
+    yield
+    maintenance.DEMOTED.clear()
