@@ -1,6 +1,6 @@
 """Issue #89 phase 4 (#140): the raw-position drop gate reconciles against WRITTEN flights.
 
-Migration db/migrations/20261013000210_drop_gate_reconciles_flights.sql. A daily partition of pilot_position may be dropped only when, for
+Migrations db/migrations/20261013000210_drop_gate_reconciles_flights.sql and 20261113000190_drop_gate_first_droppable_day.sql (issue 202). A daily partition of pilot_position may be dropped only when, for
 every session with positions in it, (1) the flight writer has processed them (flown_upto), (2) a written flight covers them if
 the session has a flight plan, and (3) each flight wholly inside the day has the right sample_count. Anything else keeps the
 partition (fail safe) with a NOTICE that starts "DROP REFUSED".
@@ -217,7 +217,8 @@ def test_a_returning_session_keeps_only_the_partitions_with_its_new_positions(co
     seen = notices(conn)
     assert call(conn) == 1                                         # day 200 goes
     assert not exists(conn, 200) and exists(conn, 199)
-    assert refused(seen, 199) and not refused(seen, 200)
+    assert not refused(seen, 200)                                  # 199 is not read in the call that drops 200 (issue 202)
+    assert call(conn) == 0 and refused(seen, 199)                  # the next call finds it unprocessed
     assert process_flights(conn) == 1                              # the returning part is a new flight
     assert call(conn) == 1 and not exists(conn, 199)
 
@@ -360,7 +361,7 @@ def test_the_reconciliation_is_not_granted_to_anyone(conn) -> None:
 
 def test_a_busy_day_is_reconciled_in_a_few_seconds(conn) -> None:
     """Set-based, not a probe per position: 60 sessions of 1,500 positions each (90,000 positions, about one live day at
-    this scale of traffic) must reconcile in seconds, twice per call (steps 1 and 2) and ten times per call at most."""
+    this scale of traffic) must reconcile in seconds (once in the scan and once under the lock per call)."""
     start = day(200, 0)
     sids = []
     for i in range(60):
@@ -543,3 +544,50 @@ def test_three_due_reconciled_days_are_dropped_one_per_call(conn) -> None:
     assert call(conn) == 1 and not exists(conn, 201) and exists(conn, 200)
     assert call(conn) == 1 and not exists(conn, 200)
     assert call(conn) == 0
+
+
+def _break_flight(conn, sid: int) -> None:
+    conn.execute("DELETE FROM flight_summary WHERE %s = ANY (session_ids)", (sid,))
+
+
+def test_refused_days_at_the_head_do_not_block_a_newer_due_day(conn) -> None:
+    """Issue 202 (the line in issue 153 saying three refused days block newer ones is wrong): five refused days come first and the newer
+    reconciled day is still dropped in the same call; every refused day is on record for the watchdog."""
+    bad = [mk(conn, 9892000 + k, mins(day(210 - k), 10)) for k in range(5)]        # days 210..206, all refused
+    mk(conn, 9892100, mins(day(200), 10))                                          # the good, newer day
+    process_flights(conn)
+    for sid in bad:
+        _break_flight(conn, sid)
+    seen = notices(conn)
+    assert call(conn) == 1 and not exists(conn, 200)
+    assert all(exists(conn, 210 - k) and refused(seen, 210 - k) for k in range(5))
+    rows = {r["part_name"] for r in conn.execute("SELECT part_name FROM drop_gate_refusal").fetchall()}
+    assert rows == {pname(210 - k) for k in range(5)}
+
+
+def test_a_call_stops_reading_at_the_first_droppable_day(conn) -> None:
+    """Issue 202: after the first droppable day is found no later day is reconciled in that call (no repeat work, no later refusal)."""
+    mk(conn, 9892200, mins(day(202), 10))
+    later = mk(conn, 9892201, mins(day(201), 10))
+    process_flights(conn)
+    _break_flight(conn, later)
+    seen = notices(conn)
+    assert call(conn) == 1 and not exists(conn, 202)
+    assert not refused(seen, 201)                                                  # not read in this call
+    assert call(conn) == 0 and exists(conn, 201) and refused(seen, 201)            # read, and refused, in the next
+
+
+def test_the_gate_has_no_unlocked_second_check_or_candidate_cap(conn) -> None:
+    body = conn.execute("SELECT prosrc FROM pg_proc WHERE proname = %s", (FN,)).fetchone()["prosrc"]
+    assert "max_per_call" not in body and "re-check each candidate" not in body
+    assert body.count("unreconciled_partition_sessions(") == 2                     # the scan and the check under the lock only
+
+
+def test_a_pinned_day_is_found_by_the_recent_session_and_a_session_seen_before_the_cutoff_does_not_pin(conn) -> None:
+    old = mk(conn, 9892300, mins(day(150), 10))                                    # last_seen 150 days ago: not inside 90 days
+    mk(conn, 9892301, mins(day(150, 13), 10))
+    conn.execute("UPDATE pilot_session SET last_seen = %s WHERE id = (SELECT max(id) FROM pilot_session)", (day(5),))
+    process_flights(conn)
+    assert old and call(conn) == 0 and exists(conn, 150)                           # pinned by the second session, not dropped
+    conn.execute("UPDATE pilot_session SET last_seen = %s WHERE cid = 9892301", (day(150, 13),))
+    assert call(conn) == 1 and not exists(conn, 150)
