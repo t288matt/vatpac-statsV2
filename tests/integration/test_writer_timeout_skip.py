@@ -115,3 +115,22 @@ def test_the_collectors_call_does_not_leave_the_setting_on_the_connection(conn: 
     assert refresh_flights(conn, batch=4) == 3
     assert conn.execute("SELECT current_setting('vatpac.flight_writer_skip', true) AS v").fetchone()["v"] in (None, "")
     assert refresh_flights(conn, batch=4, guarded=False) == 1 and cids(conn) == [SLOW, 5002, 5003, 5004]
+
+
+def test_a_timeout_in_a_later_round_does_not_demote_a_pilot_who_already_finished(conn: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The last pick notice can name a pilot of an earlier round (the cancel hit a later pick). With a batch over 1 that is never blamed:
+    the batch is narrowed to one first. Fails when a single named pilot is demoted at any batch size."""
+    from vatpac import maintenance
+
+    calls: list[int] = []
+
+    def fake(_conn: Any, batch: int, skip: set[int], picked: list[list[int]]) -> int:
+        calls.append(batch)
+        if batch > 1:
+            picked.append([7])
+            raise psycopg.errors.QueryCanceled("timeout")
+        return 3
+
+    monkeypatch.setattr(maintenance, "_write_flights", fake)
+    assert maintenance.refresh_flights(conn, batch=50) == 3
+    assert calls == [50, 1] and 7 not in maintenance.DEMOTED

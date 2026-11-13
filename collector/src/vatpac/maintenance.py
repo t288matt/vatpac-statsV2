@@ -110,7 +110,7 @@ def refresh_flights(conn: psycopg.Connection[Any], batch: int = FLIGHT_WRITE_BAT
     for FLIGHT_SKIP_S. The daily maintenance (``guarded=False``, 15 minute timeout) still tries every pilot and
     clears the list once it succeeds."""
     start, now = batch, time.monotonic()
-    skip = {c for c, until in DEMOTED.items() if until > now} if guarded else set()
+    skip = {c for c, until in list(DEMOTED.items()) if until > now} if guarded else set()
     for _ in range(MAX_FLIGHT_ATTEMPTS if guarded else 1):
         picked: list[list[int]] = []
         try:
@@ -121,12 +121,12 @@ def refresh_flights(conn: psycopg.Connection[Any], batch: int = FLIGHT_WRITE_BAT
         except psycopg.errors.QueryCanceled:
             conn.rollback()  # a no-op in autocommit; frees an open transaction otherwise
             last = picked[-1] if picked else []
-            if len(last) == 1 and last[0] not in skip:
+            if batch == 1 and len(last) == 1 and last[0] not in skip:  # only a batch of one names the culprit
                 DEMOTED[last[0]] = time.monotonic() + FLIGHT_SKIP_S
                 skip.add(last[0])
                 batch = start
                 log.warning("write_finished_flights cancelled for one pilot; skipped for now", extra={"cid": last[0]})
-            elif len(last) > 1:
+            elif last and batch > 1:  # the last round named may be one that finished: narrow down, never blame
                 batch = max(1, min(batch, len(last)) // 2)
                 log.warning("write_finished_flights cancelled (timeout?); fewer pilots", extra={"batch": batch})
             else:
