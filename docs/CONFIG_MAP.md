@@ -31,7 +31,7 @@ services:
       BACKUP_RETENTION_DAYS: 7
 ```
 
-Run `docker compose up -d backup`, open the pull request that changes the literal, and delete the override file once that change is deployed: a forgotten override silently beats the repository. After a key moves, delete its line from the machine's `.env` (a leftover line is ignored, but it misleads the next reader). `POLL_LOG_RETENTION_DAYS` (400) is a constant in `collector/src/vatpac/maintenance.py`, not a setting.
+Run `docker compose up -d backup`, open the pull request that changes the literal, and delete the override file once that change is deployed: a forgotten override silently beats the repository. After a key moves, delete its line from the machine's `.env` (a leftover line is ignored, but it misleads the next reader). `POLL_LOG_RETENTION_DAYS` (90) is a constant in `collector/src/vatpac/maintenance.py`, not a setting.
 
 ## Part A: v3 variables
 

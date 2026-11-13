@@ -6,6 +6,11 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## The poll log keeps 90 days and the recent errors panel follows the time range (13-11-2026, issue 240)
+
+- **Smaller log.** `poll_log` is now trimmed to 90 days instead of 400, which cuts it (and every nightly dump) from about 320 MB to about 70 MB at the cap. The first daily maintenance run after the deploy removes the older rows. The health panels look back 24 hours, and the audit checks read the last day.
+- **Recent poll errors.** The panel now shows the 20 newest error polls inside the dashboard time range (24 hours by default) instead of searching the whole log, so an empty panel is normal on a healthy system: it means no errors in the selected range (the last 24 hours by default). No other panel changed.
+
 ## The partition drop gate does one pass and drops the first safe day (13-11-2026, issue 202)
 
 - **Less repeated work.** The gate used to check each due day up to three times and drop only one. It now reads the due days once, oldest first, re-checks the day under its lock and drops the first one that passes. A day that is pinned, refused or busy is passed over, as before. Which days are dropped, the refusal rows and the one-drop-per-call limit are unchanged. Migration `20261113000190`.
