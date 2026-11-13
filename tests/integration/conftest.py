@@ -10,11 +10,9 @@ database name must end in "_test" unless VATPAC_TEST_ALLOW_TRUNCATE=1.
 """
 from __future__ import annotations
 
-import copy
 import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator
 

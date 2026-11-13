@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 psycopg = pytest.importorskip("psycopg")
-import psycopg.rows  # noqa: E402
+import psycopg.rows  # noqa: E402, F811  (binds the submodule; the importorskip above is the guard)
 pytestmark = pytest.mark.integration
 
 REPO = Path(__file__).resolve().parents[2]
