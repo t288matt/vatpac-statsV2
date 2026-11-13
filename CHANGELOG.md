@@ -9,7 +9,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 ## The poll log keeps 90 days and the recent errors panel follows the time range (13-11-2026, issue 240)
 
 - **Smaller log.** `poll_log` is now trimmed to 90 days instead of 400, which cuts it (and every nightly dump) from about 320 MB to about 70 MB at the cap. The first daily maintenance run after the deploy removes the older rows. The health panels look back 24 hours, and the audit checks read the last day.
-- **Recent poll errors.** The panel now shows the 20 newest error polls inside the dashboard time range (24 hours by default) instead of searching the whole log, so it shows nothing when there were no errors in the range. No other panel changed.
+- **Recent poll errors.** The panel now shows the 20 newest error polls inside the dashboard time range (24 hours by default) instead of searching the whole log, so an empty panel is normal on a healthy system: it means no errors in the selected range (the last 24 hours by default). No other panel changed.
 
 ## The partition drop gate does one pass and drops the first safe day (13-11-2026, issue 202)
 
