@@ -10,6 +10,11 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 - **One carrier.** The `migrate` container no longer mounts `./db` over the migrations and `db/roles.sql` baked into its image. The migrations that run are the ones the image was built with, in registry mode and in local-build mode, so code and migrations always come from the same commit. In local-build mode `make up` rebuilds the image; after editing a migration and using plain `docker compose up -d`, run `docker compose build migrate` first. The migrations and the database are unchanged.
 
+## The poll log keeps 90 days and the recent errors panel follows the time range (13-11-2026, issue 240)
+
+- **Smaller log.** `poll_log` is now trimmed to 90 days instead of 400, which cuts it (and every nightly dump) from about 320 MB to about 70 MB at the cap. The first daily maintenance run after the deploy removes the older rows. The health panels look back 24 hours, and the audit checks read the last day.
+- **Recent poll errors.** The panel now shows the 20 newest error polls inside the dashboard time range (24 hours by default) instead of searching the whole log, so an empty panel is normal on a healthy system: it means no errors in the selected range (the last 24 hours by default). No other panel changed.
+
 ## The partition drop gate does one pass and drops the first safe day (13-11-2026, issue 202)
 
 - **Less repeated work.** The gate used to check each due day up to three times and drop only one. It now reads the due days once, oldest first, re-checks the day under its lock and drops the first one that passes. A day that is pinned, refused or busy is passed over, as before. Which days are dropped, the refusal rows and the one-drop-per-call limit are unchanged. Migration `20261113000190`.

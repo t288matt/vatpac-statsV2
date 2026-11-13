@@ -265,9 +265,18 @@ def test_recent_poll_errors_newest_first_at_most_twenty(conn) -> None:
         conn.execute("INSERT INTO poll_log (status, polled_at, http_status, duration_ms, error) VALUES ('error',%s,503,%s,%s)",
                      (now - timedelta(minutes=i), 10 + i, f"boom {i}"))
     conn.execute("INSERT INTO poll_log (status, polled_at) VALUES ('ok', %s)", (now,))
+    conn.execute("INSERT INTO poll_log (status, polled_at, http_status, duration_ms, error) VALUES ('error',%s,503,5,'boom old')",
+                 (now - timedelta(days=40),))
     rows = run(conn, "Recent poll errors")
     assert len(rows) == 20 and rows[0]["error"] == "boom 0" and rows[-1]["error"] == "boom 19"
     assert rows[0]["http_status"] == 503 and rows[0]["duration_ms"] == 10
+    # the panel follows the dashboard time range: an error 40 days old is outside a 24 hour range
+    narrow = run(conn, "Recent poll errors", start=now - timedelta(hours=24))
+    assert "boom old" not in [r["error"] for r in narrow] and len(narrow) == 20
+    wide = run(conn, "Recent poll errors", start=now - timedelta(days=60))
+    assert len(wide) == 20 and "boom old" not in [r["error"] for r in wide]    # newest 20 still win
+    only_old = run(conn, "Recent poll errors", start=now - timedelta(days=60), end=now - timedelta(days=30))
+    assert [r["error"] for r in only_old] == ["boom old"]
 
 
 def test_data_freshness_table_counts_the_last_hour(conn) -> None:

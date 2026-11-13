@@ -269,16 +269,16 @@ def test_online_lists_exclude_sessions_when_the_collector_has_been_silent(conn) 
 
 
 # ------------------------------------------------------------------ maintenance housekeeping
-def test_trim_poll_log_removes_only_rows_older_than_400_days(conn) -> None:
-    """Mutants C28 (4 days) and C31 (deletes recent rows): poll_log retention is 400 days (SPEC section 6)."""
+def test_trim_poll_log_removes_only_rows_older_than_90_days(conn) -> None:
+    """Mutants C28 (4 days) and C31 (deletes recent rows): poll_log retention is 90 days (SPEC section 6)."""
     from vatpac.maintenance import trim_poll_log
 
-    for days in (401, 399, 1):
+    for days in (91, 89, 1):
         conn.execute("INSERT INTO poll_log (status, polled_at) VALUES ('ok', now() - make_interval(days => %s))", (days,))
     assert trim_poll_log(conn) == 1
     ages = sorted(round(r["d"]) for r in conn.execute(
         "SELECT extract(epoch FROM now() - polled_at) / 86400 AS d FROM poll_log").fetchall())
-    assert ages == [1, 399]
+    assert ages == [1, 89]
 
 
 def test_flight_refresh_writes_finished_flights_not_flights_still_open(conn) -> None:

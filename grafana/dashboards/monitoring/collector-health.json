@@ -963,7 +963,7 @@
       "id": 15,
       "type": "table",
       "title": "Recent poll errors",
-      "description": "The 20 most recent polls with status error.",
+      "description": "The 20 most recent polls with status error within the dashboard time range. Empty means no errors in that range.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -984,7 +984,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT polled_at, http_status, duration_ms, error\nFROM poll_history\nWHERE status = 'error'\nORDER BY polled_at DESC\nLIMIT 20"
+          "rawSql": "SELECT polled_at, http_status, duration_ms, error\nFROM poll_history\nWHERE $__timeFilter(polled_at)\n  AND status = 'error'\nORDER BY polled_at DESC\nLIMIT 20"
         }
       ],
       "options": {

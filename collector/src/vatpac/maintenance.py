@@ -18,7 +18,7 @@ from .settings import Settings
 
 log = logging.getLogger(__name__)
 
-POLL_LOG_RETENTION_DAYS = 400
+POLL_LOG_RETENTION_DAYS = 90
 PARTITIONS_AHEAD = 7
 FLIGHT_REFRESH_INTERVAL_S = 300.0  # main.py: how often to call refresh_flights
 FLIGHT_WRITE_BATCH = 50  # pilots per call: small, so the 20 s statement_timeout is never close
