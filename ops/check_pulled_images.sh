@@ -6,7 +6,8 @@
 # Exit 0 = all match; exit 1 = otherwise, with a plain message saying which case.
 set -u
 
-# paths copied into the four images (collector/Dockerfile, ops/watchdog, ops/backup, ops/migrate and db)
+# paths copied into the four images (collector/Dockerfile, ops/watchdog, ops/backup, ops/migrate and db). The images carry the code AND the
+# migrations (nothing is mounted over them), so a change to any of these since the release label means the pulled image is not this commit.
 BAKED="collector ops/watchdog ops/backup ops/migrate ops/audit/independent.py ops/audit/invariants.sql ops/audit/identity_flap.sql db"
 
 head="$(git rev-parse HEAD 2>/dev/null)" || head=""

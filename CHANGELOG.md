@@ -6,6 +6,10 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Migrations travel only in the migrate image (13-11-2026, issue 233)
+
+- **One carrier.** The `migrate` container no longer mounts `./db` over the migrations and `db/roles.sql` baked into its image. The migrations that run are the ones the image was built with, in registry mode and in local-build mode, so code and migrations always come from the same commit. In local-build mode `make up` rebuilds the image; after editing a migration and using plain `docker compose up -d`, run `docker compose build migrate` first. The migrations and the database are unchanged.
+
 ## The poll log keeps 90 days and the recent errors panel follows the time range (13-11-2026, issue 240)
 
 - **Smaller log.** `poll_log` is now trimmed to 90 days instead of 400, which cuts it (and every nightly dump) from about 320 MB to about 70 MB at the cap. The first daily maintenance run after the deploy removes the older rows. The health panels look back 24 hours, and the audit checks read the last day.

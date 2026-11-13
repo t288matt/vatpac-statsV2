@@ -3,6 +3,7 @@
 # `docker compose up`.
 #   - grafana_ro, collector, backup_ro, watchdog_ro : created and granted by /db/roles.sql (passwords passed as
 #     psql variables grafana_ro_password, collector_password, backup_password, watchdog_password)
+# /db is baked into the image (ops/migrate/Dockerfile); nothing is mounted over it.
 # This job is the only place the owner/superuser password is used for schema work.
 # Passwords never leave this container's environment and are not echoed.
 set -eu

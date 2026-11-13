@@ -169,7 +169,7 @@ jobs:
           docker run --rm --network host --add-host db:127.0.0.1 \
             -e POSTGRES_USER -e POSTGRES_PASSWORD -e POSTGRES_DB \
             -e GRAFANA_RO_PASSWORD -e COLLECTOR_DB_PASSWORD -e BACKUP_DB_PASSWORD -e WATCHDOG_DB_PASSWORD \
-            -v "$PWD/db:/db:ro" vatpac-migrate-ci
+            vatpac-migrate-ci
       - name: Install
         run: |
           pip install -r collector/requirements.txt
