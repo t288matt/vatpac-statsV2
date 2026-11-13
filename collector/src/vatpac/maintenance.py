@@ -84,16 +84,20 @@ def drop_old_partitions(conn: psycopg.Connection[Any], today: date, retention_da
 
 
 def _write_flights(conn: psycopg.Connection[Any], batch: int, skip: set[int], picked: list[list[int]]) -> int:
-    """One call of the writer. ``skip`` goes in as the session setting for this one statement; the pilots each round picked come back
-    in ``picked`` (from the writer's NOTICE), so a statement cancelled by its timeout still tells us which pilots it was working on."""
+    """One call of the writer. ``skip`` goes in as the session setting for this one statement. The pilots each round
+    picked come back in ``picked`` (from the writer's NOTICE), so a cancelled call still says who it was working on."""
 
     def on_notice(diag: Any) -> None:
         picked.append([int(c) for c in re.findall(r"\d+", (diag.message_primary or "").split("picked", 1)[-1])])
 
     conn.add_notice_handler(on_notice)
     try:
-        return _scalar(conn, "WITH s AS MATERIALIZED (SELECT set_config('vatpac.flight_writer_skip', %s, true)) "
-                             "SELECT write_finished_flights(%s) FROM s", ("{" + ",".join(map(str, sorted(skip))) + "}", batch))
+        return _scalar(
+            conn,
+            "WITH s AS MATERIALIZED (SELECT set_config('vatpac.flight_writer_skip', %s, true)) "
+            "SELECT write_finished_flights(%s) FROM s",
+            ("{" + ",".join(map(str, sorted(skip))) + "}", batch),
+        )
     finally:
         conn.remove_notice_handler(on_notice)
 
@@ -101,9 +105,10 @@ def _write_flights(conn: psycopg.Connection[Any], batch: int, skip: set[int], pi
 def refresh_flights(conn: psycopg.Connection[Any], batch: int = FLIGHT_WRITE_BATCH, *, guarded: bool = True) -> int:
     """Write finished flights for up to ``batch`` pilots; returns how many. A timeout is logged, not raised.
 
-    ``guarded`` (the 5-minute job): a timeout rolls the whole call back and the next call would pick the same oldest pilots again, so the
-    batch is halved and retried, and a pilot that times out ALONE is left out of this job's calls for FLIGHT_SKIP_S (the daily
-    maintenance, ``guarded=False`` with its 15 minute timeout, still tries every pilot and clears the list once it succeeds)."""
+    ``guarded`` (the 5-minute job): a timeout rolls the whole call back and the next call would pick the same oldest
+    pilots again, so the batch is halved and retried, and a pilot that times out ALONE is left out of this job's calls
+    for FLIGHT_SKIP_S. The daily maintenance (``guarded=False``, 15 minute timeout) still tries every pilot and
+    clears the list once it succeeds."""
     start, now = batch, time.monotonic()
     skip = {c for c, until in DEMOTED.items() if until > now} if guarded else set()
     for _ in range(MAX_FLIGHT_ATTEMPTS if guarded else 1):
@@ -123,7 +128,7 @@ def refresh_flights(conn: psycopg.Connection[Any], batch: int = FLIGHT_WRITE_BAT
                 log.warning("write_finished_flights cancelled for one pilot; skipped for now", extra={"cid": last[0]})
             elif len(last) > 1:
                 batch = max(1, min(batch, len(last)) // 2)
-                log.warning("write_finished_flights cancelled (statement timeout?); retrying with fewer pilots", extra={"batch": batch})
+                log.warning("write_finished_flights cancelled (timeout?); fewer pilots", extra={"batch": batch})
             else:
                 break
     log.warning("write_finished_flights cancelled (statement timeout?); the next run continues")
