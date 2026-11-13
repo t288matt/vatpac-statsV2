@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from drop_gate_helpers import unreconciled
-from test_flight_writer import BASE, HOUR, MIN, extend, flown, last_seen, mk, records, snap, times, write
+from test_flight_writer import BASE, HOUR, MIN, flown, mk, records, snap, times, write
 
 psycopg = pytest.importorskip("psycopg")
 pytestmark = pytest.mark.integration
