@@ -216,8 +216,8 @@ check_healthy() {
 REGISTRY_SERVICES="collector watchdog backup migrate"
 
 # image_problems <checkout HEAD> <.env tag, empty = latest>: prints what is wrong, empty when every registry-image container (from $CONTAINERS) runs
-# the .env tag and carries a revision label that HEAD starts with. Catches image A with checkout B: the migrations come from the
-# checkout's ./db mount while the code comes from the image. A latest tag is checked by the label alone; a `sha-` pin must also
+# the .env tag and carries a revision label that HEAD starts with. The images carry the code and the migrations (nothing is mounted
+# over the migrate image), so this proves the deployed commit is the one running. A latest tag is checked by the label alone; a `sha-` pin must also
 # name the checkout's commit.
 image_problems() {
   local head="$1" tag="${2:-latest}" out="" svc l img rev

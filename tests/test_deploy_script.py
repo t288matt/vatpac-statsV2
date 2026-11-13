@@ -610,6 +610,7 @@ def test_verify_checks_image_revisions(tmp_path: Path) -> None:
     cases = {
         "revision": ({"rev": "a" * 40, "only": "backup"}, "revision label"),  # image built from commit A, checkout at B
         "nolabel": ({"rev": "", "only": "watchdog"}, "revision label"),
+        "migrate": ({"rev": "a" * 40, "only": "migrate"}, "revision label"),  # the migrate image carries the migrations: it must be this commit's
         "tag": ({"tag": "sha-1234567", "only": "collector"}, "image tag"),
     }
     for name, (kw, needle) in cases.items():
@@ -759,6 +760,26 @@ def test_make_deploy_stops_when_pulled_images_do_not_match_the_checkout(tmp_path
     assert r.returncode == 1 and "not published yet" in r.stderr  # label is not an ancestor of HEAD
     r = _pulled_images_run(tmp_path / "t5", repo, _all(released, collector="a" * 40))
     assert r.returncode == 1  # one image odd is enough
+
+
+def test_migrations_travel_only_in_the_image(tmp_path: Path) -> None:
+    """Issue 233: no ./db mount, so the image must be the commit's: a migration or roles.sql change since the release label stops make deploy."""
+    import yaml
+    for name in ("docker-compose.yml", "docker-compose.dev.yml"):
+        cfg = yaml.safe_load((REPO / name).read_text(encoding="utf-8"))
+        assert "volumes" not in (cfg.get("services", {}).get("migrate") or {}), name  # nothing mounted over the baked /db
+    assert "COPY db /db" in (REPO / "ops" / "migrate" / "Dockerfile").read_text(encoding="utf-8")
+    assert "!db" in (REPO / "ops" / "migrate" / "Dockerfile.dockerignore").read_text(encoding="utf-8").split()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    released = _mkcommit(repo, "db/migrations/20260101000000_a.sql", "-- migrate:up\nselect 1;\n")
+    for sub, rel in (("mig", "db/migrations/20260101000010_b.sql"), ("roles", "db/roles.sql")):
+        _mkcommit(repo, rel, "-- migrate:up\nselect 2;\n")
+        r = _pulled_images_run(tmp_path / sub, repo, _all(released))
+        assert r.returncode == 1 and "not published yet" in r.stderr, (rel, r.stderr)  # the pulled image lacks this migration
+    r = _pulled_images_run(tmp_path / "mig_only_label", repo, _all(_git(repo, "rev-parse", "HEAD"), migrate=released))
+    assert r.returncode == 1, r.stderr  # the migrate image alone is old
 
 
 def test_pulled_images_check_distinct_messages(tmp_path: Path) -> None:

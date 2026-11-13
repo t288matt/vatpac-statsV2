@@ -57,8 +57,8 @@ services:
       WATCHDOG_DB_PASSWORD: ${WATCHDOG_DB_PASSWORD:?set WATCHDOG_DB_PASSWORD in .env}
       COLLECTOR_DB_PASSWORD: ${COLLECTOR_DB_PASSWORD:?set COLLECTOR_DB_PASSWORD in .env}
       BACKUP_DB_PASSWORD: ${BACKUP_DB_PASSWORD:?set BACKUP_DB_PASSWORD in .env}
-    volumes:
-      - ./db:/db:ro
+    # No volumes: the migrations and db/roles.sql are in the image (ops/migrate/Dockerfile), the same carrier as the code in the other
+    # images. After editing a migration in a checkout, run `docker compose build migrate` (local build mode) before `up`.
     networks: [vatpac]
 
   collector:
