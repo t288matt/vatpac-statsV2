@@ -15,8 +15,8 @@ docker compose exec db psql -U vatpac -d vatpac -c \
 | `http_status` 5xx / timeouts, curl also fails | VATSIM is down | Wait. Do nothing. |
 | 429 | We are rate limited | Check `POLL_INTERVAL_SECONDS` is not below 15; the collector honours `Retry-After`. |
 | Only the VM cannot reach it | Local network/DNS | `dig data.vatsim.net`, check the VM firewall and DNS. |
-| Collector `/health` 503 with `consecutive_failures` > 0 | Upstream failure; the circuit breaker slows polling and never exits | Wait. Restarting does not help (and in this deployment the watchdog restarts nothing). |
-| `/health` 503 with `consecutive_failures` 0, or unreachable | Collector is stuck | See `stuck-collector.md`. |
+| Collector `/health` 503 with `consecutive_failures` > 0 | Upstream failure; the circuit breaker (it opens at the fifth failure, about ten minutes into an outage) slows polling and never exits | Wait. Restarting does not help (and in this deployment the watchdog restarts nothing). |
+| `/health` 503 with `consecutive_failures` 0, or unreachable | Collector is stuck, unless the outage began less than about two minutes ago: one poll makes four attempts 30 s apart before it counts as one failure | Wait two minutes and look again; if still 0, see `stuck-collector.md`. |
 
 ## Recovery
 The collector resumes by itself and processes the first fresh snapshot; there is no backfill, so the outage shows as a gap (`snapshot_ts` jump in `poll_log`). Do not try to fill it. Confirm: `make smoke`, and the watchdog sends a `RECOVERED` message. Every alert name is explained in [alerts.md](alerts.md).
