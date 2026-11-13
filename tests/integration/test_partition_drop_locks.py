@@ -179,9 +179,9 @@ def test_busy_partitions_are_kept_without_an_error_or_a_stall(conn, dsn, busy) -
             t0 = time.time()
             n = call(conn)
             elapsed = time.time() - t0
-        assert n == (1 if busy < 3 else 0)                         # three candidates are tried; at most one is dropped
+        assert n == 1                                              # every busy day is passed over; the first free one is dropped (issue 202: no cap of three)
         assert w.errors == [] and w.worst < 0.5, (w.errors, w.worst)
-        dropped = [offsets[busy]] if busy < 3 else []
+        dropped = [offsets[busy]]
         assert [p for p in state(conn)[0] if p in {pname(o) for o in offsets}] == sorted(pname(o) for o in offsets if o not in dropped)
         assert sum("could not lock it" in s for s in seen) == busy
         if busy:
@@ -281,7 +281,7 @@ def test_the_parent_is_not_locked_while_the_partitions_are_checked(conn, dsn) ->
 @pytest.fixture()
 def hook(conn):
     """Lets a test change the data at a chosen moment INSIDE the drop function. The real reconciliation function is wrapped: on its
-    n-th call (step 1 is the first call of a partition, step 2 the second) `action` runs first, in the same session."""
+    n-th call (the first call for a partition is its scan, the second is the re-check under the lock) `action` runs first, in the same session."""
     conn.execute("ALTER FUNCTION unreconciled_partition_sessions(timestamptz, timestamptz) RENAME TO unreconciled_partition_sessions_real")
     conn.execute("CREATE TABLE hook_calls (n int)")
     state_ = {"action": None, "on_call": 0}
@@ -309,22 +309,22 @@ def hook(conn):
         conn.execute("DROP TABLE IF EXISTS hook_calls")
 
 
-def test_a_late_position_between_the_check_and_the_recheck_keeps_the_partition(conn, hook) -> None:
-    """Two partitions pass step 1 (calls 1 and 2). Before step 2 re-checks the first one (call 3) a position arrives in it that no
-    flight covers. That one is kept, the other is dropped."""
+def test_a_late_position_between_the_check_and_the_lock_keeps_the_partition(conn, hook) -> None:
+    """Day 200 passes its scan (call 1). A position arrives in it, before the re-check under the lock (call 2), that no flight covers.
+    That day is kept and the walk goes on: day 199 is scanned (call 3), locked (call 4) and dropped."""
     x = add_session(conn, 9830001, day(200), day(200) + timedelta(hours=1), [day(200), day(200) + timedelta(minutes=5)])
     add_session(conn, 9830002, day(199), day(199) + timedelta(hours=1), [day(199)])
     process_flights(conn)
-    hook(3, f"INSERT INTO pilot_position (observed_at, session_id, alt_ft, gs_kt) VALUES ('{day(200) + timedelta(minutes=30):%Y-%m-%d %H:%M:%S+00}', {x}, 5000, 250)")
+    hook(2, f"INSERT INTO pilot_position (observed_at, session_id, alt_ft, gs_kt) VALUES ('{day(200) + timedelta(minutes=30):%Y-%m-%d %H:%M:%S+00}', {x}, 5000, 250)")
     seen = notices(conn)
     assert call(conn) == 1
     assert pname(200) in state(conn)[0] and pname(199) not in state(conn)[0]
     assert any("DROP REFUSED" in s and pname(200) in s for s in seen)
 
 
-def test_a_session_seen_again_between_the_recheck_and_the_lock_keeps_the_partition(conn, hook) -> None:
-    """The last chance is inside the lock (the second call of the reconciliation for the day is step 2, after its pinning test). A session
-    of the day comes back meanwhile; the in-lock pinning test keeps the day."""
+def test_a_session_seen_again_during_the_check_under_the_lock_keeps_the_partition(conn, hook) -> None:
+    """The last chance is inside the lock (the second call of the reconciliation for the day). A session of the day comes back
+    meanwhile; the in-lock pinning test, made last, keeps the day."""
     x = add_session(conn, 9830011, day(200), day(200) + timedelta(hours=1), [day(200)])
     process_flights(conn)
     hook(2, f"UPDATE pilot_session SET last_seen = now() WHERE id = {x}")
@@ -336,13 +336,13 @@ def test_a_session_seen_again_between_the_recheck_and_the_lock_keeps_the_partiti
 
 def test_a_position_added_by_a_session_not_in_the_earlier_list_between_check_and_lock_keeps_the_day(conn, hook) -> None:
     """The in-lock check is rebuilt from the partition, not from a list of sessions made before the lock. Session z has positions
-    only in day 150 when day 200 is checked (calls 1 and 3 for day 200, 2 and 4 for day 150); at the in-lock call for day 200
-    (call 5) z receives a position in day 200 that no written flight covers. Day 200 is kept, day 150 is dropped."""
+    only in day 150 when day 200 is scanned (call 1); at the in-lock call for day 200 (call 2) z receives a position in day 200
+    that no written flight covers. Day 200 is kept; day 150 is then scanned (call 3), locked (call 4) and dropped."""
     add_session(conn, 9830021, day(200), day(200) + timedelta(hours=1), [day(200)])
     z = add_session(conn, 9830022, day(150), day(150) + timedelta(hours=1), [day(150)])
     process_flights(conn)
     late = day(200) - timedelta(hours=6)
-    hook(5, f"INSERT INTO pilot_position (observed_at, session_id, alt_ft, gs_kt) VALUES ('{late:%Y-%m-%d %H:%M:%S+00}', {z}, 5000, 250)")
+    hook(2, f"INSERT INTO pilot_position (observed_at, session_id, alt_ft, gs_kt) VALUES ('{late:%Y-%m-%d %H:%M:%S+00}', {z}, 5000, 250)")
     seen = notices(conn)
     assert call(conn) == 1
     assert pname(200) in state(conn)[0] and pname(150) not in state(conn)[0]

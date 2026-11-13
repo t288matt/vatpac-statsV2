@@ -23,7 +23,7 @@ DROP REFUSED: partition pilot_position_20270406 kept: 3 session(s) or flight(s) 
 
 A day kept for more than twice the retention also gets `partition ... is kept beyond twice the retention: ...`.
 
-A call drops **at most one day**. After a DROP the parent table `pilot_position` stays locked until the call ends, and the last check before each drop reads the whole day; doing that for several days under one lock could stall the collector's inserts past their 5 second timeout. The collector therefore calls the function again after a 0.5 second pause (up to 600 times per run), so a backlog drains one day per call. In the rehearsal, part B therefore makes `expected_to_drop + 1` calls and `calls` equals `partitions_dropped + 1`.
+A call drops **at most one day**. After a DROP the parent table `pilot_position` stays locked until the call ends, and the last check before the drop (made under the lock) reads the whole day; doing that for several days under one lock could stall the collector's inserts past their 5 second timeout. The collector therefore calls the function again after a 0.5 second pause (up to 600 times per run), so a backlog drains one day per call. In the rehearsal, part B therefore makes `expected_to_drop + 1` calls and `calls` equals `partitions_dropped + 1`.
 
 ## 2. How you hear about a refusal
 
