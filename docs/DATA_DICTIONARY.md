@@ -117,7 +117,7 @@ The daily partitions of `pilot_position` **inherit** the foreign key: each `pilo
 
 - **Created** by `ensure_pilot_position_partitions(days_ahead, p_today)`: yesterday through today + `days_ahead` (default 7). The collector calls it at start-up and daily. Existing partitions are skipped. On 13-10-2026 there are 15 partitions (`pilot_position_20261006` to `pilot_position_20261020`).
 - **Dropped** by `drop_old_pilot_position_partitions(retention_days, p_today)`: a partition is dropped when it ends on or before `today - retention_days` (collector setting `POSITION_RETENTION_DAYS`; the compose literal and the code default are both 180, so the first partition, `pilot_position_20261006`, can first be dropped about 05-04-2027), unless it still holds positions of a session whose `last_seen` is inside the window (the partition is "pinned", and a notice is raised once it is pinned beyond twice the retention). **Drop gate (migration 20261013000210, issue 89 phase 4, LIVE since 13-10-2026, marker 7a71d30):** a partition that is due and not pinned is dropped only when every position in it is reconciled with the written flights: each session's `flown_upto` is at or after its last position in the day; each position of a session with a flight plan lies inside the `start_time` to `end_time` of a `flight_summary` row that lists the session in `session_ids` (a session without a plan needs only the first rule); and every flight wholly inside the day has `sample_count` equal to the positions stored for it. Anything else keeps the partition with a notice that starts `DROP REFUSED` (the collector logs it as a warning) and a row in `drop_gate_refusal`. Since migration 20261009000170 a call takes locks without waiting (`LOCK ... NOWAIT`, 1 second lock timeout, up to three attempts); from migration 20261113000190 (issue 202) a call walks the due days oldest first, passing over pinned and refused ones (each refused day is noted in `drop_gate_refusal`), stops at the first day that reconciles, repeats the whole check on that day under the lock and drops AT MOST ONE, because a DROP leaves `pilot_position` locked until the call ends and the in-lock re-check reads the whole day, so the collector loops with a 0.5 second pause between days (up to 600 per run); a partition that cannot be locked or changed meanwhile is kept with a notice and dropped by a later run; the collector calls the function until it drops nothing (issue 98). Flights therefore outlive the raw positions: the surviving flights are the rows of `flight_summary` (written once, 8 hours after the flight's last position). The lock-hold time of one real drop at live volume (about 78,000 positions a day) has not been measured; the owner accepted on 13-10-2026 (issue #140) that it is measured before the first real drop.
-- `pilot_session`, `controller_session`, the event tables, `network_snapshot` and `flight_summary` are **not** trimmed (data retention for them is an open owner decision, issue 21). Only `poll_log` is trimmed, to 400 days, by the collector's maintenance task.
+- `pilot_session`, `controller_session`, the event tables, `network_snapshot` and `flight_summary` are **not** trimmed (data retention for them is an open owner decision, issue 21). Only `poll_log` is trimmed, to 90 days, by the collector's maintenance task.
 
 ## 2. Base tables
 
@@ -249,7 +249,7 @@ One row per processed snapshot; primary key `observed_at`. Written even when not
 | `pilots_global`, `controllers_global` | Totals in the whole feed. |
 
 ### poll_log
-One row per poll attempt, including failures. Trimmed to 400 days by maintenance. Primary key `id`; index `poll_log_polled_at_idx (polled_at)`.
+One row per poll attempt, including failures. Trimmed to 90 days by maintenance. Primary key `id`; index `poll_log_polled_at_idx (polled_at)`.
 
 | Column | Type | Null | Meaning |
 |---|---|---|---|
@@ -361,7 +361,7 @@ At the current cadence they agree. Until 13-10-2026 the merging `flight` view ha
 | `icao_region(code text)` | text | invoker, STABLE | Region from `region_map` by longest prefix that `norm_code(code)` starts with, else `Unknown`. |
 | `rank_group_of(rating int)` | text | invoker, IMMUTABLE | 1 OBS, 2 S1, 3 S2, 4 S3, 5 C1, 6 C2, 7 C3, 8 or above `I1+`, else `Unknown`. |
 
-DEFINER functions run with owner rights and `search_path = public`, so the collector needs no DDL rights (migration 21). Maintenance is driven from `collector/src/vatpac/maintenance.py`: partitions daily, finished flights every 5 minutes, `poll_log` trim to 400 days, settings sync at start-up and daily.
+DEFINER functions run with owner rights and `search_path = public`, so the collector needs no DDL rights (migration 21). Maintenance is driven from `collector/src/vatpac/maintenance.py`: partitions daily, finished flights every 5 minutes, `poll_log` trim to 90 days, settings sync at start-up and daily.
 
 ## 6. Roles and grants
 
