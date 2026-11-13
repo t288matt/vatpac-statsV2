@@ -9,7 +9,6 @@ the latest earlier last position. A flight still being continued by such a recon
 """
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import Any
 
 import pytest

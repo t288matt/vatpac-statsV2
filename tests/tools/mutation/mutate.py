@@ -10,7 +10,13 @@ _test; the SQL mutants are applied to that database's functions and put back aft
 VATPAC_MUT_PORT (55999), VATPAC_MUT_HOST (127.0.0.1), VATPAC_MUT_USER (postgres), VATPAC_MUT_PASSWORD (empty),
 VATPAC_MUT_GRAFANA_RO_PASSWORD (ci-grafana-ro-pw), VATPAC_MUT_PSQL (psql on PATH). SURV=previous.json re-runs only the survivors.
 """
-import json, os, shutil, subprocess, sys, time, pathlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import pathlib
 lane, repo, out = sys.argv[1], pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
 DB = sys.argv[4] if len(sys.argv) > 4 else "vatpac_test"
 E = os.environ.get

@@ -1,0 +1,8 @@
+# Lint settings for `ruff check .` run from the repository root. This file applies to the files that have no closer
+# configuration: mainly tests/ and tools. collector/ (collector/pyproject.toml) and ops/ (ops/ruff.toml) keep their own.
+# The rule set is ruff's default.
+
+[lint.per-file-ignores]
+# Not a module: tests/tools/mutation/mutate.py runs this file with exec() in its own namespace, where `py()` is defined
+# (see the exec call at the end of mutate.py). Read on its own, every `py(...)` call is an undefined name.
+"tests/tools/mutation/mutants_workflow.py" = ["F821"]

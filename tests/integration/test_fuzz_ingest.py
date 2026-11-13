@@ -17,7 +17,6 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-import psycopg
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
