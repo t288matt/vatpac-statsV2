@@ -1,6 +1,6 @@
 # Data dictionary
 
-Checked against the migrations up to 20261113000200 and, for the earlier ones, against the live database on 05-11-2026 (read-only queries). The live database was at migration 20261013000300 (`schema_migrations`: latest version 20261013000300, 29 rows, read on 05-11-2026); migration 20261113000200 is the latest; `schema_migrations` on a database shows which migrations it has applied. History of the migration markers (13-10-2026; the release marker is shown by `bash ops/deploy.sh --status`, not here; the phase 4 and 5 marker was 7a71d3054506d5d6e5e0165860de0feb97e0f651, marked 13-10-2026 10:05:56 UTC): 20261012000190 (issue 89 phase 1, marker c70e72f, 12-10-2026 17:58:21 UTC), 20261012000200 (phase 1b, quiet per flight, marker 3d4b5b6, 13-10-2026 08:01:09 UTC), 20261013000200 (phase 3, marker 38e3958, 13-10-2026 08:14:12 UTC), 20261013000210 (phase 4, drop gate) and 20261013000300 (phase 5, the old pieces removed and the finished-flights table named `flight_summary`), the last two with marker 7a71d30, are all LIVE. Source: `db/migrations/*.sql` (41 migrations, `20261007000001` to `20261113000200`; applied by the `migrate` service with dbmate; the first 29 are recorded in `schema_migrations` on the VM, 29 rows read on 13-10-2026 and again on 05-11-2026; the later ones are applied at the next deploy) and `db/roles.sql` (plus the `watchdog_ro` block of `ops/migrate/migrate.sh`). The database image is PostgreSQL 16.15 (CI tests on 16.4 until updated). All timestamps are `timestamptz` (UTC). Ids are `bigint` unless stated. The meaning of the derived measures is in [DEFINITIONS.md](DEFINITIONS.md); the decisions behind them are in [DECISIONS.md](DECISIONS.md) (ADR-018, 021, 023, 024, 025, 026, 030).
+Checked against the migrations up to 20261114000210 and, for the earlier ones, against the live database on 05-11-2026 (read-only queries). The live database was at migration 20261013000300 (`schema_migrations`: latest version 20261013000300, 29 rows, read on 05-11-2026); migration 20261114000210 is the latest; `schema_migrations` on a database shows which migrations it has applied. History of the migration markers (13-10-2026; the release marker is shown by `bash ops/deploy.sh --status`, not here; the phase 4 and 5 marker was 7a71d3054506d5d6e5e0165860de0feb97e0f651, marked 13-10-2026 10:05:56 UTC): 20261012000190 (issue 89 phase 1, marker c70e72f, 12-10-2026 17:58:21 UTC), 20261012000200 (phase 1b, quiet per flight, marker 3d4b5b6, 13-10-2026 08:01:09 UTC), 20261013000200 (phase 3, marker 38e3958, 13-10-2026 08:14:12 UTC), 20261013000210 (phase 4, drop gate) and 20261013000300 (phase 5, the old pieces removed and the finished-flights table named `flight_summary`), the last two with marker 7a71d30, are all LIVE. Source: `db/migrations/*.sql` (42 migrations, `20261007000001` to `20261114000210`; applied by the `migrate` service with dbmate; the first 29 are recorded in `schema_migrations` on the VM, 29 rows read on 13-10-2026 and again on 05-11-2026; the later ones are applied at the next deploy) and `db/roles.sql` (plus the `watchdog_ro` block of `ops/migrate/migrate.sh`). The database image is PostgreSQL 16.15 (CI tests on 16.4 until updated). All timestamps are `timestamptz` (UTC). Ids are `bigint` unless stated. The meaning of the derived measures is in [DEFINITIONS.md](DEFINITIONS.md); the decisions behind them are in [DECISIONS.md](DECISIONS.md) (ADR-018, 021, 023, 024, 025, 026, 030).
 
 *Describes main (the commit production runs is shown by `bash ops/deploy.sh --status`); behaviour added by later changes that are not yet deployed is listed in CHANGELOG.md.*
 
@@ -13,7 +13,7 @@ Objects on the live database, counted read-only on 05-11-2026 (migration 2026101
 **What is stored.** The collector polls the VATSIM data feed every 30 seconds (the feed itself updates every 15 seconds; every second update is read, ADR-024). It keeps:
 
 - pilots whose position is inside the home-region polygon (`pilot_session` plus a position sample per poll in `pilot_position`),
-- controllers whose callsign is on the whitelist (`controller_session`), plus near-miss callsigns (`controller_unlisted_sighting`),
+- controllers whose callsign is on the whitelist (`controller_session`), plus unknown callsigns (`controller_unlisted_callsign`),
 - one row per processed snapshot (`network_snapshot`) and one per poll attempt (`poll_log`).
 
 **How a session is identified.** A pilot or controller session is the triple `(cid, callsign, logon_time)`. `logon_time` is the connection time from the feed truncated to **whole seconds** (never rounded), enforced by CHECK constraints, because the feed sometimes sends the fraction and sometimes does not (ADR-021). A reconnect is a new session; the `flight` view (pilots) and `controller_session_merged` (controllers) join reconnects back together for counting.
@@ -49,7 +49,7 @@ Dashboards read these 13 views and no others (checked by `python grafana/validat
    controller_rating_event      controller_frequency_event
    (session_id, observed_at)    (session_id, observed_at)
 
-   Stand-alone (no foreign key):  network_snapshot, poll_log, controller_unlisted_sighting,
+   Stand-alone (no foreign key):  network_snapshot, poll_log, controller_unlisted_callsign,
                                   reference_data_change, app_setting, schema_migrations,
                                   flight_summary (the finished flights; names its sessions in session_ids; no foreign key)
 
@@ -103,7 +103,7 @@ The daily partitions of `pilot_position` **inherit** the foreign key: each `pilo
 | `controller_rating_event`, `controller_frequency_event` | `(session_id, observed_at)` | |
 | `network_snapshot` | `observed_at` | |
 | `poll_log` | `id` | |
-| `controller_unlisted_sighting` | `callsign` | |
+| `controller_unlisted_callsign` | `callsign` | |
 | `reference_data_change` | `id` | |
 | `app_setting` | `key` | |
 | `controller_rating`, `facility`, `pilot_rating` | `id` | |
@@ -269,8 +269,8 @@ One row per poll attempt, including failures. Trimmed to 90 days by maintenance.
 
 Count columns are NULL on rows that carry no snapshot result (`skipped_unchanged`, `error`).
 
-### controller_unlisted_sighting
-Near-miss controller callsigns (see DEFINITIONS). Primary key `callsign`. Columns: `callsign` text no; `cid` bigint yes; `first_seen`, `last_seen` timestamptz no; `polls_seen` bigint no, default 1.
+### controller_unlisted_callsign
+Unknown controller callsigns (see DEFINITIONS). Primary key `callsign`. Columns: `callsign` text no; `cid` bigint yes; `first_seen`, `last_seen` timestamptz no; `polls_seen` bigint no, default 1. A temporary view, `controller_unlisted_sighting`, carries the previous table name (with one extra column, `xmax`) so that a collector or watchdog of the previous release keeps working during a deploy; nothing current reads it, and no role but `collector` and `watchdog_ro` has a right on it.
 
 ### reference_data_change
 Audit of reference-file changes. Primary key `id`. Columns: `id` bigint (serial); `changed_at` timestamptz default `now()`; `file` text (`australian_airspace_polygon.json` or `controller_callsigns_list.txt`); `old_sha` text, nullable; `new_sha` text. A row is inserted only when the hash differs from the last recorded one.
@@ -368,10 +368,10 @@ DEFINER functions run with owner rights and `search_path = public`, so the colle
 | Role | Created by | Rights |
 |---|---|---|
 | `vatpac` (owner, from `POSTGRES_USER`) | Postgres image | Owns everything; used by `migrate` and, for restores only, by the `backup` service's restore scripts (ADR-017). Not used by the collector. |
-| `collector` | `db/roles.sql` | Login. SELECT, INSERT, UPDATE on `pilot_session`, `pilot_position`, `controller_session`, `controller_rating_event`, `controller_frequency_event`, `network_snapshot`, `poll_log`, `controller_unlisted_sighting`, `reference_data_change`, `app_setting`, plus DELETE on `poll_log` only (the retention trim); USAGE on sequences; EXECUTE on `ensure_pilot_position_partitions`, `drop_old_pilot_position_partitions`, `write_finished_flights`. No DDL; no access to `flight_summary`, the lookups or the views. |
+| `collector` | `db/roles.sql` | Login. SELECT, INSERT, UPDATE on `pilot_session`, `pilot_position`, `controller_session`, `controller_rating_event`, `controller_frequency_event`, `network_snapshot`, `poll_log`, `controller_unlisted_callsign`, `reference_data_change`, `app_setting`, plus DELETE on `poll_log` only (the retention trim); USAGE on sequences; EXECUTE on `ensure_pilot_position_partitions`, `drop_old_pilot_position_partitions`, `write_finished_flights`. No DDL; no access to `flight_summary`, the lookups or the views. |
 | `grafana_ro` | `db/roles.sql` | Login; connection limit 10; `default_transaction_read_only = on`, `statement_timeout = 30s`, `work_mem = 16MB`, `TimeZone = UTC` (T27). SELECT on every view and the six lookup tables; nothing else; cannot create. Re-granted on every deploy so new views are picked up. |
 | `backup_ro` | `db/roles.sql` | Login; member of `pg_read_all_data`; read-only by default. Used by the nightly `pg_dump`. |
-| `watchdog_ro` | `db/roles.sql` | Login; read-only by default; `statement_timeout = 10s`; member of `pg_monitor`; SELECT on `poll_log`, `network_snapshot`, `controller_unlisted_sighting`, `pilot_session` and `controller_session` (the last two for the identity-flap alert), and, from the integrity-checks deploy (T16; read on the VM on 13-10-2026: it can read all four), `pilot_position`, `flight_summary` (the finished flights), `drop_gate_refusal` and `reference_data_change` (for the scheduled invariant sweep and archive cross-check), SELECT on the views `ops_setting` and `ops_pending_flight` and EXECUTE on `ops_setting_num` (the flight settings and the pending-flight rule, without a right on `app_setting`). |
+| `watchdog_ro` | `db/roles.sql` | Login; read-only by default; `statement_timeout = 10s`; member of `pg_monitor`; SELECT on `poll_log`, `network_snapshot`, `controller_unlisted_callsign`, `pilot_session` and `controller_session` (the last two for the identity-flap alert), and, from the integrity-checks deploy (T16; read on the VM on 13-10-2026: it can read all four), `pilot_position`, `flight_summary` (the finished flights), `drop_gate_refusal` and `reference_data_change` (for the scheduled invariant sweep and archive cross-check), SELECT on the views `ops_setting` and `ops_pending_flight` and EXECUTE on `ops_setting_num` (the flight settings and the pending-flight rule, without a right on `app_setting`). |
 
 ## 7. Known gaps
 

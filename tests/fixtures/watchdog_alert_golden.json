@@ -377,18 +377,6 @@
   ],
   "telegram": "VATPAC Stats: problem (08:00 UTC). A monitoring check (mystery_check) has a problem. See docs/RUNBOOKS/alerts.md on the VM for what it means.\nTechnical: mystery_check, something odd"
  },
- "near_miss": {
-  "log": [
-   "ALERT NEAR-MISS controller callsign(s) not on whitelist: YSSY_X_TWR, YMML_N_APP"
-  ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). A controller logged on with a callsign that is not on the whitelist, so they are not being recorded: YSSY_X_TWR, YMML_N_APP. It looks like a new position; add it to the whitelist if it is real.\nTechnical: near-miss YSSY_X_TWR, YMML_N_APP"
- },
- "near_miss_single": {
-  "log": [
-   "ALERT NEAR-MISS controller callsign(s) not on whitelist: X_TWR"
-  ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). A controller logged on with a callsign that is not on the whitelist, so they are not being recorded: X_TWR. It looks like a new position; add it to the whitelist if it is real.\nTechnical: near-miss X_TWR"
- },
  "notice_quiet_period": {
   "log": [
    "ALERT WARN data_integrity: new violations since the last sweep: flights quiet longer than the quiet period with unprocessed positions [flight_quiet_hours=6.75 flight_quiet_check_grace_minutes=0]"
@@ -934,6 +922,18 @@
    "ALERT WARN mystery_check: something odd"
   ],
   "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A monitoring check (mystery_check) has a warning. See docs/RUNBOOKS/alerts.md on the VM for what it means.\nTechnical: mystery_check, something odd"
+ },
+ "unknown_callsign": {
+  "log": [
+   "ALERT UNKNOWN CALLSIGN not on whitelist: YSSY_X_TWR, YMML_N_APP"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). Unknown callsign: a controller logged on with a callsign that is not on the whitelist, so they are not being recorded: YSSY_X_TWR, YMML_N_APP. It looks like a new position; add it to the whitelist if it is real.\nTechnical: unknown-callsign YSSY_X_TWR, YMML_N_APP"
+ },
+ "unknown_callsign_single": {
+  "log": [
+   "ALERT UNKNOWN CALLSIGN not on whitelist: X_TWR"
+  ],
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). Unknown callsign: a controller logged on with a callsign that is not on the whitelist, so they are not being recorded: X_TWR. It looks like a new position; add it to the whitelist if it is real.\nTechnical: unknown-callsign X_TWR"
  },
  "unrecognised_text": {
   "log": [

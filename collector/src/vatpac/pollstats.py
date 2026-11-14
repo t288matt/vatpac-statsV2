@@ -24,8 +24,6 @@ def update_stats(st: Stats, s: Settings, status: str, result: ApplyResult | None
             st.last_ok_wall = time.time()
     if result is not None and snap_ts is not None:
         st.last_snapshot_ts = snap_ts
-        for callsign in result.new_near_misses:
-            log.warning("near-miss controller callsign not on whitelist", extra={"callsign": callsign})
     was_open = st.breaker_open
     st.breaker_open = st.consecutive_failures >= s.circuit_failure_threshold
     if st.breaker_open != was_open:

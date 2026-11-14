@@ -197,7 +197,7 @@ def test_an_oversized_or_odd_pilot_callsign_never_loses_the_snapshot(db, ref, ba
 @pytest.mark.parametrize("label", [
     "long_random_cjk", "long_text", "surrogate", "nul"])
 def test_an_oversized_or_odd_unlisted_controller_callsign_never_loses_the_snapshot(db, ref, base, label) -> None:
-    """A near-miss controller (unlisted, but a listed prefix) is written to controller_unlisted_sighting, whose primary
+    """A unlisted-callsign controller (unlisted, but a listed prefix) is written to controller_unlisted_callsign, whose primary
     key is the callsign: the same index limit applies there."""
     prefix = sorted(ref.prefixes)[0]
     extra = {"cid": 8000001, "name": "Fuzz Controller", "callsign": prefix + "_" + dict(fz.BAD_VALUES)[label],
@@ -206,7 +206,7 @@ def test_an_oversized_or_odd_unlisted_controller_callsign_never_loses_the_snapsh
     payload = _shift(copy.deepcopy(base), 904)
     payload["controllers"].append(extra)
     ts = update_timestamp(payload)
-    _check_snapshot(db, ref, base, payload, {"pilots": set(), "controllers": set()}, f"near-miss {label}")
+    _check_snapshot(db, ref, base, payload, {"pilots": set(), "controllers": set()}, f"unlisted callsign {label}")
     assert db.execute("SELECT count(*) AS n FROM network_snapshot WHERE observed_at = %s", (ts,)).fetchone()["n"] == 1
 
 

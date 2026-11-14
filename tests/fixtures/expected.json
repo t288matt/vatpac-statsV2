@@ -16,10 +16,6 @@
   "PH_TWR",
   "SY_TWR"
  ],
- "controllers_near_miss": [
-  "AD_XYZ_TWR",
-  "ML_XYZ_CTR"
- ],
  "controllers_no_frequency": [
   "BN_GND",
   "DLH139",
@@ -32,6 +28,10 @@
   "KAS_OBS",
   "RJS_OBS",
   "SY_OBS"
+ ],
+ "controllers_unlisted_callsign": [
+  "AD_XYZ_TWR",
+  "ML_XYZ_CTR"
  ],
  "implausible_rejected": {
   "TESTALTLOW": {

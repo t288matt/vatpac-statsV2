@@ -22,7 +22,7 @@ pytestmark = pytest.mark.integration
 
 REPO = Path(__file__).resolve().parents[2]
 NINE = ["pilot_session", "pilot_position", "controller_session", "controller_rating_event", "controller_frequency_event",
-        "network_snapshot", "controller_unlisted_sighting", "reference_data_change", "app_setting"]
+        "network_snapshot", "controller_unlisted_callsign", "reference_data_change", "app_setting"]
 
 
 def _role(conn, name: str) -> bool:

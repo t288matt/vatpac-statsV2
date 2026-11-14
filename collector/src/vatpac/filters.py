@@ -1,4 +1,4 @@
-"""The ingest filters (pilot polygon, controller whitelist), reference loading and near-misses."""
+"""The ingest filters (pilot polygon, controller whitelist), reference loading and unlisted callsigns."""
 
 from __future__ import annotations
 
@@ -88,7 +88,7 @@ def listed_prefixes(whitelist: frozenset[str]) -> frozenset[str]:
     return frozenset(c.split("_", 1)[0] for c in whitelist if "_" in c)
 
 
-def is_near_miss(callsign: str, whitelist: frozenset[str], prefixes: frozenset[str] | None = None) -> bool:
+def is_unlisted_callsign(callsign: str, whitelist: frozenset[str], prefixes: frozenset[str] | None = None) -> bool:
     """Unlisted controller whose prefix (text before the first `_`) matches a listed prefix (`prefixes` precomputed)."""
     if callsign in whitelist or callsign.endswith(("_OBS", "_SUP")) or "_" not in callsign:
         return False

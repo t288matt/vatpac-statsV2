@@ -4,7 +4,7 @@ The expected texts are in tests/fixtures/watchdog_alert_golden.json, captured fr
 stopped serialising results to text and parsing them back. Each case goes through the real Alerter into a fake Telegram, with a
 frozen clock, so the golden file holds exactly what the owner would have received and what the log would have said.
 
-Only `raise_alert`, `raise_notice`, `raise_near_miss`, `raise_restarted` and `raise_unrecognised` know how a case is handed to the
+Only `raise_alert`, `raise_notice`, `raise_unknown_callsign`, `raise_restarted` and `raise_unrecognised` know how a case is handed to the
 Alerter; the cases and the expected texts do not change when the hand-over does.
 
 To rewrite the golden file after a deliberate wording change: WRITE_GOLDEN=1 python -m pytest tests/test_watchdog_alert_wording.py
@@ -136,7 +136,7 @@ CASES: list[tuple[str, str, str, dict[str, Any]]] = [
     ("mystery_check", "crit", "something odd", {}),
 ]
 RECOVERED_NAMES = sorted({c[0] for c in CASES} | {"container:other"})
-NEAR_MISS = "YSSY_X_TWR, YMML_N_APP"
+UNKNOWN_CALLSIGN = "YSSY_X_TWR, YMML_N_APP"
 RESTARTED = ("collector", "1/3 this hour, ok=True", "collector HTTP 503 and no failures counted")
 NOTICE_DETAIL = f"new violations since the last sweep: {NAMES[9]}, {STALE}"
 NOTICE_FACTS: dict[str, Any] = {"state": "new", "names": [NAMES[9], STALE], "quiet": None}
@@ -181,8 +181,8 @@ def raise_notice(a: Any, detail: str, facts: dict[str, Any]) -> None:
     a.notify("data_integrity", m.Checked("warn", detail, **facts))
 
 
-def raise_near_miss(a: Any, callsigns: str) -> None:
-    a.notify("near-miss", ("warn", callsigns))
+def raise_unknown_callsign(a: Any, callsigns: str) -> None:
+    a.notify("unknown-callsign", ("warn", callsigns))
 
 
 def raise_restarted(a: Any, svc: str, counts: str, why: str) -> None:
@@ -214,8 +214,8 @@ def scenarios() -> dict[str, Any]:
     out["recovered_hours:data_integrity"] = (
         {"alerts": {"data_integrity": "warn"}, "bad_since": {"data_integrity": T0 - 5 * 3600}},
         lambda w: raise_alert(w.alerter, "data_integrity", "ok", f"all {len(NAMES)} invariants hold (checked 09-10-2026 12:00 UTC)", {}))
-    out["near_miss"] = ({}, lambda w: raise_near_miss(w.alerter, NEAR_MISS))
-    out["near_miss_single"] = ({}, lambda w: raise_near_miss(w.alerter, "X_TWR"))
+    out["unknown_callsign"] = ({}, lambda w: raise_unknown_callsign(w.alerter, UNKNOWN_CALLSIGN))
+    out["unknown_callsign_single"] = ({}, lambda w: raise_unknown_callsign(w.alerter, "X_TWR"))
     out["restarted"] = ({}, lambda w: raise_restarted(w.alerter, *RESTARTED))
     out["notice_two_names"] = ({}, lambda w: raise_notice(w.alerter, NOTICE_DETAIL, NOTICE_FACTS))
     out["notice_quiet_period"] = ({}, lambda w: raise_notice(w.alerter, NOTICE_QUIET_DETAIL, NOTICE_QUIET_FACTS))
@@ -266,7 +266,7 @@ def test_a_formatting_bug_sends_the_technical_text_for_every_alert_type(monkeypa
 
     monkeypatch.setattr(m, "humanise", boom)
     got = {}
-    for sid in ("alert:03:poll_log_ok_age:crit", STEPDOWN_DISK, "recovered_with_duration:disk", "near_miss", "restarted",
+    for sid in ("alert:03:poll_log_ok_age:crit", STEPDOWN_DISK, "recovered_with_duration:disk", "unknown_callsign", "restarted",
                "notice_two_names"):
         caplog.clear()
         got[sid] = run(sid, monkeypatch, caplog)["telegram"]
@@ -274,7 +274,7 @@ def test_a_formatting_bug_sends_the_technical_text_for_every_alert_type(monkeypa
         "alert:03:poll_log_ok_age:crit": "vatpac-stats: CRIT poll_log_ok_age: newest ok poll is 312s old",
         STEPDOWN_DISK: "vatpac-stats: WARN disk: /backups 82% used, / 50% used",
         "recovered_with_duration:disk": "vatpac-stats: RECOVERED disk (was crit): fine now",
-        "near_miss": f"vatpac-stats: NEAR-MISS controller callsign(s) not on whitelist: {NEAR_MISS}",
+        "unknown_callsign": f"vatpac-stats: UNKNOWN CALLSIGN not on whitelist: {UNKNOWN_CALLSIGN}",
         "restarted": "vatpac-stats: RESTARTED collector (1/3 this hour, ok=True): collector HTTP 503 and no failures counted",
         "notice_two_names": f"vatpac-stats: WARN data_integrity: {NOTICE_DETAIL}",
     }
