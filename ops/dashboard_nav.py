@@ -23,7 +23,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # grafana_public impor
 from grafana_public import SHORT_NAMES  # noqa: E402
 
 DASHBOARDS = Path(__file__).resolve().parents[1] / "grafana" / "dashboards"
-NAV_ROWS = 3  # rows the strip adds to the top text panel (a banner-only panel is 2 or 3 rows tall, so 5 or 6 with the strip)
+NAV_ROWS = 3  # rows the strip adds to the top text panel; used only as the default for a dashboard not yet in MIN_HEADER_HEIGHT (a brand new one being onboarded by apply())
+
+MIN_HEADER_HEIGHT: dict[str, int] = {   # the lowest gridPos.h that renders the strip without scrolling, measured in a local Grafana 12.4 (issue 371); a file not listed here falls back to the old 2 + NAV_ROWS default
+    "atc-overview.json": 3,
+    "atc-position-hours.json": 4,
+    "atc-positions.json": 4,
+    "atc-ranks.json": 5,
+    "atc-retention.json": 3,
+    "pilot-origins.json": 3,
+    "monday-events.json": 3,
+    "military.json": 3,
+    "collector-health.json": 3,
+    "pilot-onboarding.json": 3,
+    "pilots-aircraft-airlines.json": 4,
+    "pilots-records.json": 4,
+    "pilots-routes-airports.json": 4,
+    "pilots-traffic.json": 3,
+}
 
 # group label -> [(short address, display name)]; the short address must be a value in SHORT_NAMES
 GROUPS: dict[str, list[tuple[str, str]]] = {
@@ -65,7 +82,7 @@ def problems() -> list[str]:
             out.append(f"{f.name}: no top text panel (id 1) or no short name")
         elif split(panel["options"]["content"])[0] != strip(d["uid"]):
             out.append(f"{f.name}: navigation strip missing or out of step; run python ops/dashboard_nav.py")
-        elif panel["gridPos"]["h"] < 2 + NAV_ROWS:
+        elif panel["gridPos"]["h"] < MIN_HEADER_HEIGHT.get(f.name, 2 + NAV_ROWS):
             out.append(f"{f.name}: top text panel too short for the strip (scrolls)")
     return out
 
