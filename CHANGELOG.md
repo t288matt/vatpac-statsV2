@@ -8,7 +8,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 ## The disk line on the Collector health page shows free space (14-11-2026, issue 27)
 
-- **Free, not used.** "Database size vs VM disk" now draws the free space on the disk that holds the database (total minus used, in GB) instead of the used space, so the headroom before the disk fills can be read directly. It is about 5% higher than the figure `df` calls available, because the system keeps a reserved slice. Only the panel changed; the stored readings are the same.
+- **Free, not used.** "Database size vs VM disk" now draws the free space on the disk that holds the database (total minus used, in GB) instead of the used space, so the headroom before the disk fills can be read directly. It is higher than the figure `df` calls available by the reserved slice the system keeps, about 5% of the disk's total size. Only the panel changed; the stored readings are the same.
 
 ## Database size, VM disk and database speed on the Collector health page (14-11-2026, issue 27)
 
