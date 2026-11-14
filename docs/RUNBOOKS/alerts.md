@@ -95,6 +95,6 @@ Know these gaps; check for them by hand:
 
 Messages are plain text with no emoji (emoji caused UTF-8 errors). Never paste a message that contains a bot token, and never put the token in git, chat or logs.
 
-*Phase 5 of issue 89 (migration 20261013000300, live since 13-10-2026) removed the two checks of the old pieces table; phase 4 added two, so the pack then held 21 (23 in the code before phase 5). Issue 243 removed one more on 22-10-2026, so it had 20, and issue 363 removed one on 14-11-2026, so it has 19; see [integrity-checks.md](integrity-checks.md).*
+The invariant pack holds 19 checks; the full list is in [integrity-checks.md](integrity-checks.md).
 
 *Stopped flight writer (issue 89 phase 5).* The old same-day check for missing flight summaries went with the old table. Its replacement is the invariant `flights quiet longer than the quiet period with unprocessed positions`, which is now in the same-day list of `ops/watchdog/messages.py` (`SAME_DAY_INVARIANTS`): when it is among the failing checks the alert leads with it and says to look today (the collector log for `write_finished_flights`). It is only as quick as the invariant sweep (every 72 hours, repeated every 6 hours while violations stand); the freshness alerts (`data_freshness`, collector health) still catch a stopped collector sooner, but not a collector that polls fine while its writer job fails every run.

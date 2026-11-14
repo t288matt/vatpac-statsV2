@@ -19,7 +19,6 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 - **One rule.** `flight.touches_home_region` now reads the home prefixes from the `home_prefix` view, the list `flight_ext` already uses, instead of keeping its own copy of the list; the list is read once per query, so the column is no slower. No panel reads this column, so no dashboard changes. For every stored flight and every valid setting the answers are the same. The one difference: a `home_icao_prefixes` setting that exists but is empty used to count every `Y` airport as home in this view; it now matches nothing, as in `flight_ext`. The collector never publishes an empty value. Migration `20261114000208`.
 
-
 ## Migrations travel only in the migrate image (13-11-2026, issue 233)
 
 - **One carrier.** The `migrate` container no longer mounts `./db` over the migrations and `db/roles.sql` baked into its image. The migrations that run are the ones the image was built with, in registry mode and in local-build mode, so code and migrations always come from the same commit. In local-build mode `make up` rebuilds the image; after editing a migration and using plain `docker compose up -d`, run `docker compose build migrate` first. The migrations and the database are unchanged.
