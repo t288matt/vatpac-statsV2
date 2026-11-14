@@ -208,7 +208,7 @@
       "id": 5,
       "type": "barchart",
       "title": "Controllers online during the Monday event window, each Monday (0700-1200Z)",
-      "description": "For each Monday (UTC) in the last 5 years that has any, the number of distinct controllers (CIDs) with a session connected at some moment between 0700 and 1200 UTC. A session that starts before 1200 and ends at or after 0700 counts, however long it spans the window or how short its overlap; a controller with several sessions in the window counts once. Sessions are the merged controller sessions (a reconnect within 5 minutes is one session). Only whitelisted positions are stored. A session appears once it has ended. Times are UTC.",
+      "description": "For each Monday (UTC) in the last 5 years that has any, the number of distinct controllers (CIDs) with a session connected at some moment between 0700 and 1200 UTC. A session that starts before 1200 and ends at or after 0700 counts, however long it spans the window or how short its overlap; a controller with several sessions in the window counts once. Only whitelisted positions are stored. A session appears once it has ended. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
