@@ -55,7 +55,7 @@ def test_top_panel_is_tall_enough_and_no_panel_overlaps_it() -> None:
     for f in FILES:
         d = json.loads(f.read_text(encoding="utf-8"))
         top = d["panels"][0]["gridPos"]
-        assert top["h"] >= 5, f.name
+        assert top["h"] >= nav.MIN_HEADER_HEIGHT.get(f.name, 5), f.name
         assert all(p["gridPos"]["y"] >= top["h"] for p in d["panels"][1:]), f.name
 
 
