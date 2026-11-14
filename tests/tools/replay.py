@@ -32,7 +32,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_TABLES = ["pilot_position", "pilot_session", "controller_rating_event", "controller_frequency_event",
-               "controller_session", "network_snapshot", "poll_log", "controller_unlisted_sighting"]
+               "controller_session", "network_snapshot", "poll_log", "controller_unlisted_callsign"]
 
 
 # ------------------------------------------------------------------------------------------------ loading
@@ -223,7 +223,7 @@ _DUMP_SQL = {
                                   "s.callsign, 'logon_time', s.logon_time) AS r FROM controller_frequency_event e "
                                   "JOIN controller_session s ON s.id = e.session_id",
     "network_snapshot": "SELECT to_jsonb(n) AS r FROM network_snapshot n",
-    "controller_unlisted_sighting": "SELECT to_jsonb(u) AS r FROM controller_unlisted_sighting u",
+    "controller_unlisted_callsign": "SELECT to_jsonb(u) AS r FROM controller_unlisted_callsign u",
     "poll_log": "SELECT to_jsonb(l) - 'id' - 'polled_at' - 'duration_ms' AS r FROM poll_log l",
 }
 

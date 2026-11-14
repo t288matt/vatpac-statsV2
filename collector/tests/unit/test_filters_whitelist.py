@@ -1,4 +1,4 @@
-"""SPEC s4.2 / s7: load_whitelist and is_near_miss."""
+"""SPEC s4.2 / s7: load_whitelist and is_unlisted_callsign."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from vatpac.errors import ReferenceDataError
-from vatpac.filters import is_near_miss, load_whitelist
+from vatpac.filters import is_unlisted_callsign, load_whitelist
 
 
 def write(tmp_path: Path, text: str, name: str = "wl.txt") -> Path:
@@ -113,51 +113,51 @@ def test_real_whitelist_loads(whitelist_path: Path) -> None:
     assert all(cs == cs.strip() and cs and "," not in cs and " " not in cs for cs in wl)
 
 
-# ------------------------------------------------------------------ is_near_miss
+# ------------------------------------------------------------------ is_unlisted_callsign
 WL = frozenset({"ML_TWR", "ML-ASP_CTR", "AD_APP", "SY_TWR"})
 
 
 @pytest.mark.parametrize("cs", ["ML_XYZ_CTR", "AD_XYZ_TWR", "SY_FOO", "ML-ASP_XYZ"])
-def test_near_miss_true(cs: str) -> None:
-    assert is_near_miss(cs, WL) is True
+def test_unlisted_callsign_true(cs: str) -> None:
+    assert is_unlisted_callsign(cs, WL) is True
 
 
 @pytest.mark.parametrize("cs", ["ML_TWR", "ML-ASP_CTR", "AD_APP"])
-def test_listed_is_not_near_miss(cs: str) -> None:
-    assert is_near_miss(cs, WL) is False
+def test_listed_is_not_unlisted_callsign(cs: str) -> None:
+    assert is_unlisted_callsign(cs, WL) is False
 
 
 @pytest.mark.parametrize("cs", ["ML_OBS", "AD_OBS", "ML_XYZ_OBS", "ZZ_OBS"])
-def test_obs_never_near_miss(cs: str) -> None:
-    assert is_near_miss(cs, WL) is False
+def test_obs_never_unlisted_callsign(cs: str) -> None:
+    assert is_unlisted_callsign(cs, WL) is False
 
 
 @pytest.mark.parametrize("cs", ["ML_SUP", "AD_SUP", "ML_XYZ_SUP", "AS_SUP", "EN_SUP"])
-def test_sup_never_near_miss(cs: str) -> None:
-    """Issue 39 (audit F8): supervisors are not new positions, so they must not raise a near-miss alert."""
-    assert is_near_miss(cs, WL) is False
+def test_sup_never_unlisted_callsign(cs: str) -> None:
+    """Issue 39 (audit F8): supervisors are not new positions, so they must not raise an unknown-callsign alert."""
+    assert is_unlisted_callsign(cs, WL) is False
 
 
 @pytest.mark.parametrize("cs", ["ZZ_XYZ_CTR", "YSSY_TWR", "ML-FOO_CTR", "UAE123", "", "NZ_TWR"])
-def test_unrelated_prefix_is_not_near_miss(cs: str) -> None:
-    assert is_near_miss(cs, WL) is False
+def test_unrelated_prefix_is_not_unlisted_callsign(cs: str) -> None:
+    assert is_unlisted_callsign(cs, WL) is False
 
 
 @pytest.mark.parametrize("cs", ["ml_xyz_ctr", "Ml_XYZ_CTR"])
-def test_near_miss_is_case_sensitive(cs: str) -> None:
-    assert is_near_miss(cs, WL) is False
+def test_unlisted_callsign_is_case_sensitive(cs: str) -> None:
+    assert is_unlisted_callsign(cs, WL) is False
 
 
 def test_prefix_must_equal_not_startwith() -> None:
     """MLX_FOO starts with ML but its prefix MLX is not a whitelist prefix."""
-    assert is_near_miss("MLX_FOO", WL) is False
-    assert is_near_miss("M_FOO", WL) is False
+    assert is_unlisted_callsign("MLX_FOO", WL) is False
+    assert is_unlisted_callsign("M_FOO", WL) is False
 
 
-def test_near_miss_with_real_whitelist(whitelist_path: Path) -> None:
+def test_unlisted_callsign_with_real_whitelist(whitelist_path: Path) -> None:
     wl = load_whitelist(whitelist_path)
-    assert is_near_miss("ML_XYZ_CTR", wl) is True
-    assert is_near_miss("AD_XYZ_TWR", wl) is True
-    assert is_near_miss("PH_TWR", wl) is False
-    assert is_near_miss("SY_OBS", wl) is False
-    assert is_near_miss("UAE3", wl) is False
+    assert is_unlisted_callsign("ML_XYZ_CTR", wl) is True
+    assert is_unlisted_callsign("AD_XYZ_TWR", wl) is True
+    assert is_unlisted_callsign("PH_TWR", wl) is False
+    assert is_unlisted_callsign("SY_OBS", wl) is False
+    assert is_unlisted_callsign("UAE3", wl) is False

@@ -6,6 +6,11 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Unknown callsign (14-11-2026, issue 209)
+
+- **"Near miss" is now "unknown callsign".** A controller whose callsign is not on the whitelist but looks like a new position is still recorded and still raises one Telegram alert per callsign; the alert now reads "Unknown callsign". The table `controller_unlisted_sighting` is now `controller_unlisted_callsign` (migration `20261114000210`, rows and rights kept). The collector no longer logs its own warning for it: the watchdog is the one path, and it reads the table directly. The watchdog remembers which callsigns it has alerted (`known_unlisted_callsign`) and reads its old list once, so nothing alerts twice.
+- **A temporary view.** For the short time the previous collector and watchdog run during a deploy, the old table name exists as a view; a later migration drops it.
+
 ## Migrations travel only in the migrate image (13-11-2026, issue 233)
 
 - **One carrier.** The `migrate` container no longer mounts `./db` over the migrations and `db/roles.sql` baked into its image. The migrations that run are the ones the image was built with, in registry mode and in local-build mode, so code and migrations always come from the same commit. In local-build mode `make up` rebuilds the image; after editing a migration and using plain `docker compose up -d`, run `docker compose build migrate` first. The migrations and the database are unchanged.

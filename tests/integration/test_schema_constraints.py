@@ -138,7 +138,7 @@ def test_expected_objects_exist(conn) -> None:
     present |= {r["m"] for r in conn.execute("SELECT matviewname AS m FROM pg_matviews").fetchall()}
     for name in (
         "pilot_session", "pilot_position", "controller_session", "controller_rating_event",
-        "controller_frequency_event", "network_snapshot", "poll_log", "controller_unlisted_sighting",
+        "controller_frequency_event", "network_snapshot", "poll_log", "controller_unlisted_callsign",
         "reference_data_change", "controller_rating", "facility", "pilot_rating", "airline",
         "aircraft_type", "region_map", "flight", "controller_session_merged",
         "movements", "cohorts", "online_now", "data_freshness",
@@ -149,3 +149,14 @@ def test_expected_objects_exist(conn) -> None:
 def test_dropped_views_stay_dropped(conn) -> None:
     gone = {r["v"] for r in conn.execute("SELECT viewname AS v FROM pg_views WHERE schemaname = 'public'").fetchall()}
     assert not gone & {"near_miss_controllers", "controller_activity_daily"}
+
+
+def test_the_previous_releases_unlisted_callsign_statements_still_work_through_the_temporary_view(conn) -> None:
+    """Issue 209: during a deploy the previous collector still runs INSERT ... ON CONFLICT ... RETURNING xmax = 0 on the old name."""
+    sql = ("INSERT INTO controller_unlisted_sighting AS u (callsign, cid, first_seen, last_seen, polls_seen) "
+           "VALUES ('ML_XYZ_CTR', 1, now(), now(), 1) ON CONFLICT (callsign) DO UPDATE SET polls_seen = u.polls_seen + 1 "
+           "RETURNING callsign, (xmax = 0) AS inserted")
+    assert [tuple(r.values()) for r in conn.execute(sql).fetchall()] == [("ML_XYZ_CTR", True)]
+    assert [tuple(r.values()) for r in conn.execute(sql).fetchall()] == [("ML_XYZ_CTR", False)]
+    assert conn.execute("SELECT callsign, polls_seen FROM controller_unlisted_callsign").fetchall() == [
+        {"callsign": "ML_XYZ_CTR", "polls_seen": 2}]

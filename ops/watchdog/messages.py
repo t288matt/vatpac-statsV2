@@ -45,7 +45,7 @@ def facts_of(result: tuple[str, str]) -> dict[str, Any]:
 @dataclass(frozen=True)
 class Alert:
     """One alert as the watchdog raises it. level is warn, crit or ok (ok = RECOVERED; previous_level is what it was).
-    down_for is how long the alert was active in seconds, or None when unknown. name is a check name, 'near-miss'
+    down_for is how long the alert was active in seconds, or None when unknown. name is a check name, 'unknown-callsign'
     (detail = the callsigns) or 'restarted:<service>' (facts counts and why)."""
     name: str
     level: str
@@ -56,8 +56,8 @@ class Alert:
 
     def technical(self) -> str:
         """The technical wording for the log and the status file."""
-        if self.name == "near-miss":
-            return f"NEAR-MISS controller callsign(s) not on whitelist: {self.detail}"
+        if self.name == "unknown-callsign":
+            return f"UNKNOWN CALLSIGN not on whitelist: {self.detail}"
         if self.name.startswith("restarted:"):
             return f"RESTARTED {self.name.split(':', 1)[1]} ({self.facts.get('counts', '')}): {self.facts.get('why', self.detail)}"
         if self.level == "ok":
@@ -472,10 +472,10 @@ def humanise(name: str, level: str, detail: str, previous_level: str | None = No
     facts = facts or {}
     stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%H:%M UTC")
     label = LABELS.get(level, "heads up")
-    if name == "near-miss":
-        plain = (f"a controller logged on with a callsign that is not on the whitelist, so they are not being recorded: {detail}. "
+    if name == "unknown-callsign":
+        plain = (f"unknown callsign: a controller logged on with a callsign that is not on the whitelist, so they are not being recorded: {detail}. "
                  "It looks like a new position; add it to the whitelist if it is real.")
-        return _ascii(f"{PREFIX} {label} ({stamp}). {plain[0].upper() + plain[1:]}\nTechnical: near-miss {_clip(detail)}")
+        return _ascii(f"{PREFIX} {label} ({stamp}). {plain[0].upper() + plain[1:]}\nTechnical: unknown-callsign {_clip(detail)}")
     if name.startswith("restarted:"):
         svc = name.split(":", 1)[1]
         plain = f"The watchdog restarted the {svc} container because it looked stuck. Check that it stays up; no other action."

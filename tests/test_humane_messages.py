@@ -145,10 +145,10 @@ def test_a_step_down_from_crit_to_warn_says_so() -> None:
     assert "eased from a problem to a warning" in t
 
 
-def test_near_miss_and_restarted() -> None:
-    t = m.humanise("near-miss", "warn", "YSSY_X_TWR, YMML_N_APP", now=NOW)
-    assert "not on the whitelist" in t and "add it to the whitelist" in t
-    assert t.splitlines()[-1] == "Technical: near-miss YSSY_X_TWR, YMML_N_APP"
+def test_unknown_callsign_and_restarted() -> None:
+    t = m.humanise("unknown-callsign", "warn", "YSSY_X_TWR, YMML_N_APP", now=NOW)
+    assert "not on the whitelist" in t and "add it to the whitelist" in t and "Unknown callsign:" in t
+    assert t.splitlines()[-1] == "Technical: unknown-callsign YSSY_X_TWR, YMML_N_APP"
     assert t.isascii() and t.startswith(m.PREFIX)
     r = m.humanise("restarted:collector", "warn", "1/3 this hour, ok=True: collector HTTP 503 and no failures counted", now=NOW)
     assert "restarted the collector container" in r and r.splitlines()[-1].startswith("Technical: restarted collector")
@@ -373,7 +373,7 @@ def test_a_context_never_leaks_into_the_next_message() -> None:
 
     a = alerter(handler, {"alerts": {"disk": "warn"}, "bad_since": {"disk": 1.0}})
     a.update("disk", "ok", "/ 40% used")
-    a.send("NEAR-MISS controller callsign(s) not on whitelist: X_TWR")
+    a.send("UNKNOWN CALLSIGN not on whitelist: X_TWR")
     assert "active for" in seen[0] and "active for" not in seen[1]
 
 
