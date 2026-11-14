@@ -83,3 +83,13 @@ def test_longest_flights_panel_is_gone_and_the_layout_has_no_gap():
 def test_lapsed_pilots_panel_is_gone():
     # Issue 306.
     assert not _panels("Pilots who flew last month but not this month")
+
+
+def test_database_size_panel_draws_free_disk_space_not_used():
+    # Issue 27: the right-hand line is the headroom (total minus used). Fails if the old "used" query or series name comes back.
+    p = _panel("Database size vs VM disk")
+    sql = p["targets"][0]["rawSql"]
+    assert "disk_total_gb - disk_used_gb" in sql and "VM disk free (GB)" in sql and "VM disk used" not in sql
+    names = {o["matcher"]["options"] for o in p["fieldConfig"]["overrides"]}
+    assert names == {"Database (MB)", "VM disk free (GB)"}
+    assert "total minus used" in p["description"] and "df" in p["description"]
