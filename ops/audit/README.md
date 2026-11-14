@@ -8,7 +8,7 @@ history: the commit that removed them is the one to `git show` or `git checkout 
 
 | File | Purpose | Touches |
 |---|---|---|
-| `independent.py` | USED BY THE WATCHDOG (14-day archive cross-check). Own point-in-polygon (exact rational arithmetic, no shapely), whitelist, near-miss, frequency, caps; `analyse(payload)` recomputes the expected rows from a raw feed payload with none of the collector's code. | nothing (pure functions) |
+| `independent.py` | USED BY THE WATCHDOG (14-day archive cross-check). Own point-in-polygon (exact rational arithmetic, no shapely), whitelist, unlisted controller callsigns, frequency, caps; `analyse(payload)` recomputes the expected rows from a raw feed payload with none of the collector's code. | nothing (pure functions) |
 | `invariants.sql` | USED BY THE WATCHDOG (3-day sweep). Read-only SQL pack (one repeatable-read transaction): the integrity invariants including the identity-flap detector. | live DB, read only |
 | `identity_flap.sql` | USED BY THE WATCHDOG (every cycle, last 24 hours) and by `ops/deploy.sh --verify` (whole history). The one definition of "two sessions of one `cid` and callsign less than 2 s apart"; two rows (pilot, controller), every `bad` should be 0. Can be run by hand (see the file header). | live DB, read only |
 

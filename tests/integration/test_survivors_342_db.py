@@ -21,12 +21,12 @@ def db(conn):
     return conn
 
 
-def test_a_near_miss_is_reported_new_once_and_not_again(db, payload, refdata) -> None:
+def test_an_unlisted_callsign_is_reported_new_once_and_not_again(db, payload, refdata) -> None:
     """A10 (the `inserted` flag inverted): the first sighting of each unlisted callsign is reported as new, a repeat is not."""
     first = apply(db, at(payload), refdata)
-    assert sorted(first.new_near_misses) == ["AD_XYZ_TWR", "ML_XYZ_CTR"]
+    assert sorted(first.new_unlisted_callsigns) == ["AD_XYZ_TWR", "ML_XYZ_CTR"]
     again = apply(db, at(payload, 15), refdata)
-    assert again.new_near_misses == []
+    assert again.new_unlisted_callsigns == []
 
 
 def test_the_partition_ending_exactly_at_the_cutoff_goes_and_the_next_day_stays(conn) -> None:

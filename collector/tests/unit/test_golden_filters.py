@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from vatpac.filters import inside_polygon, is_near_miss, load_polygon, load_whitelist
+from vatpac.filters import inside_polygon, is_unlisted_callsign, load_polygon, load_whitelist
 from vatpac.model import parse_snapshot
 
 
@@ -86,26 +86,26 @@ def test_no_frequency_controller_is_still_whitelisted(ctx, expected: dict) -> No
     assert "BN_GND" in expected["controllers_no_frequency"] and "BN_GND" in kept
 
 
-def test_near_miss_list(ctx, expected: dict) -> None:
+def test_unlisted_callsign_list(ctx, expected: dict) -> None:
     snap, _, wl, _, _ = ctx
-    near = sorted(c.callsign for c in snap.controllers if is_near_miss(c.callsign, wl))
-    assert near == expected["controllers_near_miss"]
+    near = sorted(c.callsign for c in snap.controllers if is_unlisted_callsign(c.callsign, wl))
+    assert near == expected["controllers_unlisted_callsign"]
     assert "ML_XYZ_CTR" in near
     assert "SY_OBS" not in near
 
 
-def test_near_miss_never_kept(ctx) -> None:
+def test_unlisted_callsign_never_kept(ctx) -> None:
     snap, _, wl, _, kept_c = ctx
     kept = {c.callsign for c in kept_c}
     for c in snap.controllers:
-        if is_near_miss(c.callsign, wl):
+        if is_unlisted_callsign(c.callsign, wl):
             assert c.callsign not in kept
 
 
 def test_non_australian_controllers_present_and_dropped(ctx) -> None:
     snap, _, wl, _, _ = ctx
     foreign = [c for c in snap.controllers if c.callsign not in wl and not c.callsign.endswith("_OBS")
-               and not is_near_miss(c.callsign, wl)]
+               and not is_unlisted_callsign(c.callsign, wl)]
     assert len(foreign) >= 5
 
 

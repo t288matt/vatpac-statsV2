@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import psycopg
+import psycopg.errors
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
@@ -571,8 +573,8 @@ def test_load_state(tmp_path: Path) -> None:
     assert wd.load_state(p) == {}
     p.write_text("[1, 2]")
     assert wd.load_state(p) == {}
-    p.write_text(json.dumps({"state": {"known_near_miss": ["X_TWR"]}}))
-    assert wd.load_state(p) == {"known_near_miss": ["X_TWR"]}
+    p.write_text(json.dumps({"state": {"known_unlisted_callsign": ["X_TWR"]}}))
+    assert wd.load_state(p) == {"known_unlisted_callsign": ["X_TWR"]}
 
 
 # ------------------------------------------------------------------ cycle: the restart decisions
@@ -590,11 +592,20 @@ class World:
         self.grafana: httpx.Response | Exception = httpx.Response(200, json={})
         self.kuma_calls = 0
         self.telegram: list[dict] = []
-        self.db_result: dict[str, wd.Result] = {"database": (OK, "reachable"), "_near_miss": (OK, "")}
+        self.db_result: dict[str, wd.Result] = {"database": (OK, "reachable")}
+        self.unlisted: list[str] = []
         self.docker = FakeDocker()
         self.docker.data = {s: {**ins(), "Id": f"id-{s}"} for s in ("db", "collector", "grafana", "backup")}
         self.docker.data["migrate"] = {**ins("exited", "none"), "Id": "id-migrate"}
         monkeypatch.setattr(wd, "check_db", lambda cfg: dict(self.db_result))
+        self.unlisted_error: Exception | None = None
+
+        def read_unlisted(cfg: wd.Config) -> list[str]:
+            if self.unlisted_error is not None:
+                raise self.unlisted_error
+            return list(self.unlisted)
+
+        monkeypatch.setattr(wd, "unlisted_callsigns", read_unlisted)
         monkeypatch.setattr(wd, "check_disk", lambda cfg: (OK, "disk fine"))
         monkeypatch.setattr(wd, "check_backup", lambda cfg, first: (OK, "backup fine"))
         monkeypatch.setattr(wd, "check_restore_test", lambda cfg, first: (OK, "restore fine"))
@@ -758,14 +769,29 @@ def test_cycle_docker_proxy_failure_is_reported(world: World, monkeypatch: pytes
     assert "CRIT docker_proxy: unreachable (ConnectError)" in world.sent
 
 
-def test_cycle_alerts_each_new_near_miss_callsign_once(world: World) -> None:
-    world.db_result["_near_miss"] = (OK, "ML_XYZ_CTR,AD_XYZ_TWR")
+def test_cycle_alerts_each_new_unknown_callsign_once(world: World) -> None:
+    world.unlisted = ["ML_XYZ_CTR", "AD_XYZ_TWR"]
     world.cycle(3)
-    assert world.sent.count("NEAR-MISS controller callsign(s) not on whitelist: ML_XYZ_CTR, AD_XYZ_TWR") == 1
-    world.db_result["_near_miss"] = (OK, "ML_XYZ_CTR,AD_XYZ_TWR,BN_ZZZ_TWR")
+    assert world.sent.count("UNKNOWN CALLSIGN not on whitelist: ML_XYZ_CTR, AD_XYZ_TWR") == 1
+    world.unlisted = ["ML_XYZ_CTR", "AD_XYZ_TWR", "BN_ZZZ_TWR"]
     world.cycle(1)
-    assert world.sent[-1] == "NEAR-MISS controller callsign(s) not on whitelist: BN_ZZZ_TWR"
-    assert world.state["known_near_miss"] == ["AD_XYZ_TWR", "BN_ZZZ_TWR", "ML_XYZ_CTR"]
+    assert world.sent[-1] == "UNKNOWN CALLSIGN not on whitelist: BN_ZZZ_TWR"
+    assert world.state["known_unlisted_callsign"] == ["AD_XYZ_TWR", "BN_ZZZ_TWR", "ML_XYZ_CTR"]
+
+
+def test_a_callsign_already_alerted_under_the_old_state_key_is_not_alerted_again(world: World) -> None:
+    """Issue 209: the state key known_near_miss became known_unlisted_callsign. A callsign recorded under the old key must stay quiet
+    after the upgrade, a new one alerts exactly once, and the old key is read once and then gone."""
+    world.state["known_near_miss"] = ["ML_XYZ_CTR", "AD_XYZ_TWR"]
+    world.unlisted = ["ML_XYZ_CTR", "AD_XYZ_TWR"]
+    world.cycle(3)
+    assert [s for s in world.sent if "UNKNOWN CALLSIGN" in s] == []
+    assert "known_near_miss" not in world.state
+    assert world.state["known_unlisted_callsign"] == ["AD_XYZ_TWR", "ML_XYZ_CTR"]
+    world.unlisted = ["ML_XYZ_CTR", "AD_XYZ_TWR", "BN_ZZZ_TWR"]
+    world.cycle(3)
+    assert [s for s in world.sent if "UNKNOWN CALLSIGN" in s] == ["UNKNOWN CALLSIGN not on whitelist: BN_ZZZ_TWR"]
+
 
 
 def test_cycle_the_uptime_push_is_skipped_only_when_the_overall_state_is_critical(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -781,3 +807,14 @@ def test_cycle_reports_database_checks_through_the_alerter(world: World) -> None
     world.db_result["network_snapshot_age"] = (CRIT, "newest snapshot is 400s old")
     world.cycle(2)
     assert "CRIT network_snapshot_age: newest snapshot is 400s old" in world.sent
+
+
+def test_a_failing_unlisted_callsign_read_is_critical_not_silent(world: World, caplog: pytest.LogCaptureFixture) -> None:
+    """A refused grant on controller_unlisted_callsign must raise the database check to CRIT (as it did when the query sat in check_db)."""
+    world.unlisted_error = psycopg.errors.InsufficientPrivilege("permission denied for table controller_unlisted_callsign")
+    world.cycle(3)
+    assert world.sent.count("CRIT database: query/connect failed (InsufficientPrivilege)") == 1
+    assert "unlisted callsign read failed" in caplog.text
+    world.unlisted_error = None
+    world.cycle(3)
+    assert world.sent[-1].startswith("RECOVERED database (was crit)")

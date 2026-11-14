@@ -28,8 +28,8 @@ def send(a: Any, text: str) -> None:
         a.notify(m.group(2), (m.group(1).lower(), m.group(3)))
     elif (m := re.match(r"RECOVERED (\S+) \(was (\w+)\): (.*)$", text, re.S)):
         a.notify(m.group(1), ("ok", m.group(3)), previous=m.group(2))
-    elif (m := re.match(r"NEAR-MISS .*?: (.*)$", text)):
-        a.notify("near-miss", ("warn", m.group(1)))
+    elif (m := re.match(r"UNKNOWN CALLSIGN .*?: (.*)$", text)):
+        a.notify("unknown-callsign", ("warn", m.group(1)))
     elif (m := re.match(r"RESTARTED (\S+) \((.*?)\): (.*)$", text)):
         a.notify(f"restarted:{m.group(1)}", wd.Checked("warn", f"{m.group(2)}: {m.group(3)}", counts=m.group(2), why=m.group(3)))
     else:
@@ -330,7 +330,7 @@ def test_a_fixed_run_of_check_results_sends_exactly_the_golden_messages(clock: C
     for n, lv, d, f in seq:
         clock.now += 60
         a.update(n, lv, d, f)
-    send(a, "NEAR-MISS controller callsign(s) not on whitelist: X_TWR")
+    send(a, "UNKNOWN CALLSIGN not on whitelist: X_TWR")
     send(a, "RESTARTED collector (1/3 this hour, ok=True): stuck")
     got = [re.sub(r"\(\d\d:\d\d UTC\)", "(HH:MM UTC)", t) for t in tg.delivered]
     assert got == json.loads((REPO / "tests" / "fixtures" / "alerter_replay_golden.json").read_text())
