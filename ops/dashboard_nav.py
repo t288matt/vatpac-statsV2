@@ -23,9 +23,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # grafana_public impor
 from grafana_public import SHORT_NAMES  # noqa: E402
 
 DASHBOARDS = Path(__file__).resolve().parents[1] / "grafana" / "dashboards"
-NAV_ROWS = 3  # rows the strip adds to the top text panel; used only as the default for a dashboard not yet in MIN_HEADER_HEIGHT (a brand new one being onboarded by apply())
+NAV_ROWS = 3  # rows the strip adds to the panel; default for a dashboard not yet in MIN_HEADER_HEIGHT (a new one onboarded by apply())
 
-MIN_HEADER_HEIGHT: dict[str, int] = {   # the lowest gridPos.h that renders the strip without scrolling, measured in a local Grafana 12.4 (issue 371); a file not listed here falls back to the old 2 + NAV_ROWS default
+# lowest gridPos.h with no scroll, measured in Grafana 12.4 (issue 371); unlisted files fall back to 2 + NAV_ROWS
+MIN_HEADER_HEIGHT: dict[str, int] = {
     "atc-overview.json": 3,
     "atc-position-hours.json": 4,
     "atc-positions.json": 4,
