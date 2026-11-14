@@ -46,7 +46,7 @@ def test_recording_writes_one_row_with_a_positive_size_and_a_fast_probe(conn) ->
 def test_the_daily_job_records_the_sample(conn) -> None:
     from vatpac.settings import Settings
 
-    out = m.run_maintenance(conn, Settings(database_url="postgresql://x/y"), ("system_sampled",))
+    out = m.run_maintenance(conn, Settings(database_url="postgresql://x/y", archive_dir=PATH), ("system_sampled",))
     assert out["system_sampled"] == 1 and out["failed"] == 0 and len(_rows(conn)) == 1
 
 
