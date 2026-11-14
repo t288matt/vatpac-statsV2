@@ -103,8 +103,10 @@ GRANT SELECT, INSERT, UPDATE ON
     controller_frequency_event, network_snapshot, poll_log, controller_unlisted_callsign,
     reference_data_change, app_setting
 TO collector;
--- TEMPORARY (issue 209): the compatibility view for the previous collector during a deploy; removed with the view.
-GRANT SELECT, INSERT, UPDATE ON controller_unlisted_sighting TO collector;
+-- TEMPORARY (issue 209): the compatibility view for the previous collector during a deploy; skipped once the view is dropped.
+SELECT 'GRANT SELECT, INSERT, UPDATE ON controller_unlisted_sighting TO collector'
+ WHERE to_regclass('public.controller_unlisted_sighting') IS NOT NULL
+\gexec
 -- The one retention trim the collector runs itself (maintenance.py trim_poll_log). Position partitions are dropped and the
 -- finished flights are written by the SECURITY DEFINER writer below, which needs no DELETE right.
 GRANT DELETE ON poll_log TO collector;

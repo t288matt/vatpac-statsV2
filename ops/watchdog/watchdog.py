@@ -171,13 +171,11 @@ def check_db(cfg: Config) -> dict[str, Result]:
 
 
 def unlisted_callsigns(cfg: Config) -> list[str]:
-    """Every callsign in controller_unlisted_callsign, oldest first. An unreachable database gives [] (check_db reports that)."""
-    try:
-        with psycopg.connect(cfg.db_dsn) as conn, conn.cursor() as cur:
-            cur.execute("SELECT callsign FROM controller_unlisted_callsign ORDER BY first_seen")
-            return [r[0] for r in cur.fetchall()]
-    except psycopg.Error:
-        return []
+    """Every callsign in controller_unlisted_callsign, oldest first. Raises psycopg.Error when the read fails; the cycle turns that into
+    a CRIT on the database check, as it was when this query was part of check_db."""
+    with psycopg.connect(cfg.db_dsn) as conn, conn.cursor() as cur:
+        cur.execute("SELECT callsign FROM controller_unlisted_callsign ORDER BY first_seen")
+        return [r[0] for r in cur.fetchall()]
 
 
 # Session pairs with one cid and callsign and logon_time within 2 s. The rule lives in ONE file, ops/audit/identity_flap.sql
@@ -689,6 +687,13 @@ def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, 
 
     db = check_db(cfg)
     results.update(db)
+    try:
+        listed = unlisted_callsigns(cfg)
+    except psycopg.Error as exc:  # a missing grant or any database error must not pass silently (CRIT, as when check_db held the query)
+        log.error("unlisted callsign read failed: %s", exc)
+        listed = []
+        if db.get("database", (CRIT, ""))[0] == OK:
+            results["database"] = (CRIT, f"query/connect failed ({type(exc).__name__})")
     sched, notices = integrity.run_due(cfg.integrity, state)  # slow checks, persisted schedule, see integrity.py
     results.update(sched)
     results["disk"] = check_disk(cfg)
@@ -715,7 +720,7 @@ def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, 
     # New unknown callsigns: alert once each, ever (persisted). The state key was known_near_miss before issue 209: it is read
     # once here and dropped, so a callsign already alerted under the old key is not alerted again.
     known = set(state.pop("known_near_miss", [])) | set(state.get("known_unlisted_callsign", []))
-    fresh = [c for c in unlisted_callsigns(cfg) if c not in known]
+    fresh = [c for c in listed if c not in known]
     if fresh:
         alerter.notify("unknown-callsign", (WARN, ", ".join(fresh[:10])))
     state["known_unlisted_callsign"] = sorted(known | set(fresh))

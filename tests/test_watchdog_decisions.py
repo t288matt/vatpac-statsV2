@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import psycopg
+import psycopg.errors
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
@@ -596,7 +598,14 @@ class World:
         self.docker.data = {s: {**ins(), "Id": f"id-{s}"} for s in ("db", "collector", "grafana", "backup")}
         self.docker.data["migrate"] = {**ins("exited", "none"), "Id": "id-migrate"}
         monkeypatch.setattr(wd, "check_db", lambda cfg: dict(self.db_result))
-        monkeypatch.setattr(wd, "unlisted_callsigns", lambda cfg: list(self.unlisted))
+        self.unlisted_error: Exception | None = None
+
+        def read_unlisted(cfg: wd.Config) -> list[str]:
+            if self.unlisted_error is not None:
+                raise self.unlisted_error
+            return list(self.unlisted)
+
+        monkeypatch.setattr(wd, "unlisted_callsigns", read_unlisted)
         monkeypatch.setattr(wd, "check_disk", lambda cfg: (OK, "disk fine"))
         monkeypatch.setattr(wd, "check_backup", lambda cfg, first: (OK, "backup fine"))
         monkeypatch.setattr(wd, "check_restore_test", lambda cfg, first: (OK, "restore fine"))
@@ -798,3 +807,14 @@ def test_cycle_reports_database_checks_through_the_alerter(world: World) -> None
     world.db_result["network_snapshot_age"] = (CRIT, "newest snapshot is 400s old")
     world.cycle(2)
     assert "CRIT network_snapshot_age: newest snapshot is 400s old" in world.sent
+
+
+def test_a_failing_unlisted_callsign_read_is_critical_not_silent(world: World, caplog: pytest.LogCaptureFixture) -> None:
+    """A refused grant on controller_unlisted_callsign must raise the database check to CRIT (as it did when the query sat in check_db)."""
+    world.unlisted_error = psycopg.errors.InsufficientPrivilege("permission denied for table controller_unlisted_callsign")
+    world.cycle(3)
+    assert world.sent.count("CRIT database: query/connect failed (InsufficientPrivilege)") == 1
+    assert "unlisted callsign read failed" in caplog.text
+    world.unlisted_error = None
+    world.cycle(3)
+    assert world.sent[-1].startswith("RECOVERED database (was crit)")
