@@ -52,13 +52,13 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Pilots: <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · **Positions** · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/health\" target=\"_top\">Health</a>\n\nAll times are UTC. Figures cover VATPAC airspace. Fixed periods and sizes, stated in each title; the page has no inputs. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, summed. A position is a callsign on the controller whitelist (only whitelisted callsigns are stored)."
+        "content": "Pilots: <a href=\"/traffic\" target=\"_top\">Traffic</a> · <a href=\"/new-pilots\" target=\"_top\">New pilots</a> · <a href=\"/origins\" target=\"_top\">Origins</a> · <a href=\"/pilots\" target=\"_top\">Records</a> · <a href=\"/routes\" target=\"_top\">Routes</a> · <a href=\"/aircraft\" target=\"_top\">Aircraft</a> · <a href=\"/military\" target=\"_top\">Military</a> | ATC: <a href=\"/atc\" target=\"_top\">Overview</a> · <a href=\"/atc-retention\" target=\"_top\">Retention</a> · <a href=\"/atc-hours\" target=\"_top\">Hours</a> · **Positions** · <a href=\"/atc-ranks\" target=\"_top\">Ranks</a> | Events: <a href=\"/monday\" target=\"_top\">Monday events</a> | Management: <a href=\"/health\" target=\"_top\">Health</a>\n\nAll times are UTC. Figures cover VATPAC airspace. Fixed periods and sizes, stated in each title; the page has no inputs. Hours are position-hours: the time each position was staffed, summed. A position is a callsign on the controller whitelist (only whitelisted callsigns are stored)."
       }
     },
     {
       "type": "table",
       "title": "Top 15 positions by hours staffed (last 30 days)",
-      "description": "The 15 positions (callsigns) with the most hours staffed in the last 30 days. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Ties: callsign A to Z. A position nobody staffed in the period is not listed (see the never-staffed list). Times are UTC.",
+      "description": "The 15 positions (callsigns) with the most hours staffed in the last 30 days. Hours are position-hours: the time each position was staffed, with no minimum session length; a controller still online counts up to the latest sighting. Ties: callsign A to Z. A position nobody staffed in the period is not listed (see the never-staffed list). Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -139,7 +139,7 @@
     {
       "type": "table",
       "title": "Top 15 positions by sessions (last 30 days)",
-      "description": "The 15 positions (callsigns) with the most sessions that started in the last 30 days. A session is a merged controller session (a reconnect within 5 minutes is the same session); there is no minimum length. Ties: callsign A to Z. Times are UTC.",
+      "description": "The 15 positions (callsigns) with the most sessions that started in the last 30 days. There is no minimum length. Ties: callsign A to Z. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -220,7 +220,7 @@
     {
       "type": "table",
       "title": "Top 15 positions by different controllers (last 30 days)",
-      "description": "The 15 positions (callsigns) staffed by the most different controllers (distinct CIDs) in sessions that started in the last 30 days. Merged sessions, no minimum length. Ties: callsign A to Z. Times are UTC.",
+      "description": "The 15 positions (callsigns) staffed by the most different controllers (distinct CIDs) in sessions that started in the last 30 days. No minimum length. Ties: callsign A to Z. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -301,7 +301,7 @@
     {
       "type": "table",
       "title": "Top 15 airports by ATC hours staffed (last 30 days)",
-      "description": "The 15 airports with the most position-hours in the last 30 days. The airport is the callsign prefix before the first underscore or hyphen (SY for Sydney; AD-W_APP counts for AD); it is the prefix as written on the whitelist, not an ICAO code. Only airport positions count (_TWR, _APP, _DEP, _GND, _DEL); centre (_CTR), flight service (_FSS) and flow management (_FMP) are left out. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Two positions staffed together for 3 hours count as 6. Ties: prefix A to Z. Times are UTC.",
+      "description": "The 15 airports with the most position-hours in the last 30 days. The airport is the callsign prefix before the first underscore or hyphen (SY for Sydney; AD-W_APP counts for AD); it is the prefix as written on the whitelist, not an ICAO code. Only airport positions count (_TWR, _APP, _DEP, _GND, _DEL); centre (_CTR), flight service (_FSS) and flow management (_FMP) are left out. Hours are position-hours: the time each position was staffed, with no minimum session length; a controller still online counts up to the latest sighting. Two positions staffed together for 3 hours count as 6. Ties: prefix A to Z. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
