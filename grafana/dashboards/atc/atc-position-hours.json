@@ -59,7 +59,7 @@
       "id": 2,
       "type": "table",
       "title": "ATC hours staffed by position type (7 days, 30 days, last full month, since go-live)",
-      "description": "Hours each position type was staffed in fixed windows ending now (7 and 30 days), the last full calendar month (UTC), and since go-live on 07-10-2026. Position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period shown, summed per position type. Two CTR sectors online together for 3 hours count as 6 hours. The type is the callsign suffix (_CTR, _TWR, _APP, _DEP, _GND, _DEL, _FSS, _FMP), not the feed's facility number, so APP and DEP are separate and CTR excludes FSS. All session time counts, with no minimum length; a controller still online counts up to the latest sighting. FMP may often show 0: it has not been checked how it appears in the feed.",
+      "description": "Hours each position type was staffed in fixed windows ending now (7 and 30 days), the last full calendar month (UTC), and since go-live on 07-10-2026. Position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period shown, summed per position type. Two CTR sectors online together for 3 hours count as 6 hours. The type is the callsign suffix (_CTR, _TWR, _APP, _DEP, _GND, _DEL, _FSS, _FMP), not the feed's facility number, so APP and DEP are separate and CTR excludes FSS. All session time counts, with no minimum length; a controller still online counts up to the latest sighting. FMP commonly shows 0.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"

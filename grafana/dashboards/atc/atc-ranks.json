@@ -59,7 +59,7 @@
       "id": 2,
       "type": "barchart",
       "title": "Controllers logged on (last 30 days)",
-      "description": "Question E1 (v1 card 115), copied unchanged from ATC: controllers. Definition: distinct controllers per rating group with more than 60 minutes online in total over the last 30 days. THIS PANEL USES THE RANK AT THE TIME OF EACH SESSION (not the current rank used by the other panels on this page), so it can differ from them; I1+ includes supervisors and administrators (rating 8 and above); observers and C2 are left out. Times are UTC.",
+      "description": "Distinct controllers per rating group with more than 60 minutes online in total over the last 30 days. THIS PANEL USES THE RANK AT THE TIME OF EACH SESSION (not the current rank used by the other panels on this page), so it can differ from them; I1+ includes supervisors and administrators (rating 8 and above); observers and C2 are left out. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -122,7 +122,7 @@
       "id": 3,
       "type": "timeseries",
       "title": "Controllers logged on each week, by rating group",
-      "description": "Question E1 (v1 card 116), copied unchanged from ATC: controllers. Definition: per calendar week (UTC), distinct controllers per rating group (S1, S2, S3, C1, C3, I1+) whose sessions that week at that rating total more than 60 minutes. THIS PANEL USES THE RANK AT THE TIME OF EACH SESSION (not the current rank used by the other panels on this page); I1+ includes supervisors and administrators (rating 8 and above); observers and C2 are not shown. Times are UTC.",
+      "description": "Per calendar week (UTC), distinct controllers per rating group (S1, S2, S3, C1, C3, I1+) whose sessions that week at that rating total more than 60 minutes. THIS PANEL USES THE RANK AT THE TIME OF EACH SESSION (not the current rank used by the other panels on this page); I1+ includes supervisors and administrators (rating 8 and above); observers and C2 are not shown. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -290,7 +290,7 @@
     {
       "type": "table",
       "title": "Hours staffed by current rank (last 30 days)",
-      "description": "Question E2 (new). Definition: hours staffed per rank and the number of different controllers behind them, over the last 30 days. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "description": "Hours staffed per rank and the number of different controllers behind them, over the last 30 days. RANK IS THE CURRENT RANK: the latest rating seen for each CID, so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -343,7 +343,7 @@
     {
       "type": "table",
       "title": "Share of ATC hours by current rank (last 30 days)",
-      "description": "Question E3 (new). Definition: each rank's share of all ATC hours staffed in the last 30 days. The share is of ALL staffed hours, so the last row, Other, holds the hours of observers, C2 and unknown ratings and the shares add to 100. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "description": "Each rank's share of all ATC hours staffed in the last 30 days. The share is of ALL staffed hours, so the last row, Other, holds the hours of observers, C2 and unknown ratings and the shares add to 100. RANK IS THE CURRENT RANK: the latest rating seen for each CID, so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -396,7 +396,7 @@
     {
       "type": "table",
       "title": "Sessions by current rank (last 30 days)",
-      "description": "Question E4 (new). Definition: the number of controller sessions that started in the last 30 days, per rank. A session is a merged controller session (a reconnect within 5 minutes is the same session); no minimum length. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Times are UTC.",
+      "description": "The number of controller sessions that started in the last 30 days, per rank. A session is a merged controller session (a reconnect within 5 minutes is the same session); no minimum length. RANK IS THE CURRENT RANK: the latest rating seen for each CID, so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -477,7 +477,7 @@
     {
       "type": "table",
       "title": "Average session length by current rank (last 30 days)",
-      "description": "Question E5 (new). Definition: the average length of the sessions that started in the last 30 days, per rank, in minutes and hours; a rank with no sessions shows no average. Full length of each merged session (a reconnect within 5 minutes is the same session); no minimum length. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Times are UTC.",
+      "description": "The average length of the sessions that started in the last 30 days, per rank, in minutes and hours; a rank with no sessions shows no average. Full length of each merged session (a reconnect within 5 minutes is the same session); no minimum length. RANK IS THE CURRENT RANK: the latest rating seen for each CID, so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -530,7 +530,7 @@
     {
       "type": "table",
       "title": "Top 2 positions for each current rank (last 30 days)",
-      "description": "Question E6 (new). Definition: for each rank, the 2 positions (callsigns) it staffed for the most hours in the last 30 days (up to 12 rows; a rank with fewer positions shows fewer). Ties: callsign A to Z. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "description": "For each rank, the 2 positions (callsigns) it staffed for the most hours in the last 30 days (up to 12 rows; a rank with fewer positions shows fewer). Ties: callsign A to Z. RANK IS THE CURRENT RANK: the latest rating seen for each CID, so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -611,7 +611,7 @@
     {
       "type": "table",
       "title": "Top 2 controllers for each current rank (last 30 days)",
-      "description": "Question E7 (new). Definition: for each rank, the 2 controllers with the most hours staffed in the last 30 days (up to 12 rows), with the name from their latest session in the window. Ties: lower CID first. New query, not a copy of the older S1 and S2 top-50 panels (cards 144 and 146), which rank by the rating of each session. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "description": "For each rank, the 2 controllers with the most hours staffed in the last 30 days (up to 12 rows), with the name from their latest session in the window. Ties: lower CID first. RANK IS THE CURRENT RANK: the latest rating seen for each CID, so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -692,7 +692,7 @@
     {
       "type": "table",
       "title": "Centre and FSS hours by current rank (last 30 days)",
-      "description": "Question E8 (new). Definition: hours staffed on centre (_CTR) and flight service (_FSS) positions per rank in the last 30 days, with each rank's share of all centre and FSS hours (all controllers, including the left-out ranks, so the shares of the six ranks can add to less than 100). Most hours first. RANK IS THE CURRENT RANK: the latest rating seen for each CID (owner decision 04-11-2026), so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
+      "description": "Hours staffed on centre (_CTR) and flight service (_FSS) positions per rank in the last 30 days, with each rank's share of all centre and FSS hours (all controllers, including the left-out ranks, so the shares of the six ranks can add to less than 100). Most hours first. RANK IS THE CURRENT RANK: the latest rating seen for each CID, so every controller counts once, under one rank. The older ATC panels use the rank held at the time of each session, so totals here will not match them. Ranks included: S1, S2, S3, C1, C3 and I1+ (I1+ is rating 8 and above: I1, I2, I3, supervisors and administrators, as on the existing dashboards). Left out: observers (OBS), C2 (not in use) and unknown ratings. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"

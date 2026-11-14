@@ -59,7 +59,7 @@
       "id": 2,
       "type": "piechart",
       "title": "Most popular aircraft by flights (last 6 months)",
-      "description": "Question C1 (v1 card 90), copied unchanged from Pilots: traffic and aircraft. Definition: flights per aircraft category over the last 6 months. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Flights per aircraft category over the last 6 months. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -121,7 +121,7 @@
       "id": 3,
       "type": "piechart",
       "title": "Most popular aircraft by pilots (last 6 months)",
-      "description": "Question C2 (v1 card 135), copied unchanged from Pilots: traffic and aircraft. Definition: pilots per aircraft category over the last 6 months. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Pilots per aircraft category over the last 6 months. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -182,7 +182,7 @@
     {
       "type": "table",
       "title": "Most popular aircraft types (last 30 days, top 10)",
-      "description": "Question C3 (new). Definition: the ten aircraft types (the ICAO code on the flight plan, such as A388 or B738) with the most flights that finished in the last 30 days (UTC, ending now), with the number of distinct pilots. Flights with airborne time and a filed aircraft type only; the placeholder type ZZZZ is left out; ties by type code. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "The ten aircraft types (the ICAO code on the flight plan, such as A388 or B738) with the most flights that finished in the last 30 days (UTC, ending now), with the number of distinct pilots. Flights with airborne time and a filed aircraft type only; the placeholder type ZZZZ is left out; ties by type code. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -264,7 +264,7 @@
       "id": 5,
       "type": "barchart",
       "title": "Most popular airlines (last 30 days)",
-      "description": "Question C4 (v1 card 58), copied unchanged from Pilots: traffic and aircraft. Definition: most popular airlines by flights over the last 30 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Most popular airlines by flights over the last 30 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -358,7 +358,7 @@
     {
       "type": "table",
       "title": "Airlines with the most airborne hours (last 30 days, top 10)",
-      "description": "Question C5 (new). Definition: the ten airlines (callsign of three letters followed by a digit, matched to the airline list) with the most airborne hours over flights that finished in the last 30 days (UTC, ending now), hours to one decimal place, with the number of flights. Airborne hours, not time connected; flights with airborne time only; ties by airline prefix. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "The ten airlines (callsign of three letters followed by a digit, matched to the airline list) with the most airborne hours over flights that finished in the last 30 days (UTC, ending now), hours to one decimal place, with the number of flights. Airborne hours, not time connected; flights with airborne time only; ties by airline prefix. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -440,7 +440,7 @@
       "id": 7,
       "type": "table",
       "title": "Most popular callsigns (last 30 days)",
-      "description": "Question C6 (v1 card 57), copied unchanged from Pilots: traffic and aircraft. Definition: most popular callsigns and routes flown by at least 2 pilots over the last 30 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Most popular callsigns and routes flown by at least 2 pilots over the last 30 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -521,7 +521,7 @@
       "id": 10,
       "type": "table",
       "title": "Highest groundspeeds (last 7 days)",
-      "description": "Question C10 (v1 card 61), copied unchanged from Pilots: traffic and aircraft. Definition: highest peak groundspeeds per callsign over the last 7 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "Highest peak groundspeeds per callsign over the last 7 days. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"

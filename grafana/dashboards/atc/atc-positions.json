@@ -58,7 +58,7 @@
     {
       "type": "table",
       "title": "Top 15 positions by hours staffed (last 30 days)",
-      "description": "Question D2 (new). Definition: the 15 positions (callsigns) with the most hours staffed in the last 30 days. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Ties: callsign A to Z. A position nobody staffed in the period is not listed (see the never-staffed list). Times are UTC.",
+      "description": "The 15 positions (callsigns) with the most hours staffed in the last 30 days. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Ties: callsign A to Z. A position nobody staffed in the period is not listed (see the never-staffed list). Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -139,7 +139,7 @@
     {
       "type": "table",
       "title": "Top 15 positions by sessions (last 30 days)",
-      "description": "Question D3 (new). Definition: the 15 positions (callsigns) with the most sessions that started in the last 30 days. A session is a merged controller session (a reconnect within 5 minutes is the same session); there is no minimum length. Ties: callsign A to Z. Times are UTC.",
+      "description": "The 15 positions (callsigns) with the most sessions that started in the last 30 days. A session is a merged controller session (a reconnect within 5 minutes is the same session); there is no minimum length. Ties: callsign A to Z. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -220,7 +220,7 @@
     {
       "type": "table",
       "title": "Top 15 positions by different controllers (last 30 days)",
-      "description": "Question D4 (new). Definition: the 15 positions (callsigns) staffed by the most different controllers (distinct CIDs) in sessions that started in the last 30 days. Merged sessions, no minimum length. Ties: callsign A to Z. Times are UTC.",
+      "description": "The 15 positions (callsigns) staffed by the most different controllers (distinct CIDs) in sessions that started in the last 30 days. Merged sessions, no minimum length. Ties: callsign A to Z. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -301,7 +301,7 @@
     {
       "type": "table",
       "title": "Top 15 airports by ATC hours staffed (last 30 days)",
-      "description": "Question D5 (new). Definition: the 15 airports with the most position-hours in the last 30 days. The airport is the callsign prefix before the first underscore or hyphen (SY for Sydney; AD-W_APP counts for AD); it is the prefix as written on the whitelist, not an ICAO code. Only airport positions count (_TWR, _APP, _DEP, _GND, _DEL); centre (_CTR), flight service (_FSS) and flow management (_FMP) are left out. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Two positions staffed together for 3 hours count as 6. Ties: prefix A to Z. Times are UTC.",
+      "description": "The 15 airports with the most position-hours in the last 30 days. The airport is the callsign prefix before the first underscore or hyphen (SY for Sydney; AD-W_APP counts for AD); it is the prefix as written on the whitelist, not an ICAO code. Only airport positions count (_TWR, _APP, _DEP, _GND, _DEL); centre (_CTR), flight service (_FSS) and flow management (_FMP) are left out. Hours are position-hours: the time each position was staffed, from merged controller sessions (a reconnect within 5 minutes is one session), clipped to the period, with no minimum session length; a controller still online counts up to the latest sighting. Two positions staffed together for 3 hours count as 6. Ties: prefix A to Z. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -383,7 +383,7 @@
       "id": 8,
       "type": "timeseries",
       "title": "CTR and FSS controllers active (30 days to month end, monthly)",
-      "description": "Question D7 (v1 card 63), copied unchanged from ATC: controllers. Definition: per calendar month (UTC), distinct controllers who started a CTR or FSS session of more than 60 minutes in the 30 days before the end of that month; the latest month is partial; last 12 months. Times are UTC.",
+      "description": "Per calendar month (UTC), distinct controllers who started a CTR or FSS session of more than 60 minutes in the 30 days before the end of that month; the latest month is partial; last 12 months. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -451,7 +451,7 @@
       "id": 9,
       "type": "timeseries",
       "title": "Controllers active (30 days to week end, weekly)",
-      "description": "Question D7 (v1 card 137), copied unchanged from ATC: controllers. Definition: per calendar week (UTC), distinct controllers (any position) who started a session of more than 30 minutes in the 30 days before the end of that week; the latest week is partial; last 12 months. Times are UTC.",
+      "description": "Per calendar week (UTC), distinct controllers (any position) who started a session of more than 30 minutes in the 30 days before the end of that week; the latest week is partial; last 12 months. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -519,7 +519,7 @@
       "id": 12,
       "type": "barchart",
       "title": "When are people online on weekdays (last 30 days)",
-      "description": "Question D9 (v1 card 94), copied unchanged from Pilots: online now. Definition: for each UTC clock hour, distinct callsigns online at some point in that hour over the last 30 days, Monday to Friday: pilots (flights with airborne time) and ATC (sessions of at least 20 minutes). The ATC line answers the question; the pilot line comes with the original panel. Times are UTC.",
+      "description": "For each UTC clock hour, distinct callsigns online at some point in that hour over the last 30 days, Monday to Friday: pilots (flights with airborne time) and ATC (sessions of at least 20 minutes). Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -659,7 +659,7 @@
       "id": 13,
       "type": "barchart",
       "title": "When are people online on weekends (last 30 days)",
-      "description": "Question D9 (v1 card 95), copied unchanged from Pilots: online now. Definition: for each UTC clock hour, distinct callsigns online at some point in that hour over the last 30 days, Saturday and Sunday: pilots (flights with airborne time) and ATC (sessions of at least 30 minutes); a session across midnight is not counted after midnight (v1 quirk kept). Times are UTC.",
+      "description": "For each UTC clock hour, distinct callsigns online at some point in that hour over the last 30 days, Saturday and Sunday: pilots (flights with airborne time) and ATC (sessions of at least 30 minutes); a session across midnight is not counted after midnight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
