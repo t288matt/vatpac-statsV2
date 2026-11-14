@@ -1,4 +1,4 @@
-"""Issue #208: flight.touches_home_region asks icao_is_home(), the one home-region rule, instead of keeping its own prefix list.
+"""Issue #208: flight.touches_home_region follows icao_is_home(), the one home-region rule, and reads the shared home_prefix list instead of keeping its own.
 
 The oracle is flight_ext (dep_is_home OR arr_is_home), which has always used icao_is_home(), and a plain Python statement of the
 rule. Two cases tell the old inline copy from the function: a setting that exists but holds no usable prefix (the copy fell back to
@@ -65,4 +65,4 @@ def test_a_code_stored_in_another_spelling_is_still_home(conn: Any, dep: str) ->
 
 def test_the_flight_view_holds_no_prefix_list_of_its_own(conn: Any) -> None:
     text = conn.execute("SELECT pg_get_viewdef('flight'::regclass) AS v").fetchone()["v"]
-    assert "icao_is_home" in text and "app_setting" not in text and "string_to_array" not in text
+    assert "home_prefix" in text and "app_setting" not in text and "string_to_array" not in text

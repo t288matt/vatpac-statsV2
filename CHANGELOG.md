@@ -8,7 +8,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 ## The flight view uses the one home-region rule (14-11-2026, issue 208)
 
-- **One rule.** `flight.touches_home_region` now asks `icao_is_home()`, the function `flight_ext` already used, instead of keeping its own copy of the home-prefix list. No panel reads this column, so no dashboard changes. For every stored flight and every valid setting the answers are the same. The one difference: a `home_icao_prefixes` setting that exists but is empty used to count every `Y` airport as home in this view; it now matches nothing, as in `flight_ext`. The collector never publishes an empty value. Migration `20261114000208`.
+- **One rule.** `flight.touches_home_region` now reads the home prefixes from the `home_prefix` view, the list `flight_ext` already uses, instead of keeping its own copy of the list; the list is read once per query, so the column is no slower. No panel reads this column, so no dashboard changes. For every stored flight and every valid setting the answers are the same. The one difference: a `home_icao_prefixes` setting that exists but is empty used to count every `Y` airport as home in this view; it now matches nothing, as in `flight_ext`. The collector never publishes an empty value. Migration `20261114000208`.
 
 ## Migrations travel only in the migrate image (13-11-2026, issue 233)
 
