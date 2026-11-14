@@ -6,6 +6,12 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Database size, VM disk and database speed on the Collector health page (14-11-2026, issue 27)
+
+- **Two new graphs.** The public Collector health page shows "Database size vs VM disk" (database in MB on the left axis, used VM disk in GB on the right) and "Database speed" (the time of a fixed query, in milliseconds). Each has one point per day for the last 400 days, starting on the day the readings begin; nothing is filled in for earlier days.
+- **How the readings are taken.** The collector's daily maintenance job stores one row per UTC day in the new table `system_sample` (a second reading on the same day replaces the first). The speed reading is the middle of three runs of a count of the flights of the last 30 days, each limited to 5 seconds. A reading that fails is logged and skipped; polling and the other maintenance tasks carry on. Rows older than 400 days (the setting `system_sample_retention_days`) are deleted by the same job.
+- **Rights.** The collector can only run two new functions (`system_probe_flight_count`, `record_system_sample`); it has no right on the new table or on `flight_summary`. Grafana reads the view `health_sample` and not the table. The migration is `20261114000220_system_sample.sql`.
+
 ## Migrations travel only in the migrate image (13-11-2026, issue 233)
 
 - **One carrier.** The `migrate` container no longer mounts `./db` over the migrations and `db/roles.sql` baked into its image. The migrations that run are the ones the image was built with, in registry mode and in local-build mode, so code and migrations always come from the same commit. In local-build mode `make up` rebuilds the image; after editing a migration and using plain `docker compose up -d`, run `docker compose build migrate` first. The migrations and the database are unchanged.

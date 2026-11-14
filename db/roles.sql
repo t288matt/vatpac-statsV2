@@ -109,11 +109,14 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO collector;
 
 -- Maintenance functions. The partition functions, the flight writer (write_finished_flights, which fills flight_summary)
 -- are SECURITY DEFINER (owner rights), so the collector needs no DDL or table rights for them.
+-- The two system_sample functions (issue 27) are SECURITY DEFINER too: the collector has no right on system_sample or flight_summary.
 -- Not granted: unreconciled_partition_sessions (internal helper).
 GRANT EXECUTE ON FUNCTION
     ensure_pilot_position_partitions(int, date),
     drop_old_pilot_position_partitions(int, date),
-    write_finished_flights(int)
+    write_finished_flights(int),
+    system_probe_flight_count(),
+    record_system_sample(bigint, bigint, double precision)
 TO collector;
 
 -- ---------------------------------------------------------------------------------------------

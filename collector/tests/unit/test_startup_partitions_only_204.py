@@ -13,7 +13,8 @@ from vatpac import maintenance as m
 from vatpac.main import Collector
 from vatpac.settings import Settings
 
-ALL_TASKS = ["settings", "partitions_created", "flights_refreshed", "partitions_dropped", "poll_log_trimmed"]
+ALL_TASKS = [
+    "settings", "partitions_created", "flights_refreshed", "partitions_dropped", "poll_log_trimmed", "system_sampled"]
 
 
 def _settings() -> Settings:
@@ -28,6 +29,7 @@ def called(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     monkeypatch.setattr(m, "refresh_flights", lambda *a, **k: calls.append("flights_refreshed") or 0)
     monkeypatch.setattr(m, "drop_old_partitions", lambda *a, **k: calls.append("partitions_dropped") or 0)
     monkeypatch.setattr(m, "trim_poll_log", lambda *a, **k: calls.append("poll_log_trimmed") or 0)
+    monkeypatch.setattr(m, "record_system_sample", lambda *a, **k: calls.append("system_sampled") or 1)
     return calls
 
 
