@@ -59,7 +59,7 @@
       "id": 2,
       "type": "table",
       "title": "Which member spent the most time online? (last 7 days)",
-      "description": "Question A1 (v1 card 155), copied unchanged from Pilots: traffic and aircraft. Definition: the ten pilots whose name has a Y as its fourth character from the end (names ending in a home airport code such as YSSY; the v1 rule) with the most airborne hours over flights that finished in the last 7 days and had more than 30 minutes airborne, in whole hours. Despite the title the figure is airborne time, not time online. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "The ten pilots whose name has a Y as its fourth character from the end (names ending in a home airport code such as YSSY) with the most airborne hours over flights that finished in the last 7 days and had more than 30 minutes airborne, in whole hours. Despite the title the figure is airborne time, not time online. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -153,7 +153,7 @@
     {
       "type": "table",
       "title": "Pilots with the most flights (last 30 days)",
-      "description": "Question A2 (new). Definition: the ten pilots with the most flights that finished in the last 30 days, flights with airborne time only (a parked flight, with none, is not counted), one row per pilot, name as on their latest flight, ties broken by lower CID. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "The ten pilots with the most flights that finished in the last 30 days, flights with airborne time only (a parked flight, with none, is not counted), one row per pilot, name as on their latest flight, ties broken by lower CID. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -235,7 +235,7 @@
       "id": 4,
       "type": "table",
       "title": "Pilots with the most diverse routes (last 14 days)",
-      "description": "Question A3 (v1 card 46), copied unchanged from Pilots: traffic and aircraft. Definition: the ten pilots with the most distinct routes (departure-arrival) over flights that finished in the last 14 days, counting only flights over 60 minutes online and not ZZZZ. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "The ten pilots with the most distinct routes (departure-arrival) over flights that finished in the last 14 days, counting only flights over 60 minutes online and not ZZZZ. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -342,7 +342,7 @@
     {
       "type": "timeseries",
       "title": "Flights finished per week",
-      "description": "Question A5 (new). Definition: the number of flights per calendar week (Monday 00:00 UTC to Sunday 23:59 UTC), over the last 12 months, by the week the flight finished in. Flights with airborne time only (a parked flight, with none, is not counted); weeks with no flights show 0. The week in progress is partial. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "The number of flights per calendar week (Monday 00:00 UTC to Sunday 23:59 UTC), over the last 12 months, by the week the flight finished in. Flights with airborne time only (a parked flight, with none, is not counted); weeks with no flights show 0. The week in progress is partial. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -412,7 +412,7 @@
       "id": 7,
       "type": "barchart",
       "title": "Active pilots and controllers (last 90 days, log scale)",
-      "description": "Question A6 (v1 card 93), copied unchanged from Demographics: pilot origins and cohorts. Definition: the Pilots bar is the number of distinct pilots with at least 30 minutes airborne in a flight that finished in the last 90 days; the other bars are controllers by rating and are not part of this question. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "The Pilots bar is the number of distinct pilots with at least 30 minutes airborne in a flight that finished in the last 90 days; the other bars are controllers by rating, shown for comparison only. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -470,7 +470,7 @@
     {
       "type": "table",
       "title": "Average flight length (7 days, 30 days, since go-live)",
-      "description": "Question A10 (new). Definition: the average airborne time of flights that finished in the period and had airborne time (a flight with none, such as one parked and never moved, has no length and is left out), for the last 7 days and 30 days ending now and since go-live on 07-10-2026. The figure is airborne minutes and hours, not time connected. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "The average airborne time of flights that finished in the period and had airborne time (a flight with none, such as one parked and never moved, has no length and is left out), for the last 7 days and 30 days ending now and since go-live on 07-10-2026. The figure is airborne minutes and hours, not time connected. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -524,7 +524,7 @@
       "id": 9,
       "type": "table",
       "title": "Busiest days by flights (last 5 years)",
-      "description": "Question A7 (v1 card 128), copied unchanged from Pilots: traffic and aircraft. Definition: the five UTC dates with the most flights, by the date the flight started, over the last 5 years. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "The five UTC dates with the most flights, by the date the flight started, over the last 5 years. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -618,7 +618,7 @@
       "id": 10,
       "type": "table",
       "title": "Busiest days by pilots online (last 5 years)",
-      "description": "Question A8 (v1 card 129), copied unchanged from Pilots: traffic and aircraft. Definition: the ten UTC dates with the most distinct pilots, by the date the pilot logged on, over the last 5 years, with weekday and rank. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
+      "description": "The ten UTC dates with the most distinct pilots, by the date the pilot logged on, over the last 5 years, with weekday and rank. A flight is counted once it has finished (about 8 hours after the pilot's last position); a reconnect within 2 hours on the same flight is one flight. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -712,7 +712,7 @@
       "id": 11,
       "type": "barchart",
       "title": "When are people online on weekdays (last 30 days)",
-      "description": "Question A9 (v1 card 94), copied unchanged from Pilots: online now. Definition: for each UTC clock hour, the number of distinct callsigns online at some point in that hour over the last 30 days, Monday to Friday (by the day the flight or session started): pilots with airborne time, and ATC sessions of at least 20 minutes. A count over the whole period, not an average of people online at once. Times are UTC.",
+      "description": "For each UTC clock hour, the number of distinct callsigns online at some point in that hour over the last 30 days, Monday to Friday (by the day the flight or session started): pilots with airborne time, and ATC sessions of at least 20 minutes. A count over the whole period, not an average of people online at once. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -852,7 +852,7 @@
       "id": 12,
       "type": "barchart",
       "title": "When are people online on weekends (last 30 days)",
-      "description": "Question A9 (v1 card 95), copied unchanged from Pilots: online now. Definition: for each UTC clock hour, the number of distinct callsigns online at some point in that hour over the last 30 days, Saturday and Sunday: pilots with airborne time, and ATC sessions of at least 30 minutes. A flight or session that crosses midnight is not counted in the hours after midnight (as v1). A count over the whole period, not an average. Times are UTC.",
+      "description": "For each UTC clock hour, the number of distinct callsigns online at some point in that hour over the last 30 days, Saturday and Sunday: pilots with airborne time, and ATC sessions of at least 30 minutes. A flight or session that crosses midnight is not counted in the hours after midnight. A count over the whole period, not an average. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"

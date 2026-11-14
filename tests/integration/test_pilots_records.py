@@ -23,6 +23,18 @@ RECORDS = DASH / "pilots" / "pilots-records.json"
 MOST_FLIGHTS = "Pilots with the most flights (last 30 days)"
 WEEKLY = "Flights finished per week"
 AVERAGE = "Average flight length (7 days, 30 days, since go-live)"
+RECORDS_QUESTIONS = {
+    "Which member spent the most time online? (last 7 days)": "A1",
+    "Pilots with the most flights (last 30 days)": "A2",
+    "Pilots with the most diverse routes (last 14 days)": "A3",
+    "Flights finished per week": "A5",
+    "Active pilots and controllers (last 90 days, log scale)": "A6",
+    "Busiest days by flights (last 5 years)": "A7",
+    "Busiest days by pilots online (last 5 years)": "A8",
+    "When are people online on weekdays (last 30 days)": "A9",
+    "When are people online on weekends (last 30 days)": "A9",
+    "Average flight length (7 days, 30 days, since go-live)": "A10",
+}
 _n = {"i": 0}
 
 
@@ -60,9 +72,8 @@ def test_dashboard_has_the_catalogue_questions_and_no_inputs():
     d = json.loads(RECORDS.read_text(encoding="utf-8"))
     assert d["uid"] == "vatpac-pilots-records" and d["title"] == "Pilots: records and totals"
     assert [v["name"] for v in d["templating"]["list"]] == ["go_live"]       # no inputs: only the hidden constant
-    questions = sorted({p["description"].split()[1] for p in d["panels"] if p.get("description")})
+    questions = sorted({RECORDS_QUESTIONS[p["title"]] for p in d["panels"] if p.get("description")})
     assert questions == sorted(f"A{i}" for i in range(1, 11) if i != 4)       # A1 to A10 except A4 (panel removed, issue 310)
-    assert all("Definition" in p["description"] for p in d["panels"] if p.get("description"))
 
 
 @pytest.mark.parametrize("title,src", [

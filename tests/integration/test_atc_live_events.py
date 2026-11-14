@@ -25,6 +25,29 @@ RANKS = DASH / "atc" / "atc-ranks.json"
 SIX = ["S1", "S2", "S3", "C1", "C3", "I1+"]
 S1, S2, S3, C1, C3, I1, SUP, OBS, C2 = 2, 3, 4, 5, 7, 8, 11, 1, 6   # VATSIM rating numbers
 
+POSITIONS_QUESTIONS = {
+    "Top 15 positions by hours staffed (last 30 days)": "D2",
+    "Top 15 positions by sessions (last 30 days)": "D3",
+    "Top 15 positions by different controllers (last 30 days)": "D4",
+    "Top 15 airports by ATC hours staffed (last 30 days)": "D5",
+    "CTR and FSS controllers active (30 days to month end, monthly)": "D7",
+    "Controllers active (30 days to week end, weekly)": "D7",
+    "When are people online on weekdays (last 30 days)": "D9",
+    "When are people online on weekends (last 30 days)": "D9",
+}
+RANKS_QUESTIONS = {
+    "Controllers logged on (last 30 days)": "E1",
+    "Controllers logged on each week, by rating group": "E1",
+    "Hours staffed by current rank (last 30 days)": "E2",
+    "Share of ATC hours by current rank (last 30 days)": "E3",
+    "Sessions by current rank (last 30 days)": "E4",
+    "Average session length by current rank (last 30 days)": "E5",
+    "Top 2 positions for each current rank (last 30 days)": "E6",
+    "Top 2 controllers for each current rank (last 30 days)": "E7",
+    "Centre and FSS hours by current rank (last 30 days)": "E8",
+}
+QUESTIONS_BY_PATH = {POSITIONS: POSITIONS_QUESTIONS, RANKS: RANKS_QUESTIONS}
+
 
 def panels(path) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))["panels"]
@@ -61,18 +84,20 @@ def test_dashboard_has_every_catalogue_question_and_no_inputs(path, uid, title, 
     assert d["uid"] == uid and d["title"] == title
     assert [v["name"] for v in d["templating"]["list"]] == ["go_live"]       # no inputs: only the hidden constant
     described = [p for p in d["panels"] if p.get("description")]
-    assert sorted({p["description"].split()[1] for p in described}, key=lambda q: int(q[1:])) == questions
-    assert all("Definition" in p["description"] and "UTC" in p["description"] for p in described)
+    q_map = QUESTIONS_BY_PATH[path]
+    assert sorted({q_map[p["title"]] for p in described}, key=lambda q: int(q[1:])) == questions
+    assert all("UTC" in p["description"] for p in described)
     ids = [p["id"] for p in d["panels"]]
     assert len(ids) == len(set(ids))
 
 
 def test_every_rank_panel_says_it_uses_the_current_rank_and_lists_the_ranks_included_and_left_out():
+    E1_TITLES = {"Controllers logged on (last 30 days)", "Controllers logged on each week, by rating group"}
     for p in panels(RANKS):
         if not p.get("description"):
             continue
         d = p["description"]
-        if d.startswith("Question E1 "):
+        if p["title"] in E1_TITLES:
             assert "RANK AT THE TIME" in d and "supervisors" in d             # the two copies keep the old rule and say so
         else:
             assert "CURRENT RANK" in d and "will not match" in d
@@ -81,9 +106,11 @@ def test_every_rank_panel_says_it_uses_the_current_rank_and_lists_the_ranks_incl
 
 def test_new_hours_panels_state_their_window_and_size_in_the_title():
     for path in (POSITIONS, RANKS):
+        copied_titles = {title for path2, title, src in COPIES if path2 == path}
         for p in panels(path):
-            if p.get("description", "").split(" ")[2:3] == ["(new)."] and not p["title"].startswith("Whitelisted"):
-                assert "(last 30 days)" in p["title"] or "(current rank, last 30 days)" in p["title"], p["title"]
+            if not p.get("description") or p["title"] in copied_titles or p["title"].startswith("Whitelisted"):
+                continue
+            assert "(last 30 days)" in p["title"] or "(current rank, last 30 days)" in p["title"], p["title"]
 
 
 COPIES = [  # (dashboard, title, source file)
