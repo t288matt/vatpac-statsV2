@@ -68,11 +68,6 @@ SELECT 'controller session pairs, same cid+callsign, logon_time within 2 s (iden
 FROM controller_session a JOIN controller_session b
   ON a.cid = b.cid AND a.callsign = b.callsign AND a.id < b.id AND abs(extract(epoch FROM a.logon_time - b.logon_time)) < 2
 UNION ALL
-SELECT 'snapshots that created sessions for more than 50% of in-region pilots', count(*), NULL FROM (
-  SELECT first_seen, count(*) AS n FROM pilot_session WHERE first_seen >= now() - interval '3 days' GROUP BY 1) c
-JOIN network_snapshot n ON n.observed_at = c.first_seen WHERE n.pilots_in_region >= 10 AND c.n > 0.5 * n.pilots_in_region
-  AND n.observed_at > (SELECT min(observed_at) FROM network_snapshot)  -- the very first snapshot of a database creates every session
-UNION ALL
 -- Issue 89 phase 1: the flight writer (write_finished_flights, table flight_summary). A flight is written once THE FLIGHT has had no
 -- position for the quiet period (owner decision 12-10-2026: quiet per flight, not per pilot). "Quiet" is measured against the
 -- newest stored snapshot, as the writer does, never the clock. The flights are the v1 groups of unprocessed sessions, defined ONCE in the

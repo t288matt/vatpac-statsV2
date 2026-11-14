@@ -20,7 +20,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | File | What it is for | Who reads it | Status |
 |---|---|---|---|
 | [RUNBOOKS/daily-checks.md](RUNBOOKS/daily-checks.md) | Daily and weekly health checks; the soak report and its verdicts | Operator | CURRENT |
-| [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) | What each Telegram alert means and what to do | Operator, owner | CURRENT (20 invariant checks) |
+| [RUNBOOKS/alerts.md](RUNBOOKS/alerts.md) | What each Telegram alert means and what to do | Operator, owner | CURRENT (19 invariant checks) |
 | [RUNBOOKS/public-access.md](RUNBOOKS/public-access.md) | Public read-only dashboards through a Cloudflare Tunnel and Traefik: the links script, proxy and tunnel set-up, checks, roll back | Owner | CURRENT |
 | [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md) | How to install, deploy, roll back and verify; the special cases and traps (sections 4b to 4f) | Operator | CURRENT; long, accumulates one section per release |
 | [RUNBOOKS/restore.md](RUNBOOKS/restore.md) | Backups, restore, the restore drill, a local copy of production for testing, off-box copies | Operator | CURRENT (deployed behaviour) |

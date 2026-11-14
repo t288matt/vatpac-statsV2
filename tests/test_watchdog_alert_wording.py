@@ -38,7 +38,7 @@ spec.loader.exec_module(wd)
 GOLDEN = REPO / "tests" / "fixtures" / "watchdog_alert_golden.json"
 T0 = 1_800_000_000.0
 NAMES = integrity.invariant_names((REPO / "ops" / "audit" / "invariants.sql").read_text(encoding="utf-8"))
-GAPS, PARTS, QUIET, STALE = NAMES[5], NAMES[18], NAMES[13], NAMES[6]
+GAPS, PARTS, QUIET, STALE = NAMES[5], NAMES[17], NAMES[12], NAMES[6]
 TOKEN = "flight_quiet_hours=6.75 flight_quiet_check_grace_minutes=0"
 
 

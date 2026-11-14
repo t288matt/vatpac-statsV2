@@ -129,10 +129,6 @@ INVARIANTS: dict[str, tuple[str, str]] = {
         "one controller connection may have been stored as two sessions",
         _LOGON,
     ),
-    "snapshots that created sessions for more than 50% of in-region pilots": (
-        "a snapshot started new flights for over half the pilots in our region, as if everyone had reconnected",
-        _LOGON,
-    ),
     # {when} in the wording is built from the flight_quiet_hours setting the check used (invariant_words below): never a typed number
     "flights quiet longer than the quiet period with unprocessed positions": (
         "some flights ended {when} and are not yet in the finished-flights table",

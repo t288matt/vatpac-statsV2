@@ -123,7 +123,7 @@ def test_a_missing_container_is_flagged() -> None:
 def test_the_scheduled_checks_hand_over_their_facts() -> None:
     res = integrity.summarise_invariants([integrity.Finding(GAPS, 1)], [], len(NAMES))
     assert m.facts_of(res) == BY_DETAIL[("data_integrity", res[1])][1]
-    assert m.facts_of(integrity.summarise_invariants([], ["1 invariant(s) did not report: x"], 20))["state"] == "incomplete"
+    assert m.facts_of(integrity.summarise_invariants([], ["1 invariant(s) did not report: x"], 19))["state"] == "incomplete"
     one = integrity.summarise_crosscheck(integrity.CrossResult(compared=24, mismatches=["a"]))
     assert (one[0], m.facts_of(one)) == ("warn", {"state": "differences", "n": 1})
     none = integrity.summarise_crosscheck(integrity.CrossResult())
@@ -172,9 +172,9 @@ def test_nothing_parses_the_alert_text_back() -> None:
 
 def test_the_facts_survive_the_status_file_and_an_older_file_without_them_is_safe(monkeypatch: pytest.MonkeyPatch) -> None:
     plan = integrity.Plan(dsn="", sql_path=Path("x"), archive_dir=Path("x"), config_dir=Path("x"), crosscheck_interval_s=0)
-    finding = integrity.Finding(NAMES[13], 1, TOKEN)
+    finding = integrity.Finding(NAMES[12], 1, TOKEN)
     result = integrity.summarise_invariants([finding], [], len(NAMES))
-    monkeypatch.setattr(integrity, "sweep", lambda p: (result, [NAMES[13]], 6 * 3600.0))
+    monkeypatch.setattr(integrity, "sweep", lambda p: (result, [NAMES[12]], 6 * 3600.0))
     state: dict[str, Any] = {}
     first, _ = integrity.run_due(plan, state, now=0.0)
     saved = json.loads(json.dumps(state))                       # what the status file keeps across a restart
@@ -191,12 +191,12 @@ def test_the_facts_survive_the_status_file_and_an_older_file_without_them_is_saf
 def test_a_new_violation_notice_carries_the_quiet_settings_from_the_stored_result(monkeypatch: pytest.MonkeyPatch) -> None:
     plan = integrity.Plan(dsn="", sql_path=Path("x"), archive_dir=Path("x"), config_dir=Path("x"), crosscheck_interval_s=0)
     one = integrity.summarise_invariants([integrity.Finding(GAPS, 1)], [], len(NAMES))
-    two = integrity.summarise_invariants([integrity.Finding(GAPS, 1), integrity.Finding(NAMES[13], 1, TOKEN)], [], len(NAMES))
+    two = integrity.summarise_invariants([integrity.Finding(GAPS, 1), integrity.Finding(NAMES[12], 1, TOKEN)], [], len(NAMES))
     box = {"r": (one, [GAPS])}
     monkeypatch.setattr(integrity, "sweep", lambda p: (box["r"][0], box["r"][1], 6 * 3600.0))
     state: dict[str, Any] = {}
     integrity.run_due(plan, state, now=0.0)
-    box["r"] = (two, [GAPS, NAMES[13]])
+    box["r"] = (two, [GAPS, NAMES[12]])
     _, notices = integrity.run_due(plan, state, now=6 * 3600.0)
-    assert len(notices) == 1 and m.facts_of(notices[0]) == {"state": "new", "names": [NAMES[13]], "quiet": ["6.75", "0"]}
-    assert notices[0][1] == f"new violations since the last sweep: {NAMES[13]} [{TOKEN}]"
+    assert len(notices) == 1 and m.facts_of(notices[0]) == {"state": "new", "names": [NAMES[12]], "quiet": ["6.75", "0"]}
+    assert notices[0][1] == f"new violations since the last sweep: {NAMES[12]} [{TOKEN}]"

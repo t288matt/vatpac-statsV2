@@ -174,12 +174,12 @@ def test_no_banned_jargon_in_any_plain_sentence() -> None:
         assert words.isascii() and not any(b in words.lower() for b in banned), words
 
 
-# ---------------------------------------------------------------- the 20 invariants
+# ---------------------------------------------------------------- the 19 invariants
 
 
 def test_every_invariant_has_a_plain_wording_and_none_is_stale() -> None:
     """Fails when invariants.sql gains, loses or renames an invariant and messages.INVARIANTS does not follow."""
-    assert len(NAMES) == 20
+    assert len(NAMES) == 19
     assert sorted(m.INVARIANTS) == sorted(NAMES)
 
 
@@ -202,14 +202,14 @@ def test_several_failing_invariants_are_counted_in_words() -> None:
     check_shape(t, "data_integrity")
 
 
-def test_more_than_six_failing_are_counted_from_the_n_of_20_figure() -> None:
+def test_more_than_six_failing_are_counted_from_the_n_of_19_figure() -> None:
     findings = [integrity.Finding(n, 1) for n in NAMES[:10]]
     detail, facts = summary(findings, [], len(NAMES))
-    assert "10 of 20 invariants" in detail and "and 4 more" in detail
+    assert "10 of 19 invariants" in detail and "and 4 more" in detail
     t = m.humanise("data_integrity", "warn", detail, now=NOW, facts=facts)
     assert "(plus 9 others)" in t
     last = t.splitlines()[-1]
-    assert "10 of 20 checks failing" in last and "(+" in last and "more)" in last  # the Technical line now lists names, bounded, with the rest counted
+    assert "10 of 19 checks failing" in last and "(+" in last and "more)" in last  # the Technical line now lists names, bounded, with the rest counted
     check_shape(t, "data_integrity")
 
 
@@ -415,7 +415,7 @@ def test_the_technical_line_names_every_failing_check_it_has_room_for_and_counts
     assert PARTITIONS in last and GAPS in last and "more)" not in last and len(last) <= len("Technical: data_integrity, ") + m.MAX_TECH
     many_detail, many_facts = _detail_for(NAMES[:10])
     many = m.humanise("data_integrity", "warn", many_detail, now=NOW, facts=many_facts).splitlines()[-1]
-    assert "10 of 20 checks failing" in many and "more)" in many and len(many) <= len("Technical: data_integrity, ") + m.MAX_TECH
+    assert "10 of 19 checks failing" in many and "more)" in many and len(many) <= len("Technical: data_integrity, ") + m.MAX_TECH
 
 
 def test_the_guard_reads_update_dict_literals_too() -> None:

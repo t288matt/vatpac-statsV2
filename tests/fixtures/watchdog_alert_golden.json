@@ -229,39 +229,39 @@
  },
  "alert:38:data_integrity:warn": {
   "log": [
-   "ALERT WARN data_integrity: 1 of 20 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 1 of 19 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: no data was recorded for more than 5 minutes at some point in the last 3 days. Nothing to do if the time matches an outage you already know about; otherwise see docs/RUNBOOKS/integrity-checks.md on the VM.\nTechnical: data_integrity, 1 of 20 checks failing: snapshot gaps over 5 minutes (last 3 days)"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: no data was recorded for more than 5 minutes at some point in the last 3 days. Nothing to do if the time matches an outage you already know about; otherwise see docs/RUNBOOKS/integrity-checks.md on the VM.\nTechnical: data_integrity, 1 of 19 checks failing: snapshot gaps over 5 minutes (last 3 days)"
  },
  "alert:39:data_integrity:warn": {
   "log": [
-   "ALERT WARN data_integrity: 2 of 20 invariants report violations: daily partitions missing for today..today+3 (1); snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 2 of 19 invariants report violations: daily partitions missing for today..today+3 (1); snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: the storage tables for today or the next three days have not been created (plus 1 other). Writes will start to fail if today's table is missing. Check the collector and maintenance log today (docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 2 of 20 checks failing: daily partitions missing for today..today+3; snapshot gaps over 5 minutes (last 3 days)"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: the storage tables for today or the next three days have not been created (plus 1 other). Writes will start to fail if today's table is missing. Check the collector and maintenance log today (docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 2 of 19 checks failing: daily partitions missing for today..today+3; snapshot gaps over 5 minutes (last 3 days)"
  },
  "alert:40:data_integrity:warn": {
   "log": [
-   "ALERT WARN data_integrity: 8 of 20 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1); identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1); ok poll_log counts differ from network_snapshot (1); in-region count above global count (1); positions per snapshot differ from pilots_in_region (1); and 2 more. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 8 of 19 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1); identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1); ok poll_log counts differ from network_snapshot (1); in-region count above global count (1); positions per snapshot differ from pilots_in_region (1); and 2 more. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: a snapshot counts more pilots or controllers in our region than on the whole network (plus 7 others). The live dashboard counts may be wrong. An engineer should look today (see docs/RUNBOOKS/integrity-checks.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 8 of 20 checks failing: in-region count above global count (+7 more)"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: a snapshot counts more pilots or controllers in our region than on the whole network (plus 7 others). The live dashboard counts may be wrong. An engineer should look today (see docs/RUNBOOKS/integrity-checks.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 8 of 19 checks failing: in-region count above global count (+7 more)"
  },
  "alert:41:data_integrity:warn": {
   "log": [
-   "ALERT WARN data_integrity: 1 of 20 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1) [flight_quiet_hours=6.75 flight_quiet_check_grace_minutes=0]. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 1 of 19 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1) [flight_quiet_hours=6.75 flight_quiet_check_grace_minutes=0]. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: some flights ended over 6 hours 45 minutes ago and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 20 checks failing: flights quiet longer than the quiet period with unprocessed positions"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: some flights ended over 6 hours 45 minutes ago and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 19 checks failing: flights quiet longer than the quiet period with unprocessed positions"
  },
  "alert:42:data_integrity:warn": {
   "log": [
-   "ALERT WARN data_integrity: 1 of 20 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 1 of 19 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: some flights ended longer ago than the quiet period and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 20 checks failing: flights quiet longer than the quiet period with unprocessed positions"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: some flights ended longer ago than the quiet period and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 19 checks failing: flights quiet longer than the quiet period with unprocessed positions"
  },
  "alert:43:data_integrity:warn": {
   "log": [
-   "ALERT WARN data_integrity: 2 of 20 invariants report violations: identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 2 of 19 invariants report violations: identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: the same flight appears to be stored twice (plus 1 other). VATSIM may have changed how it stamps logon times; an engineer should look (docs/RUNBOOKS/alerts.md on the VM, identity_flap). The rest: watchdog log.\nTechnical: data_integrity, 2 of 20 checks failing: identity duplicates (cid, callsign, logon_time); snapshot rows without an ok poll_log row"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). A routine data check found a problem: the same flight appears to be stored twice (plus 1 other). VATSIM may have changed how it stamps logon times; an engineer should look (docs/RUNBOOKS/alerts.md on the VM, identity_flap). The rest: watchdog log.\nTechnical: data_integrity, 2 of 19 checks failing: identity duplicates (cid, callsign, logon_time); snapshot rows without an ok poll_log row"
  },
  "alert:44:data_integrity:warn": {
   "log": [
@@ -391,9 +391,9 @@
  },
  "recovered_hours:data_integrity": {
   "log": [
-   "ALERT RECOVERED data_integrity (was warn): all 20 invariants hold (checked 09-10-2026 12:00 UTC)"
+   "ALERT RECOVERED data_integrity (was warn): all 19 invariants hold (checked 09-10-2026 12:00 UTC)"
   ],
-  "telegram": "VATPAC Stats: all clear (08:00 UTC). The routine data check is clean again. The alert was active for about 5 hours.\nTechnical: data_integrity recovered (was warn), all 20 invariants hold (checked 09-10-2026 12:00 UTC)"
+  "telegram": "VATPAC Stats: all clear (08:00 UTC). The routine data check is clean again. The alert was active for about 5 hours.\nTechnical: data_integrity recovered (was warn), all 19 invariants hold (checked 09-10-2026 12:00 UTC)"
  },
  "recovered_long:disk": {
   "log": [
@@ -823,39 +823,39 @@
  },
  "stepdown:38:data_integrity": {
   "log": [
-   "ALERT WARN data_integrity: 1 of 20 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 1 of 19 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: no data was recorded for more than 5 minutes at some point in the last 3 days. Nothing to do if the time matches an outage you already know about; otherwise see docs/RUNBOOKS/integrity-checks.md on the VM.\nTechnical: data_integrity, 1 of 20 checks failing: snapshot gaps over 5 minutes (last 3 days)"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: no data was recorded for more than 5 minutes at some point in the last 3 days. Nothing to do if the time matches an outage you already know about; otherwise see docs/RUNBOOKS/integrity-checks.md on the VM.\nTechnical: data_integrity, 1 of 19 checks failing: snapshot gaps over 5 minutes (last 3 days)"
  },
  "stepdown:39:data_integrity": {
   "log": [
-   "ALERT WARN data_integrity: 2 of 20 invariants report violations: daily partitions missing for today..today+3 (1); snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 2 of 19 invariants report violations: daily partitions missing for today..today+3 (1); snapshot gaps over 5 minutes (last 3 days) (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: the storage tables for today or the next three days have not been created (plus 1 other). Writes will start to fail if today's table is missing. Check the collector and maintenance log today (docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 2 of 20 checks failing: daily partitions missing for today..today+3; snapshot gaps over 5 minutes (last 3 days)"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: the storage tables for today or the next three days have not been created (plus 1 other). Writes will start to fail if today's table is missing. Check the collector and maintenance log today (docs/RUNBOOKS/integrity-checks.md and db-full.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 2 of 19 checks failing: daily partitions missing for today..today+3; snapshot gaps over 5 minutes (last 3 days)"
  },
  "stepdown:40:data_integrity": {
   "log": [
-   "ALERT WARN data_integrity: 8 of 20 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1); identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1); ok poll_log counts differ from network_snapshot (1); in-region count above global count (1); positions per snapshot differ from pilots_in_region (1); and 2 more. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 8 of 19 invariants report violations: snapshot gaps over 5 minutes (last 3 days) (1); identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1); ok poll_log counts differ from network_snapshot (1); in-region count above global count (1); positions per snapshot differ from pilots_in_region (1); and 2 more. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: a snapshot counts more pilots or controllers in our region than on the whole network (plus 7 others). The live dashboard counts may be wrong. An engineer should look today (see docs/RUNBOOKS/integrity-checks.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 8 of 20 checks failing: in-region count above global count (+7 more)"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: a snapshot counts more pilots or controllers in our region than on the whole network (plus 7 others). The live dashboard counts may be wrong. An engineer should look today (see docs/RUNBOOKS/integrity-checks.md on the VM). Some need action today. The rest: watchdog log.\nTechnical: data_integrity, 8 of 19 checks failing: in-region count above global count (+7 more)"
  },
  "stepdown:41:data_integrity": {
   "log": [
-   "ALERT WARN data_integrity: 1 of 20 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1) [flight_quiet_hours=6.75 flight_quiet_check_grace_minutes=0]. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 1 of 19 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1) [flight_quiet_hours=6.75 flight_quiet_check_grace_minutes=0]. Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: some flights ended over 6 hours 45 minutes ago and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 20 checks failing: flights quiet longer than the quiet period with unprocessed positions"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: some flights ended over 6 hours 45 minutes ago and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 19 checks failing: flights quiet longer than the quiet period with unprocessed positions"
  },
  "stepdown:42:data_integrity": {
   "log": [
-   "ALERT WARN data_integrity: 1 of 20 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 1 of 19 invariants report violations: flights quiet longer than the quiet period with unprocessed positions (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: some flights ended longer ago than the quiet period and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 20 checks failing: flights quiet longer than the quiet period with unprocessed positions"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: some flights ended longer ago than the quiet period and are not yet in the finished-flights table. Look today: the flight writer may be failing (see the collector log; docs/RUNBOOKS/integrity-checks.md on the VM).\nTechnical: data_integrity, 1 of 19 checks failing: flights quiet longer than the quiet period with unprocessed positions"
  },
  "stepdown:43:data_integrity": {
   "log": [
-   "ALERT WARN data_integrity: 2 of 20 invariants report violations: identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
+   "ALERT WARN data_integrity: 2 of 19 invariants report violations: identity duplicates (cid, callsign, logon_time) (1); snapshot rows without an ok poll_log row (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)"
   ],
-  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: the same flight appears to be stored twice (plus 1 other). VATSIM may have changed how it stamps logon times; an engineer should look (docs/RUNBOOKS/alerts.md on the VM, identity_flap). The rest: watchdog log.\nTechnical: data_integrity, 2 of 20 checks failing: identity duplicates (cid, callsign, logon_time); snapshot rows without an ok poll_log row"
+  "telegram": "VATPAC Stats: heads up (08:00 UTC). This has eased from a problem to a warning. A routine data check found a problem: the same flight appears to be stored twice (plus 1 other). VATSIM may have changed how it stamps logon times; an engineer should look (docs/RUNBOOKS/alerts.md on the VM, identity_flap). The rest: watchdog log.\nTechnical: data_integrity, 2 of 19 checks failing: identity duplicates (cid, callsign, logon_time); snapshot rows without an ok poll_log row"
  },
  "stepdown:44:data_integrity": {
   "log": [
