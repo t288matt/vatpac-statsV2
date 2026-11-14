@@ -270,7 +270,7 @@ One row per poll attempt, including failures. Trimmed to 90 days by maintenance.
 Count columns are NULL on rows that carry no snapshot result (`skipped_unchanged`, `error`).
 
 ### controller_unlisted_callsign
-Unknown controller callsigns (see DEFINITIONS). Primary key `callsign`. Columns: `callsign` text no; `cid` bigint yes; `first_seen`, `last_seen` timestamptz no; `polls_seen` bigint no, default 1. A temporary view, `controller_unlisted_sighting`, carries the previous table name (with one extra column, `xmax`) so that a collector or watchdog of the previous release keeps working during a deploy; nothing current reads it, and no role but `collector` and `watchdog_ro` has a right on it.
+Unknown controller callsigns (see DEFINITIONS). Primary key `callsign`. Columns: `callsign` text no; `cid` bigint yes; `first_seen`, `last_seen` timestamptz no; `polls_seen` bigint no, default 1.
 
 ### reference_data_change
 Audit of reference-file changes. Primary key `id`. Columns: `id` bigint (serial); `changed_at` timestamptz default `now()`; `file` text (`australian_airspace_polygon.json` or `controller_callsigns_list.txt`); `old_sha` text, nullable; `new_sha` text. A row is inserted only when the hash differs from the last recorded one.
