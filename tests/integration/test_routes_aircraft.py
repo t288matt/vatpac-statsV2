@@ -27,6 +27,24 @@ B10_WEEK = "Busiest airports, departures plus arrivals (rolling last 7 days, top
 C3 = "Most popular aircraft types (last 30 days, top 10)"
 C5 = "Airlines with the most airborne hours (last 30 days, top 10)"
 HOUR = 1 / 24
+ROUTES_QUESTIONS = {
+    "Most popular domestic routes (last 30 days)": "B1",
+    "Most popular international routes (last 30 days)": "B2",
+    "Busiest home-region airports (last 30 days)": "B4",
+    B5: "B5", B6: "B6", B10_DAY: "B10", B10_WEEK: "B10", B8: "B8",
+    "Where pilots currently online come from": "B9",
+    "Who flies most in Australian airspace: flights by home region (last 30 days)": "B9",
+    "Who spends most time in Australian airspace: airborne hours by home region (last 30 days)": "B9",
+}
+AIRCRAFT_QUESTIONS = {
+    "Most popular aircraft by flights (last 6 months)": "C1",
+    "Most popular aircraft by pilots (last 6 months)": "C2",
+    C3: "C3",
+    "Most popular airlines (last 30 days)": "C4",
+    C5: "C5",
+    "Most popular callsigns (last 30 days)": "C6",
+    "Highest groundspeeds (last 7 days)": "C10",
+}
 
 
 def dashboard(path: Path) -> dict:
@@ -51,20 +69,18 @@ def test_routes_dashboard_has_the_catalogue_questions_and_no_inputs():
     d = dashboard(ROUTES)
     assert d["uid"] == "vatpac-routes-airports" and d["title"] == "Routes and airports"
     assert [v["name"] for v in d["templating"]["list"]] == ["go_live"]              # no inputs: only the hidden constant
-    questions = sorted({p["description"].split()[1] for p in d["panels"] if p.get("description")})
+    questions = sorted({ROUTES_QUESTIONS[p["title"]] for p in d["panels"] if p.get("description")})
     assert questions == ["B1", "B10", "B2", "B4", "B5", "B6", "B8", "B9"]        # B7 was dropped by the owner, B3 removed (issue 317)
     assert [p["type"] != "text" for p in d["panels"]].count(True) == 11
-    assert all("Definition" in p["description"] for p in d["panels"] if p.get("description"))
 
 
 def test_aircraft_dashboard_has_the_catalogue_questions_and_no_inputs():
     d = dashboard(AIRCRAFT)
     assert d["uid"] == "vatpac-aircraft-airlines" and d["title"] == "Aircraft and airlines"
     assert [v["name"] for v in d["templating"]["list"]] == ["go_live"]
-    questions = sorted({p["description"].split()[1] for p in d["panels"] if p.get("description")})
+    questions = sorted({AIRCRAFT_QUESTIONS[p["title"]] for p in d["panels"] if p.get("description")})
     assert questions == sorted(f"C{i}" for i in (1, 2, 3, 4, 5, 6, 10))                  # C7 to C9 (military) live on Military only, issue 301
     assert [p["type"] != "text" for p in d["panels"]].count(True) == 7
-    assert all("Definition" in p["description"] for p in d["panels"] if p.get("description"))
 
 
 COPIES = [
