@@ -761,7 +761,7 @@
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Rows written (pilot and controller records kept per snapshot)",
+      "title": "Rows written",
       "description": "Pilot position rows and controller sightings written, summed per bucket over polls with status ok.",
       "datasource": {
         "type": "grafana-postgresql-datasource",

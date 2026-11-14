@@ -251,7 +251,7 @@ def test_poll_series_panels(conn) -> None:
     outcome = run(conn, "Polls by outcome", base, end)
     assert [(r["time"], r["ok"], r["skipped_unchanged"], r["error"]) for r in outcome] == [
         (base, 2, 1, 1), (base + timedelta(minutes=5), 1, 0, 0)]
-    written = run(conn, "Rows written (pilot and controller records kept per snapshot)", base, end)
+    written = run(conn, "Rows written", base, end)
     assert [(r["time"], r["Pilot rows"], r["Controller rows"]) for r in written] == [
         (base, 42, 9), (base + timedelta(minutes=5), 30, 6)]                 # only ok polls
     duration = run(conn, "Poll duration", base, end)
