@@ -1,6 +1,6 @@
 # Runbook: alerts (what each Telegram message means)
 
-*Describes main; the commit production runs is shown by `bash ops/deploy.sh --status`. The invariant pack has 20 checks in the code and on the live database (`bash ops/deploy.sh --verify` counts them; the check "positions outside plausibility caps" was removed on 22-10-2026, issue 243). Later changes are listed in CHANGELOG.md.*
+*Describes main; the commit production runs is shown by `bash ops/deploy.sh --status`. The invariant pack has 19 checks (`bash ops/deploy.sh --verify` counts them). Changes are listed in CHANGELOG.md.*
 
 Last reviewed: 13-10-2026 (check count and phase 4 status; earlier: 09-10-2026, data_integrity and feed_crosscheck added; plain-language Telegram wording, issue 79), against `ops/watchdog/watchdog.py` and `ops/watchdog/integrity.py`. Times are UTC.
 
