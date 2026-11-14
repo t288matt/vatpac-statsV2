@@ -118,7 +118,7 @@ def tok(hours: str, grace: str) -> str:
 
 def _text(token: str | None) -> str:
     finding = integrity.Finding(QUIET, 2, token)
-    res = integrity.summarise_invariants([finding], [], 20)
+    res = integrity.summarise_invariants([finding], [], 19)
     return m.humanise("data_integrity", "warn", res[1], now=NOW, facts=integrity.facts_of(res))
 
 
@@ -137,13 +137,13 @@ def test_the_alert_wording_names_no_number_when_the_settings_were_not_reported()
 
 def test_the_settings_travel_in_the_sweep_detail_and_in_the_new_violation_notice() -> None:
     finding = integrity.Finding(QUIET, 1, tok("8", "30"))
-    _, detail = integrity.summarise_invariants([finding, integrity.Finding("daily partitions missing for today..today+3", 1)], [], 20)
+    _, detail = integrity.summarise_invariants([finding, integrity.Finding("daily partitions missing for today..today+3", 1)], [], 19)
     assert f"[{tok('8', '30')}]" in detail
-    _, other = integrity.summarise_invariants([integrity.Finding(QUIET, 1, "not a setting")], [], 20)
+    _, other = integrity.summarise_invariants([integrity.Finding(QUIET, 1, "not a setting")], [], 19)
     assert "flight_quiet_hours" not in other  # only a well-formed token is carried
-    _, half = integrity.summarise_invariants([integrity.Finding(QUIET, 1, "flight_quiet_hours=8")], [], 20)
+    _, half = integrity.summarise_invariants([integrity.Finding(QUIET, 1, "flight_quiet_hours=8")], [], 19)
     assert "flight_quiet_hours" not in half
-    assert integrity.facts_of(integrity.summarise_invariants([finding], [], 20))["quiet"] == ["8", "30"]
+    assert integrity.facts_of(integrity.summarise_invariants([finding], [], 19))["quiet"] == ["8", "30"]
     notice = m.humanise("data_integrity", "warn", f"new violations since the last sweep: {QUIET} [{tok('6', '45')}]", now=NOW,
                         facts={"state": "new", "names": [QUIET], "quiet": ["6", "45"]})
     assert "ended over 6 hours 45 minutes ago" in notice
