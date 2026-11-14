@@ -1069,7 +1069,7 @@
       "id": 17,
       "type": "timeseries",
       "title": "Database size vs VM disk",
-      "description": "Daily readings, one per UTC day, over the last 400 days. The database in megabytes (MB, left axis, blue) and the used space of the VM disk that holds the database in gigabytes (GB, right axis, amber). The two axes have different scales on purpose, because the disk is about sixty times larger than the database. The graph starts on the day the readings began.",
+      "description": "Daily readings, one per UTC day, over the last 400 days. The database in megabytes (MB, left axis, blue) and the used space of the VM disk that holds the database in gigabytes (GB, right axis, amber). The two axes have different scales on purpose, because the disk is far larger than the database. The graph starts on the day the readings began.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
