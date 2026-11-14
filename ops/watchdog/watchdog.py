@@ -163,13 +163,19 @@ def check_db(cfg: Config) -> dict[str, Result]:
             row = cur.fetchone()
             gb = (int(row[0]) if row else 0) / 1024**3
             out["db_size"] = db_size_level(gb, cfg.db_max_gb)
-            cur.execute("SELECT callsign FROM controller_unlisted_sighting ORDER BY first_seen")
-            out["_near_miss"] = (OK, ",".join(r[0] for r in cur.fetchall()))
             out["identity_flap"] = check_identity_flap(cur)  # last, so a failure here cannot hide the checks above
         out["database"] = (OK, "reachable")
     except psycopg.Error as exc:
         out["database"] = (CRIT, f"query/connect failed ({type(exc).__name__})")
     return out
+
+
+def unlisted_callsigns(cfg: Config) -> list[str]:
+    """Every callsign in controller_unlisted_callsign, oldest first. Raises psycopg.Error when the read fails; the cycle turns that into
+    a CRIT on the database check, as it was when this query was part of check_db."""
+    with psycopg.connect(cfg.db_dsn) as conn, conn.cursor() as cur:
+        cur.execute("SELECT callsign FROM controller_unlisted_callsign ORDER BY first_seen")
+        return [r[0] for r in cur.fetchall()]
 
 
 # Session pairs with one cid and callsign and logon_time within 2 s. The rule lives in ONE file, ops/audit/identity_flap.sql
@@ -477,7 +483,7 @@ class Alerter:
         self.bad_since: dict[str, float] = state.setdefault("bad_since", {})
 
     def notify(self, name: str, result: Result, previous: str | None = None, down_for: float | None = None) -> None:
-        """Send one alert that needs no de-duplication (a near-miss callsign, a follow-up notice, a restart). The result's facts
+        """Send one alert that needs no de-duplication (an unknown callsign, a follow-up notice, a restart). The result's facts
         go to the wording as they are; nothing is parsed back out of its text."""
         self.send(*self._alert(name, result, previous, down_for))
 
@@ -680,8 +686,14 @@ def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, 
     results["feed_archive"] = check_archive(coll_body, coll[0] == OK)
 
     db = check_db(cfg)
-    near_miss = db.pop("_near_miss", (OK, ""))[1]
     results.update(db)
+    try:
+        listed = unlisted_callsigns(cfg)
+    except psycopg.Error as exc:  # a missing grant or any database error must not pass silently (CRIT, as when check_db held the query)
+        log.error("unlisted callsign read failed: %s", exc)
+        listed = []
+        if db.get("database", (CRIT, ""))[0] == OK:
+            results["database"] = (CRIT, f"query/connect failed ({type(exc).__name__})")
     sched, notices = integrity.run_due(cfg.integrity, state)  # slow checks, persisted schedule, see integrity.py
     results.update(sched)
     results["disk"] = check_disk(cfg)
@@ -705,12 +717,13 @@ def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, 
     for notice in notices:  # violations that are new since the previous sweep, while the integrity alert is already active
         alerter.notify(integrity.INVARIANTS_KEY, notice)
 
-    # New near-miss controller callsigns: alert once each, ever (persisted).
-    known = set(state.setdefault("known_near_miss", []))
-    fresh = [c for c in near_miss.split(",") if c and c not in known]
+    # New unknown callsigns: alert once each, ever (persisted). The state key was known_near_miss before issue 209: it is read
+    # once here and dropped, so a callsign already alerted under the old key is not alerted again.
+    known = set(state.pop("known_near_miss", [])) | set(state.get("known_unlisted_callsign", []))
+    fresh = [c for c in listed if c not in known]
     if fresh:
-        alerter.notify("near-miss", (WARN, ", ".join(fresh[:10])))
-        state["known_near_miss"] = sorted(known | set(fresh))
+        alerter.notify("unknown-callsign", (WARN, ", ".join(fresh[:10])))
+    state["known_unlisted_callsign"] = sorted(known | set(fresh))
 
     # DISABLED 21-10-2026 (owner decision): the watchdog's automatic restart code is commented out, so it is alert-only again.
     # We might come back to it (issue #232, ADR-012). Before re-enabling: collector_is_stuck() treats a frozen VATSIM feed

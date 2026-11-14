@@ -57,13 +57,13 @@ def test_pilots_with_plan_needs_both_departure_and_arrival(db, payload, expected
     assert res.pilots_with_plan == len(expected["pilots_passing_flight_gate_inside"])
 
 
-def test_replaying_a_snapshot_does_not_count_a_near_miss_poll_twice(db, payload, refdata) -> None:
+def test_replaying_a_snapshot_does_not_count_an_unlisted_callsign_poll_twice(db, payload, refdata) -> None:
     """Mutant C17 (`>=` instead of `>` on the polls_seen guard): replaying the same feed timestamp must not
-    increase polls_seen, so a re-delivered snapshot cannot inflate the near-miss counters."""
+    increase polls_seen, so a re-delivered snapshot cannot inflate the unlisted-callsign counters."""
     snap = at(payload)
     apply(db, snap, refdata)
     apply(db, snap, refdata)
-    rows = db.execute("SELECT callsign, polls_seen FROM controller_unlisted_sighting ORDER BY callsign").fetchall()
+    rows = db.execute("SELECT callsign, polls_seen FROM controller_unlisted_callsign ORDER BY callsign").fetchall()
     assert [(r["callsign"], r["polls_seen"]) for r in rows] == [("AD_XYZ_TWR", 1), ("ML_XYZ_CTR", 1)]
 
 

@@ -281,7 +281,7 @@ def test_every_check_passes_when_healthy_and_fails_alone() -> None:
         assert "1 h old" in line_for(out, "recent_dump")
         rc, out = f.run(*GOOD["ver"])
         assert rc == 0 and "RESULT   verify OK" in out, out
-        assert len(NAMES) == 20 and "20 invariants checked" in line_for(out, "invariants")
+        assert len(NAMES) == 19 and "19 invariants checked" in line_for(out, "invariants")
     with ThreadPoolExecutor(16) as pool:
         bad = [r for r in pool.map(_scenario, list(enumerate(SCENARIOS))) if r]
     assert not bad, "\n".join(bad)

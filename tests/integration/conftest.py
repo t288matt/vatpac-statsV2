@@ -29,7 +29,7 @@ _skipped: list[str] = []
 
 DATA_TABLES = [
     "pilot_position", "pilot_session", "controller_rating_event", "controller_frequency_event",
-    "controller_session", "network_snapshot", "poll_log", "controller_unlisted_sighting",
+    "controller_session", "network_snapshot", "poll_log", "controller_unlisted_callsign",
     "reference_data_change", "flight_summary", "drop_gate_refusal", "system_sample",
 ]
 

@@ -12,6 +12,19 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 - **How the readings are taken.** The collector's daily maintenance job stores one row per UTC day in the new table `system_sample` (a second reading on the same day replaces the first). The speed reading is the middle of three runs of a count of the flights of the last 30 days, each limited to 5 seconds. A reading that fails is logged and skipped; polling and the other maintenance tasks carry on. Rows older than 400 days (the setting `system_sample_retention_days`) are deleted by the same job.
 - **Rights.** The collector can only run two new functions (`system_probe_flight_count`, `record_system_sample`); it has no right on the new table or on `flight_summary`. Grafana reads the view `health_sample` and not the table. The migration is `20261114000220_system_sample.sql`.
 
+## Unknown callsign (14-11-2026, issue 209)
+
+- **"Near miss" is now "unknown callsign".** A controller whose callsign is not on the whitelist but looks like a new position is still recorded and still raises one Telegram alert per callsign; the alert now reads "Unknown callsign". The table `controller_unlisted_sighting` is now `controller_unlisted_callsign` (migration `20261114000210`, rows and rights kept). The collector no longer logs its own warning for it: the watchdog is the one path, and it reads the table directly. The watchdog remembers which callsigns it has alerted (`known_unlisted_callsign`) and reads its old list once, so nothing alerts twice.
+- **A temporary view.** For the short time the previous collector and watchdog run during a deploy, the old table name exists as a view; a later migration drops it.
+
+## One invariant fewer: the session-burst check (14-11-2026, issue 363)
+
+- **Check removed.** The data-integrity sweep drops the check "snapshots that created sessions for more than 50% of in-region pilots", so it has 19 checks instead of 20 (`ops/deploy.sh --verify` shows 19 once the new watchdog is deployed; until then production still reports 20, so run verify from a checkout of the deployed commit). The owner judged a change in how VATSIM reports `logon_time` very unlikely; the check had failed falsely twice (about 14-10-2026 and 03-11-2026, the second a network-wide reconnect that the flight writer merged back, ADR-023) and never caught a real fault. Flights are joined from their sessions by the writer, so such a change would do little harm to flight numbers. No other check changed. The identity duplicate and identity-flap checks and the `identity_flap` alert are unchanged.
+
+## The flight view uses the one home-region rule (14-11-2026, issue 208)
+
+- **One rule.** `flight.touches_home_region` now reads the home prefixes from the `home_prefix` view, the list `flight_ext` already uses, instead of keeping its own copy of the list; the list is read once per query, so the column is no slower. No panel reads this column, so no dashboard changes. For every stored flight and every valid setting the answers are the same. The one difference: a `home_icao_prefixes` setting that exists but is empty used to count every `Y` airport as home in this view; it now matches nothing, as in `flight_ext`. The collector never publishes an empty value. Migration `20261114000208`.
+
 ## Migrations travel only in the migrate image (13-11-2026, issue 233)
 
 - **One carrier.** The `migrate` container no longer mounts `./db` over the migrations and `db/roles.sql` baked into its image. The migrations that run are the ones the image was built with, in registry mode and in local-build mode, so code and migrations always come from the same commit. In local-build mode `make up` rebuilds the image; after editing a migration and using plain `docker compose up -d`, run `docker compose build migrate` first. The migrations and the database are unchanged.
