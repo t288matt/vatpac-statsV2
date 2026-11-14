@@ -12,6 +12,10 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 - **How the readings are taken.** The collector's daily maintenance job stores one row per UTC day in the new table `system_sample` (a second reading on the same day replaces the first). The speed reading is the middle of three runs of a count of the flights of the last 30 days, each limited to 5 seconds. A reading that fails is logged and skipped; polling and the other maintenance tasks carry on. Rows older than 400 days (the setting `system_sample_retention_days`) are deleted by the same job.
 - **Rights.** The collector can only run two new functions (`system_probe_flight_count`, `record_system_sample`); it has no right on the new table or on `flight_summary`. Grafana reads the view `health_sample` and not the table. The migration is `20261114000220_system_sample.sql`.
 
+## Temporary view dropped (14-11-2026, issue 366)
+
+- **The compatibility view is gone.** The view `controller_unlisted_sighting`, kept only so the previous collector and watchdog worked during the unknown-callsign deploy, is dropped (migration `20261114000230`) and its grants are removed from `db/roles.sql`. The table `controller_unlisted_callsign`, its rows and its grants are unchanged.
+
 ## Unknown callsign (14-11-2026, issue 209)
 
 - **"Near miss" is now "unknown callsign".** A controller whose callsign is not on the whitelist but looks like a new position is still recorded and still raises one Telegram alert per callsign; the alert now reads "Unknown callsign". The table `controller_unlisted_sighting` is now `controller_unlisted_callsign` (migration `20261114000210`, rows and rights kept). The collector no longer logs its own warning for it: the watchdog is the one path, and it reads the table directly. The watchdog remembers which callsigns it has alerted (`known_unlisted_callsign`) and reads its old list once, so nothing alerts twice.
