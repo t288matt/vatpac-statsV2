@@ -16,8 +16,8 @@ NAMED_VIEWS = ["flight", "controller_session_merged", "movements", "cohorts",
                "online_now", "data_freshness"]
 LOOKUPS = ["controller_rating", "facility", "pilot_rating", "airline", "aircraft_type", "region_map"]
 RAW = ["pilot_session", "pilot_position", "controller_session", "controller_rating_event",
-       "controller_frequency_event", "network_snapshot", "poll_log", "controller_unlisted_callsign", "controller_unlisted_sighting",
-       "reference_data_change", "flight_summary"]
+       "controller_frequency_event", "network_snapshot", "poll_log", "controller_unlisted_callsign",
+       "reference_data_change", "flight_summary", "system_sample"]
 
 
 @pytest.fixture()
@@ -45,7 +45,6 @@ def test_can_select_every_view_in_the_schema(conn, ro) -> None:
     refused to grafana_ro, see test_cannot_select_the_ops_views_meant_for_the_watchdog)."""
     names = [r["n"] for r in conn.execute(
         "SELECT viewname AS n FROM pg_views WHERE schemaname = 'public' AND left(viewname, 4) <> 'ops_' "
-        "AND viewname <> 'controller_unlisted_sighting' "  # the temporary raw-table view: refused to grafana_ro, it is in RAW above
         "UNION SELECT matviewname FROM pg_matviews WHERE schemaname = 'public' ORDER BY 1").fetchall()]
     assert set(NAMED_VIEWS) <= set(names) and len(names) >= 20, names
     denied = []

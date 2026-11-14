@@ -74,7 +74,6 @@ DECLARE r record;
 BEGIN
     FOR r IN
         SELECT schemaname, viewname AS name FROM pg_views WHERE schemaname = 'public' AND left(viewname, 4) <> 'ops_'
-              AND viewname <> 'controller_unlisted_sighting'   -- TEMPORARY (issue 209): a raw-table view, never for Grafana
     LOOP
         EXECUTE format('GRANT SELECT ON %I.%I TO grafana_ro', r.schemaname, r.name);
     END LOOP;
@@ -103,10 +102,6 @@ GRANT SELECT, INSERT, UPDATE ON
     controller_frequency_event, network_snapshot, poll_log, controller_unlisted_callsign,
     reference_data_change, app_setting
 TO collector;
--- TEMPORARY (issue 209): the compatibility view for the previous collector during a deploy; skipped once the view is dropped.
-SELECT 'GRANT SELECT, INSERT, UPDATE ON controller_unlisted_sighting TO collector'
- WHERE to_regclass('public.controller_unlisted_sighting') IS NOT NULL
-\gexec
 -- The one retention trim the collector runs itself (maintenance.py trim_poll_log). Position partitions are dropped and the
 -- finished flights are written by the SECURITY DEFINER writer below, which needs no DELETE right.
 GRANT DELETE ON poll_log TO collector;
@@ -114,11 +109,14 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO collector;
 
 -- Maintenance functions. The partition functions, the flight writer (write_finished_flights, which fills flight_summary)
 -- are SECURITY DEFINER (owner rights), so the collector needs no DDL or table rights for them.
+-- The two system_sample functions (issue 27) are SECURITY DEFINER too: the collector has no right on system_sample or flight_summary.
 -- Not granted: unreconciled_partition_sessions (internal helper).
 GRANT EXECUTE ON FUNCTION
     ensure_pilot_position_partitions(int, date),
     drop_old_pilot_position_partitions(int, date),
-    write_finished_flights(int)
+    write_finished_flights(int),
+    system_probe_flight_count(),
+    record_system_sample(bigint, bigint, double precision)
 TO collector;
 
 -- ---------------------------------------------------------------------------------------------
@@ -154,7 +152,7 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public FROM watchdog_ro;
 GRANT USAGE ON SCHEMA public TO watchdog_ro;
 GRANT pg_monitor TO watchdog_ro;
 SELECT format('GRANT SELECT ON %I TO watchdog_ro', t)
-  FROM unnest(ARRAY['poll_log', 'network_snapshot', 'controller_unlisted_callsign', 'controller_unlisted_sighting', 'pilot_session', 'controller_session',
+  FROM unnest(ARRAY['poll_log', 'network_snapshot', 'controller_unlisted_callsign', 'pilot_session', 'controller_session',
                 'pilot_position', 'flight_summary', 'drop_gate_refusal', 'reference_data_change', 'ops_setting', 'ops_pending_flight']) AS t
  WHERE to_regclass('public.' || t) IS NOT NULL
 \gexec

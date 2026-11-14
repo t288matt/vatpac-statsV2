@@ -151,12 +151,9 @@ def test_dropped_views_stay_dropped(conn) -> None:
     assert not gone & {"near_miss_controllers", "controller_activity_daily"}
 
 
-def test_the_previous_releases_unlisted_callsign_statements_still_work_through_the_temporary_view(conn) -> None:
-    """Issue 209: during a deploy the previous collector still runs INSERT ... ON CONFLICT ... RETURNING xmax = 0 on the old name."""
-    sql = ("INSERT INTO controller_unlisted_sighting AS u (callsign, cid, first_seen, last_seen, polls_seen) "
-           "VALUES ('ML_XYZ_CTR', 1, now(), now(), 1) ON CONFLICT (callsign) DO UPDATE SET polls_seen = u.polls_seen + 1 "
-           "RETURNING callsign, (xmax = 0) AS inserted")
-    assert [tuple(r.values()) for r in conn.execute(sql).fetchall()] == [("ML_XYZ_CTR", True)]
-    assert [tuple(r.values()) for r in conn.execute(sql).fetchall()] == [("ML_XYZ_CTR", False)]
-    assert conn.execute("SELECT callsign, polls_seen FROM controller_unlisted_callsign").fetchall() == [
-        {"callsign": "ML_XYZ_CTR", "polls_seen": 2}]
+
+def test_the_old_unlisted_sighting_name_no_longer_exists(conn) -> None:
+    """The old name is gone as a table and as a view; only controller_unlisted_callsign exists."""
+    names = {r["n"] for r in conn.execute(
+        "SELECT relname AS n FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname LIKE 'controller_unlisted%'").fetchall()}
+    assert names == {"controller_unlisted_callsign", "controller_unlisted_callsign_pkey"}

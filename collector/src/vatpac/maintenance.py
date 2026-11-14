@@ -6,7 +6,9 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 import time
+import timeit
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from typing import Any
@@ -140,6 +142,17 @@ def trim_poll_log(conn: psycopg.Connection[Any], days: int = POLL_LOG_RETENTION_
     return max(cur.rowcount, 0)
 
 
+def record_system_sample(conn: psycopg.Connection[Any], path: str) -> int:  # issue 27: daily size, disk, speed
+    try:  # a failed reading skips the day's sample (logged); it never stops the other tasks
+        with conn.transaction():  # set_config(..., true) is SET LOCAL: the 15 minute timeout returns after the probe
+            conn.execute("SELECT set_config('statement_timeout', '5s', true)")
+            ms = sorted(timeit.repeat(lambda: conn.execute("SELECT system_probe_flight_count()"), number=1, repeat=3))
+        return _scalar(conn, "SELECT record_system_sample(%s, %s, %s)", (*shutil.disk_usage(path)[:2], ms[1] * 1000))
+    except (OSError, psycopg.Error):
+        log.warning("system sample skipped", exc_info=True)
+        return 0
+
+
 def run_maintenance(conn: psycopg.Connection[Any], settings: Settings, only: tuple[str, ...] = ()) -> dict[str, int]:
     """Run every task (or just those in ``only``); a failing task never blocks the others. Needs autocommit."""
     today = datetime.now(UTC).date()
@@ -154,6 +167,7 @@ def run_maintenance(conn: psycopg.Connection[Any], settings: Settings, only: tup
         "flights_refreshed": lambda: refresh_flights(conn, guarded=False),
         "partitions_dropped": lambda: drop_old_partitions(conn, today, settings.position_retention_days),
         "poll_log_trimmed": lambda: trim_poll_log(conn),
+        "system_sampled": lambda: record_system_sample(conn, settings.archive_dir),
     }
     out: dict[str, int] = {}
     failed = 0

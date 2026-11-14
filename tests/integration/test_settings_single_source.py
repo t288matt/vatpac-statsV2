@@ -342,7 +342,7 @@ def test_the_watchdog_role_has_select_on_exactly_the_tables_it_had_plus_the_two_
     got = {r["table_name"] for r in conn.execute(
         "SELECT table_name FROM information_schema.role_table_grants WHERE grantee = 'watchdog_ro' AND privilege_type = 'SELECT' "
         "AND table_schema = 'public'").fetchall()}
-    assert got == {"poll_log", "network_snapshot", "controller_unlisted_callsign", "controller_unlisted_sighting", "pilot_session", "controller_session", "pilot_position",
+    assert got == {"poll_log", "network_snapshot", "controller_unlisted_callsign", "pilot_session", "controller_session", "pilot_position",
                    "flight_summary", "drop_gate_refusal", "reference_data_change", "ops_setting", "ops_pending_flight"}
     others = conn.execute(
         "SELECT count(*) AS n FROM information_schema.role_table_grants WHERE grantee = 'watchdog_ro' AND table_schema = 'public' "
