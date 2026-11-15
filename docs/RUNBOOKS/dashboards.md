@@ -66,7 +66,23 @@ Names and CIDs are shown and are public VATSIM data. Public, read-only sharing i
 
 ## Promotions page: load the rating history
 
-The promotions page counts a controller only after their VATSIM ATC history has been loaded. The loader is `ops/backfill_rating_history.py`. It is run by hand on the VM and nothing runs it on a timer. For each controller in our data who has no load yet, it reads the member's ATC history from the public VATSIM API (no key) and stores, for each rating, the start of the first session longer than 20 minutes. The rows go to `controller_rating_first_seen` and `controller_rating_backfill` (see [DATA_DICTIONARY.md](../DATA_DICTIONARY.md), section 2). The rule the page applies is in section 4.2 there.
+The promotions page counts a controller only after their VATSIM ATC history has been loaded. The loader is `ops/backfill_rating_history.py`. It is run by hand and nothing runs it on a timer. For each controller in our data who has no load yet, it stores, for each rating, the start of the first session longer than 20 minutes. The rows go to `controller_rating_first_seen` and `controller_rating_backfill` (see [DATA_DICTIONARY.md](../DATA_DICTIONARY.md), section 2). The rule the page applies is in section 4.2 there.
+
+The loader takes the history either from the public VATSIM API, directly on the VM (the default), or from files downloaded to your PC first. Both fill the same tables, and a controller loaded by one is skipped by the other.
+
+### Which way to load
+
+| | API on the VM | Download on the PC, then load the files on the VM |
+|---|---|---|
+| Who calls the VATSIM API | The VM | Your PC |
+| Commands | One command on the VM | A download on the PC, a copy to the VM, one command on the VM |
+| Pace | 1.5 seconds between requests by default; 25 controllers per run | About 5 seconds per call on average, spread over the time you choose |
+| Keeps the raw history | No, only the rating rows | Yes, one JSON file per controller plus a manifest |
+| Best for | A few controllers, or a quick top-up | Many controllers, or a load that should take hours or days |
+
+Use the API on the VM for a small top-up. Use the PC route for a large load: the slow calls happen on your PC, the VM only reads files and writes rows, and the files stay for a later reload. Both routes skip controllers already loaded, so you can switch between them.
+
+### Load from the API on the VM
 
 Run it from `~/vatpac-statsV2` on the VM. The commands are:
 
@@ -97,4 +113,77 @@ docker compose exec db psql -U vatpac -d vatpac -c "SET default_transaction_read
 docker compose exec db psql -U vatpac -d vatpac -c "SET default_transaction_read_only = on; SELECT count(DISTINCT s.cid) AS not_loaded FROM controller_summaries s WHERE NOT EXISTS (SELECT 1 FROM controller_rating_backfill b WHERE b.cid = s.cid);"
 ```
 
-**Exit codes.** 0: the run finished, or there was nothing to load. 2: an option was wrong; nothing was done. 3: the run stopped early at the first HTTP 429 (too many requests), HTTP 5xx or network error, after a short backoff that honours `Retry-After`. Everything loaded before the stop is kept. Wait a while, then run the same command again; controllers already loaded are skipped. Any other error stops the script with a traceback. Each controller is written in one transaction, so it is either fully loaded or not loaded at all.
+**Exit codes (API mode).** 0: the run finished, or there was nothing to load. 2: an option was wrong; nothing was done. 3: the run stopped early at the first HTTP 429 (too many requests), HTTP 5xx or network error, after a short backoff that honours `Retry-After`. Everything loaded before the stop is kept. Wait a while, then run the same command again; controllers already loaded are skipped. Any other error stops the script with a traceback. Each controller is written in one transaction, so it is either fully loaded or not loaded at all.
+
+### Download the histories to your PC
+
+`ops/download_member_atc_history.py` runs on your Windows PC with standard Python; it needs no packages. For each controller it reads every page of the public VATSIM history (`https://api.vatsim.net/v2/members/<cid>/atc`, no key) and saves the sessions, exactly as the API returned them, to `<cid>.json`. It writes no database and changes nothing on the server. Run it from the checkout folder:
+
+```sh
+python ops/download_member_atc_history.py --cid 1234567                 # one controller
+python ops/download_member_atc_history.py --cids-file cids.txt          # a list, one CID per line; blank lines and # comments are ignored
+python ops/download_member_atc_history.py --from-vm                     # every controller in our data, read over ssh (read-only)
+python ops/download_member_atc_history.py --from-vm --dry-run           # lists what would be fetched; no API call, nothing written
+python ops/download_member_atc_history.py --from-vm --spread-over 6h    # every pending controller, calls spread over about six hours
+```
+
+`--from-vm` reads the controller list with `ssh vatpac-v3` (read-only). Use `--ssh-host <name>` if your ssh alias is different.
+
+**Output folder.** The default is `Documents\vatsim-atc-history\<DD-MM-YYYY>` in your home folder, named after the day the run starts. A run resumed on another day therefore goes to a new folder; pass `--out <folder>` to keep resumed runs together. Each run also writes `manifest.csv` and `README.txt` to that folder.
+
+**Pacing.**
+- Each call is followed by a pause of 5 seconds on average. Each pause is varied at random by plus or minus 30 percent, so calls never fall on a regular beat. There is no pause after the last call of the run.
+- `--sleep S` sets the average pause in seconds. A value under 2 seconds prints a warning.
+- `--spread-over DURATION` sets the pause so the whole run takes about that long, for example `90m`, `6h` or `2d`. The pause never averages less than 5 seconds. If the time is too short for that, the script says so and runs at 5 seconds, so the run takes longer. With `--spread-over`, `--sleep` is ignored and all pending controllers are done unless you give `--limit`.
+- `--limit N` sets the most controllers per run. The default is 25 (all pending with `--spread-over`). `--limit 0` means no limit.
+
+**Resuming.**
+- A controller whose `<cid>.json` file exists is skipped. Run the same command again to carry on.
+- `--refresh` downloads again even if the file exists. The manifest then has a second row for that controller, and the latest row is the current one.
+- A controller the API does not know gets a `not_found` row in the manifest and no JSON file, so the next run tries it again.
+- Ctrl+C finishes the controller in progress, then stops and says so. A second Ctrl+C stops at once; that controller is downloaded again on the next run.
+- The run stops at the first HTTP 429 (too many requests), HTTP 5xx or network error, after a short backoff that honours `Retry-After`. Everything saved before the stop is kept. Wait a while, then run the same command again.
+
+**Manifest columns (`manifest.csv`).** One row per download.
+
+| Column | Meaning |
+|---|---|
+| `cid` | The controller. |
+| `sessions` | How many sessions the API returned, of any length. |
+| `first_start`, `last_start` | The earliest and latest session start (UTC), counting sessions of any length. |
+| `ratings_seen` | Every rating in the history, as numbers separated by spaces. |
+| `first_over_20min_by_rating` | For each rating, the start of the first session longer than 20 minutes, as `rating=start` pairs separated by semicolons. This is the column the rating table stores. |
+| `downloaded_utc` | When the download was made. |
+| `status` | `ok`, or `not_found` when the API does not know the CID. |
+
+**Exit codes.** 0: finished. 2: an option or the controller list was wrong; nothing was downloaded. 3: stopped at a 429, 5xx or network error; run again. 130: stopped by Ctrl+C; run again.
+
+### Load the downloaded files on the VM
+
+1. Copy the dated folder from your PC to the VM. Create the parent folder on the VM first if it does not exist:
+
+   ```sh
+   ssh vatpac-v3 'mkdir -p ~/atc-history'
+   scp -r "<folder>" vatpac-v3:~/atc-history/
+   ```
+
+   `<folder>` is the run's folder, for example `Documents\vatsim-atc-history\14-11-2026` in your home folder. On the VM the files are then in `~/atc-history/14-11-2026`.
+
+2. From `~/vatpac-statsV2` on the VM, check first with `--dry-run`, then load. Use the VM path from step 1:
+
+   ```sh
+   python3 ops/backfill_rating_history.py --from-files ~/atc-history/14-11-2026 --dry-run
+   python3 ops/backfill_rating_history.py --from-files ~/atc-history/14-11-2026 --limit 25
+   ```
+
+Behaviour:
+- No API call is made and nothing waits between files. The database is read only to find the controllers still without a load.
+- Only controllers in our data with no load are written. A file for a controller that is already loaded, or is not in our data, is counted as skipped. `--cid N` loads that one file even if it is already loaded.
+- `--limit` (default 25) caps how many controllers are loaded or reported as errors in one run.
+- A file that cannot be read or is not in the expected shape is reported as `ERROR in <file>`, and the other files carry on.
+- Each controller is written in one transaction, as in API mode.
+- A count of `loaded 0` with no errors usually means the folder path is wrong or every controller is already loaded. Check the path first.
+
+**Exit codes (files mode).** 0: finished, or nothing to load. 1: finished, but one or more files had errors (listed in the output). 2: an option was wrong; nothing was written.
+
+**Checking progress.** Use the read-only SELECT under "Checking progress" above; it works the same after a file load.
