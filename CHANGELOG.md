@@ -12,7 +12,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 - **Watchdog check.** `stats_loader` warns when the newest finished run failed or was interrupted, and goes critical when no run has succeeded for 36 hours ([docs/RUNBOOKS/alerts.md](docs/RUNBOOKS/alerts.md)).
 - **Images.** The release workflow publishes five images; the loader's image is `vatpac-stats-loader`.
 - **Owner step before the deploy.** `STATS_LOADER_DB_PASSWORD` must be in the VM's `.env`.
-- **Not yet deployed.**
+- Not yet deployed.
 
 ## The disk line on the Collector health page shows free space (14-11-2026, issue 27)
 

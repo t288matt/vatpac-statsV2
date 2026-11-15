@@ -24,6 +24,8 @@ docker compose exec db sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
 | `stopped` | The container received its stop signal (a restart or a deploy). | None |
 | `interrupted` | The row was still `running` when the loader started again, so the earlier run crashed or was killed. | WARN |
 
+**A day that cannot be read.** A day that keeps failing its checks, even as one-hour windows, is not written. The run skips it and carries on with the next day, and the run ends `failed` with that date in `failed_days` and the reason in `error`. Three failed days in a row stop the run at once. Retention does not run after a failed run. The WARN stays until a later run finishes successfully, which happens when the day reads cleanly or falls outside the retention period. There is no list for skipping a known-bad date. The maintainer checks the run's row in the run log, reads the log lines for that date, and checks whether VATSIM's history for that date has changed.
+
 The container's health (`docker compose ps vatsim-atc-stats`) is `healthy` when a run succeeded in the last 36 hours or a run has written a day in that time.
 
 The log shows one line for each day written (`written:`) and one for each day that could not be written (`not written:`, with the reason): `docker compose logs --tail=100 vatsim-atc-stats`.
