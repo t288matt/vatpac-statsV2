@@ -1,0 +1,23 @@
+[project]
+name = "vatpac-stats-loader"
+version = "0.1.0"
+description = "Loads every VATSIM ATC session into Postgres, one day at a time"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+markers = ["integration: needs PostgreSQL (STATS_TEST_DSN)"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/vatsim_stats"]

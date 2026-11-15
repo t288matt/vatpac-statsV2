@@ -1,0 +1,3 @@
+# Runtime dependencies only, at the same versions as collector/requirements.txt.
+httpx==0.28.1
+psycopg[binary]==3.3.8
