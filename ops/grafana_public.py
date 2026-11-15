@@ -37,7 +37,6 @@ SHORT_NAMES = {
     "vatpac-atc-position-hours": "atc-hours",
     "vatpac-atc-positions": "atc-positions",
     "vatpac-atc-ranks": "atc-ranks",
-    "vatpac-atc-promotions": "atc-promotions",
     "vatpac-pilots-records": "pilots",
     "vatpac-routes-airports": "routes",
     "vatpac-aircraft-airlines": "aircraft",

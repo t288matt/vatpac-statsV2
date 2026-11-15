@@ -23,12 +23,12 @@ Last reviewed: 15-11-2026. Dashboards are code: JSON files in git, loaded by Gra
 
 ## Look conventions (issue 280, the former "Pilots: online now" look)
 
-One look on every page, so a restyle changes `type`, `options` and `fieldConfig` and never a query. The pages restyled so far are listed in `RESTYLED` in `grafana/look_rules.py` (today: Traffic, Routes, Aircraft, Pilots records, the six ATC pages including Promotions, Monday events, Monthly, Collector health, Pilot origins, Military, Pilot onboarding); that is every page.
+One look on every page, so a restyle changes `type`, `options` and `fieldConfig` and never a query. The pages restyled so far are listed in `RESTYLED` in `grafana/look_rules.py` (today: Traffic, Routes, Aircraft, Pilots records, the five ATC pages, Monday events, Monthly, Collector health, Pilot origins, Military, Pilot onboarding); that is every page.
 
 - **Colours:** fixed, never by theme. Blue `#3AA0DD` (first series and every single-colour chart), amber `#E69F00` (second series), green `#1FAF8A`, pink `#CC79A7`, grey `#8A97B2`, and red `#D55E00` only for "bad" (status-card limits, the error series on Collector health). The one exception is a donut, which has one colour per slice and an unknown number of slices, so it uses Grafana's classic palette (`color.mode` `palette-classic`).
 - **Tables:** `cellHeight` `md`, no footer. The main count column of a ranked table is an in-cell bar (`custom.cellOptions` type `gauge`, mode `basic`, value as text, minimum 0, blue). Grafana scales the bar against the largest value of any number column in the table, so a table that mixes scales (minutes beside counts, groundspeed beside altitude, percentages beside counts) gets no bar, and the bar goes on the largest column. Status columns are pills with the fixed colours (see the departure board on Live now). Column names come from the query and are not renamed here.
 - **Ranked bar charts:** horizontal, values shown, one fixed colour per series, legend as a plain list at the bottom (hidden on "Active pilots and controllers"; the checker does not look at the legend of a bar chart). "Active pilots and controllers" on Pilots records keeps the chart's own orientation. Hours-of-day charts stay vertical without values (24 bars) and use the Live now settings; the `trend` panel type is not used.
-- **Time series:** smooth line (or bars for per-week counts), opacity gradient, no points (the promotions page uses straight lines with points, because its values are whole numbers per month), legend as a table with last, max, min and mean. A chart with several series gives each series one fixed colour by name; the six rating groups use blue, amber, green, pink, grey and a dashed blue line for I1+, and the eight position types of the stacked weekly hours use the five colours plus three paler repeats (FSS, DEL, FMP). Hours-by-weekday tables on Ranks are heat tables: blue gradient background (`continuous-blues`) with the hour column left plain.
+- **Time series:** smooth line (or bars for per-week counts), opacity gradient, no points, legend as a table with last, max, min and mean. A chart with several series gives each series one fixed colour by name; the six rating groups use blue, amber, green, pink, grey and a dashed blue line for I1+, and the eight position types of the stacked weekly hours use the five colours plus three paler repeats (FSS, DEL, FMP). Hours-by-weekday tables on Ranks are heat tables: blue gradient background (`continuous-blues`) with the hour column left plain.
 - **Donuts:** donut with a legend table (value and percent) on the right, in the order the query returns, largest first. A donut or a ranked bar is added or removed only on the owner's decision for that panel.
 - **Stat cards:** a plain card (no sparkline, no arrow, fixed colour) unless the query returns a series to compare; a status card (Collector health) takes its colour from its limits: green, amber from the first limit, red from the second; the arrow shows only where it compares a real earlier value (the first two cards on Live now, "vs 1 hour ago").
 - **Text:** panel 1 (navigation strip and sentence) is generated and does not change; no generated headline sentences.
@@ -60,41 +60,6 @@ Against synthetic data, on a throwaway database named `*_test` (see [run-tests.m
 
 Against real data, read-only, on the VM: take the panel's `rawSql`, replace `$__timeFrom()` with `(now() - interval '200 days')` and `$__timeTo()` with `(now())` (keep the brackets), wrap it as `SELECT count(*) FROM (...) x`, and pipe it to `psql` in the db container. Check the result against a manual count.
 
-Through Grafana, after a deploy: `python3 ops/check_panels.py` (from the stack folder, on the VM) runs every panel query via Grafana's API and reports OK, EMPTY (no rows yet, fine while data is young) or ERROR. Then look at the dashboard in a browser: a query that runs is not the same as a query that answers the question correctly. The ATC promotions page (`/atc-promotions`, "ATC: promotions") has ten query panels, all on the view `controller_promotion`; its monthly figures can be checked against a count in `psql` (for example `SELECT count(*) FROM controller_promotion WHERE promoted_at >= '2026-10-01'`, which must equal the total of the "All promotions per month" panel for that range). A controller counts on that page only after their history has been loaded; see the section below.
+Through Grafana, after a deploy: `python3 ops/check_panels.py` (from the stack folder, on the VM) runs every panel query via Grafana's API and reports OK, EMPTY (no rows yet, fine while data is young) or ERROR. Then look at the dashboard in a browser: a query that runs is not the same as a query that answers the question correctly.
 
 Names and CIDs are shown and are public VATSIM data. Public, read-only sharing is done with Grafana public dashboards and is described in [public-access.md](public-access.md) (ADR-029); anonymous access stays off. Public dashboards do not fill text-box variables, so a dashboard that is shared needs a fixed value in place of a text box (the Departure board is fixed to YSSY). Each shared dashboard also needs a short name in `SHORT_NAMES` in `ops/grafana_public.py` (a test requires it); see the short-address steps in [public-access.md](public-access.md).
-
-## Promotions page: load the rating history
-
-The promotions page counts a controller only after their VATSIM ATC history has been loaded. The loader is `ops/backfill_rating_history.py`. It is run by hand on the VM and nothing runs it on a timer. For each controller in our data who has no load yet, it reads the member's ATC history from the public VATSIM API (no key) and stores, for each rating, the start of the first session longer than 20 minutes. The rows go to `controller_rating_first_seen` and `controller_rating_backfill` (see [DATA_DICTIONARY.md](../DATA_DICTIONARY.md), section 2). The rule the page applies is in section 4.2 there.
-
-Run it from `~/vatpac-statsV2` on the VM. The commands are:
-
-```sh
-python3 ops/backfill_rating_history.py --dry-run          # prints what would be written; writes nothing
-python3 ops/backfill_rating_history.py                    # loads up to 25 controllers (the default)
-python3 ops/backfill_rating_history.py --limit 100 --sleep 2
-python3 ops/backfill_rating_history.py --cid <cid>        # one controller, loaded again even if already loaded
-```
-
-| Option | Default | Meaning |
-|---|---|---|
-| `--dry-run` | off | Prints each controller's result and writes nothing. |
-| `--limit N` | 25 | Most controllers loaded in one run. |
-| `--sleep S` | 1.5 | Seconds to wait after every API request. |
-| `--cid N` | none | Loads one controller only. |
-
-Each output line starts with the CID, then the first long session for each rating as `rating:DD-MM-YYYY`. The rating numbers are 1 observer, 2 S1, 3 S2, 4 S3, 5 C1 and 7 C3. A CID with `none` has no long session at any of these ratings; a member the API does not know is recorded with no ratings. The last line gives the count loaded and the count with no long session.
-
-**When to run it.** Run it when more controllers should be counted on the promotions page. Start with `--dry-run` to see the output, then run the default once and check the result.
-
-**Pacing.** The defaults are deliberately gentle: one request at a time, a pause after every request, and a fixed number of controllers per run. Keep one copy running at a time. If the API pushes back, raise `--sleep` rather than `--limit`. A run that finds nothing left to load ends at once.
-
-**Checking progress.** Read-only, from `~/vatpac-statsV2` on the VM:
-
-```sh
-docker compose exec db psql -U vatpac -d vatpac -c "SET default_transaction_read_only = on; SELECT count(*) AS loaded FROM controller_rating_backfill;"
-docker compose exec db psql -U vatpac -d vatpac -c "SET default_transaction_read_only = on; SELECT count(DISTINCT s.cid) AS not_loaded FROM controller_summaries s WHERE NOT EXISTS (SELECT 1 FROM controller_rating_backfill b WHERE b.cid = s.cid);"
-```
-
-**Exit codes.** 0: the run finished, or there was nothing to load. 2: an option was wrong; nothing was done. 3: the run stopped early at the first HTTP 429 (too many requests), HTTP 5xx or network error, after a short backoff that honours `Retry-After`. Everything loaded before the stop is kept. Wait a while, then run the same command again; controllers already loaded are skipped. Any other error stops the script with a traceback. Each controller is written in one transaction, so it is either fully loaded or not loaded at all.
