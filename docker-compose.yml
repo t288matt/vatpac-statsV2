@@ -131,6 +131,9 @@ services:
     restart: unless-stopped
     logging: *logging
     mem_limit: 256m
+    # A request in flight can last 30 seconds and Docker waits only 10 by default: a deploy would kill the loader mid-request and
+    # leave a run marked interrupted (a false alert) instead of stopped.
+    stop_grace_period: 45s
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     read_only: true

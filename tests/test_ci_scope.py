@@ -431,5 +431,6 @@ def test_image_build_does_not_wait_for_quick_checks_and_ci_result_still_needs_it
 def test_the_stats_loader_qa_integration_step_runs_in_the_full_scope_strictly() -> None:
     (st,) = [s for s in steps_of("integration-tests") if str(s.get("name", "")) == "pytest (stats loader qa integration)"]
     assert str(st["if"]) == "needs.scope.outputs.scope == 'full'" and st["env"]["QA_STRICT"] == "1"
-    assert "--name vpprev-qa387-db" in st["run"] and "stats_loader/qa_tests" in st["run"]
+    assert st["env"]["QA_DB_DSN"] == "postgresql://postgres:ci-superuser-pw@localhost:5432/postgres"   # the integration job's own service
+    assert "docker run" not in st["run"] and "55387" not in st["run"] and "stats_loader/qa_tests" in st["run"]
     assert "tests/test_qa_stats_loader_db.py tests/test_qa_stats_loader_watchdog.py" in st["run"]

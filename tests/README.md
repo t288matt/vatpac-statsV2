@@ -32,7 +32,7 @@ set through one script, `sh ops/run_checks.sh tests` (from Git Bash on Windows; 
 They are skipped unless `VATPAC_TEST_DSN` is set; with `VATPAC_TEST_STRICT=1` (CI) a missing DSN aborts the run and any skipped test fails it (runbook section 5).
 
 1. Start a **throwaway** Postgres 16, create a database whose name ends in `_test`, apply every file in
-   `db/migrations/` in order (the `-- migrate:up` half; `sed '/^-- migrate:down/,$d' file` drops the rest, as dbmate does), then `db/roles.sql` with all four password variables (it creates `watchdog_ro` too). The fixtures `TRUNCATE` every data table and drop
+   `db/migrations/` in order (the `-- migrate:up` half; `sed '/^-- migrate:down/,$d' file` drops the rest, as dbmate does), then `db/roles.sql` with all five password variables (it creates `watchdog_ro` and `stats_loader` too). The fixtures `TRUNCATE` every data table and drop
    leftover `pilot_position_*` partitions, so the name check is a safety net. (Override it only with
    `VATPAC_TEST_ALLOW_TRUNCATE=1`, and never on the live database.) For example:
 

@@ -1,6 +1,6 @@
 """Role hardening: issue 95 (collector may DELETE only from poll_log) and issue 84 (re-applying roles is atomic).
 
-The atomicity test runs the real db/roles.sql (all four roles, watchdog_ro included) with the psql binary while
+The atomicity test runs the real db/roles.sql (all five roles, watchdog_ro and stats_loader included) with the psql binary while
 a second connection, acting as collector / watchdog_ro, keeps reading and writing. Before the fix the REVOKE and the GRANT
 were separate statements, so the reader could see "permission denied" in between; now there must be none. ROLES_SQL_PATH
 points the test at another copy of roles.sql, used to show that an old file fails this test.

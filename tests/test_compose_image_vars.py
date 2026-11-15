@@ -115,6 +115,11 @@ def test_compose_third_party_images_match_the_expected_tags() -> None:
     assert third == EXPECTED_THIRD_PARTY
 
 
+def test_the_stats_loader_gets_longer_than_a_request_to_stop() -> None:
+    """A request can last 30 s and Docker's default wait is 10 s: without this a deploy leaves a false 'interrupted' run."""
+    assert _services()["vatsim-atc-stats"]["stop_grace_period"] == "45s"
+
+
 def test_dockerfile_third_party_bases_float_on_the_major() -> None:
     assert _from_lines("ops/backup/Dockerfile") == ["postgres:16-bookworm"]
     assert _from_lines("ops/migrate/Dockerfile") == ["amacneil/dbmate:2"]

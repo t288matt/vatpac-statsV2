@@ -4,7 +4,7 @@
 Counts physical lines of every .py file under collector/src/vatpac (blank and comment lines
 included, so the budget cannot be met by stripping whitespace). Exit 1 on breach.
 The ATC stats loader (issue 387) has its own budget: python ops/check_size_budget.py stats_loader/src/vatsim_stats 700
-(594 lines when set, plus about 15 percent; the module limit is the same 300).
+(the limit is the real size when it was set plus about 15 percent; the module limit is the same 300).
 Usage: python ops/check_size_budget.py [package_dir [package_limit]]   (no arguments: the collector and its limit)
 """
 from __future__ import annotations
