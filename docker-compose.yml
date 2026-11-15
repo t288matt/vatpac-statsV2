@@ -152,7 +152,8 @@ services:
       STATS_RETENTION_YEARS: 3
     healthcheck:
       # healthy = a run finished successfully in the last 36 hours, or a run in progress wrote a day in that time. The first
-      # large run takes days, so the first day written is what turns it healthy; the long start period covers that wait.
+      # run has the most to load and can take days, so the first day it writes is what turns it healthy; the long start period
+      # covers that wait.
       test: ["CMD", "python", "-m", "vatsim_stats.app", "health"]
       interval: 5m
       timeout: 30s

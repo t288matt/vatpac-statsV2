@@ -35,7 +35,12 @@ ck_mypy_collector() { need $PY -m mypy --version && (cd collector && $PY -m mypy
 # their own pytest session: its test files share names with the collector's (test_settings.py and others).
 ck_ruff_loader() { need $PY -m ruff --version && (cd stats_loader && $PY -m ruff check .); }
 ck_mypy_loader() { need $PY -m mypy --version && (cd stats_loader && $PY -m mypy); }
-ck_pytest_loader() { (cd stats_loader && $PY -m pytest -q -m "not integration" tests); }
+# The independent tester's loader tests (stats_loader/qa_tests) are in the same session; they carry the integration mark (they need a
+# throwaway Postgres container), so here they are collected and deselected, and CI runs them in the integration job.
+ck_pytest_loader() {
+  dirs=tests; [ -d stats_loader/qa_tests ] && dirs="tests qa_tests"
+  (cd stats_loader && $PY -m pytest -q -m "not integration" $dirs)
+}
 ck_ruff_ops() { need $PY -m ruff --version && $PY -m ruff check --config ops/ruff.toml ops; }
 ck_mypy_ops() {
   need $PY -m mypy --version && $PY -m mypy --strict --ignore-missing-imports \

@@ -216,6 +216,20 @@ jobs:
           VATPAC_TEST_STRICT: "1"
           STATS_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test?options=-c%20TimeZone%3DUTC
         run: cd stats_loader && pytest tests -m integration -q
+      # Issue 387: the independent tester's tests (stats_loader/qa_tests and tests/test_qa_stats_loader_db.py and _watchdog.py).
+      # They build their own databases inside a throwaway container reached with `docker exec`, so this step starts the container
+      # they expect (name vpprev-qa387-db, port 55387, test-only password). QA_STRICT=1: a missing container fails the run.
+      - name: pytest (stats loader qa integration)
+        if: needs.scope.outputs.scope == 'full'
+        env:
+          PYTHONPATH: stats_loader/src
+          QA_STRICT: "1"
+        run: |
+          docker run -d --name vpprev-qa387-db -p 127.0.0.1:55387:5432 -e POSTGRES_PASSWORD=qa-super-pw postgres:16
+          for _ in $(seq 30); do docker exec vpprev-qa387-db pg_isready -U postgres && break; sleep 2; done
+          sleep 3
+          (cd stats_loader/qa_tests && pytest -m integration -q)
+          pytest tests/test_qa_stats_loader_db.py tests/test_qa_stats_loader_watchdog.py -m integration -q
       # Dashboards scope: the integration tests that run dashboard SQL against the views, on the same database, built the same
       # way, in strict mode and in UTC. Collector, migration and role tests are not run here.
       - name: pytest (integration, dashboards scope, UTC)

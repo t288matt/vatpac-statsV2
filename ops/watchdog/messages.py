@@ -315,8 +315,8 @@ def _stats_loader(level: str, facts: Facts) -> str:  # facts: state, one of fail
     if state == "query_failed":
         return "The check on the ATC statistics loader could not run. An engineer should look at it; no action needed today."
     if state == "no_good_run":
-        return ("The ATC statistics loader has not loaded any data for over 36 hours. Live flight collection and the dashboards are "
-                "not affected, but the controller session history is falling behind. An engineer should look today "
+        return ("The ATC statistics loader has had no successful run, and no run that has written a day, for over 36 hours. Live flight "
+                "collection and the dashboards are not affected, but the controller session history is falling behind. An engineer should look today "
                 "(docs/RUNBOOKS/alerts.md on the VM, under stats_loader).")
     what = "was cut off before it finished" if state == "interrupted" else "failed"
     return (f"The last run of the ATC statistics loader {what}. It tries again by itself at its next run, so nothing is lost. "

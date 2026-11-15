@@ -114,7 +114,7 @@ def test_alerts_on_a_change_of_level_and_again_on_recovery_and_nothing_between()
 @pytest.mark.parametrize(("res", "words"), [
     (wd.stats_loader_level("failed", True, 5.0), ["last run", "failed", "tries again by itself"]),
     (wd.stats_loader_level("interrupted", True, 5.0), ["last run", "cut off", "tries again by itself"]),
-    (wd.stats_loader_level("success", False, 40.0), ["over 36 hours", "not affected", "engineer"]),
+    (wd.stats_loader_level("success", False, 40.0), ["no successful run", "no run that has written a day", "over 36 hours", "not affected", "engineer"]),
 ])
 def test_plain_wording(res: Any, words: list[str]) -> None:
     text = m.humanise("stats_loader", "crit" if res[0] == CRIT else "warn", res[1], facts=m.facts_of(res))

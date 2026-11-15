@@ -336,7 +336,7 @@ def test_the_checks_that_used_to_be_jobs_still_run_these_commands() -> None:
 
 
 def loader_integration_steps() -> list[dict[str, Any]]:
-    return [st for st in steps_of("integration-tests") if str(st.get("name", "")).startswith("pytest (stats loader")]
+    return [st for st in steps_of("integration-tests") if str(st.get("name", "")) == "pytest (stats loader integration, UTC)"]
 
 
 def test_the_stats_loader_integration_pass_is_strict_utc_and_full_scope_only() -> None:
@@ -404,7 +404,7 @@ def test_a_run_on_main_is_never_cancelled_and_the_secret_scan_sees_all_history()
     assert checkout["with"]["fetch-depth"] == 0   # gitleaks reads the history; a shallow clone would scan almost nothing
     for st in steps_of("integration-tests"):
         if str(st.get("name", "")).startswith("pytest"):
-            assert st["env"]["VATPAC_TEST_STRICT"] == "1", st["name"]
+            assert "1" in (st["env"].get("VATPAC_TEST_STRICT"), st["env"].get("QA_STRICT")), st["name"]  # the QA tests have their own flag
 
 
 def test_a_checking_command_piped_into_tee_runs_under_pipefail() -> None:
@@ -426,3 +426,10 @@ def test_a_checking_command_piped_into_tee_runs_under_pipefail() -> None:
 def test_image_build_does_not_wait_for_quick_checks_and_ci_result_still_needs_it() -> None:
     assert CI["jobs"]["image-build"]["needs"] == "scope"
     assert {"quick-checks", "image-build"} <= set(CI["jobs"]["ci-result"]["needs"])
+
+
+def test_the_stats_loader_qa_integration_step_runs_in_the_full_scope_strictly() -> None:
+    (st,) = [s for s in steps_of("integration-tests") if str(s.get("name", "")) == "pytest (stats loader qa integration)"]
+    assert str(st["if"]) == "needs.scope.outputs.scope == 'full'" and st["env"]["QA_STRICT"] == "1"
+    assert "--name vpprev-qa387-db" in st["run"] and "stats_loader/qa_tests" in st["run"]
+    assert "tests/test_qa_stats_loader_db.py tests/test_qa_stats_loader_watchdog.py" in st["run"]
