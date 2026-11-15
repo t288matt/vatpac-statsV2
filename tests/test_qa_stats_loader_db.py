@@ -1,7 +1,7 @@
 """QA for issue 387: the migration, the generated columns, the indexes and the role rights, on a throwaway Postgres.
 
 Written from the design (sections 3, 4 and 8), not from the builders' tests. Run explicitly:
-    python -m pytest tests/qa_stats_loader_db.py   (container: see qa_stats_loader_support.py)
+    python -m pytest tests/test_qa_stats_loader_db.py   (container: see qa_stats_loader_support.py)
 """
 
 from __future__ import annotations
