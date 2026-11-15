@@ -40,7 +40,6 @@ CREATE TABLE atc_stats_run_log (
     started_at        timestamptz NOT NULL DEFAULT now(),
     finished_at       timestamptz,
     last_day_at       timestamptz,                             -- when the run last wrote a day: tells a working run from a stuck one
-    mode              text        NOT NULL CHECK (mode IN ('daily', 'large')),
     requests          integer     NOT NULL DEFAULT 0,
     sessions_inserted integer     NOT NULL DEFAULT 0,
     sessions_updated  integer     NOT NULL DEFAULT 0,

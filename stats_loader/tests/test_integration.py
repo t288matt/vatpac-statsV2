@@ -65,7 +65,7 @@ def test_the_migration_made_the_tables_and_the_named_indexes(conn: Any) -> None:
     assert got == {"atc_stats_session_pkey": "btree", "atc_stats_session_cid_idx": "btree",
                    "atc_stats_session_callsign_idx": "btree", "atc_stats_session_start_brin": "brin"}
     with pytest.raises(psycopg.errors.CheckViolation):
-        conn.execute("INSERT INTO atc_stats_run_log (mode, status) VALUES ('daily', 'finished')")
+        conn.execute("INSERT INTO atc_stats_run_log (status) VALUES ('finished')")
 
 
 def test_first_run_loads_three_recent_days_then_backfills_to_the_start_of_history(loader_conn: Any, fake: FakeApi,
@@ -73,14 +73,14 @@ def test_first_run_loads_three_recent_days_then_backfills_to_the_start_of_histor
     expected = populate(fake, date(2026, 11, 1), date(2026, 11, 14))
     assert run(loader_conn, fake, clock) == "success"
     [first] = runs(loader_conn)
-    assert first["mode"] == "large" and first["days_loaded"] == 14 and first["sessions_inserted"] == expected
+    assert first["days_loaded"] == 14 and first["sessions_inserted"] == expected
     assert first["empty_dates"] == [date(2026, 10, 31)]  # all 24 hours empty: the start of history, so it stopped there
     assert first["requests"] == len(fake.calls) == 14 + 25
     assert [c.start.date() for c in fake.calls[:3]] == [date(2026, 11, 14), date(2026, 11, 13), date(2026, 11, 12)]
     # the next run does not ask for the empty date, or anything older, again
     fake.calls.clear()
     assert run(loader_conn, fake, clock) == "success"
-    assert len(fake.calls) == 3 and runs(loader_conn)[1]["mode"] == "daily"
+    assert len(fake.calls) == 3
     assert one(loader_conn, "SELECT count(*) FROM atc_stats_session") == expected
 
 
@@ -149,19 +149,17 @@ def test_a_timeout_makes_hour_windows_and_a_restart_does_not_pay_for_it_again(lo
     assert timeouts() == 1 and one(loader_conn, "SELECT count(*) FROM atc_stats_session") == 28
 
 
-def test_the_large_run_then_one_daily_run_a_day_and_a_restart_starts_none(loader_conn: Any, fake: FakeApi) -> None:
+def test_runs_start_at_the_run_time_and_a_restart_after_a_success_starts_none(loader_conn: Any, fake: FakeApi) -> None:
     populate(fake, date(2026, 11, 1), date(2026, 11, 14))
     clock = FakeClock(at(2026, 11, 15, 6), stop_at=at(2026, 11, 17, 12))
     fake.clock = clock
     serve(loader_conn, api_for(fake, clock), clock, cfg())
     log = runs(loader_conn)
-    # the large run, then at once the catch-up daily run, then one daily run on each following UTC day; the stop signal
-    # arrives while it waits for 18 November, so no run is cut short
-    assert [r["mode"] for r in log] == ["large", "daily", "daily", "daily"]
-    assert [r["status"] for r in log] == ["success"] * 4
-    daily_days = [r["finished_at"].date() for r in log if r["mode"] == "daily"]
-    assert daily_days == [date(2026, 11, 15), date(2026, 11, 16), date(2026, 11, 17)]  # never two on one UTC day
-    # no run starts before the one before it has finished: a daily run never overlaps the large run
+    # a first start runs at once, then one run at each STATS_RUN_AT (06:00 UTC); the stop signal arrives while it waits
+    # for 18 November, so no run is cut short
+    assert [r["status"] for r in log] == ["success"] * 3
+    assert [r["started_at"] for r in log][1:] == [at(2026, 11, 16, 6), at(2026, 11, 17, 6)]
+    # no run starts before the one before it has finished
     assert all(b["started_at"] >= a["finished_at"] for a, b in zip(log, log[1:], strict=False))
     before = len(log)
     restart = FakeClock(at(2026, 11, 17, 12), stop_at=at(2026, 11, 17, 23))
@@ -173,7 +171,7 @@ def test_the_large_run_then_one_daily_run_a_day_and_a_restart_starts_none(loader
 def test_a_crash_leaves_a_running_row_and_the_next_start_marks_it_interrupted(loader_conn: Any, fake: FakeApi,
                                                                               clock: FakeClock) -> None:
     populate(fake, date(2026, 11, 10), date(2026, 11, 14))
-    crashed = store.start_run(loader_conn, "large", clock.now())  # the process died here: the row is still `running`
+    crashed = store.start_run(loader_conn, clock.now())  # the process died here: the row is still `running`
     clock.stop_at = clock.now() + timedelta(seconds=30)  # stop during the 60 second wait after the start
     serve(loader_conn, api_for(fake, clock), clock, cfg())
     log = runs(loader_conn)
@@ -222,7 +220,7 @@ def test_retention_lower_deletes_older_sessions_and_raising_it_reloads_them(load
     fake.calls.clear()
     assert run(loader_conn, fake, clock, retention_years=3) == "success"
     last = runs(loader_conn)[-1]
-    assert last["mode"] == "large" and last["sessions_deleted"] == 0 and last["days_loaded"] == 3 + older
+    assert last["sessions_deleted"] == 0 and last["days_loaded"] == 3 + older
     assert one(loader_conn, "SELECT count(*) FROM atc_stats_session") == total
     starts = [c.start for c in fake.calls]
     assert starts == sorted(starts, reverse=True)
@@ -230,11 +228,38 @@ def test_retention_lower_deletes_older_sessions_and_raising_it_reloads_them(load
     assert dates == total
 
 
+def test_a_restart_after_a_failed_or_stopped_run_today_runs_at_once(loader_conn: Any, fake: FakeApi) -> None:
+    populate(fake, date(2026, 11, 12), date(2026, 11, 14))
+    clock = FakeClock(at(2026, 11, 15, 8), stop_at=at(2026, 11, 15, 12))
+    fake.clock = clock
+    for status in ("failed", "stopped"):
+        run_id = store.start_run(loader_conn, clock.now())
+        store.finish_run(loader_conn, run_id, status, "x", clock.now())
+    serve(loader_conn, api_for(fake, clock), clock, cfg())
+    log = runs(loader_conn)
+    assert [r["status"] for r in log] == ["failed", "stopped", "success"]  # it did not wait for 06:00 tomorrow
+
+
+def test_three_failed_days_in_a_row_stop_the_run_as_failed(loader_conn: Any, fake: FakeApi, clock: FakeClock) -> None:
+    populate(fake, date(2026, 11, 1), date(2026, 11, 14), per_day=3)
+    fake.on_call = lambda n: fake.add(3000 + n, "ML_TWR", fake.calls[-1].start + timedelta(seconds=5))  # never settles
+    api = Api(fake.client(), clock, 5.0, 2)
+    assert run_once(loader_conn, api, clock, cfg(page_size=2)) == "failed"
+    [log] = runs(loader_conn)
+    assert len(log["failed_days"]) == 3 and "3 failed days in a row" in log["error"]
+    assert len({c.start.date() for c in fake.calls}) == 3  # no fourth day was tried
+    assert one(loader_conn, "SELECT count(*) FROM atc_stats_session") == 0
+
+
 def test_the_healthcheck_reads_the_run_log(loader_conn: Any, clock: FakeClock) -> None:
     now = clock.now()
     assert not store.healthy(loader_conn, now, 36)  # no run yet
-    run_id = store.start_run(loader_conn, "large", now - timedelta(days=3))
-    assert not store.healthy(loader_conn, now, 36)  # running, but it has written no day
+    run_id = store.start_run(loader_conn, now - timedelta(days=3))
+    assert not store.healthy(loader_conn, now, 36)  # running, started long ago, written no day
+    store.update_run(loader_conn, run_id, requests=0)
+    loader_conn.execute("UPDATE atc_stats_run_log SET started_at = %s", (now - timedelta(hours=2),))
+    assert store.healthy(loader_conn, now, 36)  # just started: counts by its start time
+    loader_conn.execute("UPDATE atc_stats_run_log SET started_at = %s", (now - timedelta(days=3),))
     store.update_run(loader_conn, run_id, last_day_at=now - timedelta(hours=1))
     assert store.healthy(loader_conn, now, 36)  # running and writing
     store.update_run(loader_conn, run_id, last_day_at=now - timedelta(hours=40))
@@ -259,7 +284,7 @@ def test_role_rights(conn: Any) -> None:
     insert = ("INSERT INTO atc_stats_session (connection_id, cid, callsign, session_start) "
               "VALUES (9, 9, 'AA_TWR', now())")
     for sql in (insert, "UPDATE atc_stats_session SET cid = 8", "DELETE FROM atc_stats_session",
-                "SELECT * FROM atc_stats_session", "INSERT INTO atc_stats_run_log (mode) VALUES ('daily')",
+                "SELECT * FROM atc_stats_session", "INSERT INTO atc_stats_run_log DEFAULT VALUES",
                 "UPDATE atc_stats_run_log SET error = 'x'",
                 "SELECT * FROM atc_stats_run_log"):
         assert not role_error(conn, "stats_loader", sql), sql

@@ -23,6 +23,11 @@ from .windows import DayFailed, fetch_day, oldest_allowed, plan
 log = logging.getLogger("vatsim_stats")
 START_WAIT_SECONDS = 60.0  # after any start, so a crash loop cannot break the 5-second rule
 HEALTH_HOURS = 36
+FAILED_DAYS_IN_A_ROW = 3
+
+
+class TooManyFailedDays(Exception):
+    """Three days in a row failed their count check even as hour windows: something is wrong, so the run stops."""
 
 
 def run_once(conn: psycopg.Connection[Any], api: Api, clock: Clock, cfg: Settings) -> str:
@@ -31,10 +36,11 @@ def run_once(conn: psycopg.Connection[Any], api: Api, clock: Clock, cfg: Setting
     stored = store.stored_dates(conn)
     empty, hour_from = store.run_memory(conn)
     recent, missing = plan(stored, now.date(), oldest_allowed(now, cfg.retention_years), cfg.overlap_days, empty)
-    run_id = store.start_run(conn, "large" if missing or not stored else "daily", now)
+    run_id = store.start_run(conn, now)
     log.info("run %s: %d recent days, %d missing dates", run_id, len(recent), len(missing))
     base, ins, upd, loaded = api.requests, 0, 0, 0
     failed: list[date] = []
+    streak = 0  # failed days in a row
     reasons: list[str] = []
     new_empty: list[date] = []
     oldest_stored = min(stored) if stored else None
@@ -45,10 +51,14 @@ def run_once(conn: psycopg.Connection[Any], api: Api, clock: Clock, cfg: Setting
                 result = fetch_day(api, day, hour_from is not None and day <= hour_from)
             except DayFailed as exc:
                 failed.append(day)
+                streak += 1
                 reasons.append(f"{day}: {exc}")
                 log.warning("%s not written: %s", day, exc)
                 store.update_run(conn, run_id, requests=api.requests - base, failed_days=failed)
+                if streak >= FAILED_DAYS_IN_A_ROW:
+                    raise TooManyFailedDays(f"{FAILED_DAYS_IN_A_ROW} failed days in a row; the run stopped") from None
                 continue
+            streak = 0
             if result.timed_out:
                 hour_from = day
                 store.update_run(conn, run_id, hour_windows_from=day)
@@ -72,8 +82,8 @@ def run_once(conn: psycopg.Connection[Any], api: Api, clock: Clock, cfg: Setting
             store.update_run(conn, run_id, sessions_deleted=deleted)
     except Stopped:
         status, error = "stopped", "stopped by the container's stop signal"
-    except (RateLimited, ServerErrors) as exc:
-        status, error = "failed", f"{exc}; the run stopped and the next one carries on"
+    except (RateLimited, ServerErrors, TooManyFailedDays) as exc:
+        status, error = "failed", f"{exc}; the run stopped"
     except Exception as exc:
         log.exception("run %s failed", run_id)
         status, error = "failed", f"{type(exc).__name__}: {exc}"
@@ -84,23 +94,24 @@ def run_once(conn: psycopg.Connection[Any], api: Api, clock: Clock, cfg: Setting
     return status
 
 
-def next_start(conn: psycopg.Connection[Any], now: datetime, cfg: Settings) -> datetime:
-    """When the next run may begin. At once on the very first start and after a stopped or interrupted run (unfinished
-    work resumes); otherwise at STATS_RUN_AT, and at most one daily run per UTC day."""
-    if store.newest_status(conn) in (None, "stopped", "interrupted"):
-        return now
-    scheduled = datetime.combine(now.date(), cfg.run_at, UTC)
-    if store.run_done_on(conn, now.date()):
-        scheduled += timedelta(days=1)
-    return max(now, scheduled)
+def next_run_at(now: datetime, cfg: Settings) -> datetime:
+    """The next STATS_RUN_AT (UTC) after now."""
+    at = datetime.combine(now.date(), cfg.run_at, UTC)
+    return at if at > now else at + timedelta(days=1)
 
 
 def serve(conn: psycopg.Connection[Any], api: Api, clock: Clock, cfg: Settings) -> None:
+    """One process, one run at a time. A run starts at STATS_RUN_AT each UTC day (one still going then is not doubled).
+    At start-up (crash or deploy) it runs at once, after the 60 s wait, unless a run already succeeded today."""
     store.mark_interrupted(conn, clock.now())
     api.hold(START_WAIT_SECONDS)
+    first = True
     try:
         while not clock.stop.is_set():
-            clock.sleep((next_start(conn, clock.now(), cfg) - clock.now()).total_seconds())
+            now = clock.now()
+            wait = next_run_at(now, cfg) if not first or store.success_on(conn, now.date()) else now
+            first = False
+            clock.sleep((wait - now).total_seconds())
             run_once(conn, api, clock, cfg)
     except Stopped:
         pass

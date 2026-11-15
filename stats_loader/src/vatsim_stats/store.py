@@ -54,10 +54,9 @@ def delete_before(conn: psycopg.Connection[Any], cutoff: datetime, batch: int) -
             return total
 
 
-def start_run(conn: psycopg.Connection[Any], mode: str, now: datetime) -> int:
+def start_run(conn: psycopg.Connection[Any], now: datetime) -> int:
     """Times come from the loader's clock (UTC), not the database's, so one clock decides every comparison."""
-    row = conn.execute("INSERT INTO atc_stats_run_log (mode, started_at) VALUES (%s, %s) RETURNING id",
-                       (mode, now)).fetchone()
+    row = conn.execute("INSERT INTO atc_stats_run_log (started_at) VALUES (%s) RETURNING id", (now,)).fetchone()
     assert row
     return int(row[0])
 
@@ -93,18 +92,18 @@ def newest_status(conn: psycopg.Connection[Any]) -> str | None:
     return str(row[0]) if row else None
 
 
-def run_done_on(conn: psycopg.Connection[Any], day: date) -> bool:
-    """Has a daily run finished (or any run failed) on this UTC date? A stopped or interrupted run does not count."""
+def success_on(conn: psycopg.Connection[Any], day: date) -> bool:
+    """Has a run finished successfully on this UTC date? A failed, stopped or interrupted run does not count."""
     row = conn.execute(
         "SELECT 1 FROM atc_stats_run_log WHERE (finished_at AT TIME ZONE 'UTC')::date = %s "
-        "AND (status = 'failed' OR (status = 'success' AND mode = 'daily')) LIMIT 1", (day,)).fetchone()
+        "AND status = 'success' LIMIT 1", (day,)).fetchone()
     return row is not None
 
 
 def healthy(conn: psycopg.Connection[Any], now: datetime, hours: int) -> bool:
-    """A run finished successfully in the last `hours` hours, or a run in progress has written a day in that time."""
+    """A run succeeded in the last `hours` hours, or a run in progress started or wrote a day in that time."""
     since = now - timedelta(hours=hours)
     row = conn.execute(
         "SELECT 1 FROM atc_stats_run_log WHERE (status = 'success' AND finished_at > %(s)s) "
-        "OR (status = 'running' AND last_day_at > %(s)s) LIMIT 1", {"s": since}).fetchone()
+        "OR (status = 'running' AND coalesce(last_day_at, started_at) > %(s)s) LIMIT 1", {"s": since}).fetchone()
     return row is not None
