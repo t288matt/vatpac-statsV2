@@ -434,3 +434,13 @@ def test_the_stats_loader_qa_integration_step_runs_in_the_full_scope_strictly() 
     assert st["env"]["QA_DB_DSN"] == "postgresql://postgres:ci-superuser-pw@localhost:5432/postgres"   # the integration job's own service
     assert "docker run" not in st["run"] and "55387" not in st["run"] and "stats_loader/qa_tests" in st["run"]
     assert "tests/test_qa_stats_loader_db.py tests/test_qa_stats_loader_watchdog.py" in st["run"]
+
+
+def test_the_qa_step_sets_the_same_role_passwords_the_database_was_created_with() -> None:
+    """roles.sql resets the passwords server-wide: the QA step must export the values of the step that built the database."""
+    steps = steps_of("integration-tests")
+    (qa,) = [s for s in steps if str(s.get("name", "")) == "pytest (stats loader qa integration)"]
+    (create,) = [s for s in steps if str(s.get("name", "")).startswith("Create database")]
+    names = ("GRAFANA_RO_PASSWORD", "COLLECTOR_DB_PASSWORD", "BACKUP_DB_PASSWORD", "WATCHDOG_DB_PASSWORD", "STATS_LOADER_DB_PASSWORD")
+    for n in names:
+        assert qa["env"][n] == create["env"][n], n
