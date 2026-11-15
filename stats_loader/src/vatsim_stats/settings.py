@@ -6,7 +6,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import time
+from datetime import UTC, datetime, time
+
+from .windows import oldest_allowed
 
 MIN_INTERVAL_FLOOR = 5.0  # seconds between requests: the setting can raise this, never lower it
 
@@ -45,11 +47,16 @@ def load(env: Mapping[str, str]) -> Settings:
         interval = float(env.get("STATS_MIN_INTERVAL_SECONDS", ""))
     except ValueError:
         raise SettingsError("STATS_MIN_INTERVAL_SECONDS must be a number") from None
+    years = _whole(env, "STATS_RETENTION_YEARS", 1)
+    try:
+        oldest_allowed(datetime.now(UTC), years)
+    except ValueError:
+        raise SettingsError(f"STATS_RETENTION_YEARS is too large: {years} years goes back before the year 1") from None
     return Settings(
         database_url=url,
         run_at=run_at,
         min_interval_seconds=max(MIN_INTERVAL_FLOOR, interval),
         page_size=_whole(env, "STATS_PAGE_SIZE", 1),
         overlap_days=_whole(env, "STATS_OVERLAP_DAYS", 0),
-        retention_years=_whole(env, "STATS_RETENTION_YEARS", 1),
+        retention_years=years,
     )

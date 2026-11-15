@@ -75,22 +75,34 @@ def fetch_window(api: Api, start: datetime, end: datetime) -> tuple[int, list[di
     The checks: every page reports the same count, and distinct ids plus skipped ATIS sessions equal that count.
     Raises DayFailed when they do not (a late-closing session, a shifted page order, or a short answer)."""
     rows: dict[int, dict[str, Any]] = {}
-    fetched = skipped = 0
+    fetched = skipped = requests = biggest = 0
+    seen: set[int] = set()
     count: int | None = None
     while count is None or fetched < count:
+        # A count that cannot be reached must not loop for ever: allow the pages the count needs at the page size
+        # actually received, plus two, and stop when a page brings no connection id not seen before.
+        if count is not None and requests > -(-count // biggest) + 2:
+            raise BadResponse(f"the API reported {count} sessions but its pages do not reach that")
         page_count, items = api.page(start, end, fetched)
+        requests += 1
         if count is not None and page_count != count:
             raise DayFailed(f"the count changed from {count} to {page_count} while paging (a late-closing session)")
         count = page_count
         if not items:
             break
         fetched += len(items)  # offset moves by what was actually returned, never by the page size
+        biggest = max(biggest, len(items))
+        new = False
         for item in items:
             row = parse_session(item)
+            new = new or row["connection_id"] not in seen
+            seen.add(row["connection_id"])
             if is_atis(row):
                 skipped += 1
             else:
                 rows[row["connection_id"]] = row
+        if not new:
+            raise BadResponse("a page brought no session not already seen")
     assert count is not None
     if len(rows) + skipped != count:
         raise DayFailed(f"{len(rows)} distinct sessions plus {skipped} ATIS, but the API reported {count}")
@@ -122,7 +134,7 @@ def fetch_day(api: Api, day: date, hourly: bool) -> Day:
                     return Day(rows=rows)
             except WindowTimeout:
                 timed_out = True
-            except DayFailed as exc:
+            except (DayFailed, BadResponse) as exc:
                 log.info("%s: %s; fetching it again as one-hour windows", day, exc)
         out = _hourly(api, day)
     except WindowTimeout:
