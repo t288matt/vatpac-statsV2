@@ -38,7 +38,16 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from backfill_rating_history import API, PAGE, ApiNotFound, ApiStop, Fetch, http_fetch, parse_time  # noqa: E402
+from backfill_rating_history import (  # noqa: E402
+    API,
+    PAGE,
+    ApiNotFound,
+    ApiStop,
+    Fetch,
+    earliest_per_rating,
+    http_fetch,
+    parse_time,
+)
 
 DEFAULT_PAUSE = 5.0  # seconds between API calls, on average
 JITTER = 0.3  # each pause is varied by plus or minus 30 percent
@@ -46,13 +55,16 @@ WARN_BELOW = 2.0  # an explicit --sleep below this prints a warning
 CID_QUERY = "select distinct cid from controller_session order by 1"
 REMOTE_CMD = ("cd ~/vatpac-statsV2 && docker compose exec -T -e PGOPTIONS='-c default_transaction_read_only=on' db "
               "sh -c 'psql -X -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -At -c \"" + CID_QUERY + "\"'")
-MANIFEST_FIELDS = ["cid", "sessions", "first_start", "last_start", "ratings_seen", "downloaded_utc", "status"]
+MANIFEST_FIELDS = ["cid", "sessions", "first_start", "last_start", "ratings_seen", "first_over_20min_by_rating",
+                   "downloaded_utc", "status"]
 README = """These files are a download of each VATSIM controller's full ATC session history from the public VATSIM API
 (https://api.vatsim.net/v2/members/<cid>/atc), made by ops/download_member_atc_history.py.
 
 <cid>.json   {cid, downloaded_utc, count, sessions}; sessions are the API's items exactly as returned.
 manifest.csv one row per download: cid, sessions, first_start, last_start, ratings_seen, downloaded_utc, status (ok or not_found).
              A controller downloaded again with --refresh gets another row; the latest row is the current one.
+first_start and last_start count sessions of any length. first_over_20min_by_rating is what the rating table stores: per rating,
+             the start of the first session longer than 20 minutes (rating=start, separated by semicolons; empty when none).
 Times are UTC. Nothing here was written to any database.
 """
 
@@ -116,13 +128,41 @@ def write_atomic(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
+def over_20(sessions: list[dict[str, Any]]) -> str:
+    return ";".join(f"{r}={t.isoformat()}" for r, t in sorted(earliest_per_rating(sessions).items()))
+
+
 def manifest_row(cid: int, sessions: list[dict[str, Any]], when: str, status: str) -> dict[str, Any]:
     conns = [s.get("connection_id", s) for s in sessions]
     starts = sorted(t for t in (parse_time(c.get("start")) for c in conns) if t is not None)
     ratings = sorted({c["rating"] for c in conns if isinstance(c.get("rating"), int)})
     return {"cid": cid, "sessions": len(sessions), "first_start": starts[0].isoformat() if starts else "",
             "last_start": starts[-1].isoformat() if starts else "", "ratings_seen": " ".join(map(str, ratings)),
+            "first_over_20min_by_rating": over_20(sessions),
             "downloaded_utc": when, "status": status}
+
+
+def upgrade_manifest(path: Path) -> None:
+    """A manifest from an earlier run has no first_over_20min_by_rating column: add it, recomputed from the controller's file."""
+    if not path.exists():
+        return
+    with path.open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    if not rows or "first_over_20min_by_rating" in rows[0]:
+        return
+    for row in rows:
+        data = path.with_name(f"{row['cid']}.json")
+        try:
+            sessions = json.loads(data.read_text(encoding="utf-8"))["sessions"] if data.exists() else []
+        except (ValueError, KeyError, OSError):
+            sessions = []
+        row["first_over_20min_by_rating"] = over_20(sessions)
+    tmp = path.with_name(path.name + ".tmp")
+    with tmp.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=MANIFEST_FIELDS, restval="")
+        w.writeheader()
+        w.writerows(rows)
+    os.replace(tmp, path)
 
 
 def append_manifest(path: Path, row: dict[str, Any]) -> None:
@@ -200,6 +240,7 @@ def main(argv: list[str], fetch: Fetch = http_fetch, ssh: Ssh = ssh_run, sleep: 
         return 0
     out.mkdir(parents=True, exist_ok=True)
     write_atomic(out / "README.txt", README)
+    upgrade_manifest(out / "manifest.csv")
     deadline = start + timedelta(seconds=total)
     stop = False
     old_handler = None

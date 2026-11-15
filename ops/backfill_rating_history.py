@@ -29,6 +29,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 API = "https://api.vatsim.net/v2/members/{cid}/atc?limit={limit}&offset={offset}"
@@ -133,16 +134,51 @@ def pending_cids(run: Runner, limit: int) -> list[int]:
     return [int(x) for x in run(sql).split()]
 
 
+def from_files(folder: Path, cid: int | None, limit: int, dry_run: bool, run: Runner) -> int:
+    """Load the table from <cid>.json files written by ops/download_member_atc_history.py. No network, no sleep."""
+    pending = {cid} if cid else set(pending_cids(run, 10**9))
+    done = skipped = errors = 0
+    for path in sorted(folder.glob("*.json"), key=lambda p: p.name):
+        if not path.stem.isdigit():
+            continue
+        c = int(path.stem)
+        if c not in pending:
+            skipped += 1
+            continue
+        if done + errors >= limit:
+            break
+        try:
+            sessions = json.loads(path.read_text(encoding="utf-8"))["sessions"]
+            if not isinstance(sessions, list):
+                raise ValueError("sessions is not a list")
+            rows = earliest_per_rating(sessions)
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
+            print(f"{c}: ERROR in {path.name}: {type(e).__name__}: {e}")
+            errors += 1
+            continue
+        shown = ", ".join(f"{r}:{t:%d-%m-%Y}" for r, t in sorted(rows.items())) or "none"
+        print(f"{c}: {shown}" + ("  (dry run, not written)" if dry_run else ""))
+        if not dry_run:
+            run(write_sql(c, rows))
+        done += 1
+    print(f"{'would load' if dry_run else 'loaded'} {done} controllers from files ({skipped} skipped, not pending; {errors} errors)")
+    return 1 if errors else 0
+
+
 def main(argv: list[str], fetch: Fetch = http_fetch, run: Runner = psql, sleep: Callable[[float], None] = time.sleep) -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     ap.add_argument("--sleep", type=float, default=1.5, help="seconds to wait after every API request (default 1.5)")
     ap.add_argument("--limit", type=int, default=25, help="controllers per run (default 25)")
     ap.add_argument("--dry-run", action="store_true", help="print what would be written; write nothing")
     ap.add_argument("--cid", type=int, help="load this one controller only")
+    ap.add_argument("--from-files", type=Path, metavar="DIR",
+                    help="load from <cid>.json files written by download_member_atc_history.py; no API call")
     a = ap.parse_args(argv)
     if a.sleep < 0 or a.limit < 1 or (a.cid is not None and a.cid < 1):
         print("--sleep must be 0 or more, --limit 1 or more, --cid a positive number", file=sys.stderr)
         return 2
+    if a.from_files:
+        return from_files(a.from_files, a.cid, a.limit, a.dry_run, run)
     cids = [a.cid] if a.cid else pending_cids(run, a.limit)
     done = empty = 0
     stopped = ""

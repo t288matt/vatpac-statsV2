@@ -156,3 +156,38 @@ def test_cid_option_loads_that_controller_only() -> None:
     db = FakeDb([1, 2, 3])
     assert run(["--cid", "5"], api, db) == 0
     assert len(api.urls) == 1 and "/members/5/" in api.urls[0]
+
+
+def write_file(folder: Path, cid: int, sessions: list[dict[str, Any]]) -> None:
+    import json
+    (folder / f"{cid}.json").write_text(json.dumps({"cid": cid, "count": len(sessions), "sessions": sessions}), encoding="utf-8")
+
+
+def test_from_files_loads_pending_only_with_no_api_call(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    write_file(tmp_path, 1, [item(2, "2024-03-01T10:00:00", 60), item(2, "2024-02-01T10:00:00", 90), item(3, "2024-04-01T10:00:00", 10)])
+    write_file(tmp_path, 2, [item(2, "2024-03-01T10:00:00", 60)])  # not pending
+    api, db = FakeApi({}), FakeDb([1])
+    assert bf.main(["--from-files", str(tmp_path)], fetch=api, run=db, sleep=lambda s: pytest.fail("slept")) == 0
+    assert api.urls == [] and len(db.writes) == 1
+    assert "'2024-02-01T10:00:00+00:00'" in db.writes[0] and "VALUES (1, 3" not in db.writes[0]
+    assert "controller_rating_backfill" in db.writes[0]
+    assert "1 skipped" in capsys.readouterr().out
+
+
+def test_from_files_bad_file_does_not_stop_others(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tmp_path / "1.json").write_text("{not json", encoding="utf-8")
+    (tmp_path / "2.json").write_text('{"cid": 2}', encoding="utf-8")
+    write_file(tmp_path, 3, [item(2, "2024-03-01T10:00:00", 60)])
+    db = FakeDb([1, 2, 3])
+    assert bf.main(["--from-files", str(tmp_path)], run=db) == 1
+    assert len(db.writes) == 1 and "VALUES (3, 2" in db.writes[0]
+    out = capsys.readouterr().out
+    assert "1: ERROR" in out and "2: ERROR" in out
+
+
+def test_from_files_dry_run_and_limit(tmp_path: Path) -> None:
+    for c in (1, 2, 3):
+        write_file(tmp_path, c, [item(2, "2024-03-01T10:00:00", 60)])
+    db = FakeDb([1, 2, 3])
+    assert bf.main(["--from-files", str(tmp_path), "--dry-run"], run=db) == 0 and db.writes == []
+    assert bf.main(["--from-files", str(tmp_path), "--limit", "2"], run=db) == 0 and len(db.writes) == 2

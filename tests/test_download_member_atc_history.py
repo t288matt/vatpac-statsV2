@@ -252,3 +252,26 @@ def test_ctrl_c_finishes_the_file_in_progress_then_stops(tmp_path: Path, capsys:
     assert len(clock.pauses) == 2  # the pauses between the pages stay; none before the next controller
     assert "Run the same command again" in capsys.readouterr().out
     assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+
+def test_manifest_has_first_over_20min_by_rating(tmp_path: Path) -> None:
+    short = sess(1, 2)
+    short["connection_id"]["end"] = short["connection_id"]["start"]  # zero length: ignored by the table
+    go(["--cid", "1"], FakeApi({1: [short, sess(2, 2), sess(3, 3)]}), tmp_path)
+    row = manifest(tmp_path)[0]
+    assert row["first_over_20min_by_rating"] == "2=2024-01-03T10:00:00+00:00;3=2024-01-04T10:00:00+00:00"
+    assert row["first_start"].startswith("2024-01-02")  # any length
+
+
+def test_old_manifest_is_upgraded_without_losing_rows(tmp_path: Path) -> None:
+    api = FakeApi({1: [sess(2, 2)], 2: [sess(3, 3)]})
+    go(["--cid", "1"], api, tmp_path)
+    old = ["cid,sessions,first_start,last_start,ratings_seen,downloaded_utc,status",
+           "1,1,2024-01-03T10:00:00+00:00,2024-01-03T10:00:00+00:00,2,2026-11-15T13:07:46Z,ok",
+           "9,0,,,,2026-11-15T13:07:46Z,not_found"]
+    (tmp_path / "manifest.csv").write_text("\n".join(old) + "\n", encoding="utf-8")
+    go(["--cid", "2"], api, tmp_path)
+    rows = manifest(tmp_path)
+    assert [r["cid"] for r in rows] == ["1", "9", "2"]
+    assert rows[0]["first_over_20min_by_rating"] == "2=2024-01-03T10:00:00+00:00"
+    assert rows[1]["first_over_20min_by_rating"] == "" and rows[1]["status"] == "not_found"
