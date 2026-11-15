@@ -274,7 +274,7 @@ QUICK_STEPS = {
 }
 UNIT_STEPS = {
     "Install lint tools": FULL_ONLY, "ruff": FULL_ONLY, "mypy": FULL_ONLY, "shell syntax": FULL_ONLY,
-    "pytest (unit; ": FULL_ONLY, "unit skips": FULL_ONLY, "pytest (unit, dashboards scope)": DASH_ONLY,
+    "pytest (unit; ": FULL_ONLY, "pytest (stats loader unit)": FULL_ONLY, "unit skips": FULL_ONLY, "pytest (unit, dashboards scope)": DASH_ONLY,
 }
 
 
@@ -335,8 +335,22 @@ def test_the_checks_that_used_to_be_jobs_still_run_these_commands() -> None:
     assert any(str(st.get("uses", "")).startswith("gitleaks/gitleaks-action@") for st in steps_of("quick-checks"))
 
 
+def loader_integration_steps() -> list[dict[str, Any]]:
+    return [st for st in steps_of("integration-tests") if str(st.get("name", "")) == "pytest (stats loader integration, UTC)"]
+
+
+def test_the_stats_loader_integration_pass_is_strict_utc_and_full_scope_only() -> None:
+    """Issue 387: the loader's own integration tests run in the full scope only, strict, on the migrated CI database."""
+    (st,) = loader_integration_steps()
+    assert str(st["if"]) == "needs.scope.outputs.scope == 'full'"
+    assert st["env"]["VATPAC_TEST_STRICT"] == "1" and st["env"]["PYTHONPATH"] == "stats_loader/src"
+    assert st["env"]["STATS_TEST_DSN"].endswith("/vatpac_test?options=-c%20TimeZone%3DUTC")
+    assert st["run"] == "cd stats_loader && pytest tests -m integration -q"
+
+
 def test_integration_runs_once_in_utc_and_no_pass_uses_another_zone() -> None:
-    steps = [st for st in steps_of("integration-tests") if str(st.get("name", "")).startswith("pytest")]
+    steps = [st for st in steps_of("integration-tests")
+             if str(st.get("name", "")).startswith("pytest") and not str(st["name"]).startswith("pytest (stats loader")]
     assert sorted(str(st["if"]).split("'")[1] for st in steps) == ["dashboards", "full"]   # one pass per scope
     for st in steps:
         env = st["env"]
@@ -349,7 +363,9 @@ def test_integration_runs_once_in_utc_and_no_pass_uses_another_zone() -> None:
 
 def test_the_scope_steps_run_the_exact_commands_and_the_full_steps_are_untouched() -> None:
     unit = [st for st in steps_of("unit-tests") if str(st.get("name", "")).startswith("pytest")]
-    integ = [st for st in steps_of("integration-tests") if str(st.get("name", "")).startswith("pytest")]
+    unit = [st for st in unit if "stats loader" not in str(st["name"])]   # the loader's own passes are tested above and in run_checks
+    integ = [st for st in steps_of("integration-tests")
+             if str(st.get("name", "")).startswith("pytest") and "stats loader" not in str(st["name"])]
     dash_runs = sorted(str(st["run"]) for st in unit + integ if "'dashboards'" in str(st["if"]))
     assert dash_runs == sorted([UNIT_RUN, INTEG_RUN])   # exact text: widening them to all of tests/ fails
     full_runs = {str(st["run"]) for st in unit + integ if "'full'" in str(st["if"])}
@@ -388,7 +404,7 @@ def test_a_run_on_main_is_never_cancelled_and_the_secret_scan_sees_all_history()
     assert checkout["with"]["fetch-depth"] == 0   # gitleaks reads the history; a shallow clone would scan almost nothing
     for st in steps_of("integration-tests"):
         if str(st.get("name", "")).startswith("pytest"):
-            assert st["env"]["VATPAC_TEST_STRICT"] == "1", st["name"]
+            assert "1" in (st["env"].get("VATPAC_TEST_STRICT"), st["env"].get("QA_STRICT")), st["name"]  # the QA tests have their own flag
 
 
 def test_a_checking_command_piped_into_tee_runs_under_pipefail() -> None:
@@ -410,3 +426,21 @@ def test_a_checking_command_piped_into_tee_runs_under_pipefail() -> None:
 def test_image_build_does_not_wait_for_quick_checks_and_ci_result_still_needs_it() -> None:
     assert CI["jobs"]["image-build"]["needs"] == "scope"
     assert {"quick-checks", "image-build"} <= set(CI["jobs"]["ci-result"]["needs"])
+
+
+def test_the_stats_loader_qa_integration_step_runs_in_the_full_scope_strictly() -> None:
+    (st,) = [s for s in steps_of("integration-tests") if str(s.get("name", "")) == "pytest (stats loader qa integration)"]
+    assert str(st["if"]) == "needs.scope.outputs.scope == 'full'" and st["env"]["QA_STRICT"] == "1"
+    assert st["env"]["QA_DB_DSN"] == "postgresql://postgres:ci-superuser-pw@localhost:5432/postgres"   # the integration job's own service
+    assert "docker run" not in st["run"] and "55387" not in st["run"] and "stats_loader/qa_tests" in st["run"]
+    assert "tests/test_qa_stats_loader_db.py tests/test_qa_stats_loader_watchdog.py" in st["run"]
+
+
+def test_the_qa_step_sets_the_same_role_passwords_the_database_was_created_with() -> None:
+    """roles.sql resets the passwords server-wide: the QA step must export the values of the step that built the database."""
+    steps = steps_of("integration-tests")
+    (qa,) = [s for s in steps if str(s.get("name", "")) == "pytest (stats loader qa integration)"]
+    (create,) = [s for s in steps if str(s.get("name", "")).startswith("Create database")]
+    names = ("GRAFANA_RO_PASSWORD", "COLLECTOR_DB_PASSWORD", "BACKUP_DB_PASSWORD", "WATCHDOG_DB_PASSWORD", "STATS_LOADER_DB_PASSWORD")
+    for n in names:
+        assert qa["env"][n] == create["env"][n], n

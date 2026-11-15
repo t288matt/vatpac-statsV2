@@ -6,6 +6,14 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## ATC stats loader (15-11-2026, issue 387)
+
+- **New container and history.** `vatsim-atc-stats` loads every ATC session on the VATSIM network (all callsigns) from VATSIM's public history API into the new table `atc_stats_session`, one UTC day at a time. It runs once a day at 06:00 UTC and keeps 3 years. Its run log is `atc_stats_run_log`. The migration is `20261115000400_atc_stats.sql`, and `db/roles.sql` creates the role `stats_loader`. Runbook: [docs/RUNBOOKS/atc-stats-loader.md](docs/RUNBOOKS/atc-stats-loader.md).
+- **Watchdog check.** `stats_loader` warns when the newest finished run failed or was interrupted, and goes critical when no run has succeeded for 36 hours ([docs/RUNBOOKS/alerts.md](docs/RUNBOOKS/alerts.md)).
+- **Images.** The release workflow publishes five images; the loader's image is `vatpac-stats-loader`.
+- **Owner step before the deploy.** `STATS_LOADER_DB_PASSWORD` must be in the VM's `.env`.
+- Not yet deployed.
+
 ## The disk line on the Collector health page shows free space (14-11-2026, issue 27)
 
 - **Free, not used.** "Database size vs VM disk" now draws the free space on the disk that holds the database (total minus used, in GB) instead of the used space, so the headroom before the disk fills can be read directly. It is higher than the figure `df` calls available by the reserved slice the system keeps, about 5% of the disk's total size. Only the panel changed; the stored readings are the same.

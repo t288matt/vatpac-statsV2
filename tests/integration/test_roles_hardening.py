@@ -1,6 +1,6 @@
 """Role hardening: issue 95 (collector may DELETE only from poll_log) and issue 84 (re-applying roles is atomic).
 
-The atomicity test runs the real db/roles.sql (all four roles, watchdog_ro included) with the psql binary while
+The atomicity test runs the real db/roles.sql (all five roles, watchdog_ro and stats_loader included) with the psql binary while
 a second connection, acting as collector / watchdog_ro, keeps reading and writing. Before the fix the REVOKE and the GRANT
 were separate statements, so the reader could see "permission denied" in between; now there must be none. ROLES_SQL_PATH
 points the test at another copy of roles.sql, used to show that an old file fails this test.
@@ -102,7 +102,7 @@ def test_reapplying_roles_never_shows_permission_denied(dsn: str, conn) -> None:
     roles_sql = Path(os.environ.get("ROLES_SQL_PATH", REPO / "db" / "roles.sql"))
     # the scripts reset the passwords: remember the hashes and put them back afterwards so the other tests can still log in
     hashes = {r["rolname"]: r["rolpassword"] for r in conn.execute(
-        "SELECT rolname, rolpassword FROM pg_authid WHERE rolname IN ('collector','grafana_ro','backup_ro','watchdog_ro')").fetchall()}
+        "SELECT rolname, rolpassword FROM pg_authid WHERE rolname IN ('collector','grafana_ro','backup_ro','watchdog_ro','stats_loader')").fetchall()}
     collector = Hammer(dsn, "collector", ["SELECT count(*) FROM pilot_session", "SELECT count(*) FROM poll_log",
                                           "INSERT INTO app_setting (key, value) VALUES ('race_probe','1') "
                                           "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"])
@@ -115,7 +115,8 @@ def test_reapplying_roles_never_shows_permission_denied(dsn: str, conn) -> None:
         for _ in range(25):
             common = [psql, dsn, "-X", "-q", "-v", "ON_ERROR_STOP=1"]
             r1 = subprocess.run(common + ["-v", "grafana_ro_password=tmp1", "-v", "collector_password=tmp2",
-                                          "-v", "backup_password=tmp3", "-v", "watchdog_password=tmp4", "-f", str(roles_sql)],
+                                          "-v", "backup_password=tmp3", "-v", "watchdog_password=tmp4",
+                                          "-v", "stats_loader_password=tmp5", "-f", str(roles_sql)],
                                 capture_output=True, text=True, timeout=120)
             assert r1.returncode == 0, r1.stderr
     finally:

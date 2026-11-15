@@ -597,7 +597,7 @@ class World:
         self.docker = FakeDocker()
         self.docker.data = {s: {**ins(), "Id": f"id-{s}"} for s in ("db", "collector", "grafana", "backup")}
         self.docker.data["migrate"] = {**ins("exited", "none"), "Id": "id-migrate"}
-        monkeypatch.setattr(wd, "check_db", lambda cfg: dict(self.db_result))
+        monkeypatch.setattr(wd, "check_db", lambda cfg, first_run=None: dict(self.db_result))
         self.unlisted_error: Exception | None = None
 
         def read_unlisted(cfg: wd.Config) -> list[str]:
@@ -818,3 +818,14 @@ def test_a_failing_unlisted_callsign_read_is_critical_not_silent(world: World, c
     world.unlisted_error = None
     world.cycle(3)
     assert world.sent[-1].startswith("RECOVERED database (was crit)")
+
+
+def test_cycle_stats_loader_alerts_on_the_database_result_and_never_touches_docker(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Issue 387: the stats_loader result comes from the database check, is alerted once and recovered, and needs no Docker."""
+    w = World(monkeypatch, tmp_path, docker=False)
+    w.db_result = {"database": (OK, "reachable"), "stats_loader": (WARN, "the newest finished run is failed")}
+    w.cycle(5)
+    assert [s for s in w.sent if "stats_loader" in s] == ["WARN stats_loader: the newest finished run is failed"]
+    w.db_result = {"database": (OK, "reachable"), "stats_loader": (OK, "the loader is loading days")}
+    w.cycle(3)
+    assert w.sent[-1].startswith("RECOVERED stats_loader (was warn)") and w.docker.restarted == []

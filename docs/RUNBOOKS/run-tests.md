@@ -67,7 +67,7 @@ The scope job classifies with the base branch's copy of `ops/ci_scope.py` and fo
 
 ## 1b. Integration tests on the PC with Docker Desktop (works since 13-10-2026; the same database as CI)
 
-Docker Desktop on the owner's PC works again (13-10-2026; the older note in section 2 about T25 no longer applies when `docker version` shows a server). This builds the SAME database CI builds: the PostgreSQL 16 image plus the production migrate image (dbmate, then `db/roles.sql`, which creates all four roles), in a throwaway container on the PC. It never touches the VM or the live database. Run in Git Bash from the repository root (or a worktree). Use one database per person or agent: the tests `TRUNCATE` every data table, and the name must end in `_test`.
+Docker Desktop on the owner's PC works again (13-10-2026; the older note in section 2 about T25 no longer applies when `docker version` shows a server). This builds the SAME database CI builds: the PostgreSQL 16 image plus the production migrate image (dbmate, then `db/roles.sql`, which creates all five roles), in a throwaway container on the PC. It never touches the VM or the live database. Run in Git Bash from the repository root (or a worktree). Use one database per person or agent: the tests `TRUNCATE` every data table, and the name must end in `_test`.
 
 ```sh
 # once: a network and a database container (the alias `db` is what migrate.sh connects to)
@@ -133,7 +133,7 @@ Notes:
 
 ## 3. Integration tests: a throwaway Postgres container on a machine with working Docker
 
-CI builds its database with the production `ops/migrate` image (dbmate, then `db/roles.sql`, which creates all four roles), not with the `sed | psql` loop below; the manual steps below are the shortcut for a machine without that image. To mirror CI exactly, run the image against your throwaway container (see the `integration-tests` job in `.github/workflows/ci.yml`).
+CI builds its database with the production `ops/migrate` image (dbmate, then `db/roles.sql`, which creates all five roles), not with the `sed | psql` loop below; the manual steps below are the shortcut for a machine without that image. To mirror CI exactly, run the image against your throwaway container (see the `integration-tests` job in `.github/workflows/ci.yml`).
 
 This also runs the role tests, because the throwaway container has its own cluster.
 
@@ -148,7 +148,7 @@ PYTHONPATH=collector/src python -m pytest tests collector/tests -q          # ev
 docker rm -f vp-test
 ```
 
-`db/roles.sql` needs all four password variables (`grafana_ro_password`, `collector_password`, `backup_password`, `watchdog_password`) or it raises an error. The passwords above belong to a throwaway container that is deleted at the end; they are not real credentials. Without `VATPAC_TEST_DSN` the integration tests are skipped, not failed (unless `VATPAC_TEST_STRICT=1`, section 5). The fixture and the test layout are described in [../../tests/README.md](../../tests/README.md).
+`db/roles.sql` needs all five password variables (`grafana_ro_password`, `collector_password`, `backup_password`, `watchdog_password`, `stats_loader_password`) or it raises an error. The passwords above belong to a throwaway container that is deleted at the end; they are not real credentials. Without `VATPAC_TEST_DSN` the integration tests are skipped, not failed (unless `VATPAC_TEST_STRICT=1`, section 5). The fixture and the test layout are described in [../../tests/README.md](../../tests/README.md).
 
 **Integrity checks (issue #20).** `tests/test_integrity_schedule.py` (unit: judging of rows, persisted schedule, alert text, de-duplication, settings) and `tests/integration/test_integrity_checks.py` (a clean database reports 0 for every invariant, one deliberately broken database per invariant, a guard that fails if the invariant list and the cases differ, the archive cross-check against damaged rows and files, and a `watchdog_ro` grant test) run with the rest. The sweep is run as `watchdog_ro` when that role exists, so on the VM variant (section 2) the role test is excluded or skipped: use section 3 (a throwaway cluster of your own, on the VM if the PC has no Docker, with the container capped: `--memory 512m --memory-swap 512m --cpus 1`, and `free -m` before and after) for the full run, which also needs `watchdog_ro`, created by `db/roles.sql`. After changing an invariant, prove the guard: make one invariant always return 0 (or delete it) in `ops/audit/invariants.sql` and the file must fail; restore it afterwards.
 

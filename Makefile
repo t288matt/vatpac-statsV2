@@ -90,7 +90,7 @@ backup-test:
 
 # Safe restore: restores into <TARGET>_restoring, checks it, then swaps (old DB kept as <TARGET>_old).
 # make restore FILE=/backups/vatpac_20261007T020000Z.dump [TARGET=vatpac_restore] CONFIRM=<same as TARGET>
-# Replacing the live DB: stop collector/grafana/watchdog first, TARGET=<POSTGRES_DB> (see docs/RUNBOOKS/restore.md)
+# Replacing the live DB: stop collector, vatsim-atc-stats, grafana and watchdog first, TARGET=<POSTGRES_DB> (see docs/RUNBOOKS/restore.md)
 TARGET ?= vatpac_restore
 CONFIRM ?=
 restore:

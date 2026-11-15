@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""Fail when collector settings cannot be set through compose/.env, or the three files disagree.
+"""Fail when the collector's or the ATC stats loader's settings cannot be set through compose/.env, or the files disagree.
 
 Compares (names are case-insensitive env names):
-  1. fields of the Settings class in collector/src/vatpac/settings.py   (parsed with ast)
-  2. keys of the collector `environment:` block in docker-compose.yml
+  1. fields of the Settings class in collector/src/vatpac/settings.py and in stats_loader/src/vatsim_stats/settings.py (parsed
+     with ast; a loader field `page_size` is the variable STATS_PAGE_SIZE, and `database_url` is DATABASE_URL)
+  2. keys of the `environment:` block of the collector and of the vatsim-atc-stats service in docker-compose.yml
   3. keys in .env.example
 
-Checks:
-  - every settings field is a collector environment key, unless listed in IGNORE_SETTINGS below
-  - every ${VAR} a collector environment value reads is a key in .env.example
+Checks (for each of the two services):
+  - every settings field is an environment key of its service, unless listed in IGNORE_SETTINGS below
+  - every ${VAR} an environment value reads is a key in .env.example
   - where compose uses ${VAR:-default} and the settings default is a literal, the two defaults agree
-  - every collector environment key is a settings field (typos/dead keys)
+  - every environment key is a settings field (typos/dead keys)
   - policy keys (POLICY_KEYS: retention periods and watchdog thresholds) are literals in docker-compose.yml, are absent from
-    .env.example, and equal EVERY default the code gives them (settings.py; watchdog.py and integrity.py; all of ops/backup/*.sh)
+    .env.example, and equal EVERY default the code gives them (settings.py; watchdog.py and integrity.py; all of ops/backup/*.sh).
+    The loader's code gives its settings no defaults on purpose (compose is the one place they are written), so
+    STATS_RETENTION_YEARS is checked for being a literal and absent from .env.example only
 
 Usage: python ops/check_config_drift.py        (needs PyYAML)
        python ops/check_config_drift.py --policy-keys   (print the policy key names, one per line; no PyYAML needed)
@@ -22,6 +25,7 @@ from __future__ import annotations
 import ast
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +35,11 @@ IGNORE_SETTINGS: dict[str, str] = {
     "whitelist_path": "fixed path; the config/ directory is mounted read-only at /app/config",
 }
 
+LOADER = "vatsim-atc-stats"  # the compose service of the ATC stats loader (stats_loader/src/vatsim_stats)
+LOADER_PREFIX = "STATS_"  # a loader settings field `page_size` is the variable STATS_PAGE_SIZE
+LOADER_UNPREFIXED = ("database_url",)  # the one loader field that is not a STATS_ variable
+NO_CODE_DEFAULTS = (LOADER,)  # services whose code deliberately gives no setting a default
+
 # Policy values: decided in an ADR, so they live in docker-compose.yml as literals (reviewed in git), never in .env.
 # Add a key here when it moves; see docs/CONFIG_MAP.md, section "Where each setting lives".
 POLICY_KEYS: dict[str, str] = {
@@ -39,6 +48,7 @@ POLICY_KEYS: dict[str, str] = {
     "ARCHIVE_FULL_KEEP_DAYS": "collector",
     "ARCHIVE_ANOMALY_KEEP_DAYS": "collector",
     "ARCHIVE_MAX_MB": "collector",
+    "STATS_RETENTION_YEARS": LOADER,
     "BACKUP_RETENTION_DAYS": "backup",
     "BACKUP_MIN_KEEP": "backup",
     "WATCHDOG_INTERVAL_SECONDS": "watchdog",
@@ -157,9 +167,14 @@ def check_interpolation(errors: list[str], compose_files: list[Path]) -> None:
                 errors.append(f"{key}: {path.name} reads it from .env with $ interpolation; policy values must be literals")
 
 
+def loader_key(field: str) -> str:
+    return field.upper() if field in LOADER_UNPREFIXED else LOADER_PREFIX + field.upper()
+
+
 def check_policy(errors: list[str], example: set[str], fields: dict[str, object], compose: dict[str, Any]) -> None:
     code: dict[str, dict[str, list[object]]] = {
         "collector": {n.upper(): [d] for n, d in fields.items() if d is not NO_DEFAULT},
+        LOADER: {},
         "watchdog": watchdog_defaults(ROOT / "ops/watchdog"),
         "backup": backup_defaults(ROOT / "ops/backup"),
     }
@@ -175,7 +190,7 @@ def check_policy(errors: list[str], example: set[str], fields: dict[str, object]
             errors.append(f"{key}: must be a literal in docker-compose.yml, not '{value}'")
             continue
         defaults = code[service].get(key, [])
-        if not defaults:
+        if not defaults and service not in NO_CODE_DEFAULTS:
             errors.append(f"{key}: no literal default found in the {service} code to compare with")
         for default in defaults:
             if default is not None and not same_default(value, default):
@@ -193,47 +208,55 @@ def same_default(compose_default: str, settings_default: object) -> bool:
     return compose_default == str(settings_default)
 
 
+def check_service(errors: list[str], compose: dict[str, Any], example: set[str], service: str, fields: dict[str, object],
+                  key_of: Callable[[str], str], ignore: dict[str, str]) -> int:
+    """Settings fields against one service's environment block. Returns the number of environment keys."""
+    env = {k.upper(): v for k, v in service_env(compose, service).items()}
+    keys = {key_of(name): name for name in fields}
+    for key, name in keys.items():
+        default = fields[name]
+        if key in env:
+            m = DEFAULT_RE.search(env[key])
+            if m and default is not NO_DEFAULT and default is not None and not same_default(m.group(2), default):
+                errors.append(f"{key}: compose default '{m.group(2)}' differs from settings default '{default}'")
+        elif name not in ignore:
+            errors.append(f"{key}: settings field cannot be set via compose (add it to the {service} environment or IGNORE_SETTINGS)")
+    for key, value in env.items():
+        if key not in keys:
+            errors.append(f"{key}: {service} environment key is not a settings field")
+        for var in VAR_RE.findall(value):
+            if var not in example:
+                errors.append(f"{key}: reads ${{{var}}} which is missing from .env.example")
+    for name in ignore:
+        if name not in fields:
+            errors.append(f"IGNORE_SETTINGS lists '{name}', which is not a settings field any more")
+    return len(env)
+
+
 def main() -> int:
     if "--policy-keys" in sys.argv[1:]:
         print("\n".join(POLICY_KEYS))
         return 0
 
     fields = settings_fields(ROOT / "collector/src/vatpac/settings.py")
+    loader_fields = settings_fields(ROOT / "stats_loader/src/vatsim_stats/settings.py")
     compose = load_compose(ROOT / "docker-compose.yml")
-    env = service_env(compose, "collector")
     example = env_example_keys(ROOT / ".env.example")
-    env_upper = {k.upper(): v for k, v in env.items()}
     errors: list[str] = []
 
-    for name, default in fields.items():
-        key = name.upper()
-        if key in env_upper:
-            m = DEFAULT_RE.search(env_upper[key])
-            if m and default is not NO_DEFAULT and default is not None and not same_default(m.group(2), default):
-                errors.append(f"{key}: compose default '{m.group(2)}' differs from settings default '{default}'")
-        elif name not in IGNORE_SETTINGS:
-            errors.append(f"{key}: settings field cannot be set via compose (add it to the collector environment or IGNORE_SETTINGS)")
-
-    for key, value in env_upper.items():
-        if key.lower() not in fields:
-            errors.append(f"{key}: collector environment key is not a settings field")
-        for var in VAR_RE.findall(value):
-            if var not in example:
-                errors.append(f"{key}: reads ${{{var}}} which is missing from .env.example")
+    n_env = check_service(errors, compose, example, "collector", fields, str.upper, IGNORE_SETTINGS)
+    n_loader = check_service(errors, compose, example, LOADER, loader_fields, loader_key, {})
 
     check_policy(errors, example, fields, compose)
     check_interpolation(errors, [p for p in (ROOT / "docker-compose.yml", ROOT / "docker-compose.dev.yml") if p.exists()])
-
-    for name in IGNORE_SETTINGS:
-        if name not in fields:
-            errors.append(f"IGNORE_SETTINGS lists '{name}', which is not a settings field any more")
 
     if errors:
         print("config drift detected:")
         for e in errors:
             print(f"  - {e}")
         return 1
-    print(f"config drift check OK ({len(fields)} settings, {len(env)} collector env keys, {len(example)} .env.example keys)")
+    print(f"config drift check OK ({len(fields)} collector settings, {n_env} collector env keys, {len(loader_fields)} loader settings, "
+          f"{n_loader} loader env keys, {len(example)} .env.example keys)")
     return 0
 
 

@@ -1,4 +1,4 @@
-"""docker-compose.yml: the four built services take their image from two optional variables (issue 173, P2).
+"""docker-compose.yml: the five built services take their image from two optional variables (issue 173, P2).
 
 Unset, the result must be the local image `vatpac-stats-<name>:latest` (what `make up` and `up -d --build` build).
 With the prefix alone it is `ghcr.io/t288matt/vatpac-stats-<name>:latest`; with a tag override, `...:sha-<7>`. No Docker needed.
@@ -14,7 +14,9 @@ import pytest
 import yaml
 
 REPO = Path(__file__).resolve().parents[1]
-BUILT = ("migrate", "collector", "backup", "watchdog")
+BUILT = ("migrate", "collector", "backup", "watchdog", "loader")  # image names: vatpac-stats-<name>
+SERVICE = {"loader": "vatsim-atc-stats"}  # the compose service of an image whose name is not the service's (issue 387)
+SERVICES = tuple(SERVICE.get(n, n) for n in BUILT)
 VAR_RE = re.compile(r"^\$\{VATPAC_IMAGE_PREFIX:-\}(vatpac-stats-[a-z]+):\$\{VATPAC_IMAGE_TAG:-latest\}$")
 
 
@@ -28,7 +30,7 @@ def _resolve(image: str, prefix: str, tag: str) -> str:
 
 @pytest.mark.parametrize("name", BUILT)
 def test_built_service_uses_the_variable_form_and_keeps_its_build(name: str) -> None:
-    svc = _services()[name]
+    svc = _services()[SERVICE.get(name, name)]
     m = VAR_RE.match(svc["image"])
     assert m and m.group(1) == f"vatpac-stats-{name}"
     assert "build" in svc  # local builds still work
@@ -37,7 +39,7 @@ def test_built_service_uses_the_variable_form_and_keeps_its_build(name: str) -> 
 
 @pytest.mark.parametrize("name", BUILT)
 def test_unset_falls_back_to_the_local_image(name: str) -> None:
-    assert _resolve(_services()[name]["image"], "", "") == f"vatpac-stats-{name}:latest"
+    assert _resolve(_services()[SERVICE.get(name, name)]["image"], "", "") == f"vatpac-stats-{name}:latest"
 
 
 @pytest.mark.parametrize("name", BUILT)
@@ -45,18 +47,18 @@ def test_registry_names_match_the_release_workflow(name: str) -> None:
     release = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert re.search(rf"name: {name}\b", release)
     assert "ghcr.io/t288matt/vatpac-stats-${{ matrix.name }}" in release and "sha-${{ needs.check.outputs.short }}" in release
-    assert "type=raw,value=latest" not in release  # latest is moved by the promote job, after all four images are pushed
+    assert "type=raw,value=latest" not in release  # latest is moved by the promote job, after all five images are pushed
     promote = yaml.safe_load(release)["jobs"]["promote"]
     assert set(promote["needs"]) == {"check", "images"}
     run = " ".join(str(st.get("run", "")) for st in promote["steps"])
-    assert "for n in collector watchdog backup migrate" in run and '--tag "$img:latest" "$img:sha-$SHORT"' in run
-    assert _resolve(_services()[name]["image"], "ghcr.io/t288matt/", "") == f"ghcr.io/t288matt/vatpac-stats-{name}:latest"
-    assert _resolve(_services()[name]["image"], "ghcr.io/t288matt/", "sha-abc1234") == f"ghcr.io/t288matt/vatpac-stats-{name}:sha-abc1234"
+    assert "for n in collector watchdog backup migrate loader" in run and '--tag "$img:latest" "$img:sha-$SHORT"' in run
+    assert _resolve(_services()[SERVICE.get(name, name)]["image"], "ghcr.io/t288matt/", "") == f"ghcr.io/t288matt/vatpac-stats-{name}:latest"
+    assert _resolve(_services()[SERVICE.get(name, name)]["image"], "ghcr.io/t288matt/", "sha-abc1234") == f"ghcr.io/t288matt/vatpac-stats-{name}:sha-abc1234"
 
 
 def test_third_party_images_are_untouched_and_the_variables_are_documented_but_not_set() -> None:
     for name, svc in _services().items():
-        if name not in BUILT:
+        if name not in SERVICES:
             assert "VATPAC_IMAGE" not in svc["image"]
     example = (REPO / ".env.example").read_text(encoding="utf-8")
     assert re.search(r"^#VATPAC_IMAGE_PREFIX=ghcr\.io/t288matt/$", example, re.M)
@@ -109,8 +111,13 @@ def _from_lines(dockerfile: str) -> list[str]:
 
 def test_compose_third_party_images_match_the_expected_tags() -> None:
     svcs = _services()
-    third = {n: s["image"] for n, s in svcs.items() if n not in BUILT}
+    third = {n: s["image"] for n, s in svcs.items() if n not in SERVICES}
     assert third == EXPECTED_THIRD_PARTY
+
+
+def test_the_stats_loader_gets_longer_than_a_request_to_stop() -> None:
+    """A request can last 30 s and Docker's default wait is 10 s: without this a deploy leaves a false 'interrupted' run."""
+    assert _services()["vatsim-atc-stats"]["stop_grace_period"] == "45s"
 
 
 def test_dockerfile_third_party_bases_float_on_the_major() -> None:
@@ -125,7 +132,7 @@ def test_db_and_backup_use_the_same_postgres_tag() -> None:
 def test_no_third_party_image_is_latest_or_more_precise_than_it_should_be() -> None:
     """Postgres and dbmate float on the bare major version; Grafana has no bare-major tag on Docker Hub (confirmed
     18-10-2026), so it floats on MAJOR.MINOR instead. Nothing floats past that: no exact patch, never `latest`."""
-    images = [s["image"] for n, s in _services().items() if n not in BUILT]
+    images = [s["image"] for n, s in _services().items() if n not in SERVICES]
     images += _from_lines("ops/backup/Dockerfile") + _from_lines("ops/migrate/Dockerfile")
     ci = yaml.safe_load((REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
     for job in ci["jobs"].values():
@@ -168,4 +175,4 @@ def test_release_runs_after_green_ci_on_main_and_never_publishes_a_stale_commit(
     assert ci_ok < publish  # the successful-ci-run check still happens before anything is published
     assert run.count("publish=true") == 1 and run.count("publish=false") == 1
     assert wf["jobs"]["images"]["if"] == "needs.check.outputs.publish == 'true'"
-    assert set(wf["jobs"]["promote"]["needs"]) == {"check", "images"}  # latest still moves only after all four images
+    assert set(wf["jobs"]["promote"]["needs"]) == {"check", "images"}  # latest still moves only after all five images

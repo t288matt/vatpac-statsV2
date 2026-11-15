@@ -30,7 +30,7 @@ filled=""
 while IFS= read -r line || [ -n "$line" ]; do
   line="${line%"$(printf '\r')"}"
   case "$line" in
-    POSTGRES_PASSWORD=|GRAFANA_RO_PASSWORD=|GRAFANA_ADMIN_PASSWORD=|WATCHDOG_DB_PASSWORD=|COLLECTOR_DB_PASSWORD=|BACKUP_DB_PASSWORD=)
+    POSTGRES_PASSWORD=|GRAFANA_RO_PASSWORD=|GRAFANA_ADMIN_PASSWORD=|WATCHDOG_DB_PASSWORD=|COLLECTOR_DB_PASSWORD=|BACKUP_DB_PASSWORD=|STATS_LOADER_DB_PASSWORD=)
       printf '%s%s\n' "$line" "$(rand)" >> "$tmp"
       filled="$filled ${line%=}"
       ;;

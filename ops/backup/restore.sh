@@ -4,7 +4,7 @@
 # TARGET_DB defaults to "vatpac_restore". Steps:
 #   1. refuse system databases (postgres, template0, template1) and unsafe names
 #   2. require RESTORE_CONFIRM to equal the target database name exactly
-#   3. refuse if anything else is connected to the target (stop collector/grafana/watchdog first)
+#   3. refuse if anything else is connected to the target (stop collector, vatsim-atc-stats, grafana and watchdog first)
 #   4. if the target exists and has tables, take a safety dump of it first
 #      ($BACKUP_DIR/<target>_prerestore_<stamp>.prerestore; not counted as a nightly backup)
 #   5. restore into <target>_restoring and run the same sanity checks as restore-test.sh

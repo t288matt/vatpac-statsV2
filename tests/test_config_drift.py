@@ -17,6 +17,7 @@ FILES = [
     "docker-compose.yml",
     ".env.example",
     "collector/src/vatpac/settings.py",
+    "stats_loader/src/vatsim_stats/settings.py",
     "ops/watchdog/watchdog.py",
     "ops/watchdog/integrity.py",
 ]
@@ -78,6 +79,38 @@ def test_policy_key_missing_from_compose_fails(tree: Path, capsys: pytest.Captur
     assert code == 1 and "WATCHDOG_DB_MAX_GB: not set in the watchdog environment" in out
 
 
+def test_loader_retention_read_from_env_fails(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    edit(tree, "docker-compose.yml", "STATS_RETENTION_YEARS: 3", "STATS_RETENTION_YEARS: ${STATS_RETENTION_YEARS:-3}")
+    code, out = run(tree, capsys)
+    assert code == 1 and "STATS_RETENTION_YEARS: must be a literal" in out
+
+
+def test_loader_retention_back_in_env_example_fails(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    path = tree / ".env.example"
+    path.write_text(path.read_text(encoding="utf-8") + "\nSTATS_RETENTION_YEARS=15\n", encoding="utf-8")
+    code, out = run(tree, capsys)
+    assert code == 1 and "STATS_RETENTION_YEARS: policy value must not be in .env.example" in out
+
+
+def test_loader_setting_missing_from_compose_fails(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    edit(tree, "docker-compose.yml", "      STATS_OVERLAP_DAYS: ${STATS_OVERLAP_DAYS:-2}\n", "")
+    code, out = run(tree, capsys)
+    assert code == 1 and "STATS_OVERLAP_DAYS: settings field cannot be set via compose" in out
+
+
+def test_loader_environment_key_that_is_not_a_setting_fails(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    line = "      STATS_OVERLAP_DAYS: ${STATS_OVERLAP_DAYS:-2}\n"
+    edit(tree, "docker-compose.yml", line, line + "      STATS_TYPO: ${STATS_TYPO:-1}\n")
+    code, out = run(tree, capsys)
+    assert code == 1 and "STATS_TYPO: vatsim-atc-stats environment key is not a settings field" in out
+
+
+def test_loader_variable_missing_from_env_example_fails(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    edit(tree, ".env.example", "STATS_PAGE_SIZE=5000\n", "")
+    code, out = run(tree, capsys)
+    assert code == 1 and "STATS_PAGE_SIZE: reads ${STATS_PAGE_SIZE} which is missing from .env.example" in out
+
+
 @pytest.mark.parametrize(("file", "old", "new", "expect"), [
     ("collector/src/vatpac/settings.py", "Field(180,", "Field(90,", "POSITION_RETENTION_DAYS: compose value '180' differs"),
     ("ops/watchdog/watchdog.py", '"WATCHDOG_DB_MAX_GB", 5)', '"WATCHDOG_DB_MAX_GB", 20)', "WATCHDOG_DB_MAX_GB: compose value '5' differs"),
@@ -135,12 +168,12 @@ def test_policy_keys_option_prints_the_names(capsys: pytest.CaptureFixture[str],
     monkeypatch.setattr("sys.argv", ["check_config_drift.py", "--policy-keys"])
     assert module.main() == 0
     names = capsys.readouterr().out.split()
-    assert names == list(module.POLICY_KEYS) and len(names) == 19
+    assert names == list(module.POLICY_KEYS) and len(names) == 20 and "STATS_RETENTION_YEARS" in names
 
 
 # ------------------------------------------------------------------ ops/check_env.sh warnings
 SECRETS = ("POSTGRES_PASSWORD", "GRAFANA_RO_PASSWORD", "GRAFANA_ADMIN_PASSWORD", "WATCHDOG_DB_PASSWORD",
-           "COLLECTOR_DB_PASSWORD", "BACKUP_DB_PASSWORD")
+           "COLLECTOR_DB_PASSWORD", "BACKUP_DB_PASSWORD", "STATS_LOADER_DB_PASSWORD")
 needs_sh = pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
 
 
