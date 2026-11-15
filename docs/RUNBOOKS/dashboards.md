@@ -1,6 +1,6 @@
 # Runbook: add or change a dashboard
 
-Last reviewed: 06-11-2026. Dashboards are code: JSON files in git, loaded by Grafana from a read-only mount. Edits made in the Grafana web interface are not saved (`allowUiUpdates: false`, viewers cannot edit) and are lost on restart; every change goes through the files.
+Last reviewed: 15-11-2026. Dashboards are code: JSON files in git, loaded by Grafana from a read-only mount. Edits made in the Grafana web interface are not saved (`allowUiUpdates: false`, viewers cannot edit) and are lost on restart; every change goes through the files.
 
 ## Where things are
 
@@ -23,7 +23,7 @@ Last reviewed: 06-11-2026. Dashboards are code: JSON files in git, loaded by Gra
 
 ## Look conventions (issue 280, the former "Pilots: online now" look)
 
-One look on every page, so a restyle changes `type`, `options` and `fieldConfig` and never a query. The pages restyled so far are listed in `RESTYLED` in `grafana/look_rules.py` (today: Traffic, Routes, Aircraft, Pilots records, the five ATC pages, Monday events, Monthly, Collector health, Pilot origins, Military, Pilot onboarding); that is every page.
+One look on every page, so a restyle changes `type`, `options` and `fieldConfig` and never a query. The pages restyled so far are listed in `RESTYLED` in `grafana/look_rules.py` (today: Traffic, Routes, Aircraft, Pilots records, the six ATC pages including Promotions, Monday events, Monthly, Collector health, Pilot origins, Military, Pilot onboarding); that is every page.
 
 - **Colours:** fixed, never by theme. Blue `#3AA0DD` (first series and every single-colour chart), amber `#E69F00` (second series), green `#1FAF8A`, pink `#CC79A7`, grey `#8A97B2`, and red `#D55E00` only for "bad" (status-card limits, the error series on Collector health). The one exception is a donut, which has one colour per slice and an unknown number of slices, so it uses Grafana's classic palette (`color.mode` `palette-classic`).
 - **Tables:** `cellHeight` `md`, no footer. The main count column of a ranked table is an in-cell bar (`custom.cellOptions` type `gauge`, mode `basic`, value as text, minimum 0, blue). Grafana scales the bar against the largest value of any number column in the table, so a table that mixes scales (minutes beside counts, groundspeed beside altitude, percentages beside counts) gets no bar, and the bar goes on the largest column. Status columns are pills with the fixed colours (see the departure board on Live now). Column names come from the query and are not renamed here.
@@ -60,6 +60,6 @@ Against synthetic data, on a throwaway database named `*_test` (see [run-tests.m
 
 Against real data, read-only, on the VM: take the panel's `rawSql`, replace `$__timeFrom()` with `(now() - interval '200 days')` and `$__timeTo()` with `(now())` (keep the brackets), wrap it as `SELECT count(*) FROM (...) x`, and pipe it to `psql` in the db container. Check the result against a manual count.
 
-Through Grafana, after a deploy: `python3 ops/check_panels.py` (from the stack folder, on the VM) runs every panel query via Grafana's API and reports OK, EMPTY (no rows yet, fine while data is young) or ERROR. Then look at the dashboard in a browser: a query that runs is not the same as a query that answers the question correctly.
+Through Grafana, after a deploy: `python3 ops/check_panels.py` (from the stack folder, on the VM) runs every panel query via Grafana's API and reports OK, EMPTY (no rows yet, fine while data is young) or ERROR. Then look at the dashboard in a browser: a query that runs is not the same as a query that answers the question correctly. The ATC promotions page (`/atc-promotions`, "ATC: promotions") has ten query panels, all on the view `controller_promotion`; its monthly figures can be checked against a count in `psql` (for example `SELECT count(*) FROM controller_promotion WHERE promoted_at >= '2026-10-01'`, which must equal the total of the monthly panels for that range).
 
 Names and CIDs are shown and are public VATSIM data. Public, read-only sharing is done with Grafana public dashboards and is described in [public-access.md](public-access.md) (ADR-029); anonymous access stays off. Public dashboards do not fill text-box variables, so a dashboard that is shared needs a fixed value in place of a text box (the Departure board is fixed to YSSY). Each shared dashboard also needs a short name in `SHORT_NAMES` in `ops/grafana_public.py` (a test requires it); see the short-address steps in [public-access.md](public-access.md).

@@ -64,7 +64,7 @@ Start-up order: `db` healthy, then `migrate` completes, then `collector`, `grafa
 
 ### Public read-only access (ADR-029)
 
-The 14 dashboards are also published read-only on the internet at `https://vpac.mpengor.com` (the owner confirmed the hostname). The mechanism is Grafana public dashboards: one public link per dashboard (a token in the address), a fixed time range, no annotations. The token of each link is fixed (first 32 hex characters of sha256 of `vatpac-public:` plus the dashboard uid), and 14 short addresses (`/traffic`, `/new-pilots`, `/origins`, `/atc`, `/atc-retention`, `/atc-hours`, `/pilots`, `/routes`, `/aircraft`, `/atc-positions`, `/atc-ranks`, `/monday`, `/military`, `/health`) redirect to the links through Traefik labels on the helper container; the address bar then shows the long address. The path:
+The 15 dashboards are also published read-only on the internet at `https://vpac.mpengor.com` (the owner confirmed the hostname). The mechanism is Grafana public dashboards: one public link per dashboard (a token in the address), a fixed time range, no annotations. The token of each link is fixed (first 32 hex characters of sha256 of `vatpac-public:` plus the dashboard uid), and 15 short addresses (`/traffic`, `/new-pilots`, `/origins`, `/atc`, `/atc-retention`, `/atc-hours`, `/pilots`, `/routes`, `/aircraft`, `/atc-positions`, `/atc-ranks`, `/atc-promotions`, `/monday`, `/military`, `/health`) redirect to the links through Traefik labels on the helper container; the address bar then shows the long address. The path:
 
 ```
 visitor -> Cloudflare (rate limit rule, Bot Fight Mode) -> Cloudflare Tunnel (named Home; connector on the Traefik machine)
