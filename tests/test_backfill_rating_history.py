@@ -191,3 +191,19 @@ def test_from_files_dry_run_and_limit(tmp_path: Path) -> None:
     db = FakeDb([1, 2, 3])
     assert bf.main(["--from-files", str(tmp_path), "--dry-run"], run=db) == 0 and db.writes == []
     assert bf.main(["--from-files", str(tmp_path), "--limit", "2"], run=db) == 0 and len(db.writes) == 2
+
+
+def test_from_files_database_error_for_one_cid_does_not_stop_others(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    for c in (1, 2, 3):
+        write_file(tmp_path, c, [item(2, "2024-03-01T10:00:00", 60)])
+    db = FakeDb([1, 2, 3])
+
+    def flaky(sql: str) -> str:
+        if "VALUES (2, " in sql:
+            raise RuntimeError("psql failed (exit 1): boom")
+        return db(sql)
+
+    assert bf.main(["--from-files", str(tmp_path)], run=flaky) == 1
+    assert len(db.writes) == 2 and all("VALUES (2, " not in w for w in db.writes)
+    out = capsys.readouterr().out
+    assert "2: ERROR writing to the database" in out and "1 errors" in out

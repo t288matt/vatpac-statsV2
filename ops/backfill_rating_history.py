@@ -157,9 +157,14 @@ def from_files(folder: Path, cid: int | None, limit: int, dry_run: bool, run: Ru
             errors += 1
             continue
         shown = ", ".join(f"{r}:{t:%d-%m-%Y}" for r, t in sorted(rows.items())) or "none"
-        print(f"{c}: {shown}" + ("  (dry run, not written)" if dry_run else ""))
         if not dry_run:
-            run(write_sql(c, rows))
+            try:
+                run(write_sql(c, rows))
+            except RuntimeError as e:  # one transaction, so nothing of this controller is stored
+                print(f"{c}: ERROR writing to the database (nothing stored for this controller): {e}")
+                errors += 1
+                continue
+        print(f"{c}: {shown}" + ("  (dry run, not written)" if dry_run else ""))
         done += 1
     print(f"{'would load' if dry_run else 'loaded'} {done} controllers from files ({skipped} skipped, not pending; {errors} errors)")
     return 1 if errors else 0
