@@ -59,7 +59,7 @@
       "id": 2,
       "type": "text",
       "title": "Controller promotions",
-      "description": "How a promotion is counted. Ranks on the ladder are S1, S2, S3, C1 and C3; instructor and supervisor ratings are ignored. The count uses each controller's full VATSIM history, not only the time we have been recording. Only logons over 20 minutes count; shorter ones are usually a mistake, such as logging on at the wrong rating. A promotion is the first logon over 20 minutes at a rating higher than any earlier one. A first ever logon over 20 minutes at S1 counts as a promotion to S1 (shown as new); a first ever logon above S1 does not (a visitor or transfer). If a rank is skipped it counts as one promotion, at the new rank. Each rank counts once per controller, so a temporary drop and return is not a promotion. The date is the first logon over 20 minutes at the new rating; the real promotion happened on or before it. A controller is counted once their history has been loaded by a script that is run by hand, so controllers not yet loaded are not counted. Times are UTC.",
+      "description": "How a promotion is counted. Ranks on the ladder are S1, S2, S3, C1 and C3; instructor and supervisor ratings are ignored. The count uses each controller's full VATSIM history, not only the time we have been recording. Only logons over 20 minutes count; shorter ones are usually a mistake, such as logging on at the wrong rating. A promotion is the first logon over 20 minutes at a rating higher than any earlier one. A first ever logon over 20 minutes at S1 counts as a promotion to S1 (shown as new); a first ever logon above S1 does not (a visitor or transfer). If a rank is skipped it counts as one promotion, at the new rank. Each rank counts once per controller, so a temporary drop and return is not a promotion. The date is the first logon over 20 minutes at the new rating; the real promotion happened on or before it. Controllers whose history has not been loaded yet are not counted. Times are UTC.",
       "gridPos": {
         "x": 0,
         "y": 3,
@@ -137,7 +137,7 @@
       "id": 4,
       "type": "stat",
       "title": "Promotions in the selected period",
-      "description": "All promotions dated inside the selected time range (UTC)..",
+      "description": "All promotions dated inside the selected time range (UTC).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -614,7 +614,7 @@
       "gridPos": {
         "x": 0,
         "y": 33,
-        "w": 12,
+        "w": 24,
         "h": 8
       },
       "targets": [

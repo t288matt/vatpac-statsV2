@@ -102,9 +102,12 @@ def fetch_history(cid: int, fetch: Fetch, sleep: Callable[[float], None], pause:
         page = (body.get("items") or body.get("results") or []) if isinstance(body, dict) else body
         items += page
         sleep(pause)
-        if len(page) < PAGE:
+        offset += len(page)
+        count = body.get("count") if isinstance(body, dict) else None
+        # the API may return fewer than PAGE per page, so its count decides; a short page ends the history only when count is missing
+        done = offset >= count if isinstance(count, int) and not isinstance(count, bool) else len(page) < PAGE
+        if not page or done:
             return earliest_per_rating(items)
-        offset += PAGE
 
 
 def write_sql(cid: int, rows: dict[int, datetime]) -> str:

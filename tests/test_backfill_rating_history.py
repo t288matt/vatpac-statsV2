@@ -26,8 +26,9 @@ def item(rating: int, start: str, minutes: float, end: str | None = "") -> dict[
 class FakeApi:
     """url -> pages; counts the calls. histories maps cid to its list of items."""
 
-    def __init__(self, histories: dict[int, list[dict[str, Any]]], fail_from: int | None = None) -> None:
-        self.histories, self.fail_from, self.urls = histories, fail_from, []
+    def __init__(self, histories: dict[int, list[dict[str, Any]]], fail_from: int | None = None,
+                 cap: int = bf.PAGE, with_count: bool = False) -> None:
+        self.histories, self.fail_from, self.urls, self.cap, self.with_count = histories, fail_from, [], cap, with_count
 
     def __call__(self, url: str) -> Any:
         self.urls.append(url)
@@ -37,7 +38,10 @@ class FakeApi:
         if cid not in self.histories:
             raise bf.ApiNotFound(url)
         off = int(url.split("offset=")[1])
-        return {"items": self.histories[cid][off:off + bf.PAGE]}
+        body: dict[str, Any] = {"items": self.histories[cid][off:off + self.cap]}
+        if self.with_count:
+            body["count"] = len(self.histories[cid])
+        return body
 
 
 class FakeDb:
@@ -130,6 +134,21 @@ def test_unknown_member_gets_a_marker_with_no_ratings() -> None:
 def test_bad_options_are_refused() -> None:
     assert bf.main(["--limit", "0"], fetch=FakeApi({}), run=FakeDb([])) == 2
     assert bf.main(["--sleep", "-1"], fetch=FakeApi({}), run=FakeDb([])) == 2
+
+
+def test_a_capped_page_size_is_followed_by_the_count_so_nothing_is_truncated() -> None:
+    items = [item(3, "2026-02-01T10:00:00", 30) for _ in range(249)] + [item(5, "2026-03-01T10:00:00", 30)]
+    api = FakeApi({7: items}, cap=100, with_count=True)       # asks for 500, gets 100 at a time; 250 sessions
+    assert sorted(bf.fetch_history(7, api, lambda s: None, 0)) == [3, 5]
+    assert [u.split("offset=")[1] for u in api.urls] == ["0", "100", "200"]
+
+
+def test_without_a_count_a_short_page_ends_the_history_and_an_empty_page_always_does() -> None:
+    api = FakeApi({7: [item(3, "2026-02-01T10:00:00", 30)] * 3})
+    assert sorted(bf.fetch_history(7, api, lambda s: None, 0)) == [3]
+    assert len(api.urls) == 1
+    api2 = FakeApi({8: []}, cap=100, with_count=True)
+    assert bf.fetch_history(8, api2, lambda s: None, 0) == {} and len(api2.urls) == 1
 
 
 def test_cid_option_loads_that_controller_only() -> None:
