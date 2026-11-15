@@ -102,14 +102,17 @@ def next_run_at(now: datetime, cfg: Settings) -> datetime:
 
 def serve(conn: psycopg.Connection[Any], api: Api, clock: Clock, cfg: Settings) -> None:
     """One process, one run at a time. A run starts at STATS_RUN_AT each UTC day (one still going then is not doubled).
-    At start-up (crash or deploy) it runs at once, after the 60 s wait, unless a run already succeeded today."""
+    At start-up (crash or deploy) it runs at once, after the 60 s wait, unless a run already succeeded today;
+    a run that succeeded earlier today means the next one is tomorrow's, even before STATS_RUN_AT."""
     store.mark_interrupted(conn, clock.now())
     api.hold(START_WAIT_SECONDS)
     first = True
     try:
         while not clock.stop.is_set():
             now = clock.now()
-            wait = next_run_at(now, cfg) if not first or store.success_on(conn, now.date()) else now
+            wait = now if first and not store.success_on(conn, now.date()) else next_run_at(now, cfg)
+            if wait > now and store.success_on(conn, wait.date()):
+                wait += timedelta(days=1)  # a run already succeeded on that UTC day: never a second one
             first = False
             clock.sleep((wait - now).total_seconds())
             run_once(conn, api, clock, cfg)

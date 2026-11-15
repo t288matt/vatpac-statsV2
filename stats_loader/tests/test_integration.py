@@ -300,3 +300,12 @@ def test_role_rights(conn: Any) -> None:
     assert role_error(conn, "collector", "SELECT * FROM atc_stats_session")
     cfgs = one(conn, "SELECT rolconfig FROM pg_roles WHERE rolname = 'stats_loader'")
     assert "timezone=utc" in [c.lower() for c in cfgs]
+
+
+def test_a_start_before_the_run_time_after_a_success_today_waits_for_tomorrow(loader_conn: Any, fake: FakeApi) -> None:
+    clock = FakeClock(at(2026, 11, 15, 5, 30), stop_at=at(2026, 11, 15, 12))
+    fake.clock = clock
+    run_id = store.start_run(loader_conn, at(2026, 11, 15, 3))
+    store.finish_run(loader_conn, run_id, "success", None, at(2026, 11, 15, 3, 2))
+    serve(loader_conn, api_for(fake, clock), clock, cfg())
+    assert len(runs(loader_conn)) == 1 and fake.calls == []  # 06:00 today would be a second run on the same day
