@@ -145,10 +145,10 @@ services:
       # least-privilege role `stats_loader` (created by the migrate job), not the owner/superuser
       DATABASE_URL: postgresql://stats_loader:${STATS_LOADER_DB_PASSWORD:?set STATS_LOADER_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-vatpac}
       # when the daily run makes its requests, UTC (HH:MM)
-      STATS_RUN_AT: ${STATS_RUN_AT:-06:00}
+      STATS_RUN_AT: 06:00
       # seconds between two requests to the VATSIM API; the loader never goes below 5
-      STATS_MIN_INTERVAL_SECONDS: ${STATS_MIN_INTERVAL_SECONDS:-5}
-      STATS_PAGE_SIZE: ${STATS_PAGE_SIZE:-5000}
+      STATS_MIN_INTERVAL_SECONDS: 20
+      STATS_PAGE_SIZE: 5000
       # days before the newest stored date that every run loads again (sessions that closed late)
       STATS_OVERLAP_DAYS: ${STATS_OVERLAP_DAYS:-2}
       # Retention must be a plain number in the compose file (ops/check_config_drift.py rejects ${...} for retention periods).

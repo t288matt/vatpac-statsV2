@@ -106,9 +106,9 @@ def test_loader_environment_key_that_is_not_a_setting_fails(tree: Path, capsys: 
 
 
 def test_loader_variable_missing_from_env_example_fails(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    edit(tree, ".env.example", "STATS_PAGE_SIZE=5000\n", "")
+    edit(tree, ".env.example", "STATS_OVERLAP_DAYS=2\n", "")
     code, out = run(tree, capsys)
-    assert code == 1 and "STATS_PAGE_SIZE: reads ${STATS_PAGE_SIZE} which is missing from .env.example" in out
+    assert code == 1 and "STATS_OVERLAP_DAYS: reads ${STATS_OVERLAP_DAYS} which is missing from .env.example" in out
 
 
 @pytest.mark.parametrize(("file", "old", "new", "expect"), [
