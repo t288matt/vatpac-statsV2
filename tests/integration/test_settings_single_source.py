@@ -336,14 +336,14 @@ def test_watchdog_ro_gets_nothing_more_than_before(as_watchdog: Any, sql: str) -
         as_watchdog.execute(sql)
 
 
-def test_the_watchdog_role_has_select_on_exactly_the_tables_it_had_plus_the_two_views(conn: Any) -> None:
+def test_the_watchdog_role_has_select_on_exactly_the_tables_it_had_plus_the_two_views_and_the_stats_run_log(conn: Any) -> None:
     if _role(conn) is None:
         pytest.skip("role watchdog_ro not created")
     got = {r["table_name"] for r in conn.execute(
         "SELECT table_name FROM information_schema.role_table_grants WHERE grantee = 'watchdog_ro' AND privilege_type = 'SELECT' "
         "AND table_schema = 'public'").fetchall()}
     assert got == {"poll_log", "network_snapshot", "controller_unlisted_callsign", "pilot_session", "controller_session", "pilot_position",
-                   "flight_summary", "drop_gate_refusal", "reference_data_change", "ops_setting", "ops_pending_flight"}
+                   "flight_summary", "drop_gate_refusal", "reference_data_change", "ops_setting", "ops_pending_flight", "atc_stats_run_log"}
     others = conn.execute(
         "SELECT count(*) AS n FROM information_schema.role_table_grants WHERE grantee = 'watchdog_ro' AND table_schema = 'public' "
         "AND privilege_type <> 'SELECT'").fetchone()["n"]

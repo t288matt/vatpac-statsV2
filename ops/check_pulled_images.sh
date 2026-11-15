@@ -1,20 +1,20 @@
 #!/bin/sh
 # Stops `make deploy` before `up` when the pulled images do not match the checkout (issue 173).
 #   sh ops/check_pulled_images.sh        (run after `docker compose pull`, from the repo root)
-# For each pulled image (collector, watchdog, backup, migrate) the revision label must be HEAD, or an ancestor of HEAD with no
+# For each pulled image (collector, watchdog, backup, migrate, loader) the revision label must be HEAD, or an ancestor of HEAD with no
 # change since to anything baked into the images (so a docs-only commit after the release is fine). Reads only; never builds.
 # Exit 0 = all match; exit 1 = otherwise, with a plain message saying which case.
 set -u
 
-# paths copied into the four images (collector/Dockerfile, ops/watchdog, ops/backup, ops/migrate and db). The images carry the code AND the
+# paths copied into the five images (collector/Dockerfile, ops/watchdog, ops/backup, ops/migrate, stats_loader and db). The images carry the code AND the
 # migrations (nothing is mounted over them), so a change to any of these since the release label means the pulled image is not this commit.
-BAKED="collector ops/watchdog ops/backup ops/migrate ops/audit/independent.py ops/audit/invariants.sql ops/audit/identity_flap.sql db"
+BAKED="collector stats_loader ops/watchdog ops/backup ops/migrate ops/audit/independent.py ops/audit/invariants.sql ops/audit/identity_flap.sql db"
 
 head="$(git rev-parse HEAD 2>/dev/null)" || head=""
 if [ -z "$head" ]; then echo "check_pulled_images: cannot read the checkout commit" >&2; exit 1; fi
 
 unreadable=""; stale=""; pinned=""
-for name in collector watchdog backup migrate; do
+for name in collector watchdog backup migrate loader; do
   img="$(docker compose config --images 2>/dev/null | grep "vatpac-stats-$name:" | head -n 1)"
   rev="$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$img" 2>/dev/null | tr -d '\r')"
   case "$rev" in

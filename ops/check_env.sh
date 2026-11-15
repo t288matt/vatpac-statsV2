@@ -11,7 +11,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/env_key.sh"   # env_key FILE NAME: the one reader of .env keys (issue 212)
 IMAGE_MODE_SOURCE_ONLY=1 . "$HERE/image_mode.sh"   # sha_pin_warning: the one wording of the sha- pin warning (issue 213)
 MIN_LEN=16
-SECRETS="POSTGRES_PASSWORD GRAFANA_RO_PASSWORD GRAFANA_ADMIN_PASSWORD WATCHDOG_DB_PASSWORD COLLECTOR_DB_PASSWORD BACKUP_DB_PASSWORD"
+SECRETS="POSTGRES_PASSWORD GRAFANA_RO_PASSWORD GRAFANA_ADMIN_PASSWORD WATCHDOG_DB_PASSWORD COLLECTOR_DB_PASSWORD BACKUP_DB_PASSWORD STATS_LOADER_DB_PASSWORD"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "check_env: $ENV_FILE not found. Run: sh ops/gen_env.sh" >&2

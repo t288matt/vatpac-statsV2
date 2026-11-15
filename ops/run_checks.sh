@@ -5,8 +5,8 @@
 #   sh ops/run_checks.sh <check-or-group> [<check-or-group> ...]
 #
 # Checks (each is one named CI step):
-#   lint          ruff-collector mypy-collector ruff-ops mypy-ops shell-syntax
-#   tests         pytest-unit unit-skips
+#   lint          ruff-collector mypy-collector ruff-loader mypy-loader ruff-ops mypy-ops shell-syntax
+#   tests         pytest-unit unit-skips pytest-loader
 #   repo-checks   config-drift dashboards dashboard-nav size-budget actionlint attribution
 #   config        compose-config compose-images compose-blank-secrets      (needs the docker CLI; no daemon is used)
 #   all           tool-versions lint tests repo-checks config
@@ -14,7 +14,7 @@
 #
 # Every named check runs even when an earlier one failed; each prints PASS or FAIL with its time, and the exit status is 1 if any
 # failed. A missing tool is a failure, never a skip. NOT covered here (they need CI-only secrets, services or a registry): the
-# secret scan (gitleaks), the integration tests (a Postgres service and the production migrate image), the image build, the
+# secret scan (gitleaks), the integration tests, the collector's and the loader's (a Postgres service and the production migrate image), the image build, the
 # dashboards-scope pytest runs, the scope job and the ci-result verify job.
 # POSIX sh; runs on Linux and Git Bash for Windows.
 set -u
@@ -31,6 +31,11 @@ need() { # need <command...>: fail loudly when a tool is missing
 
 ck_ruff_collector() { need $PY -m ruff --version && (cd collector && $PY -m ruff check .); }
 ck_mypy_collector() { need $PY -m mypy --version && (cd collector && $PY -m mypy src); }
+# The ATC stats loader (issue 387; stats_loader/pyproject.toml holds its ruff, mypy and pytest settings). Its unit tests run in
+# their own pytest session: its test files share names with the collector's (test_settings.py and others).
+ck_ruff_loader() { need $PY -m ruff --version && (cd stats_loader && $PY -m ruff check .); }
+ck_mypy_loader() { need $PY -m mypy --version && (cd stats_loader && $PY -m mypy); }
+ck_pytest_loader() { (cd stats_loader && $PY -m pytest -q -m "not integration" tests); }
 ck_ruff_ops() { need $PY -m ruff --version && $PY -m ruff check --config ops/ruff.toml ops; }
 ck_mypy_ops() {
   need $PY -m mypy --version && $PY -m mypy --strict --ignore-missing-imports \
@@ -61,7 +66,8 @@ ck_dashboards() {
   grep -q '^sql statements parsed with sqlglot' "$out"
 }
 ck_dashboard_nav() { $PY ops/dashboard_nav.py --check; }
-ck_size_budget() { $PY ops/check_size_budget.py; }
+# The collector (1800 lines) and the ATC stats loader (700 lines, issue 387); both must pass, and both are run.
+ck_size_budget() { rc=0; $PY ops/check_size_budget.py || rc=1; $PY ops/check_size_budget.py stats_loader/src/vatsim_stats 700 || rc=1; return $rc; }
 # Shellcheck of the run scripts is off (-shellcheck=): it was not measured on these scripts, so it is a separate decision.
 ck_actionlint() { need actionlint -version && actionlint -shellcheck= .github/workflows/*.yml; }
 ck_attribution() { $PY ops/check_no_claude_attribution.py; }
@@ -78,12 +84,12 @@ ck_compose_config() {
   docker compose --env-file "$f" -f docker-compose.yml -f docker-compose.dev.yml config -q || rc=1
   rm -rf "$envdir"; return $rc
 }
-# The four built services must resolve to vatpac-stats-<name>:latest with both variables unset, to <prefix>vatpac-stats-<name>:latest
+# The five built services must resolve to vatpac-stats-<name>:latest with both variables unset, to <prefix>vatpac-stats-<name>:latest
 # with the prefix alone, and to <prefix>...:<tag> with a tag override (the names the release workflow publishes; issue 173).
 ck_compose_images() {
   need docker compose version || return 1
   make_env || return 1
-  f="$(env_path)"; want="collector watchdog backup migrate"; rc=0
+  f="$(env_path)"; want="collector watchdog backup migrate loader"; rc=0
   got="$(env -u VATPAC_IMAGE_PREFIX -u VATPAC_IMAGE_TAG docker compose --env-file "$f" config --images | grep 'vatpac-stats-' | sort)"
   exp="$(for n in $want; do echo "vatpac-stats-$n:latest"; done | sort)"
   [ "$got" = "$exp" ] || { echo "local mode images differ"; echo "$got"; rc=1; }
@@ -115,12 +121,12 @@ run_one() { # run_one <check-name>
 
 expand() { # a group or a check name to its checks
   case "$1" in
-    lint) echo "ruff-collector mypy-collector ruff-ops mypy-ops shell-syntax" ;;
-    tests) echo "pytest-unit unit-skips" ;;
+    lint) echo "ruff-collector mypy-collector ruff-loader mypy-loader ruff-ops mypy-ops shell-syntax" ;;
+    tests) echo "pytest-unit unit-skips pytest-loader" ;;
     repo-checks) echo "config-drift dashboards dashboard-nav size-budget actionlint attribution" ;;
     config) echo "compose-config compose-images compose-blank-secrets" ;;
     all) echo "tool-versions $(expand lint) $(expand tests) $(expand repo-checks) $(expand config)" ;;
-    ruff-collector|mypy-collector|ruff-ops|mypy-ops|shell-syntax|pytest-unit|unit-skips|config-drift|dashboards|dashboard-nav|size-budget|actionlint|attribution|compose-config|compose-images|compose-blank-secrets|tool-versions) echo "$1" ;;
+    ruff-collector|mypy-collector|ruff-loader|mypy-loader|ruff-ops|mypy-ops|shell-syntax|pytest-unit|unit-skips|pytest-loader|config-drift|dashboards|dashboard-nav|size-budget|actionlint|attribution|compose-config|compose-images|compose-blank-secrets|tool-versions) echo "$1" ;;
     *) echo "unknown check or group: $1 (see the header of ops/run_checks.sh)" >&2; return 1 ;;
   esac
 }

@@ -274,7 +274,7 @@ QUICK_STEPS = {
 }
 UNIT_STEPS = {
     "Install lint tools": FULL_ONLY, "ruff": FULL_ONLY, "mypy": FULL_ONLY, "shell syntax": FULL_ONLY,
-    "pytest (unit; ": FULL_ONLY, "unit skips": FULL_ONLY, "pytest (unit, dashboards scope)": DASH_ONLY,
+    "pytest (unit; ": FULL_ONLY, "pytest (stats loader unit)": FULL_ONLY, "unit skips": FULL_ONLY, "pytest (unit, dashboards scope)": DASH_ONLY,
 }
 
 
@@ -335,8 +335,22 @@ def test_the_checks_that_used_to_be_jobs_still_run_these_commands() -> None:
     assert any(str(st.get("uses", "")).startswith("gitleaks/gitleaks-action@") for st in steps_of("quick-checks"))
 
 
+def loader_integration_steps() -> list[dict[str, Any]]:
+    return [st for st in steps_of("integration-tests") if str(st.get("name", "")).startswith("pytest (stats loader")]
+
+
+def test_the_stats_loader_integration_pass_is_strict_utc_and_full_scope_only() -> None:
+    """Issue 387: the loader's own integration tests run in the full scope only, strict, on the migrated CI database."""
+    (st,) = loader_integration_steps()
+    assert str(st["if"]) == "needs.scope.outputs.scope == 'full'"
+    assert st["env"]["VATPAC_TEST_STRICT"] == "1" and st["env"]["PYTHONPATH"] == "stats_loader/src"
+    assert st["env"]["STATS_TEST_DSN"].endswith("/vatpac_test?options=-c%20TimeZone%3DUTC")
+    assert st["run"] == "cd stats_loader && pytest tests -m integration -q"
+
+
 def test_integration_runs_once_in_utc_and_no_pass_uses_another_zone() -> None:
-    steps = [st for st in steps_of("integration-tests") if str(st.get("name", "")).startswith("pytest")]
+    steps = [st for st in steps_of("integration-tests")
+             if str(st.get("name", "")).startswith("pytest") and not str(st["name"]).startswith("pytest (stats loader")]
     assert sorted(str(st["if"]).split("'")[1] for st in steps) == ["dashboards", "full"]   # one pass per scope
     for st in steps:
         env = st["env"]
@@ -349,7 +363,9 @@ def test_integration_runs_once_in_utc_and_no_pass_uses_another_zone() -> None:
 
 def test_the_scope_steps_run_the_exact_commands_and_the_full_steps_are_untouched() -> None:
     unit = [st for st in steps_of("unit-tests") if str(st.get("name", "")).startswith("pytest")]
-    integ = [st for st in steps_of("integration-tests") if str(st.get("name", "")).startswith("pytest")]
+    unit = [st for st in unit if "stats loader" not in str(st["name"])]   # the loader's own passes are tested above and in run_checks
+    integ = [st for st in steps_of("integration-tests")
+             if str(st.get("name", "")).startswith("pytest") and "stats loader" not in str(st["name"])]
     dash_runs = sorted(str(st["run"]) for st in unit + integ if "'dashboards'" in str(st["if"]))
     assert dash_runs == sorted([UNIT_RUN, INTEG_RUN])   # exact text: widening them to all of tests/ fails
     full_runs = {str(st["run"]) for st in unit + integ if "'full'" in str(st["if"])}

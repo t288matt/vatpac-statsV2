@@ -85,7 +85,7 @@ def test_no_script_keeps_its_own_env_reader() -> None:
 
 def test_check_env_reads_secrets_the_way_compose_does(tmp_path: Path) -> None:
     """A quoted or `export`ed secret is the same secret the stack gets, so check_env judges it (before: quotes counted as characters)."""
-    secrets = {n: f"{n.lower()}Abcdef0123456789".replace("_", "") for n in ("POSTGRES_PASSWORD", "GRAFANA_RO_PASSWORD", "GRAFANA_ADMIN_PASSWORD", "WATCHDOG_DB_PASSWORD", "COLLECTOR_DB_PASSWORD", "BACKUP_DB_PASSWORD")}
+    secrets = {n: f"{n.lower()}Abcdef0123456789".replace("_", "") for n in ("POSTGRES_PASSWORD", "GRAFANA_RO_PASSWORD", "GRAFANA_ADMIN_PASSWORD", "WATCHDOG_DB_PASSWORD", "COLLECTOR_DB_PASSWORD", "BACKUP_DB_PASSWORD", "STATS_LOADER_DB_PASSWORD")}
     names = list(secrets)
     lines = [f'{names[0]}="{secrets[names[0]]}"', f"export {names[1]}={secrets[names[1]]}", f"{names[2]}='{secrets[names[2]]}'"]
     lines += [f"{n}={secrets[n]}\r" for n in names[3:]]

@@ -110,11 +110,14 @@ TAG7 = "sha-" + FULL[:7]
 
 
 def _inspect_registry(tag: str = "latest", rev: str = FULL, only: str = "") -> str:
-    """Six-field inspect lines: the four registry-image services carry an image and a revision label (only: the one service that differs)."""
+    """Six-field inspect lines: the five registry-image services carry an image and a revision label (only: the one image name that
+    differs). The loader's compose service is vatsim-atc-stats and its image is vatpac-stats-loader (issue 387)."""
     rows = []
-    for s in ("backup", "collector", "db", "grafana", "watchdog", "migrate"):
-        base = f"/vatpac-{s}-1|2026-10-09T15:42:07.7Z|0|{'exited' if s == 'migrate' else 'healthy'}"
-        if s in ("backup", "collector", "watchdog", "migrate"):
+    image_of = {"vatsim-atc-stats": "loader"}
+    for svc in ("backup", "collector", "db", "grafana", "watchdog", "migrate", "vatsim-atc-stats"):
+        s = image_of.get(svc, svc)
+        base = f"/vatpac-{svc}-1|2026-10-09T15:42:07.7Z|0|{'exited' if s == 'migrate' else 'healthy'}"
+        if s in ("backup", "collector", "watchdog", "migrate", "loader"):
             odd = only == s
             base += f"|{PFX}vatpac-stats-{s}:{tag if odd else 'latest'}|{rev if odd else FULL}"
         else:
@@ -569,7 +572,7 @@ def test_preflight_registry_checks(tmp_path: Path) -> None:
     assert line_for(out, "registry_mode").startswith("PASS") and line_for(out, "registry_images").startswith("PASS")
     assert line_for(out, "image_tag_env").startswith("PASS")
     manifests = (f.dir / "manifest.log").read_text()
-    for n in ("collector", "watchdog", "backup", "migrate"):
+    for n in ("collector", "watchdog", "backup", "migrate", "loader"):
         assert f"manifest inspect {PFX}vatpac-stats-{n}:{TAG7}" in manifests
 
 
@@ -725,7 +728,7 @@ def _pulled_images_run(tmp_path: Path, repo: Path, labels: dict[str, str], tag: 
     b.mkdir(parents=True)
     (b / "docker").write_text(
         '#!/bin/sh\n[ -n "$FAKE_DOCKER_DOWN" ] && exit 1\ncase "$1 $2" in\n'
-        f'  "compose config") for n in collector watchdog backup migrate; do echo "ghcr.io/x/vatpac-stats-$n:{tag}"; done ;;\n'
+        f'  "compose config") for n in collector watchdog backup migrate loader; do echo "ghcr.io/x/vatpac-stats-$n:{tag}"; done ;;\n'
         '  "image inspect") for l in $(cat "$FAKE_LABELS"); do n="${l%%=*}"; case "$*" in *"vatpac-stats-$n:"*) echo "${l#*=}" ;; esac; done ;;\n'
         "esac\n", newline="\n")
     (b / "docker").chmod(0o755)
@@ -737,7 +740,7 @@ def _pulled_images_run(tmp_path: Path, repo: Path, labels: dict[str, str], tag: 
 
 
 def _all(rev: str, **odd: str) -> dict[str, str]:
-    return {n: odd.get(n, rev) for n in ("collector", "watchdog", "backup", "migrate")}
+    return {n: odd.get(n, rev) for n in ("collector", "watchdog", "backup", "migrate", "loader")}
 
 
 def test_make_deploy_stops_when_pulled_images_do_not_match_the_checkout(tmp_path: Path) -> None:
@@ -909,7 +912,7 @@ def test_read_only_output_is_unchanged_by_the_caching(tmp_path: Path) -> None:
     out = f.run("--status")[1]
     assert "image mode: registry (only the two image keys of the VM's .env are read); checkout HEAD: " + FULL[:12] in out
     out = f.run("--verify")[1]
-    assert "registry mode: collector watchdog backup migrate run latest, built from the checkout " + FULL[:10] in line_for(out, "image_revisions")
+    assert "registry mode: collector watchdog backup migrate loader run latest, built from the checkout " + FULL[:10] in line_for(out, "image_revisions")
 
 
 def test_verify_and_mark_refuse_uncommitted_changes_under_ops(tmp_path: Path) -> None:

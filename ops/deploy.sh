@@ -12,7 +12,7 @@
 #       running collector image (first 12 characters), or local, or unknown>. The release file itself keeps its three lines.
 # Registry mode (VATPAC_IMAGE_PREFIX set in the VM's .env, issue 173): the tag defaults to `latest`, which the release workflow
 # moves to the newest published commit (no .env edit per deploy; a VATPAC_IMAGE_TAG=sha-<7> line is only a deliberate rollback pin).
-# --preflight checks the four images exist for the commit and WARNs loudly about a sha pin;
+# --preflight checks the five images exist for the commit and WARNs loudly about a sha pin;
 # --verify checks each container's image revision label against the VM
 # checkout; --status prints the images. Local mode (neither set) skips these checks. Only the two key names are read from .env.
 # It never starts, stops, builds or restarts anything and never prints .env values. The owner's explicit go for each
@@ -213,7 +213,9 @@ check_healthy() {
   if [ -z "$bad" ]; then emit PASS containers_healthy "all of: $SERVICES"; else emit FAIL containers_healthy "not healthy:$bad"; fi
 }
 
-REGISTRY_SERVICES="collector watchdog backup migrate"
+REGISTRY_SERVICES="collector watchdog backup migrate loader"
+# The compose service of an image whose name differs (the loader image is vatpac-stats-loader, its service vatsim-atc-stats).
+svc_of() { case "$1" in loader) echo vatsim-atc-stats ;; *) echo "$1" ;; esac; }
 
 # image_problems <checkout HEAD> <.env tag, empty = latest>: prints what is wrong, empty when every registry-image container (from $CONTAINERS) runs
 # the .env tag and carries a revision label that HEAD starts with. The images carry the code and the migrations (nothing is mounted
@@ -223,7 +225,7 @@ image_problems() {
   local head="$1" tag="${2:-latest}" out="" svc l img rev
   case "$tag" in sha-*) [ "$tag" = "$(short_tag "$head")" ] || out="$out .env tag is the pin $tag but the checkout is $(short_tag "$head");" ;; esac
   for svc in $REGISTRY_SERVICES; do
-    l="$(svc_line "$svc")"
+    l="$(svc_line "$(svc_of "$svc")")"
     if [ -z "$l" ]; then out="$out $svc: no container;"; continue; fi
     img="$(printf '%s' "$l" | cut -d'|' -f5)"; rev="$(printf '%s' "$l" | cut -d'|' -f6)"
     if [ "${img##*:}" != "$tag" ]; then out="$out $svc runs image tag '${img##*:}' not $tag;"

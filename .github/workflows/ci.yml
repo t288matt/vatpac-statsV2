@@ -78,10 +78,12 @@ jobs:
           cache: pip
           cache-dependency-path: |
             collector/requirements*.txt
+            stats_loader/requirements.txt
             ops/watchdog/requirements.txt
       - name: Install
         run: |
           pip install -r collector/requirements.txt
+          pip install -r stats_loader/requirements.txt
           if [ -f collector/requirements-dev.txt ]; then pip install -r collector/requirements-dev.txt; fi
           pip install pytest pyyaml==6.0.2
       - name: Install lint tools
@@ -93,6 +95,12 @@ jobs:
       - name: mypy (collector)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         run: sh ops/run_checks.sh mypy-collector
+      - name: ruff (stats loader)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
+        run: sh ops/run_checks.sh ruff-loader
+      - name: mypy (stats loader)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
+        run: sh ops/run_checks.sh mypy-loader
       - name: ruff (ops python)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         run: sh ops/run_checks.sh ruff-ops
@@ -105,6 +113,10 @@ jobs:
       - name: pytest (unit; integration tests need Postgres and are marked)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
         run: sh ops/run_checks.sh pytest-unit
+      # Issue 387: the stats loader's unit tests, a separate pytest session (its test files share names with the collector's).
+      - name: pytest (stats loader unit)
+        if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
+        run: sh ops/run_checks.sh pytest-loader
       # Issue 343: a skipped test is a test that did not run. The expected number is kept in one place, ops/check_skips.py
       # (23 here: the watchdog auto-restart tests switched off on purpose, issue 232). A new skip, or one switched back on,
       # fails this step until the number is changed in a reviewed diff.
@@ -148,9 +160,11 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-          cache-dependency-path: collector/requirements*.txt
+          cache-dependency-path: |
+            collector/requirements*.txt
+            stats_loader/requirements.txt
       # The database is built by the SAME image production uses (ops/migrate: dbmate with --no-dump-schema, then db/roles.sql
-      # in one transaction, all four roles), not by piping the migration files through psql (issue 96). That also
+      # in one transaction, all five roles), not by piping the migration files through psql (issue 96). That also
       # creates schema_migrations, so dbmate-only behaviour (per-migration transactions, the up/down split, the version table)
       # is exercised by CI. It runs on the host network, with the name `db` pointing at the service container, because
       # migrate.sh connects to host `db`. The passwords are test-only values for this throwaway service container.
@@ -163,16 +177,18 @@ jobs:
           COLLECTOR_DB_PASSWORD: ci-collector-pw
           BACKUP_DB_PASSWORD: ci-backup-pw
           WATCHDOG_DB_PASSWORD: ci-watchdog-pw
+          STATS_LOADER_DB_PASSWORD: ci-stats-loader-pw
         run: |
           psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE vatpac_test"
           docker build -q -t vatpac-migrate-ci -f ops/migrate/Dockerfile .
           docker run --rm --network host --add-host db:127.0.0.1 \
             -e POSTGRES_USER -e POSTGRES_PASSWORD -e POSTGRES_DB \
-            -e GRAFANA_RO_PASSWORD -e COLLECTOR_DB_PASSWORD -e BACKUP_DB_PASSWORD -e WATCHDOG_DB_PASSWORD \
+            -e GRAFANA_RO_PASSWORD -e COLLECTOR_DB_PASSWORD -e BACKUP_DB_PASSWORD -e WATCHDOG_DB_PASSWORD -e STATS_LOADER_DB_PASSWORD \
             vatpac-migrate-ci
       - name: Install
         run: |
           pip install -r collector/requirements.txt
+          pip install -r stats_loader/requirements.txt
           pip install pytest pytest-asyncio
       # VATPAC_TEST_STRICT=1: a missing database or ANY skipped test fails the run (tests/integration/conftest.py), so a
       # green result cannot hide tests that did not run. One pass only, in UTC (owner decision 11-11-2026, issue 339: the
@@ -190,6 +206,16 @@ jobs:
           VATPAC_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test?options=-c%20TimeZone%3DUTC
           VATPAC_TEST_GRAFANA_RO_DSN: postgresql://grafana_ro:ci-grafana-ro-pw@localhost:5432/vatpac_test
         run: pytest tests/integration -m integration -q
+      # Issue 387: the stats loader's integration tests, on the same database (the migrate image above made the stats_loader role
+      # with STATS_LOADER_DB_PASSWORD; the tests act as that role with SET ROLE, so they pass only with the rights it really has).
+      # The fake VATSIM API is in-process: no test calls the public API. Strict and UTC as above.
+      - name: pytest (stats loader integration, UTC)
+        if: needs.scope.outputs.scope == 'full'
+        env:
+          PYTHONPATH: stats_loader/src
+          VATPAC_TEST_STRICT: "1"
+          STATS_TEST_DSN: postgresql://postgres:ci-superuser-pw@localhost:5432/vatpac_test?options=-c%20TimeZone%3DUTC
+        run: cd stats_loader && pytest tests -m integration -q
       # Dashboards scope: the integration tests that run dashboard SQL against the views, on the same database, built the same
       # way, in strict mode and in UTC. Collector, migration and role tests are not run here.
       - name: pytest (integration, dashboards scope, UTC)
@@ -266,7 +292,7 @@ jobs:
         run: sh ops/run_checks.sh compose-config
       - name: compose-config (image names resolve in local and registry mode, issue 173)
         if: ${{ !cancelled() && needs.scope.outputs.scope == 'full' }}
-        # The four built services must resolve to vatpac-stats-<name>:latest with both variables unset, to
+        # The five built services must resolve to vatpac-stats-<name>:latest with both variables unset, to
         # <prefix>vatpac-stats-<name>:latest with the prefix alone, and to <prefix>...:<tag> with a tag override (the names the release workflow publishes).
         # It reads the env file the previous step generated.
         run: sh ops/run_checks.sh compose-images

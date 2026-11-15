@@ -11,7 +11,7 @@ name: release
 # starts is still picked up) or give a specific commit (full or short SHA) to publish an older one, e.g. for a rollback. It does
 # NOT re-run CI: it checks that run, then only builds and pushes. Images are tagged `sha-<first 7 characters>` (kept for history
 # and rollback) and carry the full SHA in the org.opencontainers.image.revision label. A final job then moves the tag `latest` to
-# those same images, but only after all four are pushed, so latest never mixes two commits. The VM's .env names latest once and
+# those same images, but only after all five are pushed, so latest never mixes two commits. The VM's .env names latest once and
 # is never edited per deploy (ADR-031, amended 15-10-2026). There is no semver tag. New packages in a private repository
 # are private by default; do not make them public.
 on:
@@ -108,6 +108,9 @@ jobs:
           - name: backup
             context: ops/backup
             file: ops/backup/Dockerfile
+          - name: loader   # the ATC stats loader (issue 387), published as vatpac-stats-loader
+            context: stats_loader
+            file: stats_loader/Dockerfile
           - name: migrate
             context: .   # db/ is baked into the image (ops/migrate/Dockerfile.dockerignore limits the context)
             file: ops/migrate/Dockerfile
@@ -140,7 +143,7 @@ jobs:
             VERSION=sha-${{ needs.check.outputs.short }}
 
   promote:
-    # Moves `latest` to the four sha-<7> images just pushed (a re-tag of the same image, no rebuild). Runs only when every image job
+    # Moves `latest` to the five sha-<7> images just pushed (a re-tag of the same image, no rebuild). Runs only when every image job
     # succeeded, so a failed build leaves latest where it was.
     needs: [check, images]
     runs-on: ubuntu-latest
@@ -158,7 +161,7 @@ jobs:
           SHORT: ${{ needs.check.outputs.short }}
         run: |
           set -eu
-          for n in collector watchdog backup migrate; do
+          for n in collector watchdog backup migrate loader; do
             img="ghcr.io/t288matt/vatpac-stats-$n"
             docker buildx imagetools create --tag "$img:latest" "$img:sha-$SHORT"
             echo "latest -> sha-$SHORT for $n"
