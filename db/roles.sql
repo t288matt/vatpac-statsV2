@@ -113,6 +113,8 @@ TO collector;
 -- finished flights are written by the SECURITY DEFINER writer below, which needs no DELETE right.
 GRANT DELETE ON poll_log TO collector;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO collector;
+-- The run log belongs to the stats loader (issue 387); the collector has no table access to it, so no sequence access either.
+REVOKE ALL ON SEQUENCE atc_stats_run_log_id_seq FROM collector;
 
 -- Maintenance functions. The partition functions, the flight writer (write_finished_flights, which fills flight_summary)
 -- are SECURITY DEFINER (owner rights), so the collector needs no DDL or table rights for them.
