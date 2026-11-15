@@ -151,3 +151,12 @@ def test_status_does_not_read_the_vm_service_list_and_shows_every_container(tmp_
     assert f"vatpac-{LOADER}-1" in out and "vatpac-db-1" in out
     log = (f.dir / "docker.log").read_text() if (f.dir / "docker.log").exists() else ""
     assert "config --services" not in log
+
+
+def test_an_unreadable_vm_list_fails_even_when_every_service_including_the_loader_is_healthy(tmp_path: Path) -> None:
+    """The failure must come from the unreadable list, not from a missing container (no silent fallback to the full list)."""
+    f = vm(tmp_path, [*OLD, LOADER], [*ALL_FIVE, LOADER])
+    f.brk("services")
+    rc, out = pre(f)
+    assert healthy_line(out).startswith("FAIL"), out
+    assert rc != 0
