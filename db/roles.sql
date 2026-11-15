@@ -4,7 +4,8 @@
 --        -v grafana_ro_password="$GRAFANA_RO_PASSWORD" \
 --        -v collector_password="$COLLECTOR_DB_PASSWORD" \
 --        -v backup_password="$BACKUP_DB_PASSWORD" \
---        -v watchdog_password="$WATCHDOG_DB_PASSWORD" \n--        -v stats_loader_password="$STATS_LOADER_DB_PASSWORD" -f db/roles.sql
+--        -v watchdog_password="$WATCHDOG_DB_PASSWORD" \
+--        -v stats_loader_password="$STATS_LOADER_DB_PASSWORD" -f db/roles.sql
 --
 -- Safe to re-run (every deploy): it re-applies the grants so objects added by later migrations are
 -- picked up. Roles:
