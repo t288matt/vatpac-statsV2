@@ -73,3 +73,15 @@ def test_check_catches_a_missing_stale_or_query_string_strip(tmp_path: Path, mon
         d["panels"][0]["options"]["content"] = bad
         victim.write_text(json.dumps(d), encoding="utf-8")
         assert any("atc-overview.json" in p for p in nav.problems())
+
+
+def test_check_catches_placeholder_text_in_the_top_panel(tmp_path: Path, monkeypatch) -> None:
+    for f in FILES:
+        (tmp_path / f.parent.name).mkdir(exist_ok=True)
+        (tmp_path / f.parent.name / f.name).write_bytes(f.read_bytes())
+    monkeypatch.setattr(nav, "DASHBOARDS", tmp_path)
+    victim = tmp_path / "atc" / "atc-overview.json"
+    d = json.loads(victim.read_text(encoding="utf-8"))
+    d["panels"][0]["options"]["content"] = d["panels"][0]["options"]["content"].replace("\n\n", "\n\n<strip>\n\n", 1)
+    victim.write_text(json.dumps(d), encoding="utf-8")
+    assert any("placeholder" in p for p in nav.problems())

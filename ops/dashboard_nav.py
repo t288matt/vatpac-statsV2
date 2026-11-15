@@ -16,6 +16,7 @@ asks Traefik, and shows Page not found (issue 284). Standard library only.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -23,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # grafana_public impor
 from grafana_public import SHORT_NAMES  # noqa: E402
 
 DASHBOARDS = Path(__file__).resolve().parents[1] / "grafana" / "dashboards"
+PLACEHOLDER = re.compile(r"<(?!/?a\b)[^>\n]*>")  # angle-bracket text that is not an <a> link
 NAV_ROWS = 3  # rows the strip adds to the panel; default for a dashboard not yet in MIN_HEADER_HEIGHT (a new one onboarded by apply())
 
 # lowest gridPos.h with no scroll, measured in Grafana 12.4 (issue 371); unlisted files fall back to 2 + NAV_ROWS
@@ -84,6 +86,8 @@ def problems() -> list[str]:
             out.append(f"{f.name}: no top text panel (id 1) or no short name")
         elif split(panel["options"]["content"])[0] != strip(d["uid"]):
             out.append(f"{f.name}: navigation strip missing or out of step; run python ops/dashboard_nav.py")
+        elif PLACEHOLDER.search(panel["options"]["content"]):
+            out.append(f"{f.name}: top text panel contains placeholder text such as <strip>")
         elif panel["gridPos"]["h"] < MIN_HEADER_HEIGHT.get(f.name, 2 + NAV_ROWS):
             out.append(f"{f.name}: top text panel too short for the strip (scrolls)")
     return out
