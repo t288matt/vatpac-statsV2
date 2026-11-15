@@ -4,7 +4,7 @@
 --        -v grafana_ro_password="$GRAFANA_RO_PASSWORD" \
 --        -v collector_password="$COLLECTOR_DB_PASSWORD" \
 --        -v backup_password="$BACKUP_DB_PASSWORD" \
---        -v watchdog_password="$WATCHDOG_DB_PASSWORD" -f db/roles.sql
+--        -v watchdog_password="$WATCHDOG_DB_PASSWORD" --        -v stats_loader_password="$STATS_LOADER_DB_PASSWORD" -f db/roles.sql
 --
 -- Safe to re-run (every deploy): it re-applies the grants so objects added by later migrations are
 -- picked up. Roles:
@@ -13,6 +13,8 @@
 --   collector   the application role: SELECT, INSERT, UPDATE on the tables the collector writes (DELETE on poll_log only), USAGE on sequences, EXECUTE
 --               on the maintenance functions. No DDL (the partition functions are SECURITY DEFINER), no
 --               table access to flight_summary (it only EXECUTEs the writer) or views, not a superuser.
+--   stats_loader the ATC stats loader (issue 387): SELECT, INSERT, UPDATE, DELETE on atc_stats_session (DELETE is the retention rule);
+--               SELECT, INSERT, UPDATE on atc_stats_run_log and USAGE on its sequence; nothing else; time zone UTC.
 --   backup_ro   pg_read_all_data (pg_dump); read-only.
 --   watchdog_ro pg_monitor and SELECT on the few tables, views and the one function the watchdog reads; read-only, statement timeout.
 
@@ -31,6 +33,10 @@
 \if :{?watchdog_password}
 \else
     DO $$ BEGIN RAISE EXCEPTION 'psql variable watchdog_password is not set'; END $$;
+\endif
+\if :{?stats_loader_password}
+\else
+    DO $$ BEGIN RAISE EXCEPTION 'psql variable stats_loader_password is not set'; END $$;
 \endif
 
 -- Everything below runs in ONE transaction (issue 84). The grants are re-applied with REVOKE then GRANT on every deploy; run
@@ -120,6 +126,28 @@ GRANT EXECUTE ON FUNCTION
 TO collector;
 
 -- ---------------------------------------------------------------------------------------------
+-- stats_loader (issue 387)
+-- ---------------------------------------------------------------------------------------------
+SELECT format('CREATE ROLE stats_loader LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE', :'stats_loader_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'stats_loader')
+\gexec
+
+SELECT format('ALTER ROLE stats_loader PASSWORD %L', :'stats_loader_password')
+\gexec
+
+-- Every time the loader stores, compares or reports is UTC; the dates it works out must not depend on the server default.
+ALTER ROLE stats_loader SET timezone = 'UTC';
+
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM stats_loader;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM stats_loader;
+REVOKE CREATE ON SCHEMA public FROM stats_loader;
+GRANT USAGE ON SCHEMA public TO stats_loader;
+-- DELETE is a deliberate exception, limited to this one table, for the retention rule.
+GRANT SELECT, INSERT, UPDATE, DELETE ON atc_stats_session TO stats_loader;
+GRANT SELECT, INSERT, UPDATE ON atc_stats_run_log TO stats_loader;
+GRANT USAGE ON SEQUENCE atc_stats_run_log_id_seq TO stats_loader;
+
+-- ---------------------------------------------------------------------------------------------
 -- backup_ro
 -- ---------------------------------------------------------------------------------------------
 SELECT format('CREATE ROLE backup_ro LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE', :'backup_password')
@@ -139,6 +167,7 @@ ALTER ROLE backup_ro SET default_transaction_read_only = on;
 -- flight_summary (the finished flights) and reference_data_change are for the scheduled invariant sweep and archive cross-check
 -- (ops/audit/invariants.sql, issue 20); the two read-only views ops_setting and ops_pending_flight and the function ops_setting_num
 -- behind them show the flight settings and the pending-flight rule without a right on app_setting (issues 200 and 238).
+-- atc_stats_run_log is for the stats_loader check (issue 387).
 SELECT format('CREATE ROLE watchdog_ro LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE', :'watchdog_password')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'watchdog_ro')
 \gexec
@@ -153,7 +182,7 @@ GRANT USAGE ON SCHEMA public TO watchdog_ro;
 GRANT pg_monitor TO watchdog_ro;
 SELECT format('GRANT SELECT ON %I TO watchdog_ro', t)
   FROM unnest(ARRAY['poll_log', 'network_snapshot', 'controller_unlisted_callsign', 'pilot_session', 'controller_session',
-                'pilot_position', 'flight_summary', 'drop_gate_refusal', 'reference_data_change', 'ops_setting', 'ops_pending_flight']) AS t
+                'pilot_position', 'flight_summary', 'drop_gate_refusal', 'reference_data_change', 'ops_setting', 'ops_pending_flight', 'atc_stats_run_log']) AS t
  WHERE to_regclass('public.' || t) IS NOT NULL
 \gexec
 -- a view calls its functions with the rights of the role that queries it, so the two ops_* views need this one function (it answers for the
