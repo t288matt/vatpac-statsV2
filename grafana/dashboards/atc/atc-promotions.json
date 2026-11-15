@@ -59,7 +59,7 @@
       "id": 2,
       "type": "text",
       "title": "Controller promotions",
-      "description": "How a promotion is counted. Ranks on the ladder are S1, S2, S3, C1 and C3; instructor, supervisor and observer ratings are ignored. Only logons longer than 20 minutes count; shorter ones are treated as accidental logons at the wrong rank. A promotion is the first qualifying logon at a rating higher than any earlier qualifying logon, and the controller must have a qualifying logon at a lower rating in the 60 days before it. A first ever qualifying logon at S1 counts as a promotion to S1 (shown as new); a first ever logon above S1 does not (a visitor or transfer). If a rank is skipped it counts as one promotion, at the new rank. Each rank counts once per controller, so a temporary drop and return is not a promotion. The date is the first qualifying logon at the new rating; the real promotion happened on or before it. Times are UTC.",
+      "description": "How a promotion is counted. Ranks on the ladder are S1, S2, S3, C1 and C3; instructor, supervisor and observer ratings are ignored. Only logons longer than 20 minutes count. Shorter logons are ignored: they are usually a mistake, such as logging on at the wrong rating. A promotion is the first logon longer than 20 minutes at a rating higher than any earlier one, and the controller must have had a logon longer than 20 minutes at a lower rating in the 60 days before it. A first ever logon longer than 20 minutes at S1 counts as a promotion to S1 (shown as new); a first ever logon above S1 does not (a visitor or transfer). If a rank is skipped it counts as one promotion, at the new rank. Each rank counts once per controller, so a temporary drop and return is not a promotion. The date is the first logon longer than 20 minutes at the new rating; the real promotion happened on or before it. Times are UTC.",
       "gridPos": {
         "x": 0,
         "y": 8,
@@ -330,7 +330,7 @@
       "id": 7,
       "type": "barchart",
       "title": "Promotions to S1 per month",
-      "description": "Controllers promoted to S1 in each calendar month (UTC) of the selected period, counted by the date of the first qualifying logon at S1. Months with no promotions show as zero. The latest month is partial: it counts only the days so far. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to S1 in each calendar month (UTC) of the selected period, counted by the date of the first logon longer than 20 minutes at S1. Months with no promotions show as zero. The latest month is partial: it counts only the days so far. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -394,7 +394,7 @@
       "id": 8,
       "type": "barchart",
       "title": "Promotions to S2 per month",
-      "description": "Controllers promoted to S2 in each calendar month (UTC) of the selected period, counted by the date of the first qualifying logon at S2. Months with no promotions show as zero. The latest month is partial: it counts only the days so far. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to S2 in each calendar month (UTC) of the selected period, counted by the date of the first logon longer than 20 minutes at S2. Months with no promotions show as zero. The latest month is partial: it counts only the days so far. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -458,7 +458,7 @@
       "id": 9,
       "type": "barchart",
       "title": "Promotions to S3 per month",
-      "description": "Controllers promoted to S3 in each calendar month (UTC) of the selected period, counted by the date of the first qualifying logon at S3. Months with no promotions show as zero. The latest month is partial: it counts only the days so far. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to S3 in each calendar month (UTC) of the selected period, counted by the date of the first logon longer than 20 minutes at S3. Months with no promotions show as zero. The latest month is partial: it counts only the days so far. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -522,7 +522,7 @@
       "id": 10,
       "type": "barchart",
       "title": "Promotions to C1 per month",
-      "description": "Controllers promoted to C1 in each calendar month (UTC) of the selected period, counted by the date of the first qualifying logon at C1. Months with no promotions show as zero. The latest month is partial: it counts only the days so far. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to C1 in each calendar month (UTC) of the selected period, counted by the date of the first logon longer than 20 minutes at C1. Months with no promotions show as zero. The latest month is partial: it counts only the days so far. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -586,7 +586,7 @@
       "id": 11,
       "type": "barchart",
       "title": "Promotions to C3 per month",
-      "description": "Controllers promoted to C3 in each calendar month (UTC) of the selected period, counted by the date of the first qualifying logon at C3. Months with no promotions show as zero. The latest month is partial: it counts only the days so far. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to C3 in each calendar month (UTC) of the selected period, counted by the date of the first logon longer than 20 minutes at C3. Months with no promotions show as zero. The latest month is partial: it counts only the days so far. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -650,7 +650,7 @@
       "id": 12,
       "type": "table",
       "title": "Recent promotions",
-      "description": "Each promotion in the selected time range, newest first: the date (UTC) of the first qualifying logon at the new rating, the controller's name (the CID where no name is known), the CID, the rank held before (new = first ever S1 logon) and the new rank. Names and CIDs are public VATSIM data. At most 500 rows.",
+      "description": "Each promotion in the selected time range, newest first: the date (UTC) of the first logon longer than 20 minutes at the new rating, the controller's name (the CID where no name is known), the CID, the rank held before (new = first ever S1 logon) and the new rank. Names and CIDs are public VATSIM data. At most 500 rows.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -711,7 +711,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "- The latest month is partial: it counts only the days so far.\n- A promotion after more than 60 days with no qualifying logon at a lower rating is not counted (a long break before the promotion hides it).\n- The database starts on 31-08-2025, so the first months have no earlier history.\n- New S1 controllers are counted from their first logon, which can be after the day they passed.\n- The date is the first qualifying logon at the new rating; the real promotion happened on or before it."
+        "content": "- The latest month is partial: it counts only the days so far.\n- A promotion after more than 60 days with no logon longer than 20 minutes at a lower rating is not counted (a long break before the promotion hides it).\n- The database starts on 31-08-2025, so the first months have no earlier history.\n- New S1 controllers are counted from their first logon, which can be after the day they passed.\n- The date is the first logon longer than 20 minutes at the new rating; the real promotion happened on or before it."
       }
     }
   ]
