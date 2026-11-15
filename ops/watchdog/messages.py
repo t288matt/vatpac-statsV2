@@ -310,6 +310,19 @@ def _identity_flap(level: str, facts: Facts) -> str:  # facts: query_failed
             "inflated. Not urgent today, but an engineer should look (the exact command is in docs/RUNBOOKS/alerts.md on the VM, under identity_flap).")
 
 
+def _stats_loader(level: str, facts: Facts) -> str:  # facts: state, one of failed, interrupted, no_good_run, query_failed
+    state = facts.get("state")
+    if state == "query_failed":
+        return "The check on the ATC statistics loader could not run. An engineer should look at it; no action needed today."
+    if state == "no_good_run":
+        return ("The ATC statistics loader has not loaded any data for over 36 hours. Live flight collection and the dashboards are "
+                "not affected, but the controller session history is falling behind. An engineer should look today "
+                "(docs/RUNBOOKS/alerts.md on the VM, under stats_loader).")
+    what = "was cut off before it finished" if state == "interrupted" else "failed"
+    return (f"The last run of the ATC statistics loader {what}. It tries again by itself at its next run, so nothing is lost. "
+            "Not urgent, but an engineer should look if this does not clear within a day (docs/RUNBOOKS/alerts.md on the VM, under stats_loader).")
+
+
 def _feed_archive(level: str, facts: Facts) -> str:
     return ("The safety copy of the raw VATSIM data (the archive) has stopped being written. Live collection is not affected. "
             "Check the disk space and the collector log (see docs/RUNBOOKS/feed-archive.md on the VM).")
@@ -426,6 +439,7 @@ _CHECKS: dict[str, tuple[Callable[[str, Facts], str], str]] = {
     "telegram_outbox": (_telegram_outbox, "Alert messages are reaching Telegram again."),
     "restore_test": (_restore_test, "The weekly backup restore test is in order again."),
     "identity_flap": (_identity_flap, "No duplicated sessions are left in the last 24 hours."),
+    "stats_loader": (_stats_loader, "The ATC statistics loader is loading days again."),
     "feed_archive": (_feed_archive, "The raw-data archive is being written again."),
     "data_integrity": (_data_integrity, "The routine data check is clean again."),
     "feed_crosscheck": (_feed_crosscheck, "The cross-check against saved raw data is clean again."),

@@ -163,7 +163,8 @@ def check_db(cfg: Config) -> dict[str, Result]:
             row = cur.fetchone()
             gb = (int(row[0]) if row else 0) / 1024**3
             out["db_size"] = db_size_level(gb, cfg.db_max_gb)
-            out["identity_flap"] = check_identity_flap(cur)  # last, so a failure here cannot hide the checks above
+            out["identity_flap"] = check_identity_flap(cur)
+            out["stats_loader"] = check_stats_loader(cur)  # last, so a failure here cannot hide the checks above
         out["database"] = (OK, "reachable")
     except psycopg.Error as exc:
         out["database"] = (CRIT, f"query/connect failed ({type(exc).__name__})")
@@ -217,6 +218,42 @@ def check_identity_flap(cur: Any) -> Result:
         return flap_level(counts["pilot"], counts["controller"], min(firsts) if firsts else None)
     except (psycopg.Error, OSError) as exc:
         return Checked(WARN, f"identity-flap query failed ({type(exc).__name__})", query_failed=True)
+
+
+# The ATC stats loader (issue 387) is seen from the database only: the watchdog has no Docker access and never restarts anything.
+# Good = a run finished successfully in the last 36 hours, or a run in progress wrote a day in that time (the loader's own
+# healthcheck uses the same rule). A stopped run (a deploy or a restart) never warns.
+STATS_GOOD_HOURS = 36
+_STATS_SQL = """
+SELECT (SELECT status FROM atc_stats_run_log WHERE status <> 'running' ORDER BY id DESC LIMIT 1),
+       EXISTS (SELECT 1 FROM atc_stats_run_log
+               WHERE (status = 'success' AND finished_at > now() - make_interval(hours => %(h)s))
+                  OR (status = 'running' AND last_day_at > now() - make_interval(hours => %(h)s))),
+       (SELECT EXTRACT(EPOCH FROM now() - max(finished_at)) / 3600 FROM atc_stats_run_log WHERE status = 'success')
+"""
+
+
+def stats_loader_level(newest_finished: str | None, good_run: bool, hours_since_success: float | None) -> Result:
+    """CRIT with no good run in the last 36 hours; else WARN while the newest finished run is interrupted or failed; else OK."""
+    if not good_run:
+        since = f"{hours_since_success:.0f} h ago" if hours_since_success is not None else "never"
+        return Checked(CRIT, f"no successful run and no run writing days in the last {STATS_GOOD_HOURS} h (last success {since}); "
+                             f"newest finished run: {newest_finished or 'none'}", state="no_good_run", hours=STATS_GOOD_HOURS)
+    if newest_finished in ("interrupted", "failed"):
+        return Checked(WARN, f"the newest finished run is {newest_finished}", state=newest_finished)
+    return OK, "the loader is loading days"
+
+
+def check_stats_loader(cur: Any) -> Result:
+    """Read atc_stats_run_log on an open cursor (role watchdog_ro has SELECT on it, db/roles.sql)."""
+    try:
+        cur.connection.rollback()  # an earlier failed query on this connection must not make this one fail too
+        cur.execute(_STATS_SQL, {"h": STATS_GOOD_HOURS})
+        row = cur.fetchone()
+        newest, good, hours = (row[0], bool(row[1]), float(row[2]) if row[2] is not None else None) if row else (None, False, None)
+        return stats_loader_level(newest, good, hours)
+    except psycopg.Error as exc:
+        return Checked(WARN, f"stats loader run-log query failed ({type(exc).__name__})", state="query_failed")
 
 
 def check_archive(body: dict[str, Any] | None, collector_ok: bool) -> Result:
