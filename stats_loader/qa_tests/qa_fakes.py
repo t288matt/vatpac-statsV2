@@ -98,6 +98,9 @@ class FakeApi:
         self.extra_count: dict[date, int] = {}  # days whose count is wrong by this much in every window
         self.drift: Callable[[int, int], int] | None = None  # (request number, count) -> count reported
         self.on_request: Callable[[Req], None] | None = None
+        self.repeat_pages = False  # a hostile API: every page is the first page, whatever the offset
+        self.cap_after_first: int | None = None  # pages after the first return at most this many items
+        self.garbage = 0  # answer this many requests with HTTP 200 and a body that is not the expected JSON
         self.stop_at_request: tuple[int, threading.Event] | None = None
         self.client = httpx.Client(transport=httpx.MockTransport(self._handle), timeout=30.0)
 
@@ -134,6 +137,10 @@ class FakeApi:
             if self.timeout_mode == "504":
                 return httpx.Response(504, request=req)
             raise httpx.ReadTimeout("no answer in 30 s", request=req)
+        if self.garbage:
+            self.garbage -= 1
+            self._answer(200, req, start, end, offset, limit)
+            return httpx.Response(200, text="<html>not json</html>", request=req)
         number = self.n + 1
         hit = sorted((s for s in self.sessions if start <= s.start <= end), key=lambda s: (-s.start.timestamp(), s.id))
         if self.shift_always or (self.shift_over_hour and long_window):
@@ -141,7 +148,7 @@ class FakeApi:
         count = len(hit) + self.extra_count.get(start.date(), 0)
         if self.drift:
             count = self.drift(number, count)
-        page = hit[offset: offset + min(limit, self.cap or limit)]
+        page = hit[0 if self.repeat_pages else offset: (0 if self.repeat_pages else offset) + min(limit, (self.cap_after_first if offset > 0 and self.cap_after_first else self.cap) or limit)]
         r = Req(self.clock.monotonic(), start, end, offset, limit, 200)
         self.log.append(r)
         if self.on_request:
