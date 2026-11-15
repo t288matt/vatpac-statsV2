@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Fixtures for the independent QA tests (issue 387). A throwaway Postgres is needed for the database tests."""
 
 from __future__ import annotations

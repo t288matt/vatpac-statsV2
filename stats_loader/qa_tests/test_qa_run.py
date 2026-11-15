@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """QA: whole runs against a throwaway Postgres: loading order, retention, failure and stop rules, run log, idempotence."""
 
 from __future__ import annotations
@@ -235,9 +236,10 @@ def test_a_failure_in_the_middle_of_a_day_leaves_nothing_of_that_day(conn: psyco
 
 
 def test_a_whole_day_is_written_in_one_transaction_in_the_store(conn: psycopg.Connection, su: psycopg.Connection) -> None:
+    from qa_fakes import item
+
     from vatsim_stats import store
     from vatsim_stats.api import parse_session
-    from qa_fakes import item
 
     rows = [parse_session(item(make(i, at(date(2026, 11, 14), 3, i)))) for i in (1, 2, 3)]
     rows[2]["cid"] = None  # the third row breaks a NOT NULL

@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """QA: window edges, the count check, paging, timeouts, the 5-second rule. From the design; no database."""
 
 from __future__ import annotations
@@ -8,6 +9,7 @@ from typing import Any
 import httpx
 import pytest
 from qa_fakes import FakeApi, FakeClock, Req, at, gaps, make
+
 from vatsim_stats.api import Api, RateLimited, ServerErrors
 from vatsim_stats.windows import DayFailed, fetch_day
 

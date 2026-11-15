@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Independent fake VATSIM history API and fake clock, written from the approved design (version 4), not from the builders' code.
 
 The fake behaves as measured on 15-11-2026: both window ends inclusive, whole-second starts, newest first, `count` for the
@@ -14,6 +15,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
 import httpx
+
 from vatsim_stats.api import Api, Clock, Stopped
 
 UTC_NOW = datetime(2026, 11, 15, 6, 0, 0, tzinfo=UTC)

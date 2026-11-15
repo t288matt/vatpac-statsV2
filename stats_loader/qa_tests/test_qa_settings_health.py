@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """QA: settings (whole numbers, the 5-second floor, refusing to start) and the healthcheck rule."""
 
 from __future__ import annotations
@@ -6,6 +7,7 @@ from datetime import UTC, datetime, time, timedelta
 
 import psycopg
 import pytest
+
 from vatsim_stats import app, settings
 
 ENV = {"DATABASE_URL": "postgresql://x", "STATS_RUN_AT": "06:00", "STATS_MIN_INTERVAL_SECONDS": "5", "STATS_PAGE_SIZE": "5000",

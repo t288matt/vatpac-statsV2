@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Small helpers shared by the QA tests."""
 
 from __future__ import annotations
@@ -7,6 +8,7 @@ from typing import Any
 
 import psycopg
 from qa_fakes import FakeApi, FakeClock, Sess, make
+
 from vatsim_stats import app, settings
 
 TODAY = date(2026, 11, 15)
