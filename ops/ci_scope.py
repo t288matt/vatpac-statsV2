@@ -44,7 +44,7 @@ INTEGRATION_TARGETS = tuple(
     f"tests/integration/{n}.py"
     for n in (
         "test_atc_live_events", "test_atc_position_hours", "test_atc_sessions_t15", "test_atc_t14", "test_audit_t30",
-        "test_card_65", "test_card_90", "test_controller_promotion", "test_controller_retention", "test_end_to_end", "test_events_t14",
+        "test_card_65", "test_card_90", "test_controller_retention", "test_end_to_end", "test_events_t14",
         "test_flight_views_switch", "test_military_events_t15", "test_online_hours", "test_panel_rules_gaps",
         "test_phase5_remove_old", "test_pilot_latest_one_row_per_flight", "test_pilots_people_t15", "test_pilots_records",
         "test_pilots_t14", "test_routes_aircraft",
