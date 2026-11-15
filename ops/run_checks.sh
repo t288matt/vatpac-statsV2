@@ -36,7 +36,7 @@ ck_mypy_ops() {
   need $PY -m mypy --version && $PY -m mypy --strict --ignore-missing-imports \
     ops/watchdog/watchdog.py ops/watchdog/integrity.py ops/watchdog/messages.py ops/check_config_drift.py ops/check_size_budget.py \
     ops/check_panels.py ops/grafana_public.py ops/grafana_api.py ops/env_file.py ops/ci_scope.py ops/check_skips.py \
-    ops/check_tool_versions.py ops/backfill_rating_history.py
+    ops/check_tool_versions.py ops/backfill_rating_history.py ops/download_member_atc_history.py
 }
 ck_shell_syntax() {
   rc=0
