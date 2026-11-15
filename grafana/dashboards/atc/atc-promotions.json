@@ -59,7 +59,7 @@
       "id": 2,
       "type": "text",
       "title": "Controller promotions",
-      "description": "How a promotion is counted. Ranks on the ladder are S1, S2, S3, C1 and C3; instructor, supervisor and observer ratings are ignored. Only logons longer than 20 minutes count. Shorter logons are ignored: they are usually a mistake, such as logging on at the wrong rating. A promotion is the first logon longer than 20 minutes at a rating higher than any earlier one, and the controller must have had a logon longer than 20 minutes at a lower rating in the 60 days before it. A first ever logon longer than 20 minutes at S1 counts as a promotion to S1 (shown as new); a first ever logon above S1 does not (a visitor or transfer). If a rank is skipped it counts as one promotion, at the new rank. Each rank counts once per controller, so a temporary drop and return is not a promotion. The date is the first logon longer than 20 minutes at the new rating; the real promotion happened on or before it. Times are UTC.",
+      "description": "How a promotion is counted. Ranks on the ladder are S1, S2, S3, C1 and C3; instructor, supervisor and observer ratings are ignored. Only logons longer than 20 minutes count. Shorter logons are ignored: they are usually a mistake, such as logging on at the wrong rating. A promotion is the first logon longer than 20 minutes at a rating higher than any earlier one, and the controller must have had a logon longer than 20 minutes at a lower rating in the 60 days before it. A promotion needs an earlier logon longer than 20 minutes at a lower rank, so a controller's first logon on record is never counted. Promotions to S1 are not measured: observer logons are not recorded, so a new S1 cannot be told apart from an S1 returning after a break. If a rank is skipped it counts as one promotion, at the new rank. Each rank counts once per controller, so a temporary drop and return is not a promotion. The date is the first logon longer than 20 minutes at the new rating; the real promotion happened on or before it. Times are UTC.",
       "gridPos": {
         "x": 0,
         "y": 8,
@@ -261,7 +261,7 @@
       "id": 6,
       "type": "timeseries",
       "title": "All promotions per month",
-      "description": "The number of promotions in each calendar month (UTC): the sum of the five rank charts below. Months with none show as zero. The latest month is partial: it counts only the days so far.",
+      "description": "The number of promotions in each calendar month (UTC): the sum of the four rank charts below. Months with none show as zero. The latest month is partial: it counts only the days so far.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -327,70 +327,6 @@
       }
     },
     {
-      "id": 7,
-      "type": "barchart",
-      "title": "Promotions to S1 per month",
-      "description": "Controllers promoted to S1 in each calendar month (UTC) of the selected period, counted by the date of the first logon longer than 20 minutes at S1. Months with no promotions show as zero. The latest month is partial: it counts only the days so far. How a promotion is counted: see the information icon at the top of the page.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "vatpac"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 22,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "vatpac"
-          },
-          "refId": "A",
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "WITH months AS (\n  SELECT g.m AS month_start\n  FROM generate_series(date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n                       date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC'), interval '1 month') AS g(m)\n),\np AS (\n  SELECT date_trunc('month', promoted_at AT TIME ZONE 'UTC') AS month_start, count(*) AS n\n  FROM controller_promotion\n  WHERE to_rank = 'S1' AND promoted_at BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY 1\n)\nSELECT to_char(m.month_start, 'YYYY-MM') AS month, coalesce(p.n, 0) AS promotions\nFROM months m LEFT JOIN p ON p.month_start = m.month_start\nORDER BY m.month_start"
-        }
-      ],
-      "options": {
-        "xField": "month",
-        "showValue": "always",
-        "orientation": "vertical",
-        "barWidth": 0.8,
-        "groupWidth": 0.8,
-        "legend": {
-          "showLegend": false,
-          "displayMode": "list",
-          "placement": "bottom",
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#3AA0DD"
-          },
-          "unit": "none",
-          "decimals": 0,
-          "custom": {
-            "fillOpacity": 85,
-            "gradientMode": "none",
-            "lineWidth": 0,
-            "axisSoftMin": 0,
-            "axisPlacement": "auto"
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
       "id": 8,
       "type": "barchart",
       "title": "Promotions to S2 per month",
@@ -400,7 +336,7 @@
         "uid": "vatpac"
       },
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 22,
         "w": 12,
         "h": 8
@@ -464,8 +400,8 @@
         "uid": "vatpac"
       },
       "gridPos": {
-        "x": 0,
-        "y": 30,
+        "x": 12,
+        "y": 22,
         "w": 12,
         "h": 8
       },
@@ -528,7 +464,7 @@
         "uid": "vatpac"
       },
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 30,
         "w": 12,
         "h": 8
@@ -592,8 +528,8 @@
         "uid": "vatpac"
       },
       "gridPos": {
-        "x": 0,
-        "y": 38,
+        "x": 12,
+        "y": 30,
         "w": 12,
         "h": 8
       },
@@ -650,14 +586,14 @@
       "id": 12,
       "type": "table",
       "title": "Recent promotions",
-      "description": "Each promotion in the selected time range, newest first: the date (UTC) of the first logon longer than 20 minutes at the new rating, the controller's name (the CID where no name is known), the CID, the rank held before (new = first ever S1 logon) and the new rank. Names and CIDs are public VATSIM data. At most 500 rows.",
+      "description": "Each promotion in the selected time range, newest first: the date (UTC) of the first logon longer than 20 minutes at the new rating, the controller's name (the CID where no name is known), the CID, the rank held before and the new rank. Names and CIDs are public VATSIM data. At most 500 rows.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
       },
       "gridPos": {
         "x": 0,
-        "y": 46,
+        "y": 38,
         "w": 24,
         "h": 12
       },
@@ -705,13 +641,13 @@
       "title": "Known limits",
       "gridPos": {
         "x": 0,
-        "y": 58,
+        "y": 50,
         "w": 24,
         "h": 5
       },
       "options": {
         "mode": "markdown",
-        "content": "- The latest month is partial: it counts only the days so far.\n- A promotion after more than 60 days with no logon longer than 20 minutes at a lower rating is not counted (a long break before the promotion hides it).\n- The database starts on 31-08-2025, so the first months have no earlier history.\n- New S1 controllers are counted from their first logon, which can be after the day they passed.\n- The date is the first logon longer than 20 minutes at the new rating; the real promotion happened on or before it."
+        "content": "- The latest month is partial: it counts only the days so far.\n- A promotion after more than 60 days with no logon longer than 20 minutes at a lower rating is not counted (a long break before the promotion hides it).\n- The database starts on 31-08-2025, so the first months have no earlier history.\n- Promotions to S1 are not measured: observer logons are not recorded, so a new S1 cannot be told apart from an S1 returning after a break.\n- A controller's first logon on record is never counted, so new controllers, visitors and transfers do not appear here.\n- The date is the first logon longer than 20 minutes at the new rating; the real promotion happened on or before it."
       }
     }
   ]
