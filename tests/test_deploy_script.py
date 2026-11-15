@@ -76,6 +76,7 @@ echo "docker $*" >> "$FAKE_DIR/docker.log"
 brk() { case ",$FAKE_BREAK," in *,"$1",*) return 0 ;; esac; return 1; }
 case "$*" in
   "compose ps -aq") echo c1; echo c2 ;;
+  "compose config --services") brk services && exit 1; cat "$FAKE_DIR/services.txt" ;;
   "manifest inspect"*) echo "$*" >> "$FAKE_DIR/manifest.log"; brk manifest && exit 1
     [ -n "${FAKE_MANIFEST_MISSING:-}" ] && case "$*" in *"$FAKE_MANIFEST_MISSING"*) exit 1 ;; esac; exit 0 ;;
   inspect*RepoDigests*) brk digest && exit 1; for a; do last="$a"; done; case "$last" in *nodigest*) exit 1 ;; esac; echo "${last%%:*}@sha256:fake-${last##*:}" ;;
@@ -106,6 +107,7 @@ def _inspect(restarts: str = "0", health: str = "healthy", loader_health: str = 
     return "\n".join(rows) + "\n"
 
 
+SERVICES_WITH_LOADER = "db\ncollector\ngrafana\nbackup\nwatchdog\nvatsim-atc-stats\nmigrate\n"
 PFX = "ghcr.io/t288matt/"
 TAG7 = "sha-" + FULL[:7]
 
@@ -152,6 +154,8 @@ class Fake:
         w("df.txt", "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda2 206099468 22795560 174375024 12% /\n")
         w("inspect.txt", _inspect())
         w("psa.txt", "vatpac-db-1\nvatpac-collector-1\nvatpac-migrate-1\n")
+        # the VM's compose services today: the stats loader is not among them before its first deploy
+        w("services.txt", "db\ncollector\ngrafana\nbackup\nwatchdog\nmigrate\n")
         w("dump.txt", f"{NOW - 3600}.7457417320 5363183 vatpac_20261010T020000Z.dump\nvalid\n")
         w("smoke.txt", "PASS  container healthy: db\nPASS  grafana\nSMOKE PASS\n")
         w("panels.txt", "grafana health: HTTP 200 ok\npanel queries: 79 with rows, 5 empty, 0 errors\n")
@@ -224,7 +228,8 @@ SCENARIOS = [
     ("pre", "load", "FAIL", lambda f: f.write("loadavg", "3.20 1.00 1.00 1/2 3\n")),
     ("pre", "disk_free", "FAIL", lambda f: f.write("df.txt", "h\n/dev/sda2 100 90 10 95% /\n")),
     ("pre", "containers_healthy", "FAIL", lambda f: f.write("inspect.txt", _inspect(health="unhealthy"))),
-    ("pre", "containers_healthy", "FAIL", lambda f: f.write("inspect.txt", _inspect(loader_health="unhealthy"))),  # the stats loader is walked too
+    ("pre", "containers_healthy", "FAIL", lambda f: (f.write("inspect.txt", _inspect(loader_health="unhealthy")),
+                                                                         f.write("services.txt", SERVICES_WITH_LOADER))),  # walked once the VM runs it
     ("pre", "restart_counts", "FAIL", lambda f: f.write("inspect.txt", _inspect(restarts="1"))),
     ("pre", "backup_window", "FAIL", lambda f: f.set(FAKE_NOW=_at(2, 0))),
     ("pre", "foreign_containers", "FAIL", lambda f: f.write("psa.txt", "vatpac-db-1\nreplayfuzz-pg\n")),

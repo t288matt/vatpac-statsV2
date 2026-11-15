@@ -12,7 +12,8 @@
 #       running collector image (first 12 characters), or local, or unknown>. The release file itself keeps its three lines.
 # Registry mode (VATPAC_IMAGE_PREFIX set in the VM's .env, issue 173): the tag defaults to `latest`, which the release workflow
 # moves to the newest published commit (no .env edit per deploy; a VATPAC_IMAGE_TAG=sha-<7> line is only a deliberate rollback pin).
-# --preflight checks the five images exist for the commit and WARNs loudly about a sha pin;
+# --preflight checks the five images exist for the commit and WARNs loudly about a sha pin, and that each service the VM runs
+# today is healthy (a service that is new in the commit is not missing);
 # --verify checks each container's image revision label against the VM
 # checkout; --status prints the images. Local mode (neither set) skips these checks. Only the two key names are read from .env.
 # It never starts, stops, builds or restarts anything and never prints .env values. The owner's explicit go for each
@@ -203,14 +204,27 @@ load_image_keys() {
 # svc_line <service>: the inspect line of the service's container
 svc_line() { printf '%s\n' "$CONTAINERS" | grep -E "^/vatpac-$1-[0-9]+\|" | head -n 1; }
 
-check_healthy() {
-  local bad="" svc l h
-  [ -n "$CONTAINERS" ] || { emit FAIL containers_healthy "could not read the container list"; return; }
+# vm_services <list>: those of the SERVICES that the VM's own compose file defines TODAY (its checkout is still the old commit before a
+# deploy), so a service that is new in the commit being deployed is not "missing" in a preflight. Empty output = could not be read.
+vm_services() {
+  local defined svc out=""
+  defined="$(vm 'docker compose config --services' 2>/dev/null | tr -d '\r')"
   for svc in $SERVICES; do
+    printf '%s\n' "$defined" | grep -qx "$svc" && out="$out $svc"
+  done
+  printf '%s' "${out# }"
+}
+
+# check_healthy [<services>]: every named service (default: all of SERVICES) must be healthy; the preflight passes the VM's current ones
+check_healthy() {
+  local bad="" svc l h list="${1-$SERVICES}"
+  [ -n "$CONTAINERS" ] || { emit FAIL containers_healthy "could not read the container list"; return; }
+  [ -n "$list" ] || { emit FAIL containers_healthy "could not read the VM's service list"; return; }
+  for svc in $list; do
     l="$(svc_line "$svc")"; h="$(printf '%s' "$l" | cut -d'|' -f4)"
     [ "$h" = healthy ] || bad="$bad $svc=${h:-missing}"
   done
-  if [ -z "$bad" ]; then emit PASS containers_healthy "all of: $SERVICES"; else emit FAIL containers_healthy "not healthy:$bad"; fi
+  if [ -z "$bad" ]; then emit PASS containers_healthy "all of: $list"; else emit FAIL containers_healthy "not healthy:$bad"; fi
 }
 
 REGISTRY_SERVICES="collector watchdog backup migrate loader"
@@ -332,7 +346,7 @@ preflight() {
   esac
 
   load_containers
-  check_healthy
+  check_healthy "$(vm_services)"   # the stack running now, not the one about to be deployed
   check_restarts
 
   # backup window: BACKUP_TIME_UTC from the VM's .env if set (only that one value is read, and only an HH:MM is ever used)
