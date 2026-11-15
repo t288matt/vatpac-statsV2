@@ -31,6 +31,7 @@ DATA_TABLES = [
     "pilot_position", "pilot_session", "controller_rating_event", "controller_frequency_event",
     "controller_session", "network_snapshot", "poll_log", "controller_unlisted_callsign",
     "reference_data_change", "flight_summary", "drop_gate_refusal", "system_sample",
+    "controller_rating_first_seen", "controller_rating_backfill",
 ]
 
 

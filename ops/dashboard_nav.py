@@ -31,7 +31,7 @@ MIN_HEADER_HEIGHT: dict[str, int] = {
     "atc-position-hours.json": 4,
     "atc-positions.json": 4,
     "atc-ranks.json": 5,
-    "atc-promotions.json": 5,
+    "atc-promotions.json": 3,
     "atc-retention.json": 3,
     "pilot-origins.json": 3,
     "monday-events.json": 3,
