@@ -96,6 +96,7 @@ def conn(dsn: str) -> Iterator[Any]:
 @pytest.fixture()
 def loader_conn(conn: Any) -> Iterator[Any]:
     """The same connection acting as the stats_loader role: tests pass only with the rights the role really has."""
+    conn.execute("SET synchronous_commit = off")  # the retention tests write a thousand days; fsync on a laptop is slow
     conn.execute("SET ROLE stats_loader")
     try:
         yield conn

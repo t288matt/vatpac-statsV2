@@ -69,12 +69,12 @@ def test_server_error_count_is_reset_by_a_good_answer(fake: FakeApi, clock: Fake
 
 def test_a_timeout_is_not_a_server_error(fake: FakeApi, clock: FakeClock) -> None:
     api = make(fake, clock)
-    fake.script = [500, 500, "timeout", 504]
-    with pytest.raises(WindowTimeout):
-        api.page(S, E, 0)
-    with pytest.raises(WindowTimeout):
-        api.page(S, E, 0)  # HTTP 504 is a timeout too
-    assert api.page(S, E, 0) == (0, [])  # the two server errors were never three in a row
+    fake.script = [504, "timeout", 504]
+    for _ in range(3):
+        with pytest.raises(WindowTimeout):  # HTTP 504 and no answer in time both mean "the window is too long"
+            api.page(S, E, 0)
+    fake.script = [500, 500]
+    assert api.page(S, E, 0) == (0, [])  # three timeouts did not count: two server errors are still not three
 
 
 def test_a_stop_signal_ends_the_wait_and_sends_no_request(fake: FakeApi, clock: FakeClock) -> None:

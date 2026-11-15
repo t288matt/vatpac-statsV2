@@ -8,6 +8,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from functools import cache
 from typing import Any
 
 import httpx
@@ -119,4 +120,9 @@ class FakeApi:
 
 
 def _start(item: dict[str, Any]) -> datetime:
-    return datetime.fromisoformat(item["connection_id"]["start"])
+    return _parse(item["connection_id"]["start"])
+
+
+@cache
+def _parse(text: str) -> datetime:
+    return datetime.fromisoformat(text)

@@ -35,13 +35,10 @@ def write_day(conn: psycopg.Connection[Any], rows: list[dict[str, Any]]) -> tupl
     """Upsert a whole day in ONE transaction: it is all in the table or none of it. Returns (inserted, updated)."""
     inserted = updated = 0
     with conn.transaction(), conn.cursor() as cur:
-        cur.executemany(_UPSERT, rows, returning=True)
-        while True:
-            row = cur.fetchone()
-            if row:
-                inserted, updated = inserted + bool(row[0]), updated + (not row[0])
-            if not cur.nextset():
-                break
+        for row in rows:
+            changed = cur.execute(_UPSERT, row).fetchone()  # no row back: it was there and nothing differed
+            if changed:
+                inserted, updated = inserted + bool(changed[0]), updated + (not changed[0])
     return inserted, updated
 
 
