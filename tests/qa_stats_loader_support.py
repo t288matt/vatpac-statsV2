@@ -91,6 +91,8 @@ def build_db(db: str, *, stop_before_new: bool = False) -> None:
     """A blank database, every migration in order (optionally all but the ATC stats one), then roles.sql."""
     db = dbname(db)
     psql("postgres", f'DROP DATABASE IF EXISTS "{db}" WITH (FORCE); CREATE DATABASE "{db}";')
+    # the non-UTC condition must not depend on the server's default: set it on our own database
+    psql("postgres", f"ALTER DATABASE \"{db}\" SET timezone TO 'Pacific/Auckland';")
     _created.append(db)
     for path in migrations():
         if stop_before_new and path.name == NEW_MIGRATION:
