@@ -64,7 +64,7 @@ To make a full local copy of PRODUCTION for testing (a fresh dump streamed from 
 
 ## Disaster recovery: replace the live database
 Use when the live database is lost or corrupt. Replace `vatpac` with `POSTGRES_DB` if you changed it.
-1. Stop everything that connects: `docker compose stop collector grafana watchdog`. (The restore refuses if any other session remains.)
+1. Stop everything that connects: `docker compose stop collector vatsim-atc-stats grafana watchdog`. (The restore refuses if any other session remains; the ATC stats loader holds one, see [atc-stats-loader.md](atc-stats-loader.md), section 5.)
 2. Restore over the live name:
    ```sh
    make restore FILE=/backups/<file>.dump TARGET=vatpac CONFIRM=vatpac
@@ -96,7 +96,7 @@ Check: `pg_restore -l` prints an archive header (`Archive created at ...`, `dbna
 
 ### 2. Stop what writes to the local database
 ```sh
-docker compose stop collector grafana watchdog
+docker compose stop collector vatsim-atc-stats grafana watchdog
 ```
 `restore.sh` refuses to run while anything else is connected to the target.
 

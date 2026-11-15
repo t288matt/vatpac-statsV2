@@ -34,9 +34,10 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 | [RUNBOOKS/dashboards.md](RUNBOOKS/dashboards.md) | Adding or changing a Grafana dashboard (dashboards are code) | Engineer | CURRENT |
 | [RUNBOOKS/drop-gate-rehearsal.md](RUNBOOKS/drop-gate-rehearsal.md) | The raw-position drop gate (issue 89 phase 4): what it does and how it was rehearsed; live since 13-10-2026 | Engineer | CURRENT |
 | [RUNBOOKS/import-v1-history.md](RUNBOOKS/import-v1-history.md) | One-off load of v1 history (ADR-035; used on 05-11-2026): extract, dry run, apply, verify, roll back, delete the CSV files; the runbook for a repeat or a rollback | Operator, owner | CURRENT |
+| [RUNBOOKS/atc-stats-loader.md](RUNBOOKS/atc-stats-loader.md) | The ATC session history loader (`vatsim-atc-stats`): what it does, the run log and its statuses, the first run, alerts, stop and restart, retention, the rate rule and its password | Operator, owner | CURRENT |
 | [RUNBOOKS/run-tests.md](RUNBOOKS/run-tests.md) | Running the checks and tests safely (throwaway Postgres, caps on the VM) | Engineer, agent | CURRENT |
 | [CONFIG_MAP.md](CONFIG_MAP.md) | Every setting (part A) and how v1 settings map to v3 (part B) | Operator, engineer | CURRENT for deployed settings; enforced in part by `ops/check_config_drift.py` |
-| [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Tables, views, functions, roles and grants; how to refresh it | Engineer, analyst | CURRENT to migration 20261107000010 |
+| [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Tables, views, functions, roles and grants; how to refresh it | Engineer, analyst | CURRENT to migration 20261115000400 |
 
 ## 3. Design and decisions
 
