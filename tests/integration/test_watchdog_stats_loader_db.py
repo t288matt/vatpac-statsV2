@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -31,27 +32,36 @@ ROW = ("INSERT INTO atc_stats_run_log (status, started_at, finished_at, last_day
 def runs(conn):
     conn.execute("TRUNCATE atc_stats_run_log RESTART IDENTITY")
 
+    # The run log may still carry a required column that is being removed; fill it only when it is there, so the test runs either way.
+    extra = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'atc_stats_run_log' "
+                         "AND is_nullable = 'NO' AND column_default IS NULL AND column_name NOT IN ('id')").fetchall()
+    cols = [r["column_name"] for r in extra]
+    sql = ROW.replace("(status, ", "(" + "".join(f"{c}, " for c in cols) + "status, ", 1).replace(
+        "VALUES (", "VALUES (" + "".join("'daily', " for _ in cols), 1) if cols else ROW
+
     def add(status: str, start: float, end: float = 0.0, day: float | None = None) -> None:
-        conn.execute(ROW, {"s": status, "start": start, "end": end, "day": day})
+        conn.execute(sql, {"s": status, "start": start, "end": end, "day": day})
 
     yield add
     conn.execute("TRUNCATE atc_stats_run_log RESTART IDENTITY")
 
 
-def level(conn) -> str:
+def level(conn, first_run: float | None = None) -> str:
     """The check as watchdog_ro, the role the watchdog really connects as."""
     if conn.execute("SELECT 1 FROM pg_roles WHERE rolname = 'watchdog_ro'").fetchone() is None:
         pytest.skip("role watchdog_ro not created (db/roles.sql creates it; see the CI step)")
     conn.execute("SET ROLE watchdog_ro")
     try:
         with conn.cursor(row_factory=psycopg.rows.tuple_row) as cur:
-            return wd.check_stats_loader(cur)[0]
+            return wd.check_stats_loader(cur, first_run)[0]
     finally:
         conn.execute("RESET ROLE")
 
 
-def test_no_run_at_all_is_critical(conn, runs) -> None:
-    assert level(conn) == wd.CRIT
+def test_no_run_at_all_is_ok_for_36_hours_after_the_watchdog_started_then_critical(conn, runs) -> None:
+    now = time.time()
+    assert level(conn, now - 5 * 3600) == wd.OK
+    assert level(conn, now - 40 * 3600) == wd.CRIT
 
 
 def test_a_recent_success_is_ok(conn, runs) -> None:
@@ -87,6 +97,14 @@ def test_a_running_run_counts_only_if_it_wrote_a_day_in_the_last_36_hours(conn, 
     assert level(conn) == wd.OK
     conn.execute("TRUNCATE atc_stats_run_log RESTART IDENTITY")
     runs("running", 100, day=40)         # started long ago and stuck: its last day is older than 36 hours
+    assert level(conn) == wd.CRIT
+
+
+def test_a_running_run_with_no_day_yet_counts_by_its_start_time(conn, runs) -> None:
+    runs("running", 2)                   # started 2 hours ago, no day written yet: not stuck
+    assert level(conn) == wd.OK
+    conn.execute("TRUNCATE atc_stats_run_log RESTART IDENTITY")
+    runs("running", 50)                  # started 50 hours ago and never wrote a day
     assert level(conn) == wd.CRIT
 
 

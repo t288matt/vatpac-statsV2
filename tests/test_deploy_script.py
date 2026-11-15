@@ -98,9 +98,10 @@ GAPS = "snapshot gaps over 5 minutes (last 3 days)"
 NAMES = integrity.invariant_names((REPO / "ops" / "audit" / "invariants.sql").read_text(encoding="utf-8"))
 
 
-def _inspect(restarts: str = "0", health: str = "healthy") -> str:
-    rows = [f"/vatpac-{s}-1|2026-10-09T15:42:07.7Z|{restarts if s == 'collector' else '0'}|{health if s == 'db' else 'healthy'}"
-            for s in ("backup", "collector", "db", "grafana", "watchdog")]
+def _inspect(restarts: str = "0", health: str = "healthy", loader_health: str = "healthy") -> str:
+    rows = [f"/vatpac-{s}-1|2026-10-09T15:42:07.7Z|{restarts if s == 'collector' else '0'}|"
+            f"{health if s == 'db' else loader_health if s == 'vatsim-atc-stats' else 'healthy'}"
+            for s in ("backup", "collector", "db", "grafana", "watchdog", "vatsim-atc-stats")]
     rows.append("/vatpac-migrate-1|2026-10-09T19:13:22.4Z|0|exited")
     return "\n".join(rows) + "\n"
 
@@ -223,6 +224,7 @@ SCENARIOS = [
     ("pre", "load", "FAIL", lambda f: f.write("loadavg", "3.20 1.00 1.00 1/2 3\n")),
     ("pre", "disk_free", "FAIL", lambda f: f.write("df.txt", "h\n/dev/sda2 100 90 10 95% /\n")),
     ("pre", "containers_healthy", "FAIL", lambda f: f.write("inspect.txt", _inspect(health="unhealthy"))),
+    ("pre", "containers_healthy", "FAIL", lambda f: f.write("inspect.txt", _inspect(loader_health="unhealthy"))),  # the stats loader is walked too
     ("pre", "restart_counts", "FAIL", lambda f: f.write("inspect.txt", _inspect(restarts="1"))),
     ("pre", "backup_window", "FAIL", lambda f: f.set(FAKE_NOW=_at(2, 0))),
     ("pre", "foreign_containers", "FAIL", lambda f: f.write("psa.txt", "vatpac-db-1\nreplayfuzz-pg\n")),

@@ -33,7 +33,7 @@ FAIL_GAP_S=300     # a polling gap above this is a FAIL
 MAX_LOAD="${DEPLOY_MAX_LOAD:-2.0}"
 CMD_TIMEOUT="${DEPLOY_CMD_TIMEOUT:-60}"
 LOG_SINCE="${DEPLOY_LOG_SINCE:-6h}"
-SERVICES="db collector grafana backup watchdog"
+SERVICES="db collector grafana backup watchdog vatsim-atc-stats"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY=python; command -v python >/dev/null 2>&1 || PY=python3   # counts the invariant pack with ops/watchdog/integrity.py (stdlib only, no psycopg needed)
 EXPECTED_FILE="${DEPLOY_EXPECTED_FILE:-$HERE/deploy_expected_warnings.txt}"

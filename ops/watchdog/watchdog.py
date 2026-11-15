@@ -149,7 +149,7 @@ def db_size_level(gb: float, limit_gb: float) -> Result:
     return Checked(WARN if gb > limit_gb else OK, f"{gb:.2f} GB (limit {limit_gb:g})", gb=float(f"{gb:.2f}"))
 
 
-def check_db(cfg: Config) -> dict[str, Result]:
+def check_db(cfg: Config, first_run: float | None = None) -> dict[str, Result]:
     out: dict[str, Result] = {}
     try:
         with psycopg.connect(cfg.db_dsn) as conn, conn.cursor() as cur:
@@ -164,7 +164,7 @@ def check_db(cfg: Config) -> dict[str, Result]:
             gb = (int(row[0]) if row else 0) / 1024**3
             out["db_size"] = db_size_level(gb, cfg.db_max_gb)
             out["identity_flap"] = check_identity_flap(cur)
-            out["stats_loader"] = check_stats_loader(cur)  # last, so a failure here cannot hide the checks above
+            out["stats_loader"] = check_stats_loader(cur, first_run)  # last, so a failure here cannot hide the checks above
         out["database"] = (OK, "reachable")
     except psycopg.Error as exc:
         out["database"] = (CRIT, f"query/connect failed ({type(exc).__name__})")
@@ -228,13 +228,18 @@ _STATS_SQL = """
 SELECT (SELECT status FROM atc_stats_run_log WHERE status <> 'running' ORDER BY id DESC LIMIT 1),
        EXISTS (SELECT 1 FROM atc_stats_run_log
                WHERE (status = 'success' AND finished_at > now() - make_interval(hours => %(h)s))
-                  OR (status = 'running' AND last_day_at > now() - make_interval(hours => %(h)s))),
-       (SELECT EXTRACT(EPOCH FROM now() - max(finished_at)) / 3600 FROM atc_stats_run_log WHERE status = 'success')
+                  OR (status = 'running' AND coalesce(last_day_at, started_at) > now() - make_interval(hours => %(h)s))),
+       (SELECT EXTRACT(EPOCH FROM now() - max(finished_at)) / 3600 FROM atc_stats_run_log WHERE status = 'success'),
+       EXISTS (SELECT 1 FROM atc_stats_run_log)
 """
 
 
-def stats_loader_level(newest_finished: str | None, good_run: bool, hours_since_success: float | None) -> Result:
-    """CRIT with no good run in the last 36 hours; else WARN while the newest finished run is interrupted or failed; else OK."""
+def stats_loader_level(newest_finished: str | None, good_run: bool, hours_since_success: float | None,
+                       any_run: bool = True, hours_since_watchdog_start: float = 0.0) -> Result:
+    """CRIT with no good run in the last 36 hours; else WARN while the newest finished run is interrupted or failed; else OK.
+    An empty run log is OK until 36 hours after the watchdog's own first start, so a fresh deploy does not alert."""
+    if not any_run and hours_since_watchdog_start < STATS_GOOD_HOURS:
+        return OK, "no run yet; the loader has had less than 36 h since the watchdog started"
     if not good_run:
         since = f"{hours_since_success:.0f} h ago" if hours_since_success is not None else "never"
         return Checked(CRIT, f"no successful run and no run writing days in the last {STATS_GOOD_HOURS} h (last success {since}); "
@@ -244,14 +249,16 @@ def stats_loader_level(newest_finished: str | None, good_run: bool, hours_since_
     return OK, "the loader is loading days"
 
 
-def check_stats_loader(cur: Any) -> Result:
+def check_stats_loader(cur: Any, first_run: float | None = None) -> Result:
     """Read atc_stats_run_log on an open cursor (role watchdog_ro has SELECT on it, db/roles.sql)."""
     try:
         cur.connection.rollback()  # an earlier failed query on this connection must not make this one fail too
         cur.execute(_STATS_SQL, {"h": STATS_GOOD_HOURS})
         row = cur.fetchone()
         newest, good, hours = (row[0], bool(row[1]), float(row[2]) if row[2] is not None else None) if row else (None, False, None)
-        return stats_loader_level(newest, good, hours)
+        any_run = bool(row[3]) if row else False
+        since_start = (time.time() - first_run) / 3600 if first_run is not None else 0.0
+        return stats_loader_level(newest, good, hours, any_run, since_start)
     except psycopg.Error as exc:
         return Checked(WARN, f"stats loader run-log query failed ({type(exc).__name__})", state="query_failed")
 
@@ -722,7 +729,8 @@ def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, 
     results["grafana_health"] = graf
     results["feed_archive"] = check_archive(coll_body, coll[0] == OK)
 
-    db = check_db(cfg)
+    first_run = state.setdefault("first_run", time.time())
+    db = check_db(cfg, first_run)
     results.update(db)
     try:
         listed = unlisted_callsigns(cfg)
@@ -734,7 +742,6 @@ def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, 
     sched, notices = integrity.run_due(cfg.integrity, state)  # slow checks, persisted schedule, see integrity.py
     results.update(sched)
     results["disk"] = check_disk(cfg)
-    first_run = state.setdefault("first_run", time.time())
     results["backup_age"] = check_backup(cfg, first_run)
     results["restore_test"] = check_restore_test(cfg, first_run)
     results["backup_remote"] = check_backup_remote(cfg, first_run)

@@ -597,7 +597,7 @@ class World:
         self.docker = FakeDocker()
         self.docker.data = {s: {**ins(), "Id": f"id-{s}"} for s in ("db", "collector", "grafana", "backup")}
         self.docker.data["migrate"] = {**ins("exited", "none"), "Id": "id-migrate"}
-        monkeypatch.setattr(wd, "check_db", lambda cfg: dict(self.db_result))
+        monkeypatch.setattr(wd, "check_db", lambda cfg, first_run=None: dict(self.db_result))
         self.unlisted_error: Exception | None = None
 
         def read_unlisted(cfg: wd.Config) -> list[str]:

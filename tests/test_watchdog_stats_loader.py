@@ -67,7 +67,7 @@ class Cur:
 
 
 def test_the_query_reads_the_run_log_with_the_36_hour_window_and_never_writes() -> None:
-    cur = Cur(("success", True, 3.0))
+    cur = Cur(("success", True, 3.0, True))
     assert wd.check_stats_loader(cur)[0] == OK
     sql = cur.sql[0]
     assert "atc_stats_run_log" in sql and "status <> 'running'" in sql and "last_day_at" in sql
@@ -77,12 +77,12 @@ def test_the_query_reads_the_run_log_with_the_36_hour_window_and_never_writes() 
 
 
 def test_an_empty_run_log_is_a_problem() -> None:
-    level, detail = wd.check_stats_loader(Cur((None, False, None)))
+    level, detail = wd.check_stats_loader(Cur((None, False, None, False)), wd.time.time() - 40 * 3600)
     assert level == CRIT and "never" in detail
 
 
 def test_a_failed_newest_run_with_a_recent_success_is_a_warning() -> None:
-    level, detail = wd.check_stats_loader(Cur(("failed", True, 5.0)))
+    level, detail = wd.check_stats_loader(Cur(("failed", True, 5.0, True)))
     assert level == WARN and "failed" in detail
 
 
@@ -126,3 +126,27 @@ def test_plain_wording(res: Any, words: list[str]) -> None:
 def test_recovery_wording_is_its_own() -> None:
     first = m.humanise("stats_loader", "ok", "the loader is loading days", previous_level="warn").splitlines()[0]
     assert "ATC statistics loader is loading days again" in first
+
+
+def test_an_empty_run_log_is_ok_for_36_hours_after_the_watchdog_started_then_critical() -> None:
+    assert wd.stats_loader_level(None, False, None, any_run=False, hours_since_watchdog_start=1.0)[0] == OK
+    assert wd.stats_loader_level(None, False, None, any_run=False, hours_since_watchdog_start=35.9)[0] == OK
+    assert wd.stats_loader_level(None, False, None, any_run=False, hours_since_watchdog_start=36.0)[0] == CRIT
+
+
+def test_the_grace_applies_only_to_an_empty_log() -> None:
+    assert wd.stats_loader_level("failed", False, None, any_run=True, hours_since_watchdog_start=1.0)[0] == CRIT
+
+
+def test_the_check_uses_the_watchdogs_first_run_time_for_the_grace(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(wd.time, "time", lambda: 1_800_000_000.0)
+    empty = (None, False, None, False)
+    assert wd.check_stats_loader(Cur(empty), 1_800_000_000.0 - 10 * 3600)[0] == OK
+    assert wd.check_stats_loader(Cur(empty), 1_800_000_000.0 - 37 * 3600)[0] == CRIT
+    assert wd.check_stats_loader(Cur(empty))[0] == OK          # no first run known: treated as just started
+
+
+def test_a_running_run_without_a_day_yet_counts_by_its_start_time() -> None:
+    cur = Cur(("success", True, 3.0, True))
+    wd.check_stats_loader(cur)
+    assert "coalesce(last_day_at, started_at)" in cur.sql[0]
