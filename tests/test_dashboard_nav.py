@@ -22,8 +22,8 @@ def top_panel(f: Path) -> dict:
     return next(p for p in json.loads(f.read_text(encoding="utf-8"))["panels"] if p["id"] == 1)
 
 
-def test_there_are_fourteen_dashboards_in_four_groups() -> None:
-    assert len(FILES) == 14 and {g: len(i) for g, i in nav.GROUPS.items()} == {"Pilots": 7, "ATC": 5, "Events": 1, "Management": 1}
+def test_there_are_fifteen_dashboards_in_four_groups() -> None:
+    assert len(FILES) == 15 and {g: len(i) for g, i in nav.GROUPS.items()} == {"Pilots": 7, "ATC": 6, "Events": 1, "Management": 1}
 
 
 def test_every_dashboard_has_the_current_strip_and_the_files_are_in_step() -> None:
@@ -36,7 +36,7 @@ def test_strip_links_are_bare_short_paths_that_open_in_the_top_window() -> None:
     for f in FILES:
         first = nav.split(top_panel(f)["options"]["content"])[0]
         anchors = ANCHOR.findall(first)
-        assert len(anchors) == 13, f.name  # every other dashboard, not itself
+        assert len(anchors) == 14, f.name  # every other dashboard, not itself
         assert "](" not in first, f.name  # no Markdown links: they lack target="_top"
         for attrs in anchors:
             m = EXACT.fullmatch(attrs)
