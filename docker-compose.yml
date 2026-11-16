@@ -152,7 +152,7 @@ services:
       # days before the newest stored date that every run loads again (sessions that closed late)
       STATS_OVERLAP_DAYS: ${STATS_OVERLAP_DAYS:-2}
       # Retention must be a plain number in the compose file (ops/check_config_drift.py rejects ${...} for retention periods).
-      STATS_RETENTION_YEARS: 5
+      STATS_RETENTION_YEARS: 10
     healthcheck:
       # healthy = a run finished successfully in the last 36 hours, or a run in progress wrote a day in that time. The first
       # run has the most to load and can take days, so the first day it writes is what turns it healthy; the long start period
