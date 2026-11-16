@@ -629,8 +629,9 @@ def test_panel_windows_match_their_titles() -> None:
 def _expand_macros(sql: str) -> str:
     """Grafana macros as the PostgreSQL data source expands them, for a 30 day range ending now."""
     sql = sql.replace("$__timeFrom()", "(now() - interval '30 days')").replace("$__timeTo()", "now()")
-    sql = re.sub(r"\$__timeFilter\((\w+)\)", r"\1 BETWEEN (now() - interval '30 days') AND now()", sql)
+    sql = re.sub(r"\$__timeFilter\(([\w.]+)\)", r"\1 BETWEEN (now() - interval '30 days') AND now()", sql)
     sql = re.sub(r"\$__timeGroupAlias\((\w+), \$__interval\)", r"date_trunc('minute', \1) AS time", sql)
+    sql = sql.replace("$__interval_ms", "3600000")  # the promotions charts size their bars from it; one hour is a typical value
     return sql.replace("${airport:sqlstring}", "'YSSY'")
 
 
