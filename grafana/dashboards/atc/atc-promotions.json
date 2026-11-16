@@ -261,7 +261,7 @@
       "id": 6,
       "type": "timeseries",
       "title": "All promotions",
-      "description": "The number of promotions in each calendar month (UTC): the sum of the five rank charts below. Months with none show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far.",
+      "description": "The number of promotions in the selected period, all ranks together: the sum of the rank charts below. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -282,7 +282,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH months AS (\n  SELECT g.m AS month_start\n  FROM generate_series(date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n                       date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC'), interval '1 month') AS g(m)\n),\np AS (\n  SELECT date_trunc('month', promoted_at AT TIME ZONE 'UTC') AS month_start, count(*) AS n\n  FROM controller_promotion\n  WHERE promoted_at BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY 1\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time, coalesce(p.n, 0) AS \"All promotions\"\nFROM months m LEFT JOIN p ON p.month_start = m.month_start\nORDER BY m.month_start"
+          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"All promotions\"\nFROM controller_promotion\nWHERE $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "options": {
@@ -291,10 +291,8 @@
           "placement": "bottom",
           "showLegend": true,
           "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
+            "sum",
+            "max"
           ]
         },
         "tooltip": {
@@ -311,13 +309,13 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "bars",
             "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 28,
+            "lineWidth": 1,
+            "fillOpacity": 70,
             "gradientMode": "opacity",
-            "showPoints": "always",
-            "spanNulls": true,
+            "showPoints": "never",
+            "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
             "axisBorderShow": false,
@@ -325,13 +323,15 @@
           }
         },
         "overrides": []
-      }
+      },
+      "interval": "1d",
+      "maxDataPoints": 50
     },
     {
       "id": 7,
       "type": "timeseries",
       "title": "Promotions to S1",
-      "description": "Controllers promoted to S1 in each calendar month (UTC) of the selected period, counted by the date of the first logon over 20 minutes at S1. Months with no promotions show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to S1 in the selected period, counted by the date of the first logon over 20 minutes at S1. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -352,7 +352,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH months AS (\n  SELECT g.m AS month_start\n  FROM generate_series(date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n                       date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC'), interval '1 month') AS g(m)\n),\np AS (\n  SELECT date_trunc('month', promoted_at AT TIME ZONE 'UTC') AS month_start, count(*) AS n\n  FROM controller_promotion\n  WHERE to_rating = 'S1' AND promoted_at BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY 1\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time, coalesce(p.n, 0) AS \"S1\"\nFROM months m LEFT JOIN p ON p.month_start = m.month_start\nORDER BY m.month_start"
+          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"S1\"\nFROM controller_promotion\nWHERE to_rating = 'S1'\n  AND $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "options": {
@@ -361,10 +361,8 @@
           "placement": "bottom",
           "showLegend": true,
           "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
+            "sum",
+            "max"
           ]
         },
         "tooltip": {
@@ -381,13 +379,13 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "bars",
             "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 28,
+            "lineWidth": 1,
+            "fillOpacity": 70,
             "gradientMode": "opacity",
-            "showPoints": "always",
-            "spanNulls": true,
+            "showPoints": "never",
+            "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
             "axisBorderShow": false,
@@ -395,13 +393,15 @@
           }
         },
         "overrides": []
-      }
+      },
+      "interval": "1d",
+      "maxDataPoints": 50
     },
     {
       "id": 8,
       "type": "timeseries",
       "title": "Promotions to S2",
-      "description": "Controllers promoted to S2 in each calendar month (UTC) of the selected period, counted by the date of the first logon over 20 minutes at S2. Months with no promotions show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to S2 in the selected period, counted by the date of the first logon over 20 minutes at S2. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -422,7 +422,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH months AS (\n  SELECT g.m AS month_start\n  FROM generate_series(date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n                       date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC'), interval '1 month') AS g(m)\n),\np AS (\n  SELECT date_trunc('month', promoted_at AT TIME ZONE 'UTC') AS month_start, count(*) AS n\n  FROM controller_promotion\n  WHERE to_rating = 'S2' AND promoted_at BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY 1\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time, coalesce(p.n, 0) AS \"S2\"\nFROM months m LEFT JOIN p ON p.month_start = m.month_start\nORDER BY m.month_start"
+          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"S2\"\nFROM controller_promotion\nWHERE to_rating = 'S2'\n  AND $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "options": {
@@ -431,10 +431,8 @@
           "placement": "bottom",
           "showLegend": true,
           "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
+            "sum",
+            "max"
           ]
         },
         "tooltip": {
@@ -451,13 +449,13 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "bars",
             "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 28,
+            "lineWidth": 1,
+            "fillOpacity": 70,
             "gradientMode": "opacity",
-            "showPoints": "always",
-            "spanNulls": true,
+            "showPoints": "never",
+            "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
             "axisBorderShow": false,
@@ -465,13 +463,15 @@
           }
         },
         "overrides": []
-      }
+      },
+      "interval": "1d",
+      "maxDataPoints": 50
     },
     {
       "id": 9,
       "type": "timeseries",
       "title": "Promotions to S3",
-      "description": "Controllers promoted to S3 in each calendar month (UTC) of the selected period, counted by the date of the first logon over 20 minutes at S3. Months with no promotions show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to S3 in the selected period, counted by the date of the first logon over 20 minutes at S3. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -492,7 +492,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH months AS (\n  SELECT g.m AS month_start\n  FROM generate_series(date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n                       date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC'), interval '1 month') AS g(m)\n),\np AS (\n  SELECT date_trunc('month', promoted_at AT TIME ZONE 'UTC') AS month_start, count(*) AS n\n  FROM controller_promotion\n  WHERE to_rating = 'S3' AND promoted_at BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY 1\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time, coalesce(p.n, 0) AS \"S3\"\nFROM months m LEFT JOIN p ON p.month_start = m.month_start\nORDER BY m.month_start"
+          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"S3\"\nFROM controller_promotion\nWHERE to_rating = 'S3'\n  AND $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "options": {
@@ -501,10 +501,8 @@
           "placement": "bottom",
           "showLegend": true,
           "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
+            "sum",
+            "max"
           ]
         },
         "tooltip": {
@@ -521,13 +519,13 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "bars",
             "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 28,
+            "lineWidth": 1,
+            "fillOpacity": 70,
             "gradientMode": "opacity",
-            "showPoints": "always",
-            "spanNulls": true,
+            "showPoints": "never",
+            "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
             "axisBorderShow": false,
@@ -535,13 +533,15 @@
           }
         },
         "overrides": []
-      }
+      },
+      "interval": "1d",
+      "maxDataPoints": 50
     },
     {
       "id": 10,
       "type": "timeseries",
       "title": "Promotions to C1",
-      "description": "Controllers promoted to C1 in each calendar month (UTC) of the selected period, counted by the date of the first logon over 20 minutes at C1. Months with no promotions show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to C1 in the selected period, counted by the date of the first logon over 20 minutes at C1. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -562,7 +562,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH months AS (\n  SELECT g.m AS month_start\n  FROM generate_series(date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n                       date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC'), interval '1 month') AS g(m)\n),\np AS (\n  SELECT date_trunc('month', promoted_at AT TIME ZONE 'UTC') AS month_start, count(*) AS n\n  FROM controller_promotion\n  WHERE to_rating = 'C1' AND promoted_at BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY 1\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time, coalesce(p.n, 0) AS \"C1\"\nFROM months m LEFT JOIN p ON p.month_start = m.month_start\nORDER BY m.month_start"
+          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"C1\"\nFROM controller_promotion\nWHERE to_rating = 'C1'\n  AND $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "options": {
@@ -571,10 +571,8 @@
           "placement": "bottom",
           "showLegend": true,
           "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
+            "sum",
+            "max"
           ]
         },
         "tooltip": {
@@ -591,13 +589,13 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "bars",
             "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 28,
+            "lineWidth": 1,
+            "fillOpacity": 70,
             "gradientMode": "opacity",
-            "showPoints": "always",
-            "spanNulls": true,
+            "showPoints": "never",
+            "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
             "axisBorderShow": false,
@@ -605,13 +603,15 @@
           }
         },
         "overrides": []
-      }
+      },
+      "interval": "1d",
+      "maxDataPoints": 50
     },
     {
       "id": 11,
       "type": "timeseries",
       "title": "Promotions to C3",
-      "description": "Controllers promoted to C3 in each calendar month (UTC) of the selected period, counted by the date of the first logon over 20 minutes at C3. Months with no promotions show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to C3 in the selected period, counted by the date of the first logon over 20 minutes at C3. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -632,7 +632,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH months AS (\n  SELECT g.m AS month_start\n  FROM generate_series(date_trunc('month', $__timeFrom()::timestamptz AT TIME ZONE 'UTC'),\n                       date_trunc('month', $__timeTo()::timestamptz AT TIME ZONE 'UTC'), interval '1 month') AS g(m)\n),\np AS (\n  SELECT date_trunc('month', promoted_at AT TIME ZONE 'UTC') AS month_start, count(*) AS n\n  FROM controller_promotion\n  WHERE to_rating = 'C3' AND promoted_at BETWEEN $__timeFrom() AND $__timeTo()\n  GROUP BY 1\n)\nSELECT m.month_start AT TIME ZONE 'UTC' AS time, coalesce(p.n, 0) AS \"C3\"\nFROM months m LEFT JOIN p ON p.month_start = m.month_start\nORDER BY m.month_start"
+          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"C3\"\nFROM controller_promotion\nWHERE to_rating = 'C3'\n  AND $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
         }
       ],
       "options": {
@@ -641,10 +641,8 @@
           "placement": "bottom",
           "showLegend": true,
           "calcs": [
-            "lastNotNull",
-            "max",
-            "min",
-            "mean"
+            "sum",
+            "max"
           ]
         },
         "tooltip": {
@@ -661,13 +659,13 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "bars",
             "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 28,
+            "lineWidth": 1,
+            "fillOpacity": 70,
             "gradientMode": "opacity",
-            "showPoints": "always",
-            "spanNulls": true,
+            "showPoints": "never",
+            "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
             "axisBorderShow": false,
@@ -675,7 +673,9 @@
           }
         },
         "overrides": []
-      }
+      },
+      "interval": "1d",
+      "maxDataPoints": 50
     },
     {
       "id": 12,
