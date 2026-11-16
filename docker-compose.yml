@@ -147,12 +147,12 @@ services:
       # when the daily run makes its requests, UTC (HH:MM)
       STATS_RUN_AT: 06:00
       # seconds between two requests to the VATSIM API; the loader never goes below 5
-      STATS_MIN_INTERVAL_SECONDS: 20
+      STATS_MIN_INTERVAL_SECONDS: 45
       STATS_PAGE_SIZE: 5000
       # days before the newest stored date that every run loads again (sessions that closed late)
       STATS_OVERLAP_DAYS: ${STATS_OVERLAP_DAYS:-2}
       # Retention must be a plain number in the compose file (ops/check_config_drift.py rejects ${...} for retention periods).
-      STATS_RETENTION_YEARS: 3
+      STATS_RETENTION_YEARS: 5
     healthcheck:
       # healthy = a run finished successfully in the last 36 hours, or a run in progress wrote a day in that time. The first
       # run has the most to load and can take days, so the first day it writes is what turns it healthy; the long start period

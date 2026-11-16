@@ -80,7 +80,7 @@ def test_policy_key_missing_from_compose_fails(tree: Path, capsys: pytest.Captur
 
 
 def test_loader_retention_read_from_env_fails(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    edit(tree, "docker-compose.yml", "STATS_RETENTION_YEARS: 3", "STATS_RETENTION_YEARS: ${STATS_RETENTION_YEARS:-3}")
+    edit(tree, "docker-compose.yml", "STATS_RETENTION_YEARS: 5", "STATS_RETENTION_YEARS: ${STATS_RETENTION_YEARS:-5}")
     code, out = run(tree, capsys)
     assert code == 1 and "STATS_RETENTION_YEARS: must be a literal" in out
 

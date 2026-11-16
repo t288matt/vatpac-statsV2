@@ -102,10 +102,10 @@ Run `docker compose up -d backup`, open the pull request that changes the litera
 | `WATCHDOG_CROSSCHECK_INTERVAL_DAYS` | `14` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** How often the raw-feed archive cross-check runs, in days; `0` disables. |
 | `WATCHDOG_CROSSCHECK_SAMPLES` | `24` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Archived snapshots compared per cross-check, evenly spread over the interval (about 1 s of CPU each). |
 | `STATS_RUN_AT` | `06:00` | vatsim-atc-stats | **Fixed in `docker-compose.yml`, not `.env`.** When the daily run starts, UTC (`HH:MM`). |
-| `STATS_MIN_INTERVAL_SECONDS` | `20` | vatsim-atc-stats | **Fixed in `docker-compose.yml`, not `.env`.** Seconds between two requests to the VATSIM history API. The loader never goes below 5, so a smaller value is raised to 5. |
+| `STATS_MIN_INTERVAL_SECONDS` | `45` | vatsim-atc-stats | **Fixed in `docker-compose.yml`, not `.env`.** Seconds between two requests to the VATSIM history API. The loader never goes below 5, so a smaller value is raised to 5. |
 | `STATS_PAGE_SIZE` | `5000` | vatsim-atc-stats | **Fixed in `docker-compose.yml`, not `.env`.** Sessions asked for in one request (at least 1). |
 | `STATS_OVERLAP_DAYS` | `2` | vatsim-atc-stats | Each run also loads the days from this many days before the newest stored date, so sessions that closed late are picked up (at least 0). Optional in `.env`. |
-| `STATS_RETENTION_YEARS` | `3` | vatsim-atc-stats | **Fixed in `docker-compose.yml`, not `.env`.** Years of sessions kept (at least 1). See [RUNBOOKS/atc-stats-loader.md](RUNBOOKS/atc-stats-loader.md), section 6. |
+| `STATS_RETENTION_YEARS` | `5` | vatsim-atc-stats | **Fixed in `docker-compose.yml`, not `.env`.** Years of sessions kept (at least 1). See [RUNBOOKS/atc-stats-loader.md](RUNBOOKS/atc-stats-loader.md), section 6. |
 
 ### A2. Set by `docker-compose.yml` itself (not intended for `.env`)
 
