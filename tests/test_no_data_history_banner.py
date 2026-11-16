@@ -10,6 +10,8 @@ from pathlib import Path
 DASHBOARDS = Path(__file__).resolve().parents[1] / "grafana" / "dashboards"
 OLD = ("Live data since", "earlier history was imported", "come from the previous system", "show current data only")
 NEW = "All times are UTC. Figures cover VATPAC airspace."
+WHOLE_NETWORK = "atc-promotions.json"  # reads the whole network, so it says only that times are UTC
+UTC_ONLY = "All times are UTC."
 
 
 def text_of(path: Path) -> list[str]:
@@ -26,4 +28,8 @@ def test_fourteen_dashboards_carry_the_new_sentence_and_the_first_panel_is_the_n
     assert len(paths) == 14
     for p in paths:
         first = json.loads(p.read_text(encoding="utf-8"))["panels"][0]
-        assert first["type"] == "text" and NEW in first["options"]["content"] and 'target="_top"' in first["options"]["content"], p.name
+        content = first["options"]["content"]
+        if p.name == WHOLE_NETWORK:
+            assert first["type"] == "text" and UTC_ONLY in content and "VATPAC airspace" not in content and 'target="_top"' in content, p.name
+        else:
+            assert first["type"] == "text" and NEW in content and 'target="_top"' in content, p.name
