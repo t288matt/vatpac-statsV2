@@ -107,7 +107,7 @@ Both files are loaded when the collector starts and reloaded without a restart w
 
 ### Containers
 
-The system runs as seven containers from one `docker-compose.yml`. An arrow points from the container that connects to the thing it connects to. The dashed arrow is read-only.
+The system runs as seven containers from one `docker-compose.yml`. An arrow points from the container that makes the connection to the thing it connects to. A dashed arrow is a read-only check.
 
 ```mermaid
 flowchart TB
@@ -124,8 +124,8 @@ flowchart TB
         backup[backup]
         watchdog[watchdog]
     end
-    feed --> collector
-    hist --> loader
+    collector --> feed
+    loader --> hist
     viewers --> grafana
     collector --> db
     loader --> db
@@ -133,6 +133,8 @@ flowchart TB
     migrate --> db
     backup --> db
     watchdog -.-> db
+    watchdog -.-> collector
+    watchdog -.-> grafana
     watchdog --> telegram
 ```
 
@@ -148,7 +150,7 @@ flowchart TB
 
 ### Collector components
 
-A snapshot flows from `feed` to `model` to `store`. `main` runs the poll loop, the maintenance loop and the reload of the reference data.
+Arrows show how data flows. A snapshot (one copy of the live feed) flows from `feed` to `model` to `store`, and `filters` supplies the rules `store` applies. `main` has no arrows because it runs the others: it calls each step in turn, and runs the poll loop, the maintenance loop and the reload of the area map and callsign list.
 
 ```mermaid
 flowchart TB
@@ -178,13 +180,13 @@ flowchart TB
 | Component | Role |
 |---|---|
 | `feed` | Fetches the live feed, with retries. |
-| `model` | Parses a snapshot and caps implausible values. |
-| `filters` | Keeps pilots inside the polygon and controllers on the whitelist. |
-| `store` | Writes each snapshot in one transaction. |
+| `model` | Reads a snapshot and limits values that cannot be real, such as an impossible speed. |
+| `filters` | Keeps pilots inside the Australian airspace map and controllers on the list of allowed callsigns. |
+| `store` | Writes each snapshot to the database as one unit, so a failed write leaves nothing half saved. |
 | `archive` | Keeps gzipped copies of the raw feed. |
 | `health` | Serves the `/health` endpoint. |
-| `maintenance` | Creates and drops partitions, refreshes flights and trims the poll log. |
-| `main` | Runs the loops and reloads the reference data. |
+| `maintenance` | Keeps the database tidy: makes and drops the daily position tables, saves finished flights and trims the record of past polls. |
+| `main` | Runs the poll and maintenance loops and reloads the area map and callsign list. |
 
 ## Testing and development
 

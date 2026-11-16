@@ -41,3 +41,9 @@ def test_every_collector_component_is_a_module() -> None:
     drawn = _inside_subgraph(_block("Collector components"))
     assert drawn, "no components found in the collector diagram"
     assert set(drawn) <= modules, f"not modules of the collector: {sorted(set(drawn) - modules)}"
+
+
+def test_every_drawn_component_has_a_row_in_the_table() -> None:
+    section = README.split("### Collector components\n", 1)[1].split("## Testing and development", 1)[0]
+    rows = set(re.findall(r"^\| `([\w-]+)` \|", section, re.M))
+    assert rows == set(_inside_subgraph(_block("Collector components")))
