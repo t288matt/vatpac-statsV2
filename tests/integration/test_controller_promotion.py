@@ -374,6 +374,18 @@ def test_dashboard_short_range_has_a_point_for_every_day_with_zeros_inside_the_w
         assert [v for _, v in _points(ro, "Promotions to S3", lo=lo, hi=hi)] == [0] * 8   # an empty rank is a flat zero line
 
 
+def test_dashboard_week_sized_bars_put_every_promotion_in_its_own_week(dashboard_data) -> None:
+    """The browser can ask for 7 day bars. Over 10-06 to 20-10 the bars start on UTC midnights that are whole multiples of 7 days
+    from 01-01-1970 (Thursdays), and each of the 10 promotions is counted in the week it happened (30-09 23:59:59 in the week of
+    24-09, 01-10 00:00:00 in the week of 01-10)."""
+    with _ro(dashboard_data) as ro:
+        pts = _points(ro, "All promotions", interval_ms=604_800_000)
+    assert all(int(t.timestamp()) % 604_800 == 0 for t, _ in pts)
+    assert {t.strftime("%d-%m"): v for t, v in pts if v} == {"11-06": 1, "25-06": 1, "02-07": 1, "09-07": 1, "16-07": 1,
+                                                             "03-09": 1, "24-09": 1, "01-10": 2, "15-10": 1}
+    assert sum(v for _, v in pts) == 10
+
+
 def test_dashboard_chart_points_stay_capped_whatever_range_and_bar_size_the_browser_sends(conn) -> None:
     """The public endpoint uses the browser's interval, so a hostile request (one second bars over thousands of years)
     must not make the query build millions of points."""
