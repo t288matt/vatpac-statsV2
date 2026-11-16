@@ -13,6 +13,7 @@ from __future__ import annotations
 import itertools
 import json
 import os
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -303,8 +304,11 @@ def _panels() -> dict[str, str]:
     return {p["title"]: p["targets"][0]["rawSql"] for p in dash["panels"] if p.get("targets") and "rawSql" in p["targets"][0]}
 
 
-def _run(ro, title: str, lo: str = "2026-06-10 00:00+00", hi: str = "2026-10-20 00:00+00") -> list[dict]:
+def _run(ro, title: str, lo: str = "2026-06-10 00:00+00", hi: str = "2026-10-20 00:00+00", interval_ms: int = 86_400_000) -> list[dict]:
+    """Run a panel's query the way Grafana would: the time range and the bar size (the browser's interval) are filled in."""
     sql = _panels()[title].replace("$__timeFrom()", f"'{lo}'::timestamptz").replace("$__timeTo()", f"'{hi}'::timestamptz")
+    sql = re.sub(r"\$__timeFilter\(([^)]*)\)", lambda m: f"{m.group(1)} BETWEEN '{lo}'::timestamptz AND '{hi}'::timestamptz", sql)
+    sql = sql.replace("$__interval_ms", str(interval_ms))
     assert "$__" not in sql
     return ro.execute(sql).fetchall()
 
@@ -340,28 +344,48 @@ def dashboard_data(conn):
     return conn
 
 
-def _series(ro, title: str) -> list[tuple[str, int]]:
-    return [(r["time"].strftime("%m"), r[next(k for k in r if k != "time")]) for r in _run(ro, title)]
+CHARTS = ("All promotions", "Promotions to S1", "Promotions to S2", "Promotions to S3", "Promotions to C1", "Promotions to C3")
 
 
-def test_dashboard_monthly_charts_match_the_hand_count(dashboard_data) -> None:
-    """Hand count, range 10-06 to 20-10. June: cid 2 S1, cid 3 S1. July: cid 1 S2, cid 4 S1, cid 2 C1. August: none.
-    September: cid 1 S3, cid 5 S1. October: cid 3 S3, cid 3 C1, cid 6 S1. Out of range: cid 1 S1 (03-06), cid 3 C3 (21-10)."""
+def _points(ro, title: str, **kw) -> list[tuple[datetime, int]]:
+    return [(r["time"], r[next(k for k in r if k != "time")]) for r in _run(ro, title, **kw)]
+
+
+def test_dashboard_charts_add_up_to_the_hand_count_for_the_range(dashboard_data) -> None:
+    """Range 10-06 to 20-10: 10 promotions. S1: cid 2, 3, 4, 5, 6. S2: cid 1. S3: cid 1, 3. C1: cid 2, 3. C3: none (cid 3 is 21-10,
+    after the range). Out of range: cid 1 S1 (03-06). Every chart has one point per step, so the rank charts line up with the total."""
     with _ro(dashboard_data) as ro:
-        assert _series(ro, "All promotions") == [("06", 2), ("07", 3), ("08", 0), ("09", 2), ("10", 3)]
-        assert _series(ro, "Promotions to S1") == [("06", 2), ("07", 1), ("08", 0), ("09", 1), ("10", 1)]
-        assert _series(ro, "Promotions to S2") == [("06", 0), ("07", 1), ("08", 0), ("09", 0), ("10", 0)]
-        assert _series(ro, "Promotions to S3") == [("06", 0), ("07", 0), ("08", 0), ("09", 1), ("10", 1)]
-        assert _series(ro, "Promotions to C1") == [("06", 0), ("07", 1), ("08", 0), ("09", 0), ("10", 1)]
-        assert _series(ro, "Promotions to C3") == [("06", 0), ("07", 0), ("08", 0), ("09", 0), ("10", 0)]
-        ranks = [_series(ro, f"Promotions to {r}") for r in ("S1", "S2", "S3", "C1", "C3")]
-        assert [sum(s[i][1] for s in ranks) for i in range(5)] == [v for _, v in _series(ro, "All promotions")]
-        assert all(r["time"].day == 1 and r["time"].hour == 0 for r in _run(ro, "All promotions"))   # month starts, UTC
+        total = _points(ro, "All promotions")
+        assert sum(v for _, v in total) == 10 == _run(ro, "Promotions in the selected period")[0]["promotions"]
+        by_rank = {r: _points(ro, f"Promotions to {r}") for r in ("S1", "S2", "S3", "C1", "C3")}
+        assert {r: sum(v for _, v in pts) for r, pts in by_rank.items()} == {"S1": 5, "S2": 1, "S3": 2, "C1": 2, "C3": 0}
+        assert all([t for t, _ in pts] == [t for t, _ in total] for pts in by_rank.values())
+        assert [sum(pts[i][1] for pts in by_rank.values()) for i in range(len(total))] == [v for _, v in total]
 
 
-def test_dashboard_empty_database_shows_zero_months_and_no_rows(conn) -> None:
+def test_dashboard_short_range_has_a_point_for_every_day_with_zeros_inside_the_window(dashboard_data) -> None:
+    """Range 06-07 to 13-07: cid 4 S1 on 06-07 and cid 1 S2 on 12-07. Quiet days are zero, nothing falls outside the window."""
+    lo, hi = "2026-07-06 00:00+00", "2026-07-13 00:00+00"
+    with _ro(dashboard_data) as ro:
+        pts = _points(ro, "All promotions", lo=lo, hi=hi)
+        assert [(t.strftime("%d"), v) for t, v in pts] == [("06", 1), ("07", 0), ("08", 0), ("09", 0), ("10", 0), ("11", 0),
+                                                           ("12", 1), ("13", 0)]
+        assert all(datetime(2026, 7, 6, tzinfo=UTC) <= t <= datetime(2026, 7, 13, tzinfo=UTC) for t, _ in pts)
+        assert [v for _, v in _points(ro, "Promotions to S3", lo=lo, hi=hi)] == [0] * 8   # an empty rank is a flat zero line
+
+
+def test_dashboard_chart_points_stay_capped_whatever_range_and_bar_size_the_browser_sends(conn) -> None:
+    """The public endpoint uses the browser's interval, so a hostile request (one second bars over thousands of years)
+    must not make the query build millions of points."""
     with _ro(conn) as ro:
-        assert [r["All promotions"] for r in _run(ro, "All promotions")] == [0, 0, 0, 0, 0]
+        for title in CHARTS:
+            assert len(_run(ro, title, lo="0001-01-01 00:00+00", hi="9999-12-31 00:00+00", interval_ms=1000)) <= 402
+            assert len(_run(ro, title, lo="2006-11-16 00:00+00", hi="2026-11-16 00:00+00", interval_ms=1)) <= 402
+
+
+def test_dashboard_empty_database_shows_zero_lines_and_no_rows(conn) -> None:
+    with _ro(conn) as ro:
+        assert {v for _, v in _points(ro, "All promotions")} == {0}
         assert _run(ro, "Promotions in the selected period") == [{"promotions": 0}]
         assert _run(ro, "Recent promotions") == []
         assert _run(ro, "Date of the last promotion") == [{"last_promotion": None}]
