@@ -260,7 +260,7 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "All promotions per month",
+      "title": "All promotions",
       "description": "The number of promotions in each calendar month (UTC): the sum of the five rank charts below. Months with none show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -330,7 +330,7 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "Promotions to S1 per month",
+      "title": "Promotions to S1",
       "description": "Controllers promoted to S1 in each calendar month (UTC) of the selected period, counted by the date of the first logon over 20 minutes at S1. Months with no promotions show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -400,7 +400,7 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Promotions to S2 per month",
+      "title": "Promotions to S2",
       "description": "Controllers promoted to S2 in each calendar month (UTC) of the selected period, counted by the date of the first logon over 20 minutes at S2. Months with no promotions show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -470,7 +470,7 @@
     {
       "id": 9,
       "type": "timeseries",
-      "title": "Promotions to S3 per month",
+      "title": "Promotions to S3",
       "description": "Controllers promoted to S3 in each calendar month (UTC) of the selected period, counted by the date of the first logon over 20 minutes at S3. Months with no promotions show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -540,7 +540,7 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "Promotions to C1 per month",
+      "title": "Promotions to C1",
       "description": "Controllers promoted to C1 in each calendar month (UTC) of the selected period, counted by the date of the first logon over 20 minutes at C1. Months with no promotions show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -610,7 +610,7 @@
     {
       "id": 11,
       "type": "timeseries",
-      "title": "Promotions to C3 per month",
+      "title": "Promotions to C3",
       "description": "Controllers promoted to C3 in each calendar month (UTC) of the selected period, counted by the date of the first logon over 20 minutes at C3. Months with no promotions show as zero. The first and the latest month are partial: the first counts from the start of the selected range and the latest only the days so far. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",

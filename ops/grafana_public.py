@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Share every provisioned Grafana dashboard as a read-only public dashboard (fixed time range), or list or remove the links.
+"""Share every provisioned Grafana dashboard as a read-only public dashboard, or list or remove the links.
 
-A public dashboard runs only the queries saved on the dashboard: visitors cannot send their own SQL, change the
-time range or edit anything (docs/RUNBOOKS/public-access.md). Run on the VM, from ~/vatpac-statsV2:
+A public dashboard has a fixed time range, except the promotions page. It runs only the queries saved on the
+dashboard: visitors cannot send their own SQL or edit anything (docs/RUNBOOKS/public-access.md). Run on the VM, from ~/vatpac-statsV2:
 
     python3 ops/grafana_public.py                 create or repair the public links and print them
     python3 ops/grafana_public.py --list          print the links only (changes nothing)
@@ -24,7 +24,15 @@ from typing import Any
 from env_file import read_env  # the one .env reader (ops/env_file.py); python puts this script's folder first on sys.path
 from grafana_api import Grafana, default_url  # the one Grafana client with its login-protection rules (ops/grafana_api.py)
 
-WANTED = {"isEnabled": True, "timeSelectionEnabled": False, "annotationsEnabled": False, "share": "public"}
+# The only public dashboards whose visitors may choose the time range (owner decision 16-11-2026, ADR-029). Every other
+# public dashboard keeps its fixed range.
+TIME_PICKER = {"vatpac-atc-promotions"}
+
+
+def wanted(uid: str) -> dict[str, Any]:
+    """The public-dashboard settings a dashboard must have; create, repair and --list all compare against this."""
+    return {"isEnabled": True, "timeSelectionEnabled": uid in TIME_PICKER, "annotationsEnabled": False, "share": "public"}
+
 
 # Short, readable addresses (https://<host>/traffic) that redirect to a dashboard's public link. Grafana only accepts a
 # 32-character hex token in its own address, so words can only be a redirect, done by Traefik labels (--traefik-labels).
@@ -80,7 +88,7 @@ def plan(dashboards: list[dict[str, Any]], public: list[dict[str, Any]]) -> list
             steps.append(("create", d, None))
         elif existing.get("accessToken") != stable_token(d["uid"]):
             steps.append(("recreate", d, existing))
-        elif any(existing.get(k) != v for k, v in WANTED.items()):
+        elif any(existing.get(k) != v for k, v in wanted(d["uid"]).items()):
             steps.append(("update", d, existing))
         else:
             steps.append(("keep", d, existing))
@@ -175,11 +183,11 @@ def run(g: Grafana, args: argparse.Namespace) -> int:
             action = "create" if status == 200 else "recreate"
         if action == "create":
             status, res = g.call("POST", f"/api/dashboards/uid/{d['uid']}/public-dashboards",
-                                 {**WANTED, "accessToken": stable_token(d["uid"])})
+                                 {**wanted(d["uid"]), "accessToken": stable_token(d["uid"])})
             if status == 200:
                 token = res["accessToken"]
         elif action == "update" and existing is not None:
-            status, res = g.call("PATCH", f"/api/dashboards/uid/{d['uid']}/public-dashboards/{existing['uid']}", dict(WANTED))
+            status, res = g.call("PATCH", f"/api/dashboards/uid/{d['uid']}/public-dashboards/{existing['uid']}", wanted(d["uid"]))
         else:
             status = 200
         ok = status == 200 and bool(token)
