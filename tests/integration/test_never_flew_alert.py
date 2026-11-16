@@ -220,6 +220,14 @@ def test_offline_pilot_and_stale_data(conn) -> None:
     assert candidates(conn) == {}
 
 
+def test_a_dead_collector_shows_nobody_online(conn) -> None:
+    """The newest snapshots are 20 and 30 minutes old and the pilot was last seen in the newest one: not online now."""
+    for ago in (1800, 1200):
+        conn.execute("INSERT INTO network_snapshot VALUES (now() - make_interval(secs => %s),1,1,1,1)", (ago,))
+    online(conn, 12, logon_ago=timedelta(minutes=40), seen_ago=timedelta(minutes=20))
+    assert candidates(conn) == {}
+
+
 # ------------------------------------------------------------------------------- logons, reconnects, two sessions at once
 def test_a_reconnect_is_its_own_row_with_its_own_logon_time(conn) -> None:
     """Two sessions of one CID and callsign with different logon times (a drop and a reconnect) are two rows when both
