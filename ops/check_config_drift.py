@@ -63,6 +63,7 @@ POLICY_KEYS: dict[str, str] = {
     "WATCHDOG_INTEGRITY_INTERVAL_HOURS": "watchdog",
     "WATCHDOG_CROSSCHECK_INTERVAL_DAYS": "watchdog",
     "WATCHDOG_CROSSCHECK_SAMPLES": "watchdog",
+    "WATCHDOG_NEVER_FLEW_REMEMBER_HOURS": "watchdog",
 }
 
 ROOT = Path(__file__).resolve().parent.parent

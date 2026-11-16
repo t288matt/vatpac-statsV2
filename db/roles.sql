@@ -171,6 +171,7 @@ ALTER ROLE backup_ro SET default_transaction_read_only = on;
 -- (ops/audit/invariants.sql, issue 20); the two read-only views ops_setting and ops_pending_flight and the function ops_setting_num
 -- behind them show the flight settings and the pending-flight rule without a right on app_setting (issues 200 and 238).
 -- atc_stats_run_log is for the stats_loader check (issue 387).
+-- ops_never_flew_alert is the view behind the alert for pilots who log on and never fly (issue 331); it alone is granted, not the tables under it.
 SELECT format('CREATE ROLE watchdog_ro LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE', :'watchdog_password')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'watchdog_ro')
 \gexec
@@ -185,7 +186,8 @@ GRANT USAGE ON SCHEMA public TO watchdog_ro;
 GRANT pg_monitor TO watchdog_ro;
 SELECT format('GRANT SELECT ON %I TO watchdog_ro', t)
   FROM unnest(ARRAY['poll_log', 'network_snapshot', 'controller_unlisted_callsign', 'pilot_session', 'controller_session',
-                'pilot_position', 'flight_summary', 'drop_gate_refusal', 'reference_data_change', 'ops_setting', 'ops_pending_flight', 'atc_stats_run_log']) AS t
+                'pilot_position', 'flight_summary', 'drop_gate_refusal', 'reference_data_change', 'ops_setting', 'ops_pending_flight', 'atc_stats_run_log',
+                'ops_never_flew_alert']) AS t
  WHERE to_regclass('public.' || t) IS NOT NULL
 \gexec
 -- a view calls its functions with the rights of the role that queries it, so the two ops_* views need this one function (it answers for the

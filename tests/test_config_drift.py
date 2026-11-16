@@ -168,7 +168,7 @@ def test_policy_keys_option_prints_the_names(capsys: pytest.CaptureFixture[str],
     monkeypatch.setattr("sys.argv", ["check_config_drift.py", "--policy-keys"])
     assert module.main() == 0
     names = capsys.readouterr().out.split()
-    assert names == list(module.POLICY_KEYS) and len(names) == 20 and "STATS_RETENTION_YEARS" in names
+    assert names == list(module.POLICY_KEYS) and len(names) == 21 and "WATCHDOG_NEVER_FLEW_REMEMBER_HOURS" in names and "STATS_RETENTION_YEARS" in names
 
 
 # ------------------------------------------------------------------ ops/check_env.sh warnings

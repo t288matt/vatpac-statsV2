@@ -6,6 +6,13 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Telegram alert for pilots who log on and never get airborne (16-11-2026, issue 331)
+
+- **New alert.** The watchdog messages the Telegram chat when a pilot is online with a flight plan filed and has not taken off, and either has finished flights in the last 90 days with none airborne (the pilots on the panel "Pilots who logged on but never flew (90 days)") or has no finished flight at all, with the same Y-name rule as the panel. One message per logon, including a reconnect after a drop; a logon is forgotten after 24 hours. Wording, memory and settings: [docs/RUNBOOKS/alerts.md](docs/RUNBOOKS/alerts.md).
+- **Dry-run first.** `WATCHDOG_NEVER_FLEW_DRY_RUN` is `1` by default: the watchdog logs what it would send and sends nothing until it is set to `0` in `.env`. `ops/audit/never_flew_backfill.sql` shows how many alerts the last 30 days would have produced. The other setting is `WATCHDOG_NEVER_FLEW_REMEMBER_HOURS` (24, fixed in `docker-compose.yml`); both are in [docs/CONFIG_MAP.md](docs/CONFIG_MAP.md).
+- **One rule for panel and alert.** The migration `20261116000400_never_flew_pilot_alert.sql` adds the views `pilot_never_flew_90d` (read by the panel, which shows the same rows as before) and `ops_never_flew_alert` (read by the watchdog login only). `db/roles.sql` grants the watchdog login the second view.
+- Not yet deployed.
+
 ## ATC stats loader (15-11-2026, issue 387)
 
 - **New container and history.** `vatsim-atc-stats` loads every ATC session on the VATSIM network (all callsigns) from VATSIM's public history API into the new table `atc_stats_session`, one UTC day at a time. It runs once a day at 06:00 UTC and keeps 5 years. Its run log is `atc_stats_run_log`. The migration is `20261115000400_atc_stats.sql`, and `db/roles.sql` creates the role `stats_loader`. Runbook: [docs/RUNBOOKS/atc-stats-loader.md](docs/RUNBOOKS/atc-stats-loader.md).

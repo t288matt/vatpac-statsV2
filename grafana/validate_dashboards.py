@@ -179,7 +179,7 @@ def main() -> int:
             if is_panel and re.search(r"(?i)\bnow\(\)", noise) is None and "$__time" not in sql \
                     and "network_history" not in noise and "monitor_freshness" not in noise \
                     and "controller_online_now" not in noise and "pilot_online_now" not in noise \
-                    and "pilot_latest" not in noise \
+                    and "pilot_latest" not in noise and "pilot_never_flew_90d" not in noise \
                     and "data_freshness" not in noise and "poll_history" not in noise:
                 warnings.append(f"{full}: no time range, now() or live view")
             if sqlglot is not None:

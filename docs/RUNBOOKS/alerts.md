@@ -2,7 +2,7 @@
 
 *Describes main; the commit production runs is shown by `bash ops/deploy.sh --status`. The invariant pack has 19 checks (`bash ops/deploy.sh --verify` counts them). Changes are listed in CHANGELOG.md.*
 
-Last reviewed: 15-11-2026 (the `stats_loader` check added), against `ops/watchdog/watchdog.py`, `ops/watchdog/messages.py` and `ops/watchdog/integrity.py`. Times are UTC.
+Last reviewed: 16-11-2026 (the `never-flew` alert added), against `ops/watchdog/watchdog.py`, `ops/watchdog/messages.py`, `ops/watchdog/never_flew.py` and `ops/watchdog/integrity.py`. Times are UTC.
 
 ## How alerts work
 
@@ -79,11 +79,44 @@ Old wording to new wording (the plain sentence of the new message, without the l
 | `data_integrity` | WARN when the invariant sweep (19 read-only checks in `ops/audit/invariants.sql`, run every 72 hours; repeated every 6 hours while violations stand) finds a violation, or cannot run. RECOVERED when a sweep is clean. One extra message, `WARN data_integrity: new violations since the last sweep: ...`, when a sweep that is already failing finds a new invariant failing | Stored data broke one of the rules it must always obey: duplicates, impossible values, orphans, counts that disagree between tables, a snapshot gap over 5 minutes, an identity flap, missing partitions and so on. Latency is up to 3 days, so a break that is also covered by a live check (collector, snapshot age, identity_flap) has usually been alerted already. A violation that ages out of its 3-day window is not announced; RECOVERED follows at the next 6-hourly recheck. Sample of the technical text in the log: `WARN data_integrity: 1 of 19 invariants report violations: snapshot gaps over 5 minutes (1). Details are in the watchdog log; run ops/audit/invariants.sql (docs/RUNBOOKS/alerts.md)` | [integrity-checks.md](integrity-checks.md): the table of what each invariant means and what to do. Detail: `docker compose logs --since 24h watchdog \| grep "integrity violation"`. `could not run (InsufficientPrivilege)` means the migrate job has not applied the `watchdog_ro` grants: on the VM (registry mode) `docker compose pull migrate` then `docker compose up -d --no-build migrate`; never `--build` there. In local-build mode (a PC) `docker compose up -d --build migrate`. |
 | `feed_crosscheck` | WARN when, in the 14-day archive cross-check, the in-region pilot count, the controller count or the set of in-region pilots recomputed from an archived raw-feed payload differs from the stored rows, or when there was nothing to compare, or it could not run. RECOVERED at the next clean run (an hour later if it could not run, otherwise 14 days) | The collector kept or dropped something the independent rules would not (polygon or whitelist regression, changed gate, a feed field that changed meaning), or the archive is empty. Latency up to 14 days. Sample of the technical text in the log: `WARN feed_crosscheck: 1 difference(s) in 24 archived snapshots: 09-10-2026 12:00:03 UTC: pilots_in_region independent 41, stored 40. Details are in the watchdog log (docs/RUNBOOKS/alerts.md)` | [integrity-checks.md](integrity-checks.md) (end of the table) and [feed-archive.md](feed-archive.md) (replay the file through the collector's own parser). |
 | `stats_loader` | CRIT when no run has succeeded in the last 36 hours and no run in progress has written a day in that time. WARN when the newest finished run is `failed` or `interrupted`, or the run-log query fails. A clean stop (`stopped`) is not a warning. A new install with an empty run log is OK for 36 hours after the watchdog's first start. Reads `atc_stats_run_log` as `watchdog_ro` | The ATC session loader (container `vatsim-atc-stats`) is not keeping its history up to date. Live collection, the flight data and the dashboards are not affected. A failed or interrupted run tries its missing days again at its next run. | Read the run log and the loader's log: [atc-stats-loader.md](atc-stats-loader.md), sections 2 and 4. If the container is not running, start it (section 5 of that runbook). |
+| `never-flew` | WARN, one message per logon, sent in the cycle the logon is first seen (it does not wait for `WATCHDOG_CONFIRM_CYCLES` and has no RECOVERED message). Reads the view `ops_never_flew_alert` as `watchdog_ro` each cycle | A pilot is online with a flight plan filed and has not taken off, and either has finished flights in the last 90 days but none with airborne time (the pilots on the panel "Pilots who logged on but never flew (90 days)"), or has no finished flight on record; in both cases the name must end the way the panel requires (a Y airport code). Not airborne means the logon's highest groundspeed is under 60 knots, a fixed rule. Pilots who last flew more than 90 days ago, pilots with no plan and pilots already airborne never alert. Nothing is wrong with the system | Someone may offer the pilot help. Nothing to fix. Switching it on and off, and the volume: "Alert for pilots who log on and never fly" below. A failed read of the view shows as the `database` CRIT. |
 | `UNKNOWN CALLSIGN ...` | One message per new callsign | A controller logged on with a callsign that is not on the whitelist but looks like one that is (a new position at a known airport) | [update-reference-files.md](update-reference-files.md): add it to `config/controller_callsigns_list.txt`, deploy, reload. Until then that controller is not recorded. |
 
 A rollback to the release before the table was renamed also needs `controller_unlisted_callsign` renamed back to its previous name (given in CHANGELOG.md, under issue 209). After such a rollback the old watchdog does not know which unknown callsigns were already reported, so it alerts once more for each one it sees. Also, a failed read of the unknown-callsign list (for example a missing right for `watchdog_ro`) shows as the `database` CRIT above.
 
 Checks that only exist when `DOCKER_HOST_URL` is set (it is empty in this deployment, so you will not see them): `container:<service>`, `docker_proxy`, `restart-cap:<service>` and `RESTARTED <service>` messages.
+
+## Alert for pilots who log on and never fly
+
+Message (issue 331), sent to the same Telegram chat as every other alert:
+
+```
+VATPAC Stats: heads up (14:05 UTC). A pilot has logged on with a flight plan filed and has not taken off yet. Someone may want to help them.
+CID 1234567, Example Pilot YSSY
+Location (latitude, longitude): -33.95, 151.18
+Route filed: YSSY to YMML, DCT
+Logged on: 16-11-2026 14:02 UTC
+3rd logon, no flight with airborne time in 90 days (2 flights logged).
+Technical: never-flew cid 1234567, ...
+```
+
+A first-timer's last line reads `1st logon, never flown (no finished flight on record).` The location is the newest position in the last 3 hours, or "position not known yet".
+
+- **One alert per logon.** A logon is the pilot's CID plus that session's logon time. A pilot who drops and reconnects has a new logon time and alerts again; the 120-minute reconnect merge is not used here. There is no daily limit.
+- **Memory.** The watchdog keeps the alerted logons in its status file and forgets each 24 hours after it was alerted (`WATCHDOG_NEVER_FLEW_REMEMBER_HOURS`, fixed in `docker-compose.yml`), unless it is still in the view, so a pilot who sits at the gate for days is not alerted again every day. The first cycle after the watchdog starts with no saved list records everyone already online and sends nothing.
+- **Dry-run.** `WATCHDOG_NEVER_FLEW_DRY_RUN` is `1` unless changed: the watchdog writes `DRY RUN, would alert: ...` lines to its log (`docker compose logs watchdog | grep "would alert"`) and sends nothing; logons are remembered as in live mode. To send the messages, set `WATCHDOG_NEVER_FLEW_DRY_RUN=0` in `.env` and run `docker compose up -d watchdog` (the full list of settings is in [../CONFIG_MAP.md](../CONFIG_MAP.md)). To stop them again, set it back to `1` and restart the same way. Sending is capped by the watchdog's Telegram queue (at most 5 sends per cycle, 20 waiting), as for every alert.
+- **Who is counted.** The rule lives in the database views `pilot_never_flew_90d` and `ops_never_flew_alert` ([../DATA_DICTIONARY.md](../DATA_DICTIONARY.md) section 4), so the alert and the panel ([../CHART_DEFINITIONS.md](../CHART_DEFINITIONS.md), card 180) always agree about who counts.
+- **The message contains a CID and a name.** The watchdog log keeps the CID only; a message that has not been delivered yet waits in the status file and carries the name.
+
+### Volume check: the 30-day backfill
+
+`ops/audit/never_flew_backfill.sql` counts how many alerts the last 30 days would have raised, so the volume can be read before dry-run is switched off. It only reads. Run it by hand from the VM's project folder, in a shell where `WATCHDOG_DB_PASSWORD` and `POSTGRES_DB` are set:
+
+```
+docker compose exec -T -e PGPASSWORD="$WATCHDOG_DB_PASSWORD" db psql -X -v ON_ERROR_STOP=1 -U watchdog_ro -d "$POSTGRES_DB" < ops/audit/never_flew_backfill.sql
+```
+
+The result has the alerts per UTC day (zeros included), the total, the number of distinct pilots, the split between first-timers and repeat non-fliers, and the 10 pilots with the most alerts (CID only). The query lifts the login's 10 second limit for its own session (120 seconds). It is an approximation of the live check, not a replay. It can differ from what the live check would have sent because: the live check looks once a minute, while the backfill judges each logon from its stored positions; the filing time of the plan is not stored, so a plan counts from the first sighting (this leans towards more alerts); flights are written about 8 hours after a pilot's last connection ends, so the live check did not yet see a flight that had just finished, while the backfill does (fewer first-timers); the name is the one stored today; and positions older than the position retention (180 days by default) are gone, which does not matter inside 30 days. Treat the total as the order of magnitude.
 
 ## What does not alert
 

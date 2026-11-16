@@ -37,9 +37,9 @@ def test_no_panel_carries_an_in_progress_filter_or_a_piece_column() -> None:
     assert bad == [], bad
 
 
-def test_the_thirteen_panels_that_read_flight_directly_still_exist_and_are_not_filtered_on_progress() -> None:
+def test_the_twelve_panels_that_read_flight_directly_still_exist_and_are_not_filtered_on_progress() -> None:
     direct = [(n, s) for n, s in _panels() if DIRECT_FLIGHT.search(s)]
-    assert len(direct) == 13, [n for n, _ in direct]          # listed in docs/CHART_DEFINITIONS.md: 11, plus 4 copies on pilots-records, plus 3 on atc-positions (94, 95) and live-events (129), plus 3 queries added on pilots-now by issue 280 (ATC panel: 2, busiest hours: 1), minus the lapsed-pilots panel removed by issue 306, and the two panels of Management: people online removed by issue 312, minus the four hour panels of Pilots: online now (5 queries) removed by issue 315, minus the Busiest days by pilots copy on the deleted Live now and events page (issue 323), plus the Monday event bar chart (issue 324)
+    assert len(direct) == 12, [n for n, _ in direct]          # listed in docs/CHART_DEFINITIONS.md: 11, plus 4 copies on pilots-records, plus 3 on atc-positions (94, 95) and live-events (129), plus 3 queries added on pilots-now by issue 280 (ATC panel: 2, busiest hours: 1), minus the lapsed-pilots panel removed by issue 306, and the two panels of Management: people online removed by issue 312, minus the four hour panels of Pilots: online now (5 queries) removed by issue 315, minus the Busiest days by pilots copy on the deleted Live now and events page (issue 323), plus the Monday event bar chart (issue 324), minus the never-flew panel, which now reads the pilot_never_flew_90d view (issue 331)
     assert [n for n, s in direct if "in_progress" in s] == []
 
 

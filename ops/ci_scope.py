@@ -49,6 +49,7 @@ INTEGRATION_TARGETS = tuple(
         "test_phase5_remove_old", "test_pilot_latest_one_row_per_flight", "test_pilots_people_t15", "test_pilots_records",
         "test_pilots_t14", "test_routes_aircraft",
         "test_time_zones", "test_one_row_per_key_awkward_data", "test_norm_code", "test_controller_promotion",
+        "test_never_flew_alert",
     )
 )
 

@@ -606,6 +606,17 @@ class World:
             return list(self.unlisted)
 
         monkeypatch.setattr(wd, "unlisted_callsigns", read_unlisted)
+        # the never-flew pilot alert (issue 331) reads the database every cycle: the tests of the cycle play that read here
+        self.never_flew_error: Exception | None = None
+        self.never_flew_calls: list[tuple[float, bool]] = []
+
+        def read_never_flew(dsn: str, state: dict, remember_hours: float, dry_run: bool, notify: object, now: float | None = None) -> int:
+            self.never_flew_calls.append((remember_hours, dry_run))
+            if self.never_flew_error is not None:
+                raise self.never_flew_error
+            return 0
+
+        monkeypatch.setattr(wd.never_flew, "run", read_never_flew)
         monkeypatch.setattr(wd, "check_disk", lambda cfg: (OK, "disk fine"))
         monkeypatch.setattr(wd, "check_backup", lambda cfg, first: (OK, "backup fine"))
         monkeypatch.setattr(wd, "check_restore_test", lambda cfg, first: (OK, "restore fine"))
@@ -818,6 +829,25 @@ def test_a_failing_unlisted_callsign_read_is_critical_not_silent(world: World, c
     world.unlisted_error = None
     world.cycle(3)
     assert world.sent[-1].startswith("RECOVERED database (was crit)")
+
+
+def test_cycle_reads_the_never_flew_alert_every_cycle_with_dry_run_on_by_default(world: World) -> None:
+    """Issue 331: the check runs in the normal cycle, with the owner's switch (on by default) and 24 hours of memory."""
+    world.cycle(3)
+    assert world.never_flew_calls == [(24.0, True)] * 3
+
+
+def test_a_failing_never_flew_read_is_a_database_problem_and_does_not_stop_the_other_checks(world: World, caplog: pytest.LogCaptureFixture) -> None:
+    """Issue 331: a failed read is reported as the watchdog already reports one, and the other checks in the cycle still run."""
+    world.never_flew_error = psycopg.errors.InsufficientPrivilege("permission denied for view ops_never_flew_alert")
+    world.integrity = ({"data_integrity": (wd.WARN, "1 of 18 invariants report violations: x (2) (checked now)")}, [])
+    world.cycle(3)
+    assert world.sent.count("CRIT database: query/connect failed (InsufficientPrivilege)") == 1
+    assert [s for s in world.sent if "data_integrity" in s] != []                       # a check after it in the cycle still ran
+    assert "never-flew read failed" in caplog.text
+    world.never_flew_error = None
+    world.cycle(3)
+    assert any(s.startswith("RECOVERED database (was crit)") for s in world.sent)
 
 
 def test_cycle_stats_loader_alerts_on_the_database_result_and_never_touches_docker(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
