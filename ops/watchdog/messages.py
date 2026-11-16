@@ -58,6 +58,8 @@ class Alert:
         """The technical wording for the log and the status file."""
         if self.name == "unknown-callsign":
             return f"UNKNOWN CALLSIGN not on whitelist: {self.detail}"
+        if self.name == "never-flew":
+            return f"NEVER FLEW {self.detail}"  # no name here: the log keeps the CID only
         if self.name.startswith("restarted:"):
             return f"RESTARTED {self.name.split(':', 1)[1]} ({self.facts.get('counts', '')}): {self.facts.get('why', self.detail)}"
         if self.level == "ok":
@@ -178,6 +180,29 @@ def invariant_words(name: str, quiet: tuple[str, str] | list[str] | None = None)
     if "{when}" not in words:
         return words
     return words.format(when=f"over {_hours_minutes(quiet[0], quiet[1])} ago" if quiet else "longer ago than the quiet period")
+
+
+def _ordinal(n: int) -> str:
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def _never_flew(facts: Facts) -> str:
+    """The pilot alert (issue 331). facts: cid, name, kind (first_timer or repeat), flights_90d, logon_number, departure, arrival,
+    route (may be None), lat and lon (may be None), logon (DD-MM-YYYY HH:MM, UTC)."""
+    where = f"{facts['lat']:.2f}, {facts['lon']:.2f}" if facts.get("lat") is not None and facts.get("lon") is not None else "position not known yet"
+    route = f"{facts.get('departure')} to {facts.get('arrival')}" + (f", {_clip(str(facts['route']), 80)}" if facts.get("route") else "")
+    n = int(facts.get("logon_number") or 1)
+    if facts.get("kind") == "repeat":
+        past = int(facts.get("flights_90d") or 0)
+        history = f"{_ordinal(n)} logon, no flight with airborne time in 90 days ({past} flight{'' if past == 1 else 's'} logged)."
+    else:
+        history = f"{_ordinal(n)} logon, never flown (no finished flight on record)."
+    return (f"A pilot has logged on with a flight plan filed and has not taken off yet. Someone may want to help them.\n"
+            f"CID {facts.get('cid')}, {_clip(str(facts.get('name', '')), 40)}\n"
+            f"Location (latitude, longitude): {where}\n"
+            f"Route filed: {route}\n"
+            f"Logged on: {facts.get('logon')} UTC\n"
+            f"{history}")
 
 
 def _clip(text: str, n: int = MAX_TECH) -> str:
@@ -486,6 +511,8 @@ def humanise(name: str, level: str, detail: str, previous_level: str | None = No
         plain = (f"unknown callsign: a controller logged on with a callsign that is not on the whitelist, so they are not being recorded: {detail}. "
                  "It looks like a new position; add it to the whitelist if it is real.")
         return _ascii(f"{PREFIX} {label} ({stamp}). {plain[0].upper() + plain[1:]}\nTechnical: unknown-callsign {_clip(detail)}")
+    if name == "never-flew":
+        return _ascii(f"{PREFIX} {label} ({stamp}). {_never_flew(facts)}\nTechnical: never-flew cid {facts.get('cid')}, {_clip(detail)}")
     if name.startswith("restarted:"):
         svc = name.split(":", 1)[1]
         plain = f"The watchdog restarted the {svc} container because it looked stuck. Check that it stays up; no other action."

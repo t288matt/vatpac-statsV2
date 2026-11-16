@@ -24,6 +24,7 @@ from typing import Any
 import httpx
 import integrity
 import messages
+import never_flew
 import psycopg
 from psycopg.conninfo import make_conninfo
 
@@ -86,6 +87,10 @@ class Config:
         self.tg_token = env("TELEGRAM_BOT_TOKEN")
         self.tg_chat = env("TELEGRAM_CHAT_ID")
         self.kuma_url = env("UPTIME_KUMA_PUSH_URL")
+        # Alert for pilots who log on, file a plan and never fly (issue 331, ops/watchdog/never_flew.py). Dry-run (the default) logs what
+        # would be sent and sends nothing; the owner switches it off in .env. A logon is remembered this many hours after its alert.
+        self.never_flew_dry_run = env("WATCHDOG_NEVER_FLEW_DRY_RUN", "1").strip().lower() in ("1", "true", "yes", "on")
+        self.never_flew_remember_hours = max(0.0, env_num("WATCHDOG_NEVER_FLEW_REMEMBER_HOURS", 24))
         # Scheduled integrity checks (issue 20): the invariant sweep and the archive cross-check. 0 disables either one.
         self.integrity = integrity.Plan(
             dsn=self.db_dsn,
@@ -738,6 +743,12 @@ def _cycle(cfg: Config, client: httpx.Client, docker: Docker, alerter: Alerter, 
         log.error("unlisted callsign read failed: %s", exc)
         listed = []
         if db.get("database", (CRIT, ""))[0] == OK:
+            results["database"] = (CRIT, f"query/connect failed ({type(exc).__name__})")
+    try:  # pilots who logged on with a plan and have not taken off (issue 331); a failed read is a database problem, as above
+        never_flew.run(cfg.db_dsn, state, cfg.never_flew_remember_hours, cfg.never_flew_dry_run, alerter.notify)
+    except psycopg.Error as exc:
+        log.error("never-flew read failed: %s", exc)
+        if results.get("database", (CRIT, ""))[0] == OK:
             results["database"] = (CRIT, f"query/connect failed ({type(exc).__name__})")
     sched, notices = integrity.run_due(cfg.integrity, state)  # slow checks, persisted schedule, see integrity.py
     results.update(sched)
