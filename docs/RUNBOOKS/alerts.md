@@ -106,7 +106,7 @@ A first-timer's last line reads `1st logon, never flown (no finished flight on r
 - **Memory.** The watchdog keeps the alerted logons in its status file and forgets each 24 hours after it was alerted (`WATCHDOG_NEVER_FLEW_REMEMBER_HOURS`, fixed in `docker-compose.yml`), unless it is still in the view, so a pilot who sits at the gate for days is not alerted again every day. The first cycle after the watchdog starts with no saved list records everyone already online and sends nothing.
 - **Dry-run.** `WATCHDOG_NEVER_FLEW_DRY_RUN` is `1` unless changed: the watchdog writes `DRY RUN, would alert: ...` lines to its log (`docker compose logs watchdog | grep "would alert"`) and sends nothing; logons are remembered as in live mode. To send the messages, set `WATCHDOG_NEVER_FLEW_DRY_RUN=0` in `.env` and run `docker compose up -d watchdog` (the full list of settings is in [../CONFIG_MAP.md](../CONFIG_MAP.md)). To stop them again, set it back to `1` and restart the same way. Sending is capped by the watchdog's Telegram queue (at most 5 sends per cycle, 20 waiting), as for every alert.
 - **Who is counted.** The rule lives in the database views `pilot_never_flew_90d` and `ops_never_flew_alert` ([../DATA_DICTIONARY.md](../DATA_DICTIONARY.md) section 4), so the alert and the panel ([../CHART_DEFINITIONS.md](../CHART_DEFINITIONS.md), card 180) always agree about who counts.
-- **The message contains a CID and a name.** The watchdog log and status file keep the CID only.
+- **The message contains a CID and a name.** The watchdog log keeps the CID only; a message that has not been delivered yet waits in the status file and carries the name.
 
 ### Volume check: the 30-day backfill
 

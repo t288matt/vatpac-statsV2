@@ -89,7 +89,8 @@ class Config:
         self.kuma_url = env("UPTIME_KUMA_PUSH_URL")
         # Alert for pilots who log on, file a plan and never fly (issue 331, ops/watchdog/never_flew.py). Dry-run (the default) logs what
         # would be sent and sends nothing; the owner switches it off in .env. A logon is remembered this many hours after its alert.
-        self.never_flew_dry_run = env("WATCHDOG_NEVER_FLEW_DRY_RUN", "1").strip().lower() in ("1", "true", "yes", "on")
+        # Live ONLY for an explicit 0, false, no or off: an empty value or a typo stays dry-run.
+        self.never_flew_dry_run = env("WATCHDOG_NEVER_FLEW_DRY_RUN", "1").strip().lower() not in ("0", "false", "no", "off")
         self.never_flew_remember_hours = max(0.0, env_num("WATCHDOG_NEVER_FLEW_REMEMBER_HOURS", 24))
         # Scheduled integrity checks (issue 20): the invariant sweep and the archive cross-check. 0 disables either one.
         self.integrity = integrity.Plan(

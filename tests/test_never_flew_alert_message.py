@@ -101,7 +101,8 @@ def test_settings_defaults_dry_run_on_and_24_hours(monkeypatch: pytest.MonkeyPat
 
 
 @pytest.mark.parametrize("raw,dry", [("1", True), ("true", True), ("TRUE", True), (" yes ", True), ("on", True),
-                                     ("0", False), ("false", False), ("no", False), ("off", False)])
+                                     ("0", False), ("false", False), ("no", False), ("off", False), (" OFF ", False),
+                                     ("y", True), ("ture", True), ("enabled", True), ("", True)])
 def test_dry_run_switch_values(monkeypatch: pytest.MonkeyPatch, raw: str, dry: bool) -> None:
     monkeypatch.setenv("WATCHDOG_NEVER_FLEW_DRY_RUN", raw)
     assert wd.Config().never_flew_dry_run is dry
