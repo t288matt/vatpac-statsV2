@@ -4,7 +4,7 @@ The loader is the container `vatsim-atc-stats`. It keeps every ATC session on th
 
 ## 1. What the loader does
 
-Once a day, at `STATS_RUN_AT` (06:00 UTC by default), it asks VATSIM's public history API for the ATC sessions that started on each UTC day it has not stored yet, one day at a time, and writes each day to `atc_stats_session` in one transaction. A session that VATSIM has closed is stored with its end time and its counts; a session that is still open is stored without an end and is updated by a later run. At the end of a run with no failed day it deletes sessions older than the retention period, and it records every run in `atc_stats_run_log`.
+Once a day, at `STATS_RUN_AT` (06:00 UTC), it asks VATSIM's public history API for the ATC sessions that started on each UTC day it has not stored yet, one day at a time, and writes each day to `atc_stats_session` in one transaction. A session that VATSIM has closed is stored with its end time and its counts; a session that is still open is stored without an end and is updated by a later run. At the end of a run with no failed day it deletes sessions older than the retention period, and it records every run in `atc_stats_run_log`.
 
 ## 2. See what it is doing
 
@@ -34,7 +34,7 @@ The log shows one line for each day written (`written:`) and one for each day th
 
 Every run is the same kind of run. A run loads the recent days first: the last three days on an empty database, and afterwards the days from two days before the newest stored date (`STATS_OVERLAP_DAYS`) up to yesterday. Then it loads each older date that has no sessions stored, newest first, back to the start of the retention period. A date with no sessions is confirmed on all 24 hours and recorded as empty, so it is not asked for again. When a run finds an empty date older than every stored date, it stops searching, because that is the start of VATSIM's history.
 
-The first run therefore has the most dates to load. At the set rate of one request every 45 seconds (`STATS_MIN_INTERVAL_SECONDS`), it is estimated at up to about 19 days for 5 years of history and up to about 65 days for 15 years, if every old date has to be read as 24 one-hour windows; it is much faster for the dates VATSIM still answers as whole days. Progress shows in `days_loaded`, in `last_day_at` moving forward, and in the log lines. If a run is still going at the next `STATS_RUN_AT`, that time is skipped: the following run starts at the first `STATS_RUN_AT` after the run ends.
+The first run therefore has the most dates to load. The loader makes one request every 45 seconds (`STATS_MIN_INTERVAL_SECONDS`). About 300 recent days take one request each, and an older date can take 24 one-hour requests. At the longest that is about 19 days for 5 years of history and about 65 days for 15 years; it is much faster for the dates VATSIM still answers as whole days. Progress shows in `days_loaded`, in `last_day_at` moving forward, and in the log lines. If a run is still going at the next `STATS_RUN_AT`, that time is skipped: the following run starts at the first `STATS_RUN_AT` after the run ends.
 
 ## 4. Alerts and what to do
 
@@ -50,7 +50,7 @@ The watchdog reads the run log every minute. The exact wording is in [alerts.md]
 - Stop: `docker compose stop vatsim-atc-stats`. The run ends `stopped`. Each day is written in one transaction, so a stop loses at most the day in progress, and the next run loads it.
 - Start: `docker compose start vatsim-atc-stats`. Restart: `docker compose restart vatsim-atc-stats`. Each start marks any row still `running` as `interrupted`.
 - Run again without waiting: there is no separate command. After a start, the loader waits 60 seconds before its first request, and it starts a run then, unless a run has already finished successfully on the same UTC date. If one has, the next run is at the next `STATS_RUN_AT`.
-- Change the daily time: set `STATS_RUN_AT=HH:MM` (UTC) in `.env`, then `docker compose up -d vatsim-atc-stats`.
+- Change the daily time: edit `STATS_RUN_AT` (HH:MM, UTC) in `docker-compose.yml` through a pull request and a deploy ([CONFIG_MAP.md](../CONFIG_MAP.md), "Where each setting lives"). It is not read from `.env`.
 - Before a restore of the database, stop the loader: `docker compose stop vatsim-atc-stats`. `ops/backup/restore.sh` refuses to run while any session is connected to the database, and the loader holds one. Start it again after the restore ([restore.md](restore.md)).
 
 ## 6. Retention: how long sessions are kept

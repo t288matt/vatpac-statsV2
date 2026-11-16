@@ -122,7 +122,7 @@ services:
 
   vatsim-atc-stats:
     # The ATC stats loader (issue 387): loads every VATSIM ATC session, one UTC day at a time, into atc_stats_session. It reads
-    # the public VATSIM API (at most one request per 5 seconds) and writes the database as the role `stats_loader`; no published port.
+    # the public VATSIM API (one request at a time, `STATS_MIN_INTERVAL_SECONDS` apart) and writes the database as the role `stats_loader`; no published port.
     build:
       context: ./stats_loader
       args:
