@@ -101,11 +101,11 @@ Run `docker compose up -d backup`, open the pull request that changes the litera
 | `WATCHDOG_INTEGRITY_INTERVAL_HOURS` | `72` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** How often the 19-invariant SQL sweep (`ops/audit/invariants.sql`) runs, in hours; `0` disables. A sweep with violations repeats every 6 hours. The last run is kept in the status file, so a restart does not re-run early or skip a due run. Do not raise it above 72 without widening the 3-day windows in the SQL (docs/RUNBOOKS/integrity-checks.md). |
 | `WATCHDOG_CROSSCHECK_INTERVAL_DAYS` | `14` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** How often the raw-feed archive cross-check runs, in days; `0` disables. |
 | `WATCHDOG_CROSSCHECK_SAMPLES` | `24` | watchdog | **Fixed in `docker-compose.yml`, not `.env`.** Archived snapshots compared per cross-check, evenly spread over the interval (about 1 s of CPU each). |
-| `STATS_RUN_AT` | `06:00` | vatsim-atc-stats | When the daily run starts, UTC (`HH:MM`). Optional in `.env`; this default applies when the line is absent. |
-| `STATS_MIN_INTERVAL_SECONDS` | `5` | vatsim-atc-stats | Seconds between two requests to the VATSIM history API. The loader never goes below 5, so a smaller value is raised to 5. Optional in `.env`. |
-| `STATS_PAGE_SIZE` | `5000` | vatsim-atc-stats | Sessions asked for in one request (at least 1). Optional in `.env`. |
+| `STATS_RUN_AT` | `06:00` | vatsim-atc-stats | **Fixed in `docker-compose.yml`, not `.env`.** When the daily run starts, UTC (`HH:MM`). |
+| `STATS_MIN_INTERVAL_SECONDS` | `45` | vatsim-atc-stats | **Fixed in `docker-compose.yml`, not `.env`.** Seconds between two requests to the VATSIM history API. The loader never goes below 5, so a smaller value is raised to 5. |
+| `STATS_PAGE_SIZE` | `5000` | vatsim-atc-stats | **Fixed in `docker-compose.yml`, not `.env`.** Sessions asked for in one request (at least 1). |
 | `STATS_OVERLAP_DAYS` | `2` | vatsim-atc-stats | Each run also loads the days from this many days before the newest stored date, so sessions that closed late are picked up (at least 0). Optional in `.env`. |
-| `STATS_RETENTION_YEARS` | `3` | vatsim-atc-stats | **Fixed in `docker-compose.yml`, not `.env`.** Years of sessions kept (at least 1). See [RUNBOOKS/atc-stats-loader.md](RUNBOOKS/atc-stats-loader.md), section 6. |
+| `STATS_RETENTION_YEARS` | `5` | vatsim-atc-stats | **Fixed in `docker-compose.yml`, not `.env`.** Years of sessions kept (at least 1). See [RUNBOOKS/atc-stats-loader.md](RUNBOOKS/atc-stats-loader.md), section 6. |
 
 ### A2. Set by `docker-compose.yml` itself (not intended for `.env`)
 
