@@ -37,7 +37,7 @@ s AS (  -- logons in the window with a plan filed
 ),
 c AS (  -- each logon with its first airborne sample (60 kt or more) and its flight history as it stood before the logon
   SELECT s.id, s.cid, s.logon_time, s.session_name,
-         air.t AS first_airborne, h.all_n, h.n90, h.air90, h.flight_name
+         air.t AS first_airborne, h.all_n, h.earlier_flown, h.n90, h.air90, h.flight_name
   FROM s
   CROSS JOIN params p
   LEFT JOIN LATERAL (
@@ -47,6 +47,8 @@ c AS (  -- each logon with its first airborne sample (60 kt or more) and its fli
   ) air ON true
   LEFT JOIN LATERAL (
     SELECT count(*) AS all_n,
+           -- an earlier logon of this pilot that reached 60 kt counts as flown even before its flight is written (as the alert view)
+           (SELECT count(*) FROM pilot_session e WHERE e.cid = s.cid AND e.logon_time < s.logon_time AND e.max_gs_kt >= 60) AS earlier_flown,
            count(*) FILTER (WHERE f.airborne_minutes IS NOT NULL AND f.end_time >= s.logon_time - interval '90 days') AS n90,
            count(*) FILTER (WHERE f.airborne_minutes > 0 AND f.end_time >= s.logon_time - interval '90 days') AS air90,
            (array_agg(f.name ORDER BY f.logon_time DESC NULLS LAST)
@@ -63,7 +65,7 @@ k AS (  -- the kind of alert, if any; the Y test is the panel's: at least 4 char
                    AND length(COALESCE(c.flight_name, c.cid::text)) >= 4
                    AND substring(COALESCE(c.flight_name, c.cid::text) FROM length(COALESCE(c.flight_name, c.cid::text)) - 3 FOR 1) = 'Y'
               THEN 'repeat'
-              WHEN c.all_n = 0
+              WHEN c.all_n = 0 AND c.earlier_flown = 0
                    AND length(COALESCE(c.session_name, c.cid::text)) >= 4
                    AND substring(COALESCE(c.session_name, c.cid::text) FROM length(COALESCE(c.session_name, c.cid::text)) - 3 FOR 1) = 'Y'
               THEN 'first_timer'
