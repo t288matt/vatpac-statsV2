@@ -63,7 +63,12 @@ def test_the_migration_made_the_tables_and_the_named_indexes(conn: Any) -> None:
         "JOIN pg_am a ON a.oid = i.relam "
         "WHERE x.indrelid = 'atc_stats_session'::regclass").fetchall()}
     assert got == {"atc_stats_session_pkey": "btree", "atc_stats_session_cid_idx": "btree",
-                   "atc_stats_session_callsign_idx": "btree", "atc_stats_session_start_brin": "brin"}
+                   "atc_stats_session_callsign_idx": "btree", "atc_stats_session_start_brin": "brin",
+                   "atc_stats_session_promotion_idx": "btree"}  # the promotions index (issue 379) is part of the intended set
+    valid, partial = conn.execute(
+        "SELECT x.indisvalid, x.indpred IS NOT NULL FROM pg_index x "
+        "WHERE x.indexrelid = 'atc_stats_session_promotion_idx'::regclass").fetchone()
+    assert valid and partial  # a half-built (INVALID) or non-partial index would be silently useless or costly
     with pytest.raises(psycopg.errors.CheckViolation):
         conn.execute("INSERT INTO atc_stats_run_log (status) VALUES ('finished')")
 

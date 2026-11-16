@@ -125,14 +125,18 @@ def test_connection_id_is_unique(su: psycopg.Connection) -> None:
 
 
 # ---- indexes ----------------------------------------------------------------------------------------------------
-def test_the_four_indexes_exist_with_the_designed_shape(su: psycopg.Connection) -> None:
+def test_the_five_indexes_exist_with_the_designed_shape(su: psycopg.Connection) -> None:
     idx = {r[0]: r[1] for r in su.execute("SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'atc_stats_session'")}
     assert set(idx) == {"atc_stats_session_pkey", "atc_stats_session_cid_idx", "atc_stats_session_callsign_idx",
-                        "atc_stats_session_start_brin"}
+                        "atc_stats_session_start_brin", "atc_stats_session_promotion_idx"}
     assert "(connection_id)" in idx["atc_stats_session_pkey"]
     assert "(cid, session_start DESC)" in idx["atc_stats_session_cid_idx"]
     assert "(callsign, session_start DESC)" in idx["atc_stats_session_callsign_idx"]
     assert "USING brin (session_start)" in idx["atc_stats_session_start_brin"]
+    promo = idx["atc_stats_session_promotion_idx"]  # issue 379: the promotions view's window, partial, with session_end carried
+    assert "(cid, session_start, rating, connection_id) INCLUDE (session_end)" in promo
+    assert "rating = ANY" in promo and "duration_seconds > 1200" in promo
+    assert su.execute("SELECT indisvalid FROM pg_index WHERE indexrelid = 'atc_stats_session_promotion_idx'::regclass").fetchone()[0]
     assert not [n for n, d in idx.items() if "position_type" in d]  # none on position_type at first
 
 
