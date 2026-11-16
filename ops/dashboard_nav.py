@@ -33,6 +33,7 @@ MIN_HEADER_HEIGHT: dict[str, int] = {
     "atc-position-hours.json": 4,
     "atc-positions.json": 4,
     "atc-ranks.json": 5,
+    "atc-promotions.json": 3,
     "atc-retention.json": 3,
     "pilot-origins.json": 3,
     "monday-events.json": 3,
@@ -50,7 +51,7 @@ GROUPS: dict[str, list[tuple[str, str]]] = {
     "Pilots": [("traffic", "Traffic"), ("new-pilots", "New pilots"), ("origins", "Origins"),
                ("pilots", "Records"), ("routes", "Routes"), ("aircraft", "Aircraft"), ("military", "Military")],
     "ATC": [("atc", "Overview"), ("atc-retention", "Retention"), ("atc-hours", "Hours"), ("atc-positions", "Positions"),
-            ("atc-ranks", "Ranks")],
+            ("atc-ranks", "Ranks"), ("atc-promotions", "Promotions")],
     "Events": [("monday", "Monday events")],
     "Management": [("health", "Health")],
 }
