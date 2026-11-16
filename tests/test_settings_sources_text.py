@@ -98,7 +98,7 @@ def test_the_watchdog_role_is_granted_the_two_views_and_nothing_wider() -> None:
     names = set(re.findall(r"'(\w+)'", block.group(1)))
     assert {"ops_setting", "ops_pending_flight"} <= names
     assert not names & {"app_setting", "controller_rating_event"}
-    assert {n for n in names if n.startswith("ops_")} == {"ops_setting", "ops_pending_flight"}
+    assert {n for n in names if n.startswith("ops_")} == {"ops_setting", "ops_pending_flight", "ops_never_flew_alert"}
     assert re.findall(r"GRANT EXECUTE ON FUNCTION", sh) == ["GRANT EXECUTE ON FUNCTION"]  # one grant, and it is the wrapper below
     assert re.search(r"unnest\(ARRAY\['ops_setting_num\(text\)'\]\)", sh) and "'setting_num" not in sh
 
