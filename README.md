@@ -103,6 +103,91 @@ Both files are loaded when the collector starts and reloaded without a restart w
 | `docs/` | Documentation (index: [docs/README.md](docs/README.md)) |
 | `SPEC.md` | The specification |
 
+## Architecture
+
+### Containers
+
+The system runs as seven containers from one `docker-compose.yml`. An arrow points from the container that makes the connection to the thing it connects to. A dashed arrow is a read-only check.
+
+```mermaid
+flowchart TB
+    feed([VATSIM live feed])
+    hist([VATSIM history API])
+    viewers([Viewers])
+    telegram([Telegram])
+    subgraph system [VATPAC Stats, one docker compose project]
+        collector[collector]
+        loader[vatsim-atc-stats]
+        grafana[grafana]
+        db[(db)]
+        migrate[migrate]
+        backup[backup]
+        watchdog[watchdog]
+    end
+    collector --> feed
+    loader --> hist
+    viewers --> grafana
+    collector --> db
+    loader --> db
+    grafana --> db
+    migrate --> db
+    backup --> db
+    watchdog -.-> db
+    watchdog -.-> collector
+    watchdog -.-> grafana
+    watchdog --> telegram
+```
+
+| Container | Role |
+|---|---|
+| `collector` | Polls the VATSIM live feed and writes each snapshot to the database. |
+| `vatsim-atc-stats` | Loads the VATSIM ATC history, one day at a time, once a day. |
+| `grafana` | Shows the dashboards. Reads the database with a read-only role. |
+| `db` | PostgreSQL 16, the one database. |
+| `migrate` | Applies the schema changes and database roles, then exits. |
+| `backup` | Takes the nightly database dump. |
+| `watchdog` | Checks the collector, Grafana and the database, and sends alerts to Telegram. |
+
+### Collector components
+
+Arrows show how data flows. A snapshot (one copy of the live feed) flows from `feed` to `model` to `store`, and `filters` supplies the rules `store` applies. `main` has no arrows because it runs the others: it calls each step in turn, and runs the poll loop, the maintenance loop and the reload of the area map and callsign list.
+
+```mermaid
+flowchart TB
+    live([VATSIM live feed])
+    wd([watchdog])
+    pg[(db)]
+    subgraph collector [collector container]
+        c_main[main]
+        c_feed[feed]
+        c_model[model]
+        c_store[store]
+        c_filters[filters]
+        c_archive[archive]
+        c_health[health]
+        c_maint[maintenance]
+    end
+    live --> c_feed
+    c_feed --> c_model
+    c_model --> c_store
+    c_filters --> c_store
+    c_feed --> c_archive
+    wd --> c_health
+    c_store --> pg
+    c_maint --> pg
+```
+
+| Component | Role |
+|---|---|
+| `feed` | Fetches the live feed, with retries. |
+| `model` | Reads a snapshot and limits values that cannot be real, such as an impossible speed. |
+| `filters` | Keeps pilots inside the Australian airspace map and controllers on the list of allowed callsigns. |
+| `store` | Writes each snapshot to the database as one unit, so a failed write leaves nothing half saved. |
+| `archive` | Keeps gzipped copies of the raw feed. |
+| `health` | Serves the `/health` endpoint. |
+| `maintenance` | Keeps the database tidy: makes and drops the daily position tables, saves finished flights and trims the record of past polls. |
+| `main` | Runs the poll and maintenance loops and reloads the area map and callsign list. |
+
 ## Testing and development
 
 `make` is optional. Every check is defined once in `ops/run_checks.sh`, which CI and `make` both call; on Windows without `make`, run it from Git Bash, for example `sh ops/run_checks.sh all` (or one group: `lint`, `tests`, `repo-checks`, `config`). The runbook [docs/RUNBOOKS/run-tests.md](docs/RUNBOOKS/run-tests.md) lists the checks.
