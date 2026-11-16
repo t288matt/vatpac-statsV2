@@ -226,12 +226,13 @@ def test_same_second_different_ratings_is_deterministic_and_once_per_rank(conn) 
     """The rule is silent on the order of two sessions that start together at different ratings. The view orders them by rating,
     so S1 is the new session and S2 the promotion; swapping the connection ids must not change that, and no rank repeats."""
     results = []
-    for ids in ((10, 11), (11, 10)):
+    for ids, s2_first in (((10, 11), False), ((11, 10), False), ((10, 11), True), ((11, 10), True)):
         conn.execute("TRUNCATE atc_stats_session")
-        add(conn, 1, S1, d(2026, 1, 1), 30, connection_id=ids[0])
-        add(conn, 1, S2, d(2026, 1, 1), 30, connection_id=ids[1])
+        rows = [(S1, ids[0]), (S2, ids[1])]
+        for rating, cid_ in (rows[::-1] if s2_first else rows):   # also swap the physical insertion order
+            add(conn, 1, rating, d(2026, 1, 1), 30, connection_id=cid_)
         results.append(path(conn, 1))
-    assert results[0] == results[1] == [(None, "S1"), ("S1", "S2")]
+    assert all(r == [(None, "S1"), ("S1", "S2")] for r in results), results
 
 
 def test_two_controllers_are_independent(conn) -> None:
