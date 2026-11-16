@@ -21,7 +21,7 @@ D3 = {"uid": "c3", "title": "Gamma"}
 
 
 def pub(dash: str, uid: str, **over) -> dict:
-    return {"dashboardUid": dash, "uid": uid, "accessToken": gp.stable_token(dash), **gp.WANTED, **over}
+    return {"dashboardUid": dash, "uid": uid, "accessToken": gp.stable_token(dash), **gp.wanted(dash), **over}
 
 
 def test_plan_creates_missing_fixes_wrong_and_keeps_right() -> None:
@@ -32,6 +32,35 @@ def test_plan_creates_missing_fixes_wrong_and_keeps_right() -> None:
 def test_plan_treats_a_disabled_link_as_wrong() -> None:
     steps = gp.plan([D1], [pub("a1", "p1", isEnabled=False)])
     assert steps[0][0] == "update"
+
+
+def test_the_time_picker_is_on_for_the_promotions_page_only() -> None:
+    assert gp.wanted("vatpac-atc-promotions")["timeSelectionEnabled"] is True
+    assert gp.wanted("a1")["timeSelectionEnabled"] is False
+    uids = {json.loads(f.read_text(encoding="utf-8"))["uid"] for f in (REPO / "grafana" / "dashboards").rglob("*.json")}
+    assert "vatpac-atc-promotions" in uids
+    assert {u for u in uids if gp.wanted(u)["timeSelectionEnabled"]} == {"vatpac-atc-promotions"}
+    assert all(gp.wanted(u)[k] == v for u in uids for k, v in
+               {"isEnabled": True, "annotationsEnabled": False, "share": "public"}.items())
+
+
+def test_a_link_with_the_wrong_picker_setting_is_updated_in_both_directions() -> None:
+    old_picker = gp.TIME_PICKER
+    try:
+        gp.TIME_PICKER = {"a1"}
+        steps = gp.plan([D1, D2], [pub("a1", "p1", timeSelectionEnabled=False), pub("b2", "p2", timeSelectionEnabled=True)])
+    finally:
+        gp.TIME_PICKER = old_picker
+    assert [(a, d["uid"]) for a, d, _ in steps] == [("update", "a1"), ("update", "b2")]
+
+
+def test_main_sends_the_picker_setting_on_create_and_on_repair(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(gp, "TIME_PICKER", {"b2"})
+    _, state, _ = run_main(tmp_path, {})
+    assert state["public"]["b2"]["timeSelectionEnabled"] is True and state["public"]["a1"]["timeSelectionEnabled"] is False
+    stale = {"a1": pub("a1", "p1", timeSelectionEnabled=True), "b2": pub("b2", "p2", timeSelectionEnabled=False)}
+    _, state, _ = run_main(tmp_path, stale)
+    assert state["public"]["b2"]["timeSelectionEnabled"] is True and state["public"]["a1"]["timeSelectionEnabled"] is False
 
 
 def test_read_env_ignores_comments_and_strips_quotes(tmp_path: Path) -> None:

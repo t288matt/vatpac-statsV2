@@ -348,20 +348,20 @@ def test_dashboard_monthly_charts_match_the_hand_count(dashboard_data) -> None:
     """Hand count, range 10-06 to 20-10. June: cid 2 S1, cid 3 S1. July: cid 1 S2, cid 4 S1, cid 2 C1. August: none.
     September: cid 1 S3, cid 5 S1. October: cid 3 S3, cid 3 C1, cid 6 S1. Out of range: cid 1 S1 (03-06), cid 3 C3 (21-10)."""
     with _ro(dashboard_data) as ro:
-        assert _series(ro, "All promotions per month") == [("06", 2), ("07", 3), ("08", 0), ("09", 2), ("10", 3)]
-        assert _series(ro, "Promotions to S1 per month") == [("06", 2), ("07", 1), ("08", 0), ("09", 1), ("10", 1)]
-        assert _series(ro, "Promotions to S2 per month") == [("06", 0), ("07", 1), ("08", 0), ("09", 0), ("10", 0)]
-        assert _series(ro, "Promotions to S3 per month") == [("06", 0), ("07", 0), ("08", 0), ("09", 1), ("10", 1)]
-        assert _series(ro, "Promotions to C1 per month") == [("06", 0), ("07", 1), ("08", 0), ("09", 0), ("10", 1)]
-        assert _series(ro, "Promotions to C3 per month") == [("06", 0), ("07", 0), ("08", 0), ("09", 0), ("10", 0)]
-        ranks = [_series(ro, f"Promotions to {r} per month") for r in ("S1", "S2", "S3", "C1", "C3")]
-        assert [sum(s[i][1] for s in ranks) for i in range(5)] == [v for _, v in _series(ro, "All promotions per month")]
-        assert all(r["time"].day == 1 and r["time"].hour == 0 for r in _run(ro, "All promotions per month"))   # month starts, UTC
+        assert _series(ro, "All promotions") == [("06", 2), ("07", 3), ("08", 0), ("09", 2), ("10", 3)]
+        assert _series(ro, "Promotions to S1") == [("06", 2), ("07", 1), ("08", 0), ("09", 1), ("10", 1)]
+        assert _series(ro, "Promotions to S2") == [("06", 0), ("07", 1), ("08", 0), ("09", 0), ("10", 0)]
+        assert _series(ro, "Promotions to S3") == [("06", 0), ("07", 0), ("08", 0), ("09", 1), ("10", 1)]
+        assert _series(ro, "Promotions to C1") == [("06", 0), ("07", 1), ("08", 0), ("09", 0), ("10", 1)]
+        assert _series(ro, "Promotions to C3") == [("06", 0), ("07", 0), ("08", 0), ("09", 0), ("10", 0)]
+        ranks = [_series(ro, f"Promotions to {r}") for r in ("S1", "S2", "S3", "C1", "C3")]
+        assert [sum(s[i][1] for s in ranks) for i in range(5)] == [v for _, v in _series(ro, "All promotions")]
+        assert all(r["time"].day == 1 and r["time"].hour == 0 for r in _run(ro, "All promotions"))   # month starts, UTC
 
 
 def test_dashboard_empty_database_shows_zero_months_and_no_rows(conn) -> None:
     with _ro(conn) as ro:
-        assert [r["All promotions"] for r in _run(ro, "All promotions per month")] == [0, 0, 0, 0, 0]
+        assert [r["All promotions"] for r in _run(ro, "All promotions")] == [0, 0, 0, 0, 0]
         assert _run(ro, "Promotions in the selected period") == [{"promotions": 0}]
         assert _run(ro, "Recent promotions") == []
         assert _run(ro, "Date of the last promotion") == [{"last_promotion": None}]
