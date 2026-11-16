@@ -261,7 +261,7 @@
       "id": 6,
       "type": "timeseries",
       "title": "All promotions",
-      "description": "The number of promotions in the selected period, all ranks together: the sum of the rank charts below. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period.",
+      "description": "The number of promotions in the selected period, all ranks together: the sum of the rank charts below. The size of each point follows the selected range (a day at the smallest); a day with no promotions shows zero. The legend total is the number of promotions in the selected period.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -282,7 +282,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"All promotions\"\nFROM controller_promotion\nWHERE $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "WITH r AS (\n  SELECT extract(epoch FROM $__timeFrom()::timestamptz)::bigint AS f,\n         extract(epoch FROM $__timeTo()::timestamptz)::bigint AS t\n),\ns AS (\n  SELECT f, t, greatest(86400, $__interval_ms / 1000, ceil((t - f) / 400.0))::bigint AS step FROM r\n),\np AS (\n  SELECT (floor(extract(epoch FROM c.promoted_at) / s.step) * s.step)::bigint AS b, count(*) AS n\n  FROM controller_promotion c, s\n  WHERE $__timeFilter(c.promoted_at)\n  GROUP BY 1\n)\nSELECT to_timestamp(g.b) AS time, coalesce(p.n, 0) AS \"All promotions\"\nFROM s, generate_series((floor(s.f / s.step) * s.step)::bigint, (floor(s.t / s.step) * s.step)::bigint, s.step) AS g(b)\nLEFT JOIN p ON p.b = g.b\nORDER BY 1"
         }
       ],
       "options": {
@@ -309,12 +309,12 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "bars",
+            "drawStyle": "line",
             "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "fillOpacity": 70,
+            "lineWidth": 2,
+            "fillOpacity": 28,
             "gradientMode": "opacity",
-            "showPoints": "never",
+            "showPoints": "always",
             "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
@@ -331,7 +331,7 @@
       "id": 7,
       "type": "timeseries",
       "title": "Promotions to S1",
-      "description": "Controllers promoted to S1 in the selected period, counted by the date of the first logon over 20 minutes at S1. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to S1 in the selected period, counted by the date of the first logon over 20 minutes at S1. The size of each point follows the selected range (a day at the smallest); a day with no promotions shows zero. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -352,7 +352,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"S1\"\nFROM controller_promotion\nWHERE to_rating = 'S1'\n  AND $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "WITH r AS (\n  SELECT extract(epoch FROM $__timeFrom()::timestamptz)::bigint AS f,\n         extract(epoch FROM $__timeTo()::timestamptz)::bigint AS t\n),\ns AS (\n  SELECT f, t, greatest(86400, $__interval_ms / 1000, ceil((t - f) / 400.0))::bigint AS step FROM r\n),\np AS (\n  SELECT (floor(extract(epoch FROM c.promoted_at) / s.step) * s.step)::bigint AS b, count(*) AS n\n  FROM controller_promotion c, s\n  WHERE c.to_rating = 'S1' AND $__timeFilter(c.promoted_at)\n  GROUP BY 1\n)\nSELECT to_timestamp(g.b) AS time, coalesce(p.n, 0) AS \"S1\"\nFROM s, generate_series((floor(s.f / s.step) * s.step)::bigint, (floor(s.t / s.step) * s.step)::bigint, s.step) AS g(b)\nLEFT JOIN p ON p.b = g.b\nORDER BY 1"
         }
       ],
       "options": {
@@ -379,12 +379,12 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "bars",
+            "drawStyle": "line",
             "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "fillOpacity": 70,
+            "lineWidth": 2,
+            "fillOpacity": 28,
             "gradientMode": "opacity",
-            "showPoints": "never",
+            "showPoints": "always",
             "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
@@ -401,7 +401,7 @@
       "id": 8,
       "type": "timeseries",
       "title": "Promotions to S2",
-      "description": "Controllers promoted to S2 in the selected period, counted by the date of the first logon over 20 minutes at S2. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to S2 in the selected period, counted by the date of the first logon over 20 minutes at S2. The size of each point follows the selected range (a day at the smallest); a day with no promotions shows zero. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -422,7 +422,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"S2\"\nFROM controller_promotion\nWHERE to_rating = 'S2'\n  AND $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "WITH r AS (\n  SELECT extract(epoch FROM $__timeFrom()::timestamptz)::bigint AS f,\n         extract(epoch FROM $__timeTo()::timestamptz)::bigint AS t\n),\ns AS (\n  SELECT f, t, greatest(86400, $__interval_ms / 1000, ceil((t - f) / 400.0))::bigint AS step FROM r\n),\np AS (\n  SELECT (floor(extract(epoch FROM c.promoted_at) / s.step) * s.step)::bigint AS b, count(*) AS n\n  FROM controller_promotion c, s\n  WHERE c.to_rating = 'S2' AND $__timeFilter(c.promoted_at)\n  GROUP BY 1\n)\nSELECT to_timestamp(g.b) AS time, coalesce(p.n, 0) AS \"S2\"\nFROM s, generate_series((floor(s.f / s.step) * s.step)::bigint, (floor(s.t / s.step) * s.step)::bigint, s.step) AS g(b)\nLEFT JOIN p ON p.b = g.b\nORDER BY 1"
         }
       ],
       "options": {
@@ -449,12 +449,12 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "bars",
+            "drawStyle": "line",
             "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "fillOpacity": 70,
+            "lineWidth": 2,
+            "fillOpacity": 28,
             "gradientMode": "opacity",
-            "showPoints": "never",
+            "showPoints": "always",
             "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
@@ -471,7 +471,7 @@
       "id": 9,
       "type": "timeseries",
       "title": "Promotions to S3",
-      "description": "Controllers promoted to S3 in the selected period, counted by the date of the first logon over 20 minutes at S3. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to S3 in the selected period, counted by the date of the first logon over 20 minutes at S3. The size of each point follows the selected range (a day at the smallest); a day with no promotions shows zero. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -492,7 +492,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"S3\"\nFROM controller_promotion\nWHERE to_rating = 'S3'\n  AND $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "WITH r AS (\n  SELECT extract(epoch FROM $__timeFrom()::timestamptz)::bigint AS f,\n         extract(epoch FROM $__timeTo()::timestamptz)::bigint AS t\n),\ns AS (\n  SELECT f, t, greatest(86400, $__interval_ms / 1000, ceil((t - f) / 400.0))::bigint AS step FROM r\n),\np AS (\n  SELECT (floor(extract(epoch FROM c.promoted_at) / s.step) * s.step)::bigint AS b, count(*) AS n\n  FROM controller_promotion c, s\n  WHERE c.to_rating = 'S3' AND $__timeFilter(c.promoted_at)\n  GROUP BY 1\n)\nSELECT to_timestamp(g.b) AS time, coalesce(p.n, 0) AS \"S3\"\nFROM s, generate_series((floor(s.f / s.step) * s.step)::bigint, (floor(s.t / s.step) * s.step)::bigint, s.step) AS g(b)\nLEFT JOIN p ON p.b = g.b\nORDER BY 1"
         }
       ],
       "options": {
@@ -519,12 +519,12 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "bars",
+            "drawStyle": "line",
             "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "fillOpacity": 70,
+            "lineWidth": 2,
+            "fillOpacity": 28,
             "gradientMode": "opacity",
-            "showPoints": "never",
+            "showPoints": "always",
             "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
@@ -541,7 +541,7 @@
       "id": 10,
       "type": "timeseries",
       "title": "Promotions to C1",
-      "description": "Controllers promoted to C1 in the selected period, counted by the date of the first logon over 20 minutes at C1. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to C1 in the selected period, counted by the date of the first logon over 20 minutes at C1. The size of each point follows the selected range (a day at the smallest); a day with no promotions shows zero. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -562,7 +562,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"C1\"\nFROM controller_promotion\nWHERE to_rating = 'C1'\n  AND $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "WITH r AS (\n  SELECT extract(epoch FROM $__timeFrom()::timestamptz)::bigint AS f,\n         extract(epoch FROM $__timeTo()::timestamptz)::bigint AS t\n),\ns AS (\n  SELECT f, t, greatest(86400, $__interval_ms / 1000, ceil((t - f) / 400.0))::bigint AS step FROM r\n),\np AS (\n  SELECT (floor(extract(epoch FROM c.promoted_at) / s.step) * s.step)::bigint AS b, count(*) AS n\n  FROM controller_promotion c, s\n  WHERE c.to_rating = 'C1' AND $__timeFilter(c.promoted_at)\n  GROUP BY 1\n)\nSELECT to_timestamp(g.b) AS time, coalesce(p.n, 0) AS \"C1\"\nFROM s, generate_series((floor(s.f / s.step) * s.step)::bigint, (floor(s.t / s.step) * s.step)::bigint, s.step) AS g(b)\nLEFT JOIN p ON p.b = g.b\nORDER BY 1"
         }
       ],
       "options": {
@@ -589,12 +589,12 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "bars",
+            "drawStyle": "line",
             "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "fillOpacity": 70,
+            "lineWidth": 2,
+            "fillOpacity": 28,
             "gradientMode": "opacity",
-            "showPoints": "never",
+            "showPoints": "always",
             "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
@@ -611,7 +611,7 @@
       "id": 11,
       "type": "timeseries",
       "title": "Promotions to C3",
-      "description": "Controllers promoted to C3 in the selected period, counted by the date of the first logon over 20 minutes at C3. The bar size follows the selected range; a period with no promotions has no bar. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
+      "description": "Controllers promoted to C3 in the selected period, counted by the date of the first logon over 20 minutes at C3. The size of each point follows the selected range (a day at the smallest); a day with no promotions shows zero. The legend total is the number of promotions in the selected period. How a promotion is counted: see the information icon at the top of the page.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
@@ -632,7 +632,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(promoted_at, $__interval),\n       count(*) AS \"C3\"\nFROM controller_promotion\nWHERE to_rating = 'C3'\n  AND $__timeFilter(promoted_at)\nGROUP BY 1\nORDER BY 1"
+          "rawSql": "WITH r AS (\n  SELECT extract(epoch FROM $__timeFrom()::timestamptz)::bigint AS f,\n         extract(epoch FROM $__timeTo()::timestamptz)::bigint AS t\n),\ns AS (\n  SELECT f, t, greatest(86400, $__interval_ms / 1000, ceil((t - f) / 400.0))::bigint AS step FROM r\n),\np AS (\n  SELECT (floor(extract(epoch FROM c.promoted_at) / s.step) * s.step)::bigint AS b, count(*) AS n\n  FROM controller_promotion c, s\n  WHERE c.to_rating = 'C3' AND $__timeFilter(c.promoted_at)\n  GROUP BY 1\n)\nSELECT to_timestamp(g.b) AS time, coalesce(p.n, 0) AS \"C3\"\nFROM s, generate_series((floor(s.f / s.step) * s.step)::bigint, (floor(s.t / s.step) * s.step)::bigint, s.step) AS g(b)\nLEFT JOIN p ON p.b = g.b\nORDER BY 1"
         }
       ],
       "options": {
@@ -659,12 +659,12 @@
           "unit": "none",
           "decimals": 0,
           "custom": {
-            "drawStyle": "bars",
+            "drawStyle": "line",
             "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "fillOpacity": 70,
+            "lineWidth": 2,
+            "fillOpacity": 28,
             "gradientMode": "opacity",
-            "showPoints": "never",
+            "showPoints": "always",
             "spanNulls": false,
             "axisPlacement": "left",
             "axisSoftMin": 0,
