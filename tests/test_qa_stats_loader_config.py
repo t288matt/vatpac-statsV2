@@ -27,7 +27,7 @@ def test_retention_is_a_plain_number_with_the_required_comment_directly_above() 
     assert len(idx) == 1
     assert re.fullmatch(r"\s+STATS_RETENTION_YEARS: \d+\s*", lines[idx[0]]), lines[idx[0]]
     assert lines[idx[0] - 1].strip() == COMMENT
-    assert service()["environment"]["STATS_RETENTION_YEARS"] == 5  # 5 years (owner, 16-11-2026; 3 to start on 15-11-2026)
+    assert service()["environment"]["STATS_RETENTION_YEARS"] == 10  # 10 years (owner, 16-11-2026)
 
 
 def test_the_other_settings_are_compose_variables_with_the_designed_defaults() -> None:
@@ -63,12 +63,12 @@ def test_the_config_drift_check_passes() -> None:
     assert res.returncode == 0, res.stdout + res.stderr
 
 
-@pytest.mark.parametrize("bad", ["STATS_RETENTION_YEARS: ${STATS_RETENTION_YEARS:-5}", "STATS_RETENTION_YEARS: ${STATS_RETENTION_YEARS}"])
+@pytest.mark.parametrize("bad", ["STATS_RETENTION_YEARS: ${STATS_RETENTION_YEARS:-10}", "STATS_RETENTION_YEARS: ${STATS_RETENTION_YEARS}"])
 def test_the_config_drift_check_rejects_retention_read_from_the_environment(tmp_path: Path, bad: str) -> None:
     for rel in ("ops", "collector/src", "stats_loader/src"):
         shutil.copytree(REPO / rel, tmp_path / rel, ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copy(REPO / ".env.example", tmp_path / ".env.example")
-    text = COMPOSE.replace("STATS_RETENTION_YEARS: 5", bad)
+    text = COMPOSE.replace("STATS_RETENTION_YEARS: 10", bad)
     assert text != COMPOSE
     (tmp_path / "docker-compose.yml").write_text(text, encoding="utf-8")
     res = subprocess.run([sys.executable, "ops/check_config_drift.py"], cwd=tmp_path, capture_output=True, text=True)
