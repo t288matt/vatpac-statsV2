@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from .api import Api, BadResponse, WindowTimeout, is_atis, parse_session
+from .api import Api, BadResponse, WindowTimeout, bare_connection_id, has_no_member_id, is_atis, parse_session
 
 log = logging.getLogger(__name__)
 FIRST_RUN_DAYS = 3  # on the very first run: the last 3 days as daily windows, then everything older
@@ -72,10 +72,12 @@ def plan(stored: set[date], today: date, oldest: date, overlap: int, empty: set[
 def fetch_window(api: Api, start: datetime, end: datetime) -> tuple[int, list[dict[str, Any]]]:
     """Every session in one window: (count, rows without ATIS). Pages until the count is reached; an empty page ends it.
 
-    The checks: every page reports the same count, and distinct ids plus skipped ATIS sessions equal that count.
+    Sessions with no member ID cannot be stored or tied to a controller: they are skipped and counted, and logged once
+    per window. The checks: every page reports the same count, and distinct ids plus skipped ATIS and no-member sessions
+    equal that count.
     Raises DayFailed when they do not (a late-closing session, a shifted page order, or a short answer)."""
     rows: dict[int, dict[str, Any]] = {}
-    fetched = skipped = requests = biggest = 0
+    fetched = skipped = no_member = requests = biggest = 0
     seen: set[int] = set()
     count: int | None = None
     while count is None or fetched < count:
@@ -94,6 +96,11 @@ def fetch_window(api: Api, start: datetime, end: datetime) -> tuple[int, list[di
         biggest = max(biggest, len(items))
         new = False
         for item in items:
+            if has_no_member_id(item):
+                new = bare_connection_id(item) not in seen or new
+                seen.add(bare_connection_id(item))
+                no_member += 1
+                continue
             row = parse_session(item)
             new = new or row["connection_id"] not in seen
             seen.add(row["connection_id"])
@@ -104,8 +111,11 @@ def fetch_window(api: Api, start: datetime, end: datetime) -> tuple[int, list[di
         if not new:
             raise BadResponse("a page brought no session not already seen")
     assert count is not None
-    if len(rows) + skipped != count:
-        raise DayFailed(f"{len(rows)} distinct sessions plus {skipped} ATIS, but the API reported {count}")
+    if len(rows) + skipped + no_member != count:
+        raise DayFailed(f"{len(rows)} distinct sessions plus {skipped} ATIS plus {no_member} with no member ID, "
+                        f"but the API reported {count}")
+    if no_member:
+        log.info("%s: skipped %d sessions with no member ID", start.strftime("%d-%m-%Y %H:%M"), no_member)
     return count, list(rows.values())
 
 
