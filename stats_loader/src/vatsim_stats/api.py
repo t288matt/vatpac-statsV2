@@ -124,6 +124,24 @@ def _utc(text: str) -> datetime:
     return when.replace(tzinfo=UTC) if when.tzinfo is None else when.astimezone(UTC)
 
 
+def has_no_member_id(item: dict[str, Any]) -> bool:
+    """True when the item's member ID is missing, null or blank. Such a session cannot be tied to a controller and the
+    cid column cannot hold it, so the loader counts and skips it. The server and the callsign play no part."""
+    conn = item.get("connection_id") if isinstance(item, dict) else None
+    if not isinstance(conn, dict):
+        return False  # not the known shape: parse_session rejects it
+    value = conn.get("vatsim_id")
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
+def bare_connection_id(item: dict[str, Any]) -> int:
+    """The connection id of an item that is skipped before parse_session; BadResponse when it has none."""
+    try:
+        return int(item["connection_id"]["id"])
+    except (KeyError, TypeError, ValueError):
+        raise BadResponse("a session in the response could not be read") from None
+
+
 def parse_session(item: dict[str, Any]) -> dict[str, Any]:
     """One API item as a row for atc_stats_session. Anything unreadable raises BadResponse (the day is not written)."""
     try:

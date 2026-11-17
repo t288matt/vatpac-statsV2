@@ -7,7 +7,17 @@ import contextlib
 import pytest
 
 from fakes import FakeApi, FakeClock, at
-from vatsim_stats.api import Api, RateLimited, ServerErrors, Stopped, WindowTimeout
+from vatsim_stats.api import (
+    Api,
+    BadResponse,
+    RateLimited,
+    ServerErrors,
+    Stopped,
+    WindowTimeout,
+    bare_connection_id,
+    has_no_member_id,
+    parse_session,
+)
 
 S, E = at(2026, 11, 10), at(2026, 11, 10, 23, 59, 59)
 
@@ -91,3 +101,40 @@ def test_gzip_is_asked_for_and_read(fake: FakeApi, clock: FakeClock) -> None:
     count, items = make(fake, clock).page(S, E, 0)
     assert fake.calls[0].headers["accept-encoding"] == "gzip"
     assert count == 1 and items[0]["connection_id"]["callsign"] == "AA_TWR"
+
+
+def item(**conn: object) -> dict:
+    base = {"id": 7, "vatsim_id": "100", "callsign": "AA_TWR", "start": "2026-11-10T01:00:00Z", "end": None}
+    return {"connection_id": {**base, **conn}}
+
+
+@pytest.mark.parametrize("value", ["", "   ", "	", None])
+def test_a_blank_or_null_member_id_is_no_member(value: object) -> None:
+    assert has_no_member_id(item(vatsim_id=value))
+
+
+def test_a_missing_member_id_key_is_no_member() -> None:
+    it = item()
+    del it["connection_id"]["vatsim_id"]
+    assert has_no_member_id(it)
+
+
+def test_a_real_member_id_or_another_defect_is_not_no_member() -> None:
+    assert not has_no_member_id(item())
+    assert not has_no_member_id(item(vatsim_id="abc"))  # unreadable, not blank: still fails in parse_session
+    assert not has_no_member_id({"connection_id": "x"})
+    assert not has_no_member_id({})
+
+
+def test_parse_session_stays_strict_for_everything_else() -> None:
+    assert parse_session(item())["cid"] == 100
+    for bad in (item(vatsim_id="abc"), item(start="not a time"), item(callsign=None, id="x")):
+        with pytest.raises(BadResponse):
+            parse_session(bad)
+
+
+def test_a_skipped_item_needs_a_connection_id() -> None:
+    assert bare_connection_id(item(vatsim_id="")) == 7
+    for bad in (item(id=None), {"connection_id": {}}, {}):
+        with pytest.raises(BadResponse):
+            bare_connection_id(bad)

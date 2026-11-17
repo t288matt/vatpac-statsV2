@@ -86,6 +86,16 @@ class FakeApi:
         self.items.append({"connection_id": conn, "aircrafttracked": 0, **counts})
         return self._next_id
 
+    def add_blank(self, start: datetime, member: Any = "", server: Any = "", missing: bool = False) -> int:
+        """A session with a blank member ID (`member`, or no key at all when `missing`), shaped like the real ones."""
+        self._next_id += 1
+        conn = {"id": self._next_id, "vatsim_id": member, "type": 2, "rating": 0, "callsign": "", "start":
+                start.strftime("%Y-%m-%dT%H:%M:%SZ"), "server": server, "end": None}
+        if missing:
+            del conn["vatsim_id"]
+        self.items.append({"connection_id": conn, "aircrafttracked": 0})
+        return self._next_id
+
     def client(self) -> httpx.Client:
         return httpx.Client(transport=httpx.MockTransport(self._handle))
 

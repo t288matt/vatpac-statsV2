@@ -112,7 +112,7 @@ def test_bad_responses_in_the_hour_windows_too_fail_the_day_normally() -> None:
 def test_a_malformed_session_in_the_day_window_is_repaired_by_hours_only_if_the_hours_are_clean() -> None:
     fake = FakeApi(FakeClock())
     fake.sessions = [make(1, at(D, 1, 5)), make(2, at(D, 2, 5))]
-    fake.sessions[1].cid = None  # type: ignore[assignment]  # cannot be read as a controller id in any window
+    fake.sessions[1].cid = "abc"  # type: ignore[assignment]  # not blank, and not a controller id in any window (a null ID is skipped since #387)
     with pytest.raises(DayFailed):
         fetch_day(fake.api(5.0, 5000), D, False)
 
