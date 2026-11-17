@@ -1,6 +1,6 @@
 # Runbook: ATC stats loader
 
-The loader is the container `vatsim-atc-stats`. It keeps every ATC session on the VATSIM network (all callsigns, the whole network) in the table `atc_stats_session`, for the number of years set by `STATS_RETENTION_YEARS`. Table columns: [DATA_DICTIONARY.md](../DATA_DICTIONARY.md), section 2. Settings and their defaults: [CONFIG_MAP.md](../CONFIG_MAP.md), part A1. Alert wording: [alerts.md](alerts.md), check `stats_loader`. All times are UTC.
+The loader is the container `vatsim-atc-stats`. It keeps every ATC session on the VATSIM network (all callsigns, the whole network) that has a member ID in the table `atc_stats_session`, for the number of years set by `STATS_RETENTION_YEARS`. Sessions without a member ID are skipped (section 2). Table columns: [DATA_DICTIONARY.md](../DATA_DICTIONARY.md), section 2. Settings and their defaults: [CONFIG_MAP.md](../CONFIG_MAP.md), part A1. Alert wording: [alerts.md](alerts.md), check `stats_loader`. All times are UTC.
 
 ## 1. What the loader does
 
@@ -28,7 +28,11 @@ docker compose exec db sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
 
 The container's health (`docker compose ps vatsim-atc-stats`) is `healthy` when a run succeeded in the last 36 hours or a run has written a day in that time.
 
-The log shows one line for each day written (`written:`) and one for each day that could not be written (`not written:`, with the reason): `docker compose logs --tail=100 vatsim-atc-stats`.
+The log shows one line for each day written (`written:`) and one for each day that could not be written (`not written:`, with the reason), and one line for each window that skipped sessions (see below): `docker compose logs --tail=100 vatsim-atc-stats`.
+
+**Sessions with no member ID.** VATSIM's history can hold a session whose member ID is missing, null or blank. The member ID is the controller's VATSIM account number (the `cid` column), and a session without one cannot be tied to a controller, so the loader does not store it. It skips the session and counts it. Skipped sessions are normal: they do not fail the day and they raise no alert. Each request window (a whole day, or one hour when the day is read in one-hour windows) that skipped any writes one INFO line, for example `05-11-2026 14:00: skipped 3 sessions with no member ID`. The date and time are the start of the window (UTC) and the number is how many were skipped. A day loaded in one-hour windows can give several of these lines.
+
+**The count check.** For each window, VATSIM reports how many sessions it holds. The loader stores the sessions it can read, skips the ATIS sessions (callsigns ending `_ATIS`) and the sessions with no member ID, and then requires these three numbers to add up to the reported count. If they do not, the window is read again in one-hour windows; if the day still does not add up, it is not written. The usual causes are a session that closed while the day was being read, a change in the order of the pages, or a short answer from VATSIM. Any other session that cannot be read also fails the day. The log line gives the three numbers and the reported count, for example `not written: 120 distinct sessions plus 4 ATIS plus 0 with no member ID, but the API reported 126`. A failed count check is a real fault, not a normal event.
 
 ## 3. The first run
 
@@ -41,6 +45,7 @@ The first run therefore has the most dates to load. The loader makes one request
 The watchdog reads the run log every minute. The exact wording is in [alerts.md](alerts.md).
 
 - **WARN: the newest finished run is `failed` or `interrupted`.** Read the run's `error` and the log lines for its days. A failed run leaves its missing days missing, so the next run tries them again; nothing is lost. If `error` says HTTP 429 or server errors, wait: VATSIM is limiting or failing the requests. If it names a date, read the log line for that date. An `interrupted` run means the container was killed or crashed; `docker compose ps` shows whether it restarted itself.
+- **A failed count check** shows as the WARN above, because the day is not written and the run ends `failed`. Find the `not written:` line for the date. Skipped sessions alone never cause a WARN.
 - **CRIT: no successful run and no run writing days for 36 hours.** Check `docker compose ps vatsim-atc-stats` and `docker compose logs --tail=100 vatsim-atc-stats`. If the container is not running, start it (section 5). If it runs but writes nothing, read the log for the reason.
 - **No alert for `stopped`.** A clean stop, such as a deploy or a restart, is not a problem.
 - **A new install** has an empty run log. The check stays OK for 36 hours after the watchdog's first start.
