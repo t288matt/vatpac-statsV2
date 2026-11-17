@@ -32,7 +32,13 @@ The log shows one line for each day written (`written:`) and one for each day th
 
 **Sessions with no member ID.** VATSIM's history can hold a session whose member ID is missing, null or blank. The member ID is the controller's VATSIM account number (the `cid` column), and a session without one cannot be tied to a controller, so the loader does not store it. It skips the session and counts it. Skipped sessions are normal: they do not fail the day and they raise no alert. Each request window (a whole day, or one hour when the day is read in one-hour windows) that skipped any writes one INFO line, for example `05-11-2026 14:00: skipped 3 sessions with no member ID`. The date and time are the start of the window (UTC) and the number is how many were skipped. A day loaded in one-hour windows can give several of these lines.
 
-**The count check.** For each window, VATSIM reports how many sessions it holds. The loader stores the sessions it can read, skips the ATIS sessions (callsigns ending `_ATIS`) and the sessions with no member ID, and then requires these three numbers to add up to the reported count. If they do not, the window is read again in one-hour windows; if the day still does not add up, it is not written. The usual causes are a session that closed while the day was being read, a change in the order of the pages, or a short answer from VATSIM. Any other session that cannot be read also fails the day. The log line gives the three numbers and the reported count, for example `not written: 120 distinct sessions plus 4 ATIS plus 0 with no member ID, but the API reported 126`. A failed count check is a real fault, not a normal event.
+**The count check.** For each window, VATSIM reports how many sessions it holds. The loader adds up the sessions it stores, the ATIS sessions it skips (callsigns ending `_ATIS`) and the sessions with no member ID it skips. That total must equal the reported count.
+
+If it does not, the loader reads the window again in one-hour windows. If the day still does not add up, it is not written. Any other session that cannot be read also fails the day.
+
+The usual causes are a session that closed while the day was being read, a change in the order of the pages, or a short answer from VATSIM. The log line gives the three numbers and the reported count, for example `not written: 120 distinct sessions plus 4 ATIS plus 0 with no member ID, but the API reported 126`.
+
+A failed count check is a real fault, not a normal event.
 
 ## 3. The first run
 
