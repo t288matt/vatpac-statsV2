@@ -27,10 +27,8 @@ def test_a_count_that_pages_never_reach_stops_the_window_and_fails_the_day(count
     fake.drift = lambda n, c: count
     api = fake.api(5.0, 5000)
     with pytest.raises(DayFailed):
-        fetch_day(api, D, False)
-    day_window_requests = [r for r in fake.log if r.end - r.start > timedelta(hours=1)]
-    assert len(day_window_requests) <= 5  # nothing like count / 3
-    assert fake.n < 200  # the hour windows are bounded too
+        fetch_day(api, D)
+    assert fake.n <= 5  # nothing like count / 3; no hour-window retry either
 
 
 def test_a_large_count_with_honest_empty_pages_ends_on_the_empty_page() -> None:
@@ -38,8 +36,8 @@ def test_a_large_count_with_honest_empty_pages_ends_on_the_empty_page() -> None:
     fake.sessions = [make(i, at(D, 1, i)) for i in range(1, 4)]
     fake.drift = lambda n, c: 10**12
     with pytest.raises(DayFailed):
-        fetch_day(fake.api(5.0, 5000), D, False)
-    assert fake.n < 200
+        fetch_day(fake.api(5.0, 5000), D)
+    assert fake.n < 20
 
 
 def test_the_request_bound_follows_the_count_and_the_page_size_received() -> None:
@@ -47,25 +45,26 @@ def test_the_request_bound_follows_the_count_and_the_page_size_received() -> Non
     fake = FakeApi(FakeClock())
     fake.sessions = [make(i, at(D, 1, i % 60, i // 60)) for i in range(1, 31)]
     fake.cap = 10
-    day = fetch_day(fake.api(5.0, 5000), D, False)
+    day = fetch_day(fake.api(5.0, 5000), D)
     assert len(day.rows) == 30 and fake.n == 3
 
 
-def test_pages_that_shrink_to_one_item_are_cut_off_by_the_request_bound_and_the_day_is_repaired_by_hours() -> None:
-    """count 96, first page 10 items, then one item a page: 10 + 86 more requests would be needed; the bound is about ceil(96/10) + 2."""
+def test_pages_that_shrink_to_one_item_are_cut_off_by_the_request_bound_and_fail_the_day() -> None:
+    """count 96, first page 10 items, then one item a page: 10 + 86 more requests would be needed; the bound (about
+    ceil(96/10) + 2) catches it and fails the day, with no hour-window rescue."""
     fake = FakeApi(FakeClock())
     fake.sessions = [make(i + 1, at(D, i // 4, i % 4 * 10)) for i in range(96)]
     fake.cap, fake.cap_after_first = 10, 1
-    day = fetch_day(fake.api(5.0, 5000), D, False)
-    assert len(day.rows) == 96
-    assert len([r for r in fake.log if r.end - r.start > timedelta(hours=1)]) <= 13
+    with pytest.raises(DayFailed):
+        fetch_day(fake.api(5.0, 5000), D)
+    assert fake.n <= 13
 
 
 def test_pages_made_only_of_atis_do_not_fail_an_honest_day() -> None:
     fake = FakeApi(FakeClock())
     fake.sessions = [make(1, at(D, 1, 0), callsign="SY_ATIS"), make(2, at(D, 1, 1), callsign="ML_ATIS"),
                      make(3, at(D, 2, 0)), make(4, at(D, 2, 1))]
-    day = fetch_day(fake.api(5.0, 2), D, False)  # the first page holds two ATIS sessions and nothing else
+    day = fetch_day(fake.api(5.0, 2), D)  # the first page holds two ATIS sessions and nothing else
     assert {r["connection_id"] for r in day.rows} == {3, 4}
 
 
@@ -82,39 +81,32 @@ def test_a_hostile_count_in_a_run_fails_that_day_writes_nothing_and_the_run_is_f
     assert fake.n < 400
 
 
-# ---- (2) shifted order and bad day-window responses are repaired by hour windows ----------------------------------
-def test_shifted_page_order_in_a_run_is_refetched_as_hours_and_loads_correctly(conn: psycopg.Connection, su: psycopg.Connection) -> None:
+# ---- (2) shifted order and bad day-window responses simply fail the day, with no hour-window repair ---------------
+def test_shifted_page_order_in_a_run_fails_that_day_with_no_hour_window_repair(conn: psycopg.Connection, su: psycopg.Connection) -> None:
     clock, fake = fresh()
     y1 = TODAY - timedelta(days=1)
     fake.sessions = [make(i, at(y1, 7, 30, 0)) for i in range(1, 5)] + [make(9, at(y1, 20, 0, 0))]
-    fake.shift_over_hour = True
-    assert run(conn, fake, page_size=2) == "success"
-    assert {r[0] for r in su.execute("SELECT connection_id FROM atc_stats_session")} == {1, 2, 3, 4, 9}
+    fake.shift_always = True
+    assert run(conn, fake, page_size=2) == "failed"
+    assert last_run(su)["failed_days"] == [y1]
+    assert n_rows(su) == 0  # nothing for the shifted day; no hour windows were ever tried to repair it
 
 
-def test_a_bad_response_to_the_day_window_falls_back_to_hour_windows() -> None:
+def test_a_bad_response_to_the_day_window_fails_the_day_with_no_hour_window_fallback() -> None:
     fake = FakeApi(FakeClock())
     fake.sessions = [make(i, at(D, i, 5)) for i in range(1, 6)]
-    fake.garbage = 1  # the first request (the day window) gets a body that is not the API's JSON
-    day = fetch_day(fake.api(5.0, 5000), D, False)
-    assert {r["connection_id"] for r in day.rows} == {1, 2, 3, 4, 5}
-    assert len([r for r in fake.log if r.end - r.start < timedelta(hours=2)]) == 24
-
-
-def test_bad_responses_in_the_hour_windows_too_fail_the_day_normally() -> None:
-    fake = FakeApi(FakeClock())
-    fake.sessions = [make(1, at(D, 1, 5))]
-    fake.garbage = 1000
+    fake.garbage = 1  # the one request gets a body that is not the API's JSON
     with pytest.raises(DayFailed):  # a failed day, not an escaping BadResponse
-        fetch_day(fake.api(5.0, 5000), D, False)
+        fetch_day(fake.api(5.0, 5000), D)
+    assert fake.n == 1  # one request; never retried as hour windows
 
 
-def test_a_malformed_session_in_the_day_window_is_repaired_by_hours_only_if_the_hours_are_clean() -> None:
+def test_a_malformed_session_in_the_day_window_fails_the_day() -> None:
     fake = FakeApi(FakeClock())
     fake.sessions = [make(1, at(D, 1, 5)), make(2, at(D, 2, 5))]
-    fake.sessions[1].cid = "abc"  # type: ignore[assignment]  # not blank, and not a controller id in any window (a null ID is skipped since #387)
+    fake.sessions[1].cid = "abc"  # type: ignore[assignment]  # not blank, and not a controller id (a null ID is skipped since #387)
     with pytest.raises(DayFailed):
-        fetch_day(fake.api(5.0, 5000), D, False)
+        fetch_day(fake.api(5.0, 5000), D)
 
 
 # ---- (3) retention too large for the calendar ---------------------------------------------------------------------

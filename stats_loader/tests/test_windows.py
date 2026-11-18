@@ -13,7 +13,6 @@ from vatsim_stats.windows import (
     day_window,
     fetch_day,
     fetch_window,
-    hour_windows,
     oldest_allowed,
     plan,
 )
@@ -36,10 +35,6 @@ def ids(rows: list[dict]) -> set[int]:
 
 def test_windows_end_one_second_before_the_next_begins() -> None:
     assert day_window(D) == (at(2026, 11, 10), at(2026, 11, 10, 23, 59, 59))
-    hours = hour_windows(D)
-    assert len(hours) == 24 and hours[0][0] == at(2026, 11, 10) and hours[23][1] == at(2026, 11, 10, 23, 59, 59)
-    one_second = at(2026, 11, 10, 0, 0, 1) - at(2026, 11, 10)
-    assert all(b[0] - a[1] == one_second for a, b in zip(hours, hours[1:], strict=False))
 
 
 def test_oldest_allowed_is_a_whole_utc_date_and_survives_29_february() -> None:
@@ -64,25 +59,23 @@ def test_short_pages_are_not_a_problem(fake: FakeApi, clock: FakeClock) -> None:
 
 def test_a_day_above_one_page_comes_back_whole(fake: FakeApi, clock: FakeClock) -> None:
     fill(fake, 120)
-    assert len(fetch_day(make(fake, clock, page=50), D, hourly=False).rows) == 120
+    assert len(fetch_day(make(fake, clock, page=50), D).rows) == 120
 
 
 def test_a_stray_atis_session_is_skipped_counted_and_the_day_passes(fake: FakeApi, clock: FakeClock) -> None:
     fill(fake, 5)
     fake.add(1, "ML_ATIS", at(2026, 11, 10, 3))
-    day = fetch_day(make(fake, clock), D, hourly=False)
+    day = fetch_day(make(fake, clock), D)
     assert len(day.rows) == 5 and not any(r["callsign"].endswith("_ATIS") for r in day.rows)
     assert len(fake.calls) == 1  # no refetch: distinct ids plus the skipped ATIS equal the count
 
 
-def test_a_page_order_that_shifts_is_caught_and_hour_windows_fix_it(fake: FakeApi, clock: FakeClock) -> None:
+def test_a_page_order_that_shifts_fails_the_day(fake: FakeApi, clock: FakeClock) -> None:
     for i in range(4):
         fake.add(100 + i, "AA_TWR", at(2026, 11, 10, 10, 0, 0))  # all in one second: their order is not fixed
     fake.flip_ties_on = {2}  # the second request lists them the other way: a duplicate and a missing session
-    day = fetch_day(make(fake, clock, page=2), D, hourly=False)
-    assert len(day.rows) == 4 and len({r["connection_id"] for r in day.rows}) == 4
-    assert len({c.start for c in fake.calls if c.hours < 2}) == 24  # the retry was the 24 one-hour windows
-    assert not day.timed_out
+    with pytest.raises(DayFailed):  # no retry, no hour windows: the day is simply failed
+        fetch_day(make(fake, clock, page=2), D)
 
 
 def test_a_session_exactly_on_a_window_boundary_is_stored_once(fake: FakeApi, clock: FakeClock) -> None:
@@ -90,58 +83,42 @@ def test_a_session_exactly_on_a_window_boundary_is_stored_once(fake: FakeApi, cl
     b = fake.add(2, "AA_TWR", at(2026, 11, 11, 0, 0, 0))
     c = fake.add(3, "AA_TWR", at(2026, 11, 10, 0, 0, 0))
     api = make(fake, clock)
-    today, tomorrow = fetch_day(api, D, False).rows, fetch_day(api, date(2026, 11, 11), False).rows
+    today, tomorrow = fetch_day(api, D).rows, fetch_day(api, date(2026, 11, 11)).rows
     assert ids(today) == {a, c} and ids(tomorrow) == {b}
-    # the same through the hour windows: 00:59:59 and 01:00:00 belong to different hours, each counted once
-    x = fake.add(4, "AA_TWR", at(2026, 11, 10, 0, 59, 59))
-    y = fake.add(5, "AA_TWR", at(2026, 11, 10, 1, 0, 0))
-    hourly = fetch_day(api, D, True).rows
-    assert len(hourly) == 4 and {x, y} <= ids(hourly)  # a, c, x, y; b belongs to the next day
 
 
-def test_a_late_closing_count_change_is_caught_then_the_day_loads_from_hours(fake: FakeApi, clock: FakeClock) -> None:
+def test_a_late_closing_count_change_fails_the_day(fake: FakeApi, clock: FakeClock) -> None:
     fill(fake, 15)
-    late = []
 
     def grow(n: int) -> None:
-        if n == 1 and not late:
-            late.append(fake.add(900, "AA_TWR", at(2026, 11, 10, 22)))
+        if n == 1:
+            fake.add(900, "AA_TWR", at(2026, 11, 10, 22))
 
-    fake.on_call = grow  # a session arrives after the first page: the next page reports 16
-    day = fetch_day(make(fake, clock), D, hourly=False)
-    assert len(day.rows) == 16 and late[0] in ids(day.rows)
+    fake.on_call = grow  # a session arrives after the first page: the next page reports 16, so the count changed
+    with pytest.raises(DayFailed, match="count changed"):  # no retry, no hour windows: the day is simply failed
+        fetch_day(make(fake, clock), D)
 
 
 def test_a_count_that_keeps_changing_writes_nothing(fake: FakeApi, clock: FakeClock) -> None:
     for i in range(5):
         fake.add(100 + i, "AA_TWR", at(2026, 11, 10, 22, 0, i))
     fake.on_call = lambda n: fake.add(1000 + n, "AA_TWR", at(2026, 11, 10, 22, 30))
-    with pytest.raises(DayFailed):  # the day window fails its check, and so does the 22:00 hour window
-        fetch_day(make(fake, clock, page=2), D, hourly=False)
+    with pytest.raises(DayFailed):  # the day's count check never settles
+        fetch_day(make(fake, clock, page=2), D)
 
 
-def test_a_timeout_shrinks_the_window_to_hours(fake: FakeApi, clock: FakeClock) -> None:
+def test_a_timeout_fails_the_day_with_no_retry_and_no_hour_windows(fake: FakeApi, clock: FakeClock) -> None:
     fill(fake, 30)
-    fake.slow_before = at(2026, 12, 1)
-    day = fetch_day(make(fake, clock), D, hourly=False)
-    assert day.timed_out and len(day.rows) == 30
-    assert sum(c.hours > 1 for c in fake.calls) == 1  # one timeout, then only hour windows
-    # a day that is already known to need hours goes straight to them
-    fake.calls.clear()
-    assert not fetch_day(make(fake, clock), D, hourly=True).timed_out
-    assert all(c.hours < 1 for c in fake.calls)
+    fake.script = ["timeout"]
+    with pytest.raises(DayFailed, match="timed out"):
+        fetch_day(make(fake, clock), D)
+    assert len(fake.calls) == 1  # one request only; never retried, never shrunk to hour windows
 
 
-def test_an_hour_window_that_still_times_out_fails_the_day(fake: FakeApi, clock: FakeClock) -> None:
-    fake.script = ["timeout"] * 2
-    with pytest.raises(DayFailed):
-        fetch_day(make(fake, clock), D, hourly=False)
-
-
-def test_an_empty_day_is_confirmed_on_all_24_hours(fake: FakeApi, clock: FakeClock) -> None:
-    day = fetch_day(make(fake, clock), D, hourly=False)
+def test_an_empty_day_is_trusted_from_its_single_request(fake: FakeApi, clock: FakeClock) -> None:
+    day = fetch_day(make(fake, clock), D)
     assert day.empty and not day.rows
-    assert len(fake.calls) == 25  # the day window, then 24 hours
+    assert len(fake.calls) == 1  # no 24-hour double-check: a count of 0 is trusted immediately
 
 
 def test_plan_recent_days_then_missing_newest_first() -> None:
@@ -187,22 +164,15 @@ def test_every_blank_form_and_a_server_name_are_skipped(fake: FakeApi, clock: Fa
     fake.add_blank(at(2026, 11, 10, 5, 2), missing=True)
     fake.add_blank(at(2026, 11, 10, 5, 3), member=None)
     fake.add_blank(at(2026, 11, 10, 5, 4), server="SYD")  # a blank ID with a server is skipped too
-    day = fetch_day(make(fake, clock), D, hourly=False)
+    day = fetch_day(make(fake, clock), D)
     assert len(day.rows) == 3 and len(fake.calls) == 1
 
 
 def test_a_day_of_only_blank_sessions_is_not_empty_but_stores_nothing(fake: FakeApi, clock: FakeClock) -> None:
     fake.add_blank(at(2026, 11, 10, 5))
-    day = fetch_day(make(fake, clock), D, hourly=False)
+    day = fetch_day(make(fake, clock), D)
     assert day.rows == [] and len(fake.calls) == 1  # the API reported 1 session, so the date is not empty
     assert not day.empty
-
-
-def test_blank_member_sessions_load_through_hour_windows(fake: FakeApi, clock: FakeClock) -> None:
-    fill(fake, 6)
-    fake.add_blank(at(2026, 11, 10, 2, 5))
-    fake.add_blank(at(2026, 11, 10, 14, 5))
-    assert len(fetch_day(make(fake, clock), D, hourly=True).rows) == 6
 
 
 def test_another_defect_still_fails_the_day(fake: FakeApi, clock: FakeClock) -> None:
@@ -211,7 +181,7 @@ def test_another_defect_still_fails_the_day(fake: FakeApi, clock: FakeClock) -> 
     fake.add(500, "AA_TWR", at(2026, 11, 10, 6))
     fake.items[-1]["aircrafttracked"] = "many"  # unreadable, and not a blank member ID
     with pytest.raises(DayFailed):
-        fetch_day(make(fake, clock), D, hourly=False)
+        fetch_day(make(fake, clock), D)
     with pytest.raises(BadResponse):
         fetch_window(make(fake, clock), *day_window(D))
 

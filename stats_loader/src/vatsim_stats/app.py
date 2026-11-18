@@ -27,14 +27,14 @@ FAILED_DAYS_IN_A_ROW = 3
 
 
 class TooManyFailedDays(Exception):
-    """Three days in a row failed their count check even as hour windows: something is wrong, so the run stops."""
+    """Three days in a row failed their count check: something is wrong, so the run stops."""
 
 
 def run_once(conn: psycopg.Connection[Any], api: Api, clock: Clock, cfg: Settings) -> str:
     """One run: the recent days, then every missing date newest first. Returns the final status."""
     now = clock.now()
     stored = store.stored_dates(conn)
-    empty, hour_from = store.run_memory(conn)
+    empty = store.run_memory(conn)
     recent, missing = plan(stored, now.date(), oldest_allowed(now, cfg.retention_years), cfg.overlap_days, empty)
     run_id = store.start_run(conn, now)
     log.info("run %s: %d recent days, %d missing dates", run_id, len(recent), len(missing))
@@ -48,7 +48,7 @@ def run_once(conn: psycopg.Connection[Any], api: Api, clock: Clock, cfg: Setting
     try:
         for day in recent + missing:
             try:
-                result = fetch_day(api, day, hour_from is not None and day <= hour_from)
+                result = fetch_day(api, day)
             except DayFailed as exc:
                 failed.append(day)
                 streak += 1
@@ -59,14 +59,11 @@ def run_once(conn: psycopg.Connection[Any], api: Api, clock: Clock, cfg: Setting
                     raise TooManyFailedDays(f"{FAILED_DAYS_IN_A_ROW} failed days in a row; the run stopped") from None
                 continue
             streak = 0
-            if result.timed_out:
-                hour_from = day
-                store.update_run(conn, run_id, hour_windows_from=day)
             if result.empty:
                 new_empty.append(day)
                 store.update_run(conn, run_id, requests=api.requests - base, empty_dates=new_empty)
                 if day in missing and oldest_stored is not None and day < oldest_stored:
-                    log.info("%s and every older hour has no sessions: the start of VATSIM's history", day)
+                    log.info("%s and every older day has no sessions: the start of VATSIM's history", day)
                     break
                 continue
             i, u = store.write_day(conn, result.rows)

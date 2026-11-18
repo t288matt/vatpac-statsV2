@@ -1,4 +1,5 @@
-"""Dates, windows and fetching one day. Everything is UTC.
+"""Dates, windows and fetching one day. Everything is UTC. Daily only: one request per day, always; there is no
+hourly fallback at any point.
 
 Both ends of an API window are inclusive, so a window runs 00:00:00 to 23:59:59 and the next one starts a second
 later: a session that starts exactly on a boundary is then in one window only. day_window is the one function that
@@ -26,18 +27,12 @@ class DayFailed(Exception):
 @dataclass(slots=True)
 class Day:
     rows: list[dict[str, Any]] = field(default_factory=list)
-    timed_out: bool = False  # the day window timed out, so older days need hour windows
-    empty: bool = False  # all 24 hour windows reported a count of 0
+    empty: bool = False  # the day's single request reported a count of 0
 
 
 def day_window(day: date) -> tuple[datetime, datetime]:
     start = datetime(day.year, day.month, day.day, tzinfo=UTC)
     return start, start + timedelta(days=1, seconds=-1)
-
-
-def hour_windows(day: date) -> list[tuple[datetime, datetime]]:
-    start = day_window(day)[0]
-    return [(start + timedelta(hours=h), start + timedelta(hours=h, minutes=59, seconds=59)) for h in range(24)]
 
 
 def oldest_allowed(now: datetime, years: int) -> date:
@@ -119,37 +114,14 @@ def fetch_window(api: Api, start: datetime, end: datetime) -> tuple[int, list[di
     return count, list(rows.values())
 
 
-def _hourly(api: Api, day: date) -> Day:
-    out, seen, total = Day(), set[int](), 0
-    for start, end in hour_windows(day):
-        count, rows = fetch_window(api, start, end)
-        if seen & {r["connection_id"] for r in rows}:
-            raise DayFailed("a session appeared in two one-hour windows")
-        seen |= {r["connection_id"] for r in rows}
-        out.rows += rows
-        total += count
-    out.empty = total == 0
-    return out
-
-
-def fetch_day(api: Api, day: date, hourly: bool) -> Day:
-    """A whole day in memory, checked. One day window; 24 hour windows when `hourly`, when the day window timed out or
-    failed its check, or when it reported 0 (an empty date is confirmed on all 24 hours). Raises DayFailed."""
-    timed_out = False
+def fetch_day(api: Api, day: date) -> Day:
+    """A whole day in memory, checked. One request for the whole day, always: a timeout or a failed count/paging check
+    simply fails the day (raises DayFailed), with no retry and no hourly fallback. A count of 0 from that single
+    request is trusted immediately as a genuinely empty day."""
     try:
-        if not hourly:
-            try:
-                count, rows = fetch_window(api, *day_window(day))
-                if count:
-                    return Day(rows=rows)
-            except WindowTimeout:
-                timed_out = True
-            except (DayFailed, BadResponse) as exc:
-                log.info("%s: %s; fetching it again as one-hour windows", day, exc)
-        out = _hourly(api, day)
+        count, rows = fetch_window(api, *day_window(day))
     except WindowTimeout:
-        raise DayFailed("an hour window timed out") from None
+        raise DayFailed("the day window timed out") from None
     except BadResponse as exc:
         raise DayFailed(str(exc)) from None
-    out.timed_out = timed_out
-    return out
+    return Day(rows=rows, empty=count == 0)

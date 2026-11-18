@@ -2,8 +2,7 @@
 
 One request at a time, and after every response (whatever its status) the next request waits at least the minimum
 interval. HTTP 429, or three server errors in a row, stop the run. A timeout (HTTP 504 or no answer in 30 s) is not a
-server error: it means the window is too long for that age, so it raises WindowTimeout and the caller shrinks
-the window.
+server error: it raises WindowTimeout, and the caller (daily only: there is no hourly fallback) simply fails the day.
 """
 
 from __future__ import annotations

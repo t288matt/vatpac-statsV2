@@ -72,7 +72,6 @@ class FakeApi:
         self.items: list[dict[str, Any]] = []
         self.calls: list[Call] = []
         self.max_page: int | None = None  # the server returns fewer than asked for
-        self.slow_before: datetime | None = None  # windows longer than an hour that start before this time time out
         self.script: list[Any] = []  # answers used first, in order: an HTTP status, or "timeout"
         self.flip_ties_on: set[int] = set()  # call numbers (1-based) that list equal start times in the other order
         self.on_call: Callable[[int], None] | None = None  # runs after each answer; may change the data
@@ -116,8 +115,6 @@ class FakeApi:
                 if act == "timeout":
                     raise httpx.ReadTimeout("fake timeout")
                 return httpx.Response(act)
-            if self.slow_before and call.hours > 1 and start < self.slow_before:
-                raise httpx.ReadTimeout("fake timeout: the window is too long for that age")
             inside = [i for i in self.items if start <= _start(i) <= end]
             inside.sort(key=lambda i: i["connection_id"]["id"], reverse=n in self.flip_ties_on)
             inside.sort(key=_start, reverse=True)
