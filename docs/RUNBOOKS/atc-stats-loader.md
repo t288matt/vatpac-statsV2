@@ -24,17 +24,17 @@ docker compose exec db sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
 | `stopped` | The container received its stop signal (a restart or a deploy). | None |
 | `interrupted` | The row was still `running` when the loader started again, so the earlier run crashed or was killed. | WARN |
 
-**A day that cannot be read.** A day that keeps failing its checks, even as one-hour windows, is not written. The run skips it and carries on with the next day, and the run ends `failed` with that date in `failed_days` and the reason in `error`. Three failed days in a row stop the run at once. Retention does not run after a failed run. The WARN stays until a later run finishes successfully, which happens when the day reads cleanly or falls outside the retention period. There is no list for skipping a known-bad date. The maintainer checks the run's row in the run log, reads the log lines for that date, and checks whether VATSIM's history for that date has changed.
+**A day that cannot be read.** A day that fails its checks is not written. The run skips it and carries on with the next day, and the run ends `failed` with that date in `failed_days` and the reason in `error`. Three failed days in a row stop the run at once. Retention does not run after a failed run. The WARN stays until a later run finishes successfully, which happens when the day reads cleanly or falls outside the retention period. There is no list for skipping a known-bad date. The maintainer checks the run's row in the run log, reads the log lines for that date, and checks whether VATSIM's history for that date has changed.
 
 The container's health (`docker compose ps vatsim-atc-stats`) is `healthy` when a run succeeded in the last 36 hours or a run has written a day in that time.
 
 The log shows one line for each day written (`written:`) and one for each day that could not be written (`not written:`, with the reason), and one line for each window that skipped sessions (see below): `docker compose logs --tail=100 vatsim-atc-stats`.
 
-**Sessions with no member ID.** VATSIM's history can hold a session whose member ID is missing, null or blank. The member ID is the controller's VATSIM account number (the `cid` column), and a session without one cannot be tied to a controller, so the loader does not store it. It skips the session and counts it. Skipped sessions are normal: they do not fail the day and they raise no alert. Each request window (a whole day, or one hour when the day is read in one-hour windows) that skipped any writes one INFO line, for example `05-11-2026 14:00: skipped 3 sessions with no member ID`. The date and time are the start of the window (UTC) and the number is how many were skipped. A day loaded in one-hour windows can give several of these lines.
+**Sessions with no member ID.** VATSIM's history can hold a session whose member ID is missing, null or blank. The member ID is the controller's VATSIM account number (the `cid` column), and a session without one cannot be tied to a controller, so the loader does not store it. It skips the session and counts it. Skipped sessions are normal: they do not fail the day and they raise no alert. Each day's request that skipped any writes one INFO line, for example `05-11-2026 00:00: skipped 3 sessions with no member ID`. The date and time are the start of the day (UTC) and the number is how many were skipped.
 
-**The count check.** For each window, VATSIM reports how many sessions it holds. The loader adds up the sessions it stores, the ATIS sessions it skips (callsigns ending `_ATIS`) and the sessions with no member ID it skips. That total must equal the reported count.
+**The count check.** For each day, VATSIM reports how many sessions it holds. The loader adds up the sessions it stores, the ATIS sessions it skips (callsigns ending `_ATIS`) and the sessions with no member ID it skips. That total must equal the reported count.
 
-If it does not, the loader reads the window again in one-hour windows. If the day still does not add up, it is not written. Any other session that cannot be read also fails the day.
+If it does not, the day is not written. Any other session that cannot be read also fails the day.
 
 The usual causes are a session that closed while the day was being read, a change in the order of the pages, or a short answer from VATSIM. The log line gives the three numbers and the reported count, for example `not written: 120 distinct sessions plus 4 ATIS plus 0 with no member ID, but the API reported 126`.
 
@@ -42,9 +42,9 @@ A failed count check is a real fault, not a normal event.
 
 ## 3. The first run
 
-Every run is the same kind of run. A run loads the recent days first: the last three days on an empty database, and afterwards the days from two days before the newest stored date (`STATS_OVERLAP_DAYS`) up to yesterday. Then it loads each older date that has no sessions stored, newest first, back to the start of the retention period. A date with no sessions is confirmed on all 24 hours and recorded as empty, so it is not asked for again. When a run finds an empty date older than every stored date, it stops searching, because that is the start of VATSIM's history.
+Every run is the same kind of run. A run loads the recent days first: the last three days on an empty database, and afterwards the days from two days before the newest stored date (`STATS_OVERLAP_DAYS`) up to yesterday. Then it loads each older date that has no sessions stored, newest first, back to the start of the retention period. A date with no sessions is recorded as empty from a single day's reading, so it is not asked for again. When a run finds an empty date older than every stored date, it stops searching, because that is the start of VATSIM's history.
 
-The first run therefore has the most dates to load. The loader makes one request every 45 seconds (`STATS_MIN_INTERVAL_SECONDS`). About 300 recent days take one request each, and an older date can take 24 one-hour requests. At the longest that is about 19 days for 5 years of history and about 65 days for 15 years; it is much faster for the dates VATSIM still answers as whole days. Progress shows in `days_loaded`, in `last_day_at` moving forward, and in the log lines. If a run is still going at the next `STATS_RUN_AT`, that time is skipped: the following run starts at the first `STATS_RUN_AT` after the run ends.
+The first run therefore has the most dates to load. The loader makes one request every 45 seconds (`STATS_MIN_INTERVAL_SECONDS`), one request per date whatever its age. At the longest that is about 1 day for 5 years of history and about 3 days for 15 years (an estimate). Progress shows in `days_loaded`, in `last_day_at` moving forward, and in the log lines. If a run is still going at the next `STATS_RUN_AT`, that time is skipped: the following run starts at the first `STATS_RUN_AT` after the run ends.
 
 ## 4. Alerts and what to do
 
@@ -69,15 +69,15 @@ The watchdog reads the run log every minute. The exact wording is in [alerts.md]
 The number of years is `STATS_RETENTION_YEARS` in `docker-compose.yml`, under `vatsim-atc-stats`. It is a plain whole number of at least 1 and is not read from `.env`. Change it as a policy value, through a pull request and a deploy ([CONFIG_MAP.md](../CONFIG_MAP.md), "Where each setting lives").
 
 - **Lowering it** deletes the older sessions at the end of the next run with no failed day. The cut-off is the start of a whole UTC date, and the delete runs in batches of 10,000 rows. There is no confirmation step.
-- **Raising it** makes the next run load the extra years. Going from 3 to 15 years adds about 6 days of loading at the default rate (an estimate).
+- **Raising it** makes the next run load the extra years. Going from 3 to 15 years adds about 2 days of loading at the default rate (an estimate).
 
 ## 7. Rate, timeouts and errors
 
-- The loader makes one request at a time, and never sooner than `STATS_MIN_INTERVAL_SECONDS` (45 seconds in `docker-compose.yml`) after the previous one, whatever the response. The loader never goes below 5 seconds, so a smaller value is raised to 5.
-- A request with no answer within 30 seconds, or HTTP 504, means the window is too long for that age. The day is loaded as 24 one-hour windows instead. This is not a failure, but if one of those windows also times out, the day is not written.
+- The loader makes one request at a time, one per date, and never sooner than `STATS_MIN_INTERVAL_SECONDS` (45 seconds in `docker-compose.yml`) after the previous one, whatever the response. The loader never goes below 5 seconds, so a smaller value is raised to 5.
+- A request with no answer within 30 seconds, or HTTP 504, means the day is not written; the run goes on with the next day.
 - HTTP 429 (VATSIM is limiting requests) stops the run at once. It ends `failed` with `HTTP 429 from the API`, and the next scheduled run carries on.
 - Three server errors (HTTP 5xx or no connection) in a row stop the run and end it `failed`.
-- A day that cannot be read cleanly is not written. A day whose session count changes while it is read is loaded again in one-hour windows. If a day still fails, it is not written, the run goes on with the next day, and the run ends `failed`. Three such days in a row stop the run.
+- A day that cannot be read cleanly is not written: a session count that changes while the day is read, a timeout, or any other failed check all end the same way. The run goes on with the next day, and the run ends `failed`. Three such days in a row stop the run.
 - HTTP responses other than 429 and 5xx (for example 400) fail that day in the same way.
 
 ## 8. The database password and the first deploy
