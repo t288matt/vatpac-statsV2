@@ -18,7 +18,7 @@ WHERE ({", ".join(f"t.{c}" for c in _COLS)}) IS DISTINCT FROM ({", ".join(f"EXCL
 RETURNING (xmax = 0) AS inserted
 """
 _RUN_COLUMNS = {"requests", "sessions_inserted", "sessions_updated", "sessions_deleted", "days_loaded", "failed_days",
-                "hour_windows_from", "empty_dates", "last_day_at"}
+                "empty_dates", "last_day_at"}
 
 
 def connect(dsn: str) -> psycopg.Connection[tuple[Any, ...]]:
@@ -80,11 +80,9 @@ def mark_interrupted(conn: psycopg.Connection[Any], now: datetime) -> int:
         (now,)).rowcount
 
 
-def run_memory(conn: psycopg.Connection[Any]) -> tuple[set[date], date | None]:
-    """From earlier runs: dates confirmed empty on all 24 hours, and the newest date that needed hour windows."""
-    empty = {r[0] for r in conn.execute("SELECT DISTINCT unnest(empty_dates) FROM atc_stats_run_log").fetchall()}
-    row = conn.execute("SELECT max(hour_windows_from) FROM atc_stats_run_log").fetchone()
-    return empty, row[0] if row else None
+def run_memory(conn: psycopg.Connection[Any]) -> set[date]:
+    """From earlier runs: dates confirmed empty from their single daily request."""
+    return {r[0] for r in conn.execute("SELECT DISTINCT unnest(empty_dates) FROM atc_stats_run_log").fetchall()}
 
 
 def newest_status(conn: psycopg.Connection[Any]) -> str | None:

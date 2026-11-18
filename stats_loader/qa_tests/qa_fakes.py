@@ -2,8 +2,8 @@
 """Independent fake VATSIM history API and fake clock, written from the approved design (version 4), not from the builders' code.
 
 The fake behaves as measured on 15-11-2026: both window ends inclusive, whole-second starts, newest first, `count` for the
-whole window, dates in the form 2026-11-10T00:00:00, windows longer than an hour older than a cut-off time out. It never
-touches the network: it is an httpx.MockTransport handler.
+whole window, dates in the form 2026-11-10T00:00:00, a day older than a cut-off times out (daily only: there is no
+hourly fallback, so every request is for a whole day). It never touches the network: it is an httpx.MockTransport handler.
 """
 
 from __future__ import annotations
@@ -90,11 +90,10 @@ class FakeApi:
         self.sessions: list[Sess] = list(sessions or [])
         self.log: list[Req] = []
         self.cap: int | None = None  # the most items one page returns, whatever `limit` says (a short page)
-        self.timeout_before: date | None = None  # windows longer than 1 h that start before this date time out
+        self.timeout_before: date | None = None  # a day's request that starts before this date times out
         self.timeout_mode = "504"  # or "none": raise a read timeout (no answer within 30 s)
         self.script: list[int] = []  # statuses to answer the next requests with, before any real answer
-        self.shift_over_hour = False  # tie order flips between requests for windows longer than 1 h
-        self.shift_always = False  # ... for every window
+        self.shift_always = False  # tie order flips between requests
         self.extra_count: dict[date, int] = {}  # days whose count is wrong by this much in every window
         self.drift: Callable[[int, int], int] | None = None  # (request number, count) -> count reported
         self.on_request: Callable[[Req], None] | None = None
@@ -128,11 +127,10 @@ class FakeApi:
         start = datetime.fromisoformat(q["start_date"]).replace(tzinfo=UTC)
         end = datetime.fromisoformat(q["end_date"]).replace(tzinfo=UTC)
         offset, limit = int(q["offset"]), int(q["limit"])
-        long_window = (end - start) > timedelta(hours=1)
         if self.script:
             status = self.script.pop(0)
             return self._answer(status, req, start, end, offset, limit)
-        if long_window and self.timeout_before and start.date() < self.timeout_before:
+        if self.timeout_before and start.date() < self.timeout_before:
             self._answer(504 if self.timeout_mode == "504" else 0, req, start, end, offset, limit)
             if self.timeout_mode == "504":
                 return httpx.Response(504, request=req)
@@ -143,7 +141,7 @@ class FakeApi:
             return httpx.Response(200, text="<html>not json</html>", request=req)
         number = self.n + 1
         hit = sorted((s for s in self.sessions if start <= s.start <= end), key=lambda s: (-s.start.timestamp(), s.id))
-        if self.shift_always or (self.shift_over_hour and long_window):
+        if self.shift_always:
             hit = sorted(hit, key=lambda s: (-s.start.timestamp(), s.id if number % 2 else -s.id))
         count = len(hit) + self.extra_count.get(start.date(), 0)
         if self.drift:

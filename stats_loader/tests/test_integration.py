@@ -80,8 +80,8 @@ def test_first_run_loads_three_recent_days_then_backfills_to_the_start_of_histor
     assert run(loader_conn, fake, clock) == "success"
     [first] = runs(loader_conn)
     assert first["days_loaded"] == 14 and first["sessions_inserted"] == expected
-    assert first["empty_dates"] == [date(2026, 10, 31)]  # all 24 hours empty: the start of history, so it stopped there
-    assert first["requests"] == len(fake.calls) == 14 + 25
+    assert first["empty_dates"] == [date(2026, 10, 31)]  # the single daily request reported 0: the start of history
+    assert first["requests"] == len(fake.calls) == 14 + 1
     assert [c.start.date() for c in fake.calls[:3]] == [date(2026, 11, 14), date(2026, 11, 13), date(2026, 11, 12)]
     # the next run does not ask for the empty date, or anything older, again
     fake.calls.clear()
@@ -138,21 +138,20 @@ def test_a_failed_day_writes_nothing_and_the_next_run_loads_it(
     assert on_the_eighth(loader_conn) > 5
 
 
-def test_a_timeout_makes_hour_windows_and_a_restart_does_not_pay_for_it_again(loader_conn: Any, fake: FakeApi,
-                                                                               clock: FakeClock) -> None:
-    populate(fake, date(2026, 11, 1), date(2026, 11, 14))
-    fake.slow_before = at(2026, 11, 10)
-
-    def timeouts() -> int:
-        return sum(c.hours > 1 and c.start < fake.slow_before for c in fake.calls)  # type: ignore[operator]
-
-    assert run(loader_conn, fake, clock) == "success"
-    assert timeouts() == 1  # one timeout, on 9 November; every older day then went straight to hour windows
-    assert runs(loader_conn)[0]["hour_windows_from"] == date(2026, 11, 9)
-    assert one(loader_conn, "SELECT count(*) FROM atc_stats_session") == 28
-    loader_conn.execute("DELETE FROM atc_stats_session")  # as after a restart that finds old days missing again
-    assert run(loader_conn, fake, clock) == "success"
-    assert timeouts() == 1 and one(loader_conn, "SELECT count(*) FROM atc_stats_session") == 28
+def test_a_timeout_fails_one_day_with_no_hourly_fallback_and_a_later_run_loads_it(
+        loader_conn: Any, fake: FakeApi, clock: FakeClock) -> None:
+    populate(fake, date(2026, 11, 5), date(2026, 11, 14))
+    fake.script = ["timeout"]  # the newest day's one request times out; it is simply a failed day, never retried
+    assert run(loader_conn, fake, clock) == "failed"
+    [log] = runs(loader_conn)
+    assert log["failed_days"] == [date(2026, 11, 14)] and "timed out" in log["error"]
+    assert "hour_windows_from" not in log or log["hour_windows_from"] is None  # nothing writes this column any more
+    assert one(loader_conn, "SELECT count(*) FROM atc_stats_session "
+                             "WHERE (session_start AT TIME ZONE 'UTC')::date = '2026-11-14'") == 0
+    assert run(loader_conn, fake, clock) == "success"  # a later run retries the failed day naturally
+    assert one(loader_conn, "SELECT count(*) FROM atc_stats_session "
+                             "WHERE (session_start AT TIME ZONE 'UTC')::date = '2026-11-14'") == 2
+    assert all(c.hours > 20 for c in fake.calls)  # every request was a whole day; no hour windows were ever sent
 
 
 def test_runs_start_at_the_run_time_and_a_restart_after_a_success_starts_none(loader_conn: Any, fake: FakeApi) -> None:

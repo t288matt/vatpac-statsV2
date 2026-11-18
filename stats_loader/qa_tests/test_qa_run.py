@@ -44,8 +44,8 @@ def test_the_run_stops_at_the_first_fully_empty_date_older_than_the_oldest_store
     assert run(conn, fake) == "success"
     first_empty = TODAY - timedelta(days=31)
     assert min(req_days(fake.log)) == first_empty
-    assert sum(1 for r in fake.log if r.start.date() == first_empty) == 25  # the day, then all 24 hours
-    assert fake.n == 30 + 25
+    assert sum(1 for r in fake.log if r.start.date() == first_empty) == 1  # one request, trusted immediately
+    assert fake.n == 30 + 1
     assert len(stored(su)) == 30
     # the next day's run: the confirmed-empty date is not asked for again, and nothing older than the overlap is
     clock.t = 86400.0  # 16-11-2026 06:00 UTC
@@ -99,21 +99,17 @@ def test_every_field_is_stored_as_the_api_gave_it(conn: psycopg.Connection, su: 
     assert su.execute("SELECT session_end FROM atc_stats_session WHERE connection_id=4243").fetchone() == (None,)
 
 
-def test_sessions_on_window_boundaries_are_stored_once_on_both_the_day_and_the_hour_path(conn: psycopg.Connection, su: psycopg.Connection) -> None:
-    for hourly in (False, True):
-        su.execute("TRUNCATE atc_stats_session, atc_stats_run_log RESTART IDENTITY")
-        clock, fake = fresh()
-        if hourly:
-            fake.timeout_before = TODAY  # every day window times out: hour windows throughout
-        rows = []
-        for n in range(1, 8):
-            d = TODAY - timedelta(days=n)
-            rows += [make(n * 100 + 1, at(d, 0, 0, 0)), make(n * 100 + 2, at(d, 23, 59, 59)), make(n * 100 + 3, at(d, 12, 0, 0)),
-                     make(n * 100 + 4, at(d, 11, 59, 59))]
-        fake.sessions = rows
-        assert run(conn, fake) == "success"
-        assert n_rows(su) == len(rows) == 28, hourly
-        assert su.execute("SELECT count(DISTINCT connection_id) FROM atc_stats_session").fetchone() == (28,)
+def test_sessions_on_window_boundaries_are_stored_once(conn: psycopg.Connection, su: psycopg.Connection) -> None:
+    clock, fake = fresh()
+    rows = []
+    for n in range(1, 8):
+        d = TODAY - timedelta(days=n)
+        rows += [make(n * 100 + 1, at(d, 0, 0, 0)), make(n * 100 + 2, at(d, 23, 59, 59)), make(n * 100 + 3, at(d, 12, 0, 0)),
+                 make(n * 100 + 4, at(d, 11, 59, 59))]
+    fake.sessions = rows
+    assert run(conn, fake) == "success"
+    assert n_rows(su) == len(rows) == 28
+    assert su.execute("SELECT count(DISTINCT connection_id) FROM atc_stats_session").fetchone() == (28,)
 
 
 def test_an_empty_date_writes_nothing_and_is_not_a_failure(conn: psycopg.Connection, su: psycopg.Connection) -> None:
@@ -126,26 +122,26 @@ def test_an_empty_date_writes_nothing_and_is_not_a_failure(conn: psycopg.Connect
 
 
 # ---- timeouts across a run ----------------------------------------------------------------------------------------
-def test_once_a_day_times_out_every_older_day_goes_straight_to_hour_windows(conn: psycopg.Connection, su: psycopg.Connection) -> None:
+def test_three_consecutive_timeouts_stop_the_run_with_no_hour_window_rescue(conn: psycopg.Connection, su: psycopg.Connection) -> None:
     clock, fake = fresh()
     fake.sessions = daily(TODAY - timedelta(days=8), TODAY - timedelta(days=1))
-    fake.timeout_before = TODAY - timedelta(days=4)  # 10-11 and older time out as a day
-    assert run(conn, fake) == "success"
-    per_day = {d: [r for r in fake.log if r.start.date() == d] for d in set(req_days(fake.log))}
-    assert len(per_day[TODAY - timedelta(days=4)]) == 1
-    assert len(per_day[TODAY - timedelta(days=5)]) == 1 + 24  # the day window timed out once, then 24 hours
-    for n in (6, 7, 8):
-        reqs = per_day[TODAY - timedelta(days=n)]
-        assert all(r.end - r.start < timedelta(hours=2) for r in reqs), n  # no day window tried again
-        assert len(reqs) == 24
+    fake.timeout_before = TODAY - timedelta(days=4)  # every day from 11-11-2026 backward times out
+    assert run(conn, fake) == "failed"
+    r = last_run(su)
+    assert r["status"] == "failed" and "3 failed days in a row" in r["error"]
+    assert len(r["failed_days"]) == 3  # the run stopped there; nothing older was even tried
+    assert all(req.end - req.start > timedelta(hours=20) for req in fake.log)  # every request was a whole day
+    assert stored(su) == {TODAY - timedelta(days=n) for n in (1, 2, 3, 4)}  # the recent days and 11-11 loaded fine
 
 
-def test_timeouts_do_not_stop_a_run_as_server_errors(conn: psycopg.Connection, su: psycopg.Connection) -> None:
+def test_timeouts_accumulate_as_failed_days_not_as_a_server_error_crash(conn: psycopg.Connection, su: psycopg.Connection) -> None:
     clock, fake = fresh()
     fake.sessions = daily(TODAY - timedelta(days=5), TODAY - timedelta(days=1))
-    fake.timeout_before = TODAY
-    assert run(conn, fake) == "success"
-    assert last_run(su)["status"] == "success"
+    fake.timeout_before = TODAY  # every day the run asks for times out
+    assert run(conn, fake) == "failed"
+    r = last_run(su)
+    assert r["status"] == "failed" and "3 failed days in a row" in r["error"]  # the known failed-day path, not a crash
+    assert n_rows(su) == 0
 
 
 # ---- server errors, 429, failed days ---------------------------------------------------------------------------
