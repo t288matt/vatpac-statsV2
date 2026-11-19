@@ -176,6 +176,8 @@ load_vm_head() {
   VM_HEAD="$(vm 'git rev-parse HEAD' 2>/dev/null | tr -d '\r' | head -n 1)"; VM_HEAD_LOADED=1
 }
 
+# reach_what: how the VM is reached, for messages: "ssh <host>", or "the local shell" when DEPLOY_LOCAL=1
+reach_what() { if [ "${DEPLOY_LOCAL:-0}" = 1 ]; then echo "the local shell"; else echo "ssh $DEPLOY_SSH"; fi; }
 # vm_up: probes the VM once per run (the answer is kept); succeeds when ssh answers, and sets VM_DOWN=1 when it does not
 VM_PROBE=""
 vm_up() {
@@ -301,7 +303,7 @@ dump_facts() {  # sets D_EPOCH D_SIZE D_NAME D_VALID from the newest dump; retur
 preflight() {
   local want="$1" full tip behind now out ci_lines ci_bad pct free tdc mem foreign dumpage ageh bt load
   [[ "$want" =~ ^[0-9a-fA-F]{7,40}$ ]] || { echo "usage: deploy.sh --preflight <commit (7 to 40 hex characters)>" >&2; return 2; }
-  echo "deploy preflight for $want against $DEPLOY_SSH (read-only)"
+  echo "deploy preflight for $want against $(reach_what | sed 's/^ssh //') (read-only)"
   echo "local checkout is at $(local_head | cut -c1-10)"
 
   g fetch -q origin main 2>/dev/null
@@ -334,9 +336,9 @@ preflight() {
   fi
 
   if ! vm_up; then
-    emit FAIL vm_reachable "ssh $DEPLOY_SSH did not answer"
+    emit FAIL vm_reachable "$(reach_what) did not answer"
   else
-    emit PASS vm_reachable "ssh $DEPLOY_SSH answers"
+    emit PASS vm_reachable "$(reach_what) answers"
   fi
   tdc="$(vm 'timedatectl' 2>/dev/null | tr -d '\r')"
   if printf '%s\n' "$tdc" | grep -q 'System clock synchronized: yes' && printf '%s\n' "$tdc" | grep -q 'NTP service: active'; then
@@ -456,8 +458,8 @@ check_checkout_current() {
 
 verify() {
   local out line name cnt detail res st age maxgap rows ts bad total seen hits lines gapclass hs en er ag
-  echo "deploy verify against $DEPLOY_SSH (read-only)"
-  if ! vm_up; then emit FAIL vm_reachable "ssh $DEPLOY_SSH did not answer"; else emit PASS vm_reachable "ssh answers"; fi
+  echo "deploy verify against $(reach_what | sed 's/^ssh //') (read-only)"
+  if ! vm_up; then emit FAIL vm_reachable "$(reach_what) did not answer"; else emit PASS vm_reachable "$(reach_what | sed 's/^ssh .*/ssh/') answers"; fi
   check_checkout_current || { summary verify; return 1; }
   check_checkout_clean || { summary verify; return 1; }
 
@@ -550,7 +552,7 @@ status() {
   local out now
   echo "deploy status of $DEPLOY_SSH (read-only)"
   echo "local checkout is at $(local_head | cut -c1-10)"
-  if ! vm_up; then echo "FAIL  ssh $DEPLOY_SSH did not answer"; return 1; fi
+  if ! vm_up; then echo "FAIL  $(reach_what) did not answer"; return 1; fi
   echo "== release marker"
   out="$(vm 'cat .deploy/release 2>/dev/null || echo "no marker: no deploy has been marked yet"' 2>/dev/null | tr -d '\r')"
   printf '%s\n' "${out:-could not read the VM tree}"

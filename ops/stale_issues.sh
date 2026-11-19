@@ -6,7 +6,7 @@
 # Lists every OPEN issue that a commit in the range names (#93, "issues 93, 94", "Refs #N") and that has no comment newer
 # than its newest such commit. Output: number, title, last comment date, newest commit. Exit 0 none, 1 some, 2 could not check.
 # Settings (environment): GH_BIN (default gh on PATH, else "C:\Program Files\GitHub CLI\gh.exe"), REPO (default t288matt/vatpac-statsV2),
-# DEPLOY_SSH (default vatpac-v3), DEPLOY_DIR (default ~/vatpac-statsV2).
+# DEPLOY_SSH (default vatpac-v3), DEPLOY_DIR (default ~/vatpac-statsV2), DEPLOY_LOCAL=1 (read the marker here, not over ssh).
 
 REPO="${REPO:-t288matt/vatpac-statsV2}"
 DEPLOY_SSH="${DEPLOY_SSH:-vatpac-v3}"
@@ -34,7 +34,12 @@ issue_refs() {
 }
 
 # last_marker_commit: the commit in the VM release marker, empty when there is none or the VM cannot be read.
+# DEPLOY_LOCAL=1 (run on the VM itself, as make deploy does): read the marker in this checkout, no ssh (issue 411).
 last_marker_commit() {
+  if [ "${DEPLOY_LOCAL:-0}" = 1 ]; then
+    (cd "$ROOT" && bash -c "$RELEASE_MARKER_CMD") 2>/dev/null | release_marker_commit
+    return
+  fi
   # shellcheck disable=SC2029
   ssh -n -o BatchMode=yes -o ConnectTimeout=10 "$DEPLOY_SSH" "cd $DEPLOY_DIR && $RELEASE_MARKER_CMD" 2>/dev/null | release_marker_commit
 }

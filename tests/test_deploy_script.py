@@ -1065,3 +1065,52 @@ def test_make_deploy_runs_the_gate_first_and_the_marker_last() -> None:
     idx = [next(i for i, b in enumerate(body) if k in b) for k in keys]
     assert idx == sorted(idx) and len(set(idx)) == len(idx), body
     assert not any(b.lstrip().startswith("-") for b in body), body  # no recipe line ignores its own failure
+
+
+def test_deploy_local_runs_the_gate_and_wait_healthy_without_ssh(tmp_path: Path) -> None:
+    """make deploy sets DEPLOY_LOCAL=1: every VM command runs in this checkout, so the ssh stub must never be called."""
+    f = _gate_fake(tmp_path)
+    f.set(DEPLOY_LOCAL="1")
+    rc, out = f.run("--wait-healthy")
+    assert rc == 0 and line_for(out, "containers_healthy").startswith("PASS"), out
+    rc, out = f.run("--deploy-gate", FULL)
+    assert rc == 0 and line_for(out, "dump_valid").startswith("PASS") and _dump_taken(f), out
+    assert "the local shell answers" in line_for(out, "vm_reachable") and "ssh" not in line_for(out, "vm_reachable"), out
+    assert f.ssh_log() == "", f.ssh_log()
+
+
+def test_reachability_message_is_correct_for_ssh_and_for_local(tmp_path: Path) -> None:
+    for local, want in (("", "ssh fakehost"), ("1", "the local shell")):
+        p = subprocess.run([str(BASH), "-c", 'DEPLOY_SOURCE_ONLY=1; . "$0"; reach_what', str(SCRIPT)],
+                           capture_output=True, text=True, cwd=REPO, timeout=60, env=dict(os.environ, DEPLOY_LOCAL=local, DEPLOY_SSH="fakehost"))
+        assert p.stdout.strip() == want, (local, p.stdout, p.stderr)
+    f = Fake(tmp_path)
+    assert line_for(f.run("--verify")[1], "vm_reachable").endswith("ssh answers")  # remote wording unchanged
+
+
+def test_deploy_gate_refuses_a_dump_smaller_than_the_minimum(tmp_path: Path) -> None:
+    f = _gate_fake(tmp_path)
+    f.write("dump.txt", f"{NOW + 60}.5 999 vatpac_20261110T150100Z.dump\nvalid\n")  # readable, new, but under DEPLOY_MIN_DUMP_BYTES
+    rc, out = f.run("--deploy-gate", FULL)
+    assert rc == 1 and line_for(out, "dump_valid").startswith("FAIL") and "999 bytes (min 1000000)" in out, out
+    assert "stopped before anything changed" in out
+
+
+def test_stale_issues_reads_the_marker_over_ssh_or_locally(tmp_path: Path) -> None:
+    f = _guard_fake(tmp_path, COMMITS, [(94, "ninety-four", "2026-10-09T23:00:00Z")])
+    f.set(GH_BIN=str(f.bin / "gh"), REPO="o/r", DEPLOY_SSH="fakehost")
+
+    ops = f.home / "vatpac-statsV2" / "ops"  # the script finds its checkout from its own place: use a copy inside the fake VM checkout
+    for name in ("stale_issues.sh", "release_common.sh"):
+        shutil.copy(REPO / "ops" / name, ops / name)
+
+    def run() -> tuple[int, str]:
+        p = subprocess.run([str(BASH), str(ops / "stale_issues.sh")], capture_output=True, text=True, env=f.env, cwd=REPO, timeout=60)
+        return p.returncode, p.stdout + p.stderr
+
+    rc, out = run()  # unset: the marker is read over ssh, as before
+    assert f"since the release marker {PREV[:10]}" in out and "fakehost" in f.ssh_log(), (rc, out)
+    (f.dir / "ssh.log").unlink()
+    f.set(DEPLOY_LOCAL="1", FAKE_SSH_DOWN="1")  # locally: read from the checkout; ssh is never called (and would fail if it were)
+    rc, out = run()
+    assert f"since the release marker {PREV[:10]}" in out and f.ssh_log() == "", (rc, out)
