@@ -176,7 +176,7 @@ def test_card_184_flights_per_utc_week_of_end(conn) -> None:
 # explicit dates (never the relative monday_utc() helper, which is not safe for a monthly assertion).
 MON = datetime(2026, 10, 5, tzinfo=UTC)
 NEXT_MON = MON + timedelta(days=7)
-TITLE = "Unique aircraft airborne during the Monday event window, by month (0700-1200Z)"
+TITLE = "Unique flights airborne during the Monday event window, by month (0700-1200Z)"
 
 
 def _bars(conn, start: datetime = MON - timedelta(days=1), end: datetime = NEXT_MON + timedelta(days=3)) -> dict[str, int]:
@@ -244,7 +244,7 @@ def test_card_156_respects_the_time_range(conn) -> None:
 
 
 def test_card_156_reads_the_flight_summary_not_raw_positions() -> None:
-    p = panel(EVENTS, "Unique aircraft airborne during the Monday event window")
+    p = panel(EVENTS, "Unique flights airborne during the Monday event window")
     sql = p["targets"][0]["rawSql"].lower()
     for word in ("pilot_sample", "pilot_position", "sector", "frequency", "now()"):
         assert word not in sql

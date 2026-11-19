@@ -126,7 +126,7 @@
     {
       "id": 4,
       "type": "barchart",
-      "title": "Unique aircraft airborne during the Monday event window, by month (0700-1200Z)",
+      "title": "Unique flights airborne during the Monday event window, by month (0700-1200Z)",
       "description": "For each UTC month in the selected time range (14 months by default) that has a Monday with any, the number of distinct finished flights that were connected at some moment between 0700 and 1200 UTC on any Monday in that month and had airborne time above 0 (groundspeed of 60 kt or more at some point, as on the weekday and weekend charts). A flight that overlaps the window on one or more Mondays in the month counts once for that month, however many Mondays it touches or how long it spans each one: a flight on two Mondays in the same month counts once, not twice. The flight summary stores when a flight started and ended and its total airborne minutes, not when it was airborne, so a flight that took off and landed outside the window but stayed connected into it is counted: the bars are an upper bound of the aircraft actually in the air during the window. Flights imported from historical records are included (no altitude data is needed for this count). A flight counts about 8 hours after its last position, so the latest month fills in during that evening. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",

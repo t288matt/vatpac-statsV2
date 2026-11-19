@@ -187,7 +187,7 @@ def test_non_unique_monthly_controllers_chart_matches_the_unique_chart_apart_fro
 
 
 def test_monthly_controllers_chart_has_the_aircraft_chart_format() -> None:
-    aircraft = panel(EVENTS, "Unique aircraft airborne during the Monday event window")
+    aircraft = panel(EVENTS, "Unique flights airborne during the Monday event window")
     mine = panel(EVENTS, CONTROLLERS_MONTH)
     assert mine["type"] == aircraft["type"] == "barchart"
     assert "timeFrom" not in mine and "timeFrom" not in aircraft
