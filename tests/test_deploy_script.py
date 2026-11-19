@@ -710,6 +710,37 @@ def test_wait_healthy_passes_then_refuses_when_a_service_stays_unhealthy(tmp_pat
     assert rc == 1 and "not healthy after 0 s: db=starting" in out and "marker" not in out, out
 
 
+def test_wait_healthy_fails_when_the_vm_service_list_is_unreadable_or_empty(tmp_path: Path) -> None:
+    for sub, how in (("broken", lambda f: f.brk("services")), ("empty", lambda f: f.write("services.txt", ""))):
+        f = Fake(tmp_path / sub)
+        how(f)
+        f.set(DEPLOY_WAIT_S="0")
+        rc, out = f.run("--wait-healthy")
+        assert rc == 1 and "could not read the VM's service list" in out, (sub, out)
+
+
+LOADER_SERVICES = "\n".join(["db", "collector", "grafana", "backup", "watchdog", "vatsim-atc-stats", "migrate"]) + "\n"
+
+
+def test_wait_healthy_skips_a_service_the_vm_does_not_define_but_fails_on_one_it_does(tmp_path: Path) -> None:
+    f = Fake(tmp_path / "new")  # the loader is not in the VM's compose file yet, and its container is unhealthy: not waited for
+    f.write("inspect.txt", _inspect(loader_health="unhealthy"))
+    rc, out = f.run("--wait-healthy")
+    assert rc == 0 and "vatsim-atc-stats" not in line_for(out, "containers_healthy"), out
+    f = Fake(tmp_path / "defined")  # the VM defines the loader and its container is unhealthy: the wait fails
+    f.write("services.txt", LOADER_SERVICES)
+    f.write("inspect.txt", _inspect(loader_health="unhealthy"))
+    f.set(DEPLOY_WAIT_S="0")
+    rc, out = f.run("--wait-healthy")
+    assert rc == 1 and "vatsim-atc-stats=unhealthy" in out, out
+    f = Fake(tmp_path / "missing")  # the VM defines the loader and it has no container at all: missing, so the wait fails
+    f.write("services.txt", LOADER_SERVICES)
+    f.write("inspect.txt", "\n".join(ln for ln in _inspect().splitlines() if "atc-stats" not in ln) + "\n")
+    f.set(DEPLOY_WAIT_S="0")
+    rc, out = f.run("--wait-healthy")
+    assert rc == 1 and "vatsim-atc-stats=missing" in out, out
+
+
 def test_make_deploy_runs_the_steps_in_order_with_no_gh_and_one_sha() -> None:
     lines = (REPO / "Makefile").read_text(encoding="utf-8").splitlines()
     body = []
