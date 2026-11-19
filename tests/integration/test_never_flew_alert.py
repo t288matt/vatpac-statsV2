@@ -5,8 +5,9 @@ One shared database setup per module (the scenario rows are loaded once, see `db
 Tests that need data the alert view can see from another connection (the watchdog cycle) come last and empty the tables first.
 Cases that change data run in a transaction that is rolled back. Everything is UTC on a throwaway database (name ends _test).
 
-1. The panel 'Pilots who logged on but never flew (90 days)' returns exactly the rows it returned before the change (the query as it
-   stood on main is tests/fixtures/never_flew_panel_before.sql).
+1. The panel 'Pilots who logged on but never flew (90 days)' lists exactly the candidates it listed before issue 406 (the query as it
+   stood on main, before the recency sort, is tests/fixtures/never_flew_panel_before.sql): same rows and figures, ignoring order,
+   with the new last_qualifying_flight column and the recency sort itself as the one intended difference.
 2. Who is a candidate and who is not; logons, reconnects and two sessions at once.
 3. The grants of the watchdog login. 4. The watchdog cycle: every logon alerts once, the 24 hour memory, first run, dry-run.
 """
@@ -122,13 +123,36 @@ def rolled_back(c):
         yield
 
 
-# ------------------------------------------------------------------------------------------------ 1. panel unchanged
+# Issue 406 changed the panel on purpose: it now sorts by last_qualifying_flight (recency) instead of total_flights, and the
+# view grew that one new column. OLD_PANEL_SQL is the query as it stood before issue 406 (no recency column, counted-first order).
+OLD_COLUMNS = ("cid", "name", "total_flights", "flights_with_zero_enroute_time", "zero_enroute_percentage",
+               "avg_time_online_minutes", "min_time_online_minutes", "max_time_online_minutes", "total_time_online_minutes")
+
+
+def same_candidates(old_rows: list[dict], new_rows: list[dict]) -> bool:
+    """True when both row sets agree on every column the view had before issue 406, ignoring order (the allowed difference)."""
+    key = lambda r: tuple(r[c] for c in OLD_COLUMNS)                                                              # noqa: E731
+    return sorted(map(key, old_rows)) == sorted(map(key, new_rows))
+
+
+def sorted_by_recency(rows: list[dict]) -> bool:
+    vals = [r["last_qualifying_flight"] for r in rows]
+    return vals == sorted(vals, reverse=True)
+
+
+def strip_limit(sql: str) -> str:
+    return sql.replace("\nLIMIT 200", "")
+
+
+# ------------------------------------------------------------------------------------------------ 1. panel unchanged (except the fix)
 def test_panel_returns_identical_rows_before_and_after_on_awkward_data(db) -> None:
-    """Old query (main) and new query (branch) on the same data, same transaction (same now()): identical rows, order and columns."""
+    """Old query (before issue 406) and new query (this branch) on the same data, same transaction (same now()): same candidates and
+    same per-row figures (every pre-406 column), with order and the new last_qualifying_flight column as the only differences."""
     sql = panel(DASH, TITLE)["targets"][0]["rawSql"]
     assert "pilot_never_flew_90d" in sql and "flight_summaries" not in sql and "SUBSTRING" not in sql.upper()    # one rule, not a copy
+    assert "last_qualifying_flight" in sql and "ORDER BY last_qualifying_flight DESC" in sql                     # the intended change
     old0, new0 = db.execute(OLD_PANEL_SQL).fetchall(), run_panel(db, DASH, TITLE)
-    assert old0 == new0                                                                                          # the shared scenario alone
+    assert same_candidates(old0, new0) and sorted_by_recency(new0)                                                # the shared scenario alone
     with rolled_back(db):
         finished(db, 101, days_ago=5, airborne=0, name="Old Name XXXX")
         finished(db, 101, days_ago=2, airborne=0, name="New Name YMML")             # renamed: the newer name has the Y
@@ -150,15 +174,23 @@ def test_panel_returns_identical_rows_before_and_after_on_awkward_data(db) -> No
         finished(db, 115, days_ago=2, airborne=0, name="Flew Long Ago YSSY"); finished(db, 115, days_ago=200, airborne=90, name="Flew Long Ago YSSY")
         finished(db, 116, days_ago=120, airborne=0, name="Lapsed YSSY")
         old, new = db.execute(OLD_PANEL_SQL).fetchall(), run_panel(db, DASH, TITLE)
-        assert old == new
+        assert same_candidates(old, new) and sorted_by_recency(new)
         assert {r["cid"] for r in new} - {11, 24} == {101, 104, 105, 108, 109, 112, 115}
         assert [r["name"] for r in new if r["cid"] == 101] == ["New Name YMML"] and [r["total_flights"] for r in new if r["cid"] == 105] == [1]
-    with rolled_back(db):                                                                                        # the LIMIT and the order
+    with rolled_back(db):              # the LIMIT now keeps the 200 most recently qualifying, which issue 406 means can differ from
+                                        # the 200 with most flights: recency (i, fine-grained) and flight count (i % 3) vary independently
         for i in range(205):
-            for k in range(1 + i % 3):
-                finished(db, 5000 + i, days_ago=1 + k, airborne=0, name=f"Bulk {i:03d} YSSY")
+            finished(db, 5000 + i, days_ago=1 + i * 0.3, airborne=0, name=f"Bulk {i:03d} YSSY")   # the pilot's newest zero flight
+            for k in range(i % 3):
+                finished(db, 5000 + i, days_ago=40 + i * 0.3 + k, airborne=0, name=f"Bulk {i:03d} YSSY")  # older zero flights, same cid
+        old_all, new_all = db.execute(strip_limit(OLD_PANEL_SQL)).fetchall(), db.execute(strip_limit(sql)).fetchall()
+        assert same_candidates(old_all, new_all)                                  # same 205 candidates either way, LIMIT aside
         old, new = db.execute(OLD_PANEL_SQL).fetchall(), run_panel(db, DASH, TITLE)
-        assert len(old) == len(new) == 200 and old == new
+        assert len(old) == len(new) == 200
+        assert sorted_by_recency(new)
+        expected_cids = {r["cid"] for r in sorted(new_all, key=lambda r: r["last_qualifying_flight"], reverse=True)[:200]}
+        assert {r["cid"] for r in new} == expected_cids                           # the 200 kept are the 200 most recent of the 205
+        assert {r["cid"] for r in new} != {r["cid"] for r in old}                 # proving the fix changes who is shown, not just the order
     with rolled_back(db):                                                                                        # an empty database
         db.execute(f"TRUNCATE {TABLES} CASCADE")                                                                 # noqa: S608
         assert db.execute(OLD_PANEL_SQL).fetchall() == run_panel(db, DASH, TITLE) == []

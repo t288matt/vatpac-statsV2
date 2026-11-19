@@ -102,6 +102,18 @@ def test_180_old_airborne_flight_does_not_disqualify(conn):
     assert [r["cid"] for r in rows(conn, ONBOARDING, NEVER_FLEW_90)] == [9100008]
 
 
+def test_180_sorts_by_recency_not_flight_count(conn):
+    """Issue 406: a pilot who has just qualified (one flight) must surface first, ahead of a repeat non-flier whose
+    most recent zero-airborne flight is older, even though the repeat non-flier has more flights overall."""
+    add_flight(conn, 9100020, Y_NAME, ago(days=60), airborne=0)                  # H: 1 flight, 60 days ago
+    add_flight(conn, 9100021, Y_NAME, ago(days=1), airborne=0)                   # I: 1 flight, 1 day ago
+    for days in (2, 3, 4):
+        add_flight(conn, 9100022, Y_NAME, ago(days=days), airborne=0)            # J: 3 flights, most recent 2 days ago
+    got = rows(conn, ONBOARDING, NEVER_FLEW_90)
+    assert [r["cid"] for r in got] == [9100021, 9100022, 9100020]                # recency wins over flight count
+    assert [r["last_qualifying_flight"] for r in got] == sorted((r["last_qualifying_flight"] for r in got), reverse=True)
+
+
 def test_y_rule_is_the_fourth_character_from_the_end(conn):
     """Kept v1 quirk: any name whose fourth-from-last character is Y counts; shorter names never do."""
     add_flight(conn, 9100010, "Joe Yoda", ago(days=1))        # 'Yoda': counts although it is not an airport

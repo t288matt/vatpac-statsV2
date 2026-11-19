@@ -78,9 +78,10 @@
   "7": "f50bb7a212a76b75"
  },
  "events/monday-events.json": {
-  "3": "32ad110a412130fb",
-  "4": "9f71127fd8f278e9",
-  "5": "9d5a038aeebbbdd5"
+  "3": "2400e67998f277a0",
+  "4": "68e82596d3b4a1d0",
+  "7": "8236411c62e0e47f",
+  "8": "28595f7887ea0543"
  },
  "military/military.json": {
   "2": "891daff5916a4daf",
@@ -109,7 +110,7 @@
   "9": "60c02b9a91756390"
  },
  "pilots/pilot-onboarding.json": {
-  "3": "a25acae32382cb9b",
+  "3": "93800476fee17c1d",
   "4": "421fb41a6b4dcdb9"
  },
  "pilots/pilots-aircraft-airlines.json": {

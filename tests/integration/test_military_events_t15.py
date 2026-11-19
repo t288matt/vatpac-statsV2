@@ -7,8 +7,8 @@ timestamps, and the query is executed. Rules under test:
   card 143         flights ending in the window; per aircraft type: distinct sessions, airborne minutes and hours.
   card 161         flights with logon in the window; one count per session (split rows count once); shares.
   card 184         flights per UTC week of the flight end (weeks start Monday).
-  card 156         (issue 324) per Monday, the distinct finished flights with airborne time connected at some moment in
-                   0700-1200Z; one bar per Monday that has any; no sector logic.
+  card 156         (issues 324, 407) per UTC month, the distinct finished flights with airborne time connected at some
+                   moment in 0700-1200Z on any Monday in that month; one bar per month that has any; no sector logic.
 """
 from __future__ import annotations
 
@@ -169,31 +169,33 @@ def test_card_184_flights_per_utc_week_of_end(conn) -> None:
     assert [r["time"] for r in rows] == sorted(r["time"] for r in rows)       # oldest first for the bar chart
 
 
-# ------------------------------------------------------------------ card 156 (issue 324: one bar per Monday)
+# ------------------------------------------------------------------ card 156 (issues 324, 407: one bar per month)
 # The panel counts finished flights from the flight summary (`flight`): airborne_minutes > 0 and connected at some moment in
-# 0700-1200 UTC on a Monday (start before 12:00, end after 07:00). The time range is the panel's own (5 years), here a fixed pair.
+# 0700-1200 UTC on any Monday in a UTC month (start before 12:00, end after 07:00 on that Monday). The time range is the
+# dashboard default (14 months), here a fixed pair. MON and NEXT_MON are both Mondays in October 2026 (same UTC month), fixed
+# explicit dates (never the relative monday_utc() helper, which is not safe for a monthly assertion).
 MON = datetime(2026, 10, 5, tzinfo=UTC)
 NEXT_MON = MON + timedelta(days=7)
-TITLE = "Aircraft airborne during the Monday event window, each Monday (0700-1200Z)"
+TITLE = "Unique flights airborne during the Monday event window, by month (0700-1200Z)"
 
 
 def _bars(conn, start: datetime = MON - timedelta(days=1), end: datetime = NEXT_MON + timedelta(days=3)) -> dict[str, int]:
     rows = run_panel(conn, EVENTS, TITLE, start, end)
-    assert [r["Monday (UTC)"] for r in rows] == sorted((r["Monday (UTC)"] for r in rows), key=lambda t: (t[6:], t[3:5], t[:2]))
-    return {r["Monday (UTC)"]: r["Aircraft airborne"] for r in rows}
+    assert [r["Month (UTC)"] for r in rows] == sorted((r["Month (UTC)"] for r in rows), key=lambda t: (t[3:7], t[:2]))
+    return {r["Month (UTC)"]: r["Aircraft airborne"] for r in rows}
 
 
 def test_card_156_a_flight_overlapping_the_window_by_one_minute_counts(conn) -> None:
     add_flight(conn, 9500071, MON + timedelta(hours=5), MON + timedelta(hours=7, minutes=1), airborne=30)    # ends 07:01: counts
     add_flight(conn, 9500072, MON + timedelta(hours=11, minutes=59), MON + timedelta(hours=13), airborne=30)  # starts 11:59: counts
-    assert _bars(conn) == {"05-10-2026": 2}
+    assert _bars(conn) == {"10-2026": 2}
 
 
 def test_card_156_a_flight_before_or_after_the_window_does_not_count(conn) -> None:
     add_flight(conn, 9500073, MON + timedelta(hours=5), MON + timedelta(hours=6, minutes=59), airborne=30)   # ends 06:59
     add_flight(conn, 9500074, MON + timedelta(hours=5), MON + timedelta(hours=7), airborne=30)               # ends exactly 07:00
     add_flight(conn, 9500075, MON + timedelta(hours=12), MON + timedelta(hours=14), airborne=30)             # starts exactly 12:00
-    assert _bars(conn) == {}                                                                                  # a Monday with no flights has no bar
+    assert _bars(conn) == {}                                                                                  # a month with no qualifying flights has no bar
 
 
 def test_card_156_only_mondays_count(conn) -> None:
@@ -207,32 +209,43 @@ def test_card_156_only_mondays_count(conn) -> None:
 def test_card_156_a_flight_is_counted_once_however_long_it_spans_the_window(conn) -> None:
     add_flight(conn, 9500078, MON + timedelta(hours=3), MON + timedelta(hours=16), airborne=600)             # spans it all
     add_flight(conn, 9500079, MON + timedelta(hours=8), MON + timedelta(hours=11), airborne=120, segments=2)  # one session, two flight rows
-    assert _bars(conn) == {"05-10-2026": 2}
+    assert _bars(conn) == {"10-2026": 2}
 
 
 def test_card_156_a_flight_with_no_airborne_time_does_not_count(conn) -> None:
     add_flight(conn, 9500080, MON + timedelta(hours=8), MON + timedelta(hours=10), airborne=0)               # parked the whole time
     add_flight(conn, 9500081, MON + timedelta(hours=8), MON + timedelta(hours=10), airborne=0.5)             # half a minute of airborne time
-    assert _bars(conn) == {"05-10-2026": 1}
+    assert _bars(conn) == {"10-2026": 1}
 
 
-def test_card_156_two_mondays_give_two_bars_in_date_order(conn) -> None:
-    add_flight(conn, 9500082, NEXT_MON + timedelta(hours=9), NEXT_MON + timedelta(hours=10), airborne=45)
-    add_flight(conn, 9500083, NEXT_MON + timedelta(hours=9), NEXT_MON + timedelta(hours=11), airborne=45)
+def test_card_156_two_months_give_two_bars_in_date_order(conn) -> None:
+    nov_mon = MON + timedelta(days=28)   # 02-11-2026: a Monday in the following UTC month
+    add_flight(conn, 9500082, nov_mon + timedelta(hours=9), nov_mon + timedelta(hours=10), airborne=45)
+    add_flight(conn, 9500083, nov_mon + timedelta(hours=9), nov_mon + timedelta(hours=11), airborne=45)
     add_flight(conn, 9500084, MON + timedelta(hours=9), MON + timedelta(hours=10), airborne=45)
-    assert _bars(conn) == {"05-10-2026": 1, "12-10-2026": 2}
+    assert _bars(conn, end=nov_mon + timedelta(days=3)) == {"10-2026": 1, "11-2026": 2}
+
+
+def test_card_156_by_month_counts_a_flight_on_two_mondays_once_not_twice(conn) -> None:
+    """Issue 407: the monthly panel is not a sum of per-Monday counts. MON (05-10-2026) and NEXT_MON (12-10-2026) are
+    both in October 2026. Flight 9500091 is connected at some moment in the window on both Mondays (one long flight
+    spanning the week between them); flight 9500092 is connected on the first Monday only. The true distinct count
+    for October is 2, not 3."""
+    add_flight(conn, 9500091, MON + timedelta(hours=8), NEXT_MON + timedelta(hours=9), airborne=600)   # spans both Mondays
+    add_flight(conn, 9500092, MON + timedelta(hours=9), MON + timedelta(hours=10), airborne=45)         # first Monday only
+    assert _bars(conn) == {"10-2026": 2}
 
 
 def test_card_156_respects_the_time_range(conn) -> None:
     add_flight(conn, 9500085, MON + timedelta(hours=9), MON + timedelta(hours=10), airborne=45)
     add_flight(conn, 9500086, NEXT_MON + timedelta(hours=9), NEXT_MON + timedelta(hours=10), airborne=45)
-    assert _bars(conn, start=NEXT_MON - timedelta(days=1), end=NEXT_MON + timedelta(days=1)) == {"12-10-2026": 1}
-    assert _bars(conn, start=MON + timedelta(hours=8)) == {"12-10-2026": 1}           # a range that starts after this Monday's 0700Z leaves it out
+    assert _bars(conn, start=NEXT_MON - timedelta(days=1), end=NEXT_MON + timedelta(days=1)) == {"10-2026": 1}
+    assert _bars(conn, start=MON + timedelta(hours=8)) == {"10-2026": 1}           # a range that starts after this Monday's 0700Z leaves it out
 
 
 def test_card_156_reads_the_flight_summary_not_raw_positions() -> None:
-    p = panel(EVENTS, "Aircraft airborne during the Monday event window")
+    p = panel(EVENTS, "Unique flights airborne during the Monday event window")
     sql = p["targets"][0]["rawSql"].lower()
     for word in ("pilot_sample", "pilot_position", "sector", "frequency", "now()"):
         assert word not in sql
-    assert p["type"] == "barchart" and p["timeFrom"] == "1825d" and p["title"] == TITLE
+    assert p["type"] == "barchart" and "timeFrom" not in p and p["title"] == TITLE
