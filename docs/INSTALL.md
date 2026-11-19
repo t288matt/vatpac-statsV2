@@ -55,7 +55,7 @@ sh ops/check_env.sh    # rejects blank, change-me*, shorter than 16 characters, 
 
 **Changing a password later.** `GRAFANA_ADMIN_PASSWORD` only applies on Grafana's first start (empty `grafana_data`); changing it in `.env` afterwards does nothing. To rotate it: `docker compose exec grafana grafana cli admin reset-admin-password '<new password>'`, then update `.env` to match. For the other passwords, edit `.env` and run `docker compose up -d` (the migrate job runs `ALTER ROLE ... PASSWORD`). `POSTGRES_PASSWORD` is read by Postgres only at first initialisation: run `ALTER ROLE` inside the database first, then change `.env` (the migrate job logs in with the `.env` value).
 
-**A new secret in an existing `.env`.** `sh ops/gen_env.sh` never overwrites an existing `.env`. When an update adds a new blank secret to `.env.example` (for example `STATS_LOADER_DB_PASSWORD`, which installs from before the ATC stats loader do not have), `docker compose up` stops with `set STATS_LOADER_DB_PASSWORD in .env`. Compare `.env.example` with your `.env`, add the new line to `.env` with a value from `openssl rand -hex 24`, and run `sh ops/check_env.sh .env`.
+**A new secret in an existing `.env`.** `sh ops/gen_env.sh` never overwrites an existing `.env`. When an update adds a new blank secret to `.env.example` (for example `STATS_LOADER_DB_PASSWORD`), `make up` and `make deploy` stop at the secrets check with `check_env: STATS_LOADER_DB_PASSWORD is blank`, and a plain `docker compose up` stops with `set STATS_LOADER_DB_PASSWORD in .env`. Compare `.env.example` with your `.env`, add the new line to `.env` with a value from `openssl rand -hex 24`, and run `sh ops/check_env.sh .env`.
 
 Everything else has a working default. The full list with meanings is [CONFIG_MAP.md](CONFIG_MAP.md).
 
@@ -78,7 +78,7 @@ Then start with `make deploy` instead of `make up`. It needs `bash` and must run
 2. Pulls the images and runs `ops/check_pulled_images.sh`, which stops if the pulled images were not built from your checkout.
 3. Starts with `docker compose up -d --no-build`, waits up to 5 minutes for every service to be healthy, and runs the smoke test.
 
-Publish the release for the commit first, or `make deploy` stops before changing anything. Two consequences: never use `up -d --build` in this mode (it rebuilds locally and replaces the pulled image; `make up` and `make dev` refuse to run), and the build arguments `BACKUP_EXTRA_APT_PACKAGES` and `VATPAC_VERSION` are ignored. Source of truth: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md).
+Publish the release for the commit first, or `make deploy` stops before it changes anything that is running. Two consequences: never use `up -d --build` in this mode (it rebuilds locally and replaces the pulled image; `make up` and `make dev` refuse to run), and the build arguments `BACKUP_EXTRA_APT_PACKAGES` and `VATPAC_VERSION` are ignored. Source of truth: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md).
 
 What happens, in order:
 1. `db` (PostgreSQL 16, data checksums on, a named volume `pgdata`) starts and becomes healthy.
@@ -100,7 +100,7 @@ make smoke                                  # or: sh ops/smoke.sh   ends with SM
 python3 ops/check_panels.py                 # runs every dashboard query through Grafana; expect 0 errors (empty panels are fine while data is young)
 docker compose logs --tail=20 collector     # an ok poll about every 30 seconds
 ```
-`ops/smoke.sh` waits up to four minutes for each of `db`, `collector`, `grafana`, `backup` and `watchdog` to be healthy, then checks that `migrate` exited 0, the collector `/health`, a recent `ok` row in `poll_log`, Grafana's health, and that the Grafana role cannot write. The ATC stats loader is not part of the smoke test (its checks are in [RUNBOOKS/atc-stats-loader.md](RUNBOOKS/atc-stats-loader.md)). `backup` can still show `starting` in its first few minutes, so if a smoke test run straight after the first start reports `container healthy: backup (status: starting)`, wait two minutes and run it again. The collector's `/health` is on port 8080 inside the Docker network only and is not published; the smoke test reaches it for you. The database is not published either (the dev overlay `make dev` publishes it on `127.0.0.1:55432` only).
+`ops/smoke.sh` waits up to four minutes for each of `db`, `collector`, `grafana`, `backup` and `watchdog` to be healthy, then checks that `migrate` exited 0, the collector `/health`, a recent `ok` row in `poll_log`, Grafana's health, and that the Grafana role cannot write. The ATC stats loader is not part of the smoke test (its checks are in [RUNBOOKS/atc-stats-loader.md](RUNBOOKS/atc-stats-loader.md)). `backup` can still show `starting` in its first few minutes, so if a smoke test run straight after the first start reports `container healthy: backup (status: starting)`, wait a few minutes and run it again. The collector's `/health` is on port 8080 inside the Docker network only and is not published; the smoke test reaches it for you. The database is not published either (the dev overlay `make dev` publishes it on `127.0.0.1:55432` only).
 
 Charts: the "Monitoring: collector and data freshness" dashboard shows whether data is arriving. The rest fill over the first hours and days. Routine checks afterwards: [RUNBOOKS/daily-checks.md](RUNBOOKS/daily-checks.md).
 
@@ -125,7 +125,7 @@ make backup-test                            # restores the newest dump into a sc
 docker compose exec -e BACKUP_MIN_FIRST_BYTES=100000 backup backup.sh once
 docker compose exec backup restore-test.sh      # = make backup-test; expect: <UTC time> OK /backups/vatpac_<stamp>.dump poll_log=<n> pilot_session=<n> flight_summary=0
 ```
-Once the database is bigger than 1 MiB the default limit passes by itself, so the nightly backups need no change. You can delete the `.rejected` file from the first attempt.
+The 1 MiB limit applies only to the very first dump; later dumps are compared with the previous one, so the nightly backups need no change. You can delete the `.rejected` file from the first attempt.
 
 What the restore check does:
 - It counts `poll_log`, `pilot_session` and `flight_summary` (the table of finished flights, which the migrations create). It fails if `flight_summary` is missing or has no `session_ids` column.
