@@ -236,3 +236,22 @@ def test_card_156_reads_the_flight_summary_not_raw_positions() -> None:
     for word in ("pilot_sample", "pilot_position", "sector", "frequency", "now()"):
         assert word not in sql
     assert p["type"] == "barchart" and p["timeFrom"] == "1825d" and p["title"] == TITLE
+
+
+# ------------------------------------------------------------------ card 156 by month (issue 407: not a sum of the weekly bars)
+MONTH_TITLE = "Aircraft airborne during the Monday event window, by month (0700-1200Z)"
+
+
+def _bars_by_month(conn, start: datetime = MON - timedelta(days=1), end: datetime = NEXT_MON + timedelta(days=3)) -> dict[str, int]:
+    rows = run_panel(conn, EVENTS, MONTH_TITLE, start, end)
+    return {r["Month (UTC)"]: r["Aircraft airborne"] for r in rows}
+
+
+def test_card_156_monthly_a_flight_on_two_mondays_in_the_same_month_counts_once_not_twice(conn) -> None:
+    """MON and NEXT_MON (05-10-2026 and 12-10-2026) are both in October 2026. One flight touches only the first Monday;
+    a second flight is connected for both Mondays (one session_id, counted once on each weekly bar). The weekly bars
+    would sum to 3 for the month; the monthly panel must read the true distinct count, 2, not the sum."""
+    add_flight(conn, 9500090, MON + timedelta(hours=9), MON + timedelta(hours=10), airborne=45)                 # Monday 1 only
+    add_flight(conn, 9500091, MON + timedelta(hours=3), NEXT_MON + timedelta(hours=16), airborne=600)           # spans both Mondays
+    assert _bars(conn) == {"05-10-2026": 2, "12-10-2026": 1}         # weekly bars: sum over October = 3
+    assert _bars_by_month(conn) == {"10-2026": 2}                    # the true distinct count for October, not 3

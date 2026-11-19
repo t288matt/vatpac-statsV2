@@ -134,6 +134,29 @@ def test_monday_controllers_chart_counts_distinct_cids_in_the_window_0700_to_120
         (other.strftime("%d-%m-%Y"), 1), (mon.strftime("%d-%m-%Y"), 5)]   # other: 28; mon: 21, 22, 24, 26, 27
 
 
+CONTROLLERS_MONTH = "Controllers online during the Monday event window, by month"
+
+
+def test_monday_controllers_chart_by_month_counts_a_cid_on_two_mondays_once_not_twice(conn) -> None:
+    """Issue 407: the monthly panel is not a sum of the weekly bars. 05-10-2026 and 12-10-2026 are both in October 2026.
+    CID 9400041 is online in the window on both Mondays (two sessions, same CID); CID 9400040 is online on the first
+    Monday only. The weekly bars sum to 3 for the month; the true distinct CID count is 2."""
+    mon, next_mon = datetime(2026, 10, 5, tzinfo=UTC), datetime(2026, 10, 12, tzinfo=UTC)
+
+    def h(x: float, day: datetime = mon) -> datetime:
+        return day + timedelta(hours=x)
+
+    add_controller(conn, 9400040, h(8), h(9))                        # Monday 1 only
+    add_controller(conn, 9400041, h(8), h(9))                        # Monday 1
+    add_controller(conn, 9400041, h(8, next_mon), h(9, next_mon))    # same CID again, Monday 2
+    window = (mon - timedelta(days=1), next_mon + timedelta(days=2))
+    weekly = run_panel(conn, EVENTS, CONTROLLERS, *window)
+    assert [(r["Monday (UTC)"], r["Controllers online"]) for r in weekly] == [
+        (mon.strftime("%d-%m-%Y"), 2), (next_mon.strftime("%d-%m-%Y"), 1)]    # weekly bars: sum over October = 3
+    monthly = run_panel(conn, EVENTS, CONTROLLERS_MONTH, *window)
+    assert [(r["Month (UTC)"], r["Controllers online"]) for r in monthly] == [("10-2026", 2)]   # not 3: 9400041 counted once
+
+
 def test_monday_controllers_chart_has_the_aircraft_chart_format() -> None:
     aircraft = panel(EVENTS, "Aircraft airborne during the Monday event window")
     mine = panel(EVENTS, CONTROLLERS)
