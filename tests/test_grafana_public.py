@@ -34,12 +34,13 @@ def test_plan_treats_a_disabled_link_as_wrong() -> None:
     assert steps[0][0] == "update"
 
 
-def test_the_time_picker_is_on_for_the_promotions_page_only() -> None:
+def test_the_time_picker_is_on_for_the_promotions_and_monday_events_pages_only() -> None:
     assert gp.wanted("vatpac-atc-promotions")["timeSelectionEnabled"] is True
+    assert gp.wanted("vatpac-monday-events")["timeSelectionEnabled"] is True
     assert gp.wanted("a1")["timeSelectionEnabled"] is False
     uids = {json.loads(f.read_text(encoding="utf-8"))["uid"] for f in (REPO / "grafana" / "dashboards").rglob("*.json")}
-    assert "vatpac-atc-promotions" in uids
-    assert {u for u in uids if gp.wanted(u)["timeSelectionEnabled"]} == {"vatpac-atc-promotions"}
+    assert {"vatpac-atc-promotions", "vatpac-monday-events"} <= uids
+    assert {u for u in uids if gp.wanted(u)["timeSelectionEnabled"]} == {"vatpac-atc-promotions", "vatpac-monday-events"}
     assert all(gp.wanted(u)[k] == v for u in uids for k, v in
                {"isEnabled": True, "annotationsEnabled": False, "share": "public"}.items())
 

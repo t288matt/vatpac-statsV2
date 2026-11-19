@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Share every provisioned Grafana dashboard as a read-only public dashboard, or list or remove the links.
 
-A public dashboard has a fixed time range, except the promotions page. It runs only the queries saved on the
-dashboard: visitors cannot send their own SQL or edit anything (docs/RUNBOOKS/public-access.md). Run on the VM, from ~/vatpac-statsV2:
+A public dashboard has a fixed time range, except the promotions and Monday events pages. It runs only the queries
+saved on the dashboard: visitors cannot send their own SQL or edit anything (docs/RUNBOOKS/public-access.md).
+Run on the VM, from ~/vatpac-statsV2:
 
     python3 ops/grafana_public.py                 create or repair the public links and print them
     python3 ops/grafana_public.py --list          print the links only (changes nothing)
@@ -24,9 +25,9 @@ from typing import Any
 from env_file import read_env  # the one .env reader (ops/env_file.py); python puts this script's folder first on sys.path
 from grafana_api import Grafana, default_url  # the one Grafana client with its login-protection rules (ops/grafana_api.py)
 
-# The only public dashboards whose visitors may choose the time range (owner decision 16-11-2026, ADR-029). Every other
-# public dashboard keeps its fixed range.
-TIME_PICKER = {"vatpac-atc-promotions"}
+# The only public dashboards whose visitors may choose the time range (owner decisions 16-11-2026 and 19-11-2026,
+# ADR-029). Every other public dashboard keeps its fixed range.
+TIME_PICKER = {"vatpac-atc-promotions", "vatpac-monday-events"}
 
 
 def wanted(uid: str) -> dict[str, Any]:

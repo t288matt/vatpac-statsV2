@@ -6,6 +6,11 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Monday events: visitors can choose the time range (19-11-2026, issue 407)
+
+- **The time picker on the public Monday events page now works.** A public page ignores the picker unless it is switched on for that page, and it was on only for the promotions page, so choosing "This year" changed nothing. It is now on for both (`TIME_PICKER` in `ops/grafana_public.py`). The page still opens on the last 14 months. A longer range costs almost nothing: each chart's query took under 0.2 seconds on production at 14 months and at 10 years (measured 19-11-2026).
+- Not yet deployed. The setting changes when `python3 ops/grafana_public.py` is run on the VM.
+
 ## Monday events: every panel grouped by month, no fixed time range (19-11-2026, issue 407)
 
 - **No weekly panels left on this dashboard.** `events/monday-events.json`'s two remaining per-Monday bar charts are now grouped by UTC month instead of by Monday: "Share of YMML-YSSY airborne time flown by local pilots, by month (0700-1200Z)" and "Unique flights airborne during the Monday event window, by month (0700-1200Z)". The separate weekly "Controllers online during the Monday event window, each Monday (0700-1200Z)" panel is removed; its question is already answered by the existing monthly panel, "Unique controllers online during the Monday event window, by month (0700-1200Z)". Every panel on the dashboard now groups by month; none groups by week or by individual Monday.
