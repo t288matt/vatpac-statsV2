@@ -60,7 +60,7 @@ Decision record: ADR-031 in [../DECISIONS.md](../DECISIONS.md).
 - Optional owner tidy: the VM `.env` carries a stale `VATPAC_VERSION=dev` line that nothing reads (`VATPAC_VERSION` is a build argument; the collector health output reports its own `__version__`). It can be deleted.
 
 ## 0 to 2. Prepare the VM and get the code
-Not repeated here: see [INSTALL.md](../INSTALL.md) sections 1 and 2 (VM CPU type `host` or `x86-64-v2-AES`, because numpy 2.x crash-loops on import with the default "Common KVM processor"; changing it needs a full stop and start of the VM; installing Docker; the read-only deploy key or token). Section 2d below is the checked procedure for the production VM's git checkout.
+Not repeated here: see [INSTALL.md](../INSTALL.md) sections 1 and 2 (VM CPU type `host` or `x86-64-v2-AES`, because numpy 2.x crash-loops on import with the default "Common KVM processor"; changing it needs a full stop and start of the VM; installing Docker); the production VM's deploy key is section 2d below.
 
 ## 2b. Pin a release (by commit)
 ```sh
