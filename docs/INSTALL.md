@@ -86,7 +86,7 @@ What happens, in order:
 
 **Grafana 12.x and an existing `grafana_data` volume:** the image is `grafana/grafana:12.4`, so a `docker compose pull` can bring a newer 12.4.x patch version. The first start of a newer Grafana version (12.x minors included) migrates the `grafana_data` volume one way. There is no downgrade: an older Grafana cannot read the upgraded volume without the tarball taken before the upgrade. If you upgrade an install from before Grafana 12, copy the volume first (the command is in RUNBOOKS/public-access.md, "Roll back") and keep the copy until you are sure. A fresh install with an empty volume is not affected.
 
-`db`, `collector`, `grafana` and `watchdog` become `healthy` once their health checks pass (checks every 10 to 60 seconds, after a start period of up to 90 seconds). `backup` and `vatsim-atc-stats` check their health only every 5 minutes, so they can show `health: starting` for up to a few minutes; on a fast machine all six services were healthy within about two minutes of `make up`. If `migrate` is not `exited (0)`, read `docker compose logs migrate`.
+`db`, `collector`, `grafana` and `watchdog` become `healthy` once their health checks pass (checks every 10 to 60 seconds, after a start period of up to 90 seconds). `backup` and `vatsim-atc-stats` check their health only every 5 minutes, so all containers can take up to about five minutes to show healthy; on a fast machine all six services were healthy within about two minutes of `make up`. If `migrate` is not `exited (0)`, read `docker compose logs migrate`.
 
 ### The ATC stats loader
 `vatsim-atc-stats` downloads every ATC session on the VATSIM network (all callsigns) from VATSIM's public history API, `https://api.vatsim.net/v2/atc/history`, and keeps it for `STATS_RETENTION_YEARS` (10 years, fixed in `docker-compose.yml`). It runs once a day at 06:00 UTC and starts a run about a minute after it starts, unless one has already succeeded that day. The first run backfills history newest first, one request every 45 seconds, so it can take from one to several days. Its only outbound traffic is HTTPS to `api.vatsim.net`. It logs in to the database as the role `stats_loader` with `STATS_LOADER_DB_PASSWORD`, which `ops/gen_env.sh` generates with the other secrets. The six ATC dashboards fill from it as the days are written. How to check it, and what its alerts mean: [RUNBOOKS/atc-stats-loader.md](RUNBOOKS/atc-stats-loader.md).
@@ -97,13 +97,13 @@ Grafana login: open `http://localhost:3300` (or `http://<GRAFANA_BIND>:3300`), u
 ```sh
 make smoke                                  # or: sh ops/smoke.sh   ends with SMOKE PASS
 python3 ops/check_panels.py                 # runs every dashboard query through Grafana; expect 0 errors (empty panels are fine while data is young)
-docker compose logs --tail=20 collector     # an ok poll about every 30 seconds (a single `slow poll` warning on the first poll is normal)
+docker compose logs --tail=20 collector     # an ok poll about every 30 seconds (a `slow poll` line can appear once)
 ```
 `ops/smoke.sh` waits up to four minutes for each of `db`, `collector`, `grafana`, `backup` and `watchdog` to be healthy, then checks that `migrate` exited 0, the collector `/health`, a recent `ok` row in `poll_log`, Grafana's health, and that the Grafana role cannot write. The ATC stats loader is not part of the smoke test (its checks are in [RUNBOOKS/atc-stats-loader.md](RUNBOOKS/atc-stats-loader.md)). `backup` can still show `starting` in its first few minutes, so if a smoke test run straight after the first start reports `container healthy: backup (status: starting)`, wait a few minutes and run it again. The collector's `/health` is on port 8080 inside the Docker network only and is not published; the smoke test reaches it for you. The database is not published either (the dev overlay `make dev` publishes it on `127.0.0.1:55432` only).
 
 Charts: the "Monitoring: collector and data freshness" dashboard shows whether data is arriving. The rest fill over the first hours and days. Routine checks afterwards: [RUNBOOKS/daily-checks.md](RUNBOOKS/daily-checks.md).
 
-**What day zero looks like.** `ops/smoke.sh` should end with SMOKE PASS and `ops/check_panels.py` should end with a line like `panel queries: N with rows, M empty, 0 errors`. Expect `0 errors`. At first fewer than half of the panel queries return rows; M shrinks as data arrives, and errors are what matter.
+**What day zero looks like.** `ops/smoke.sh` should end with SMOKE PASS and `ops/check_panels.py` should end with a line like `panel queries: N with rows, M empty, 0 errors`. Expect `0 errors`. At first most panel queries are empty; M shrinks as data arrives, and errors are what matter.
 
 ### 5b. Optional, owner only: compare a new instance with production
 Both commands only read. From the repository root, dump the structure of the new instance and of production with `ops/schema_dump.sql` and compare the two files:
