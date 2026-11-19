@@ -26,7 +26,7 @@
 #       (backup.sh once in the backup container); then free space (DEPLOY_DUMP_RESERVE_MB, DEPLOY_SAFE_MARGIN_MB) and the new dump
 #       checked readable and newer than the start. Any FAIL stops make deploy with nothing changed.
 #   bash ops/deploy.sh --wait-healthy           after up: waits up to DEPLOY_WAIT_S (default 300) for every service to be healthy
-# Settings for these: DEPLOY_DUMP_RESERVE_MB (default 160), DEPLOY_SAFE_MARGIN_MB (default 2048), DEPLOY_WAIT_S (default 300).
+# Settings for these: DEPLOY_DUMP_RESERVE_MB (default 160), DEPLOY_SAFE_MARGIN_MB (default 1000), DEPLOY_WAIT_S (default 300).
 
 DEPLOY_SSH="${DEPLOY_SSH:-vatpac-v3}"
 DEPLOY_DIR="${DEPLOY_DIR:-~/vatpac-statsV2}"
@@ -41,7 +41,7 @@ MAX_LOAD="${DEPLOY_MAX_LOAD:-2.0}"
 CMD_TIMEOUT="${DEPLOY_CMD_TIMEOUT:-60}"
 LOG_SINCE="${DEPLOY_LOG_SINCE:-6h}"
 DUMP_RESERVE_MB="${DEPLOY_DUMP_RESERVE_MB:-160}"   # a fresh dump is about this big (owner decision 19-11-2026)
-SAFE_MARGIN_MB="${DEPLOY_SAFE_MARGIN_MB:-2048}"    # free space that must still be left after that dump
+SAFE_MARGIN_MB="${DEPLOY_SAFE_MARGIN_MB:-1000}"    # free space that must still be left after that dump (owner decision 19-11-2026)
 DUMP_NEED_MB=$(( DUMP_RESERVE_MB + SAFE_MARGIN_MB ))
 WAIT_HEALTHY_S="${DEPLOY_WAIT_S:-300}"
 SERVICES="db collector grafana backup watchdog vatsim-atc-stats"

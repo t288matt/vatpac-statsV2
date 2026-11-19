@@ -994,9 +994,9 @@ def test_deploy_gate_refuses_a_dump_older_than_the_deploy_start(tmp_path: Path) 
 
 def test_deploy_gate_stops_before_the_dump_when_disk_is_low(tmp_path: Path) -> None:
     f = _gate_fake(tmp_path)
-    f.write("df.txt", "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda2 206099468 22795560 2000 50% /\n")
+    f.write("df.txt", "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda2 206099468 22795560 1000 50% /\n")
     rc, out = f.run("--deploy-gate", FULL)
-    assert rc == 1 and line_for(out, "dump_space").startswith("FAIL") and "2000 MB free" in out, out
+    assert rc == 1 and line_for(out, "dump_space").startswith("FAIL") and "1000 MB free" in out, out
     assert not _dump_taken(f) and "dump_taken" not in out
 
 
@@ -1008,7 +1008,7 @@ def test_deploy_gate_refuses_when_a_preflight_check_fails(tmp_path: Path) -> Non
 
 
 def test_disk_margin_is_the_dump_plus_the_safety_margin() -> None:
-    for free, want in (("2208", "yes"), ("2207", "no"), ("", "no"), ("x", "no")):
+    for free, want in (("1160", "yes"), ("1159", "no"), ("", "no"), ("x", "no")):
         p = subprocess.run([str(BASH), "-c", 'DEPLOY_SOURCE_ONLY=1; . "$0"; disk_ok "$1" && echo yes || echo no', str(SCRIPT), free],
                            capture_output=True, text=True, cwd=REPO, timeout=60)
         assert p.stdout.strip() == want, (free, p.stdout, p.stderr)
