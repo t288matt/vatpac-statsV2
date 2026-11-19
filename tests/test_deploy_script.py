@@ -1,7 +1,7 @@
-"""ops/deploy.sh (issue 104, trimmed): pure logic, and the whole script against FAKE ssh, docker, gh, git and friends.
+"""ops/deploy.sh (issue 104, trimmed): pure logic, and the whole script against FAKE ssh, docker, git and friends; ops/stale_issues.sh against a fake gh.
 
 Nothing here touches the VM. The fake `ssh` runs the remote command locally inside a fake home directory, with stub
-`docker`, `timedatectl`, `df`, `date` ... first on PATH. Each stub reads its answer from a file under the fake folder,
+`docker`, `date` ... first on PATH. Each stub reads its answer from a file under the fake folder,
 and FAKE_BREAK lists the stubs that must fail without output (a check that cannot run must count as FAIL).
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ SCRIPT = REPO / "ops" / "deploy.sh"
 BASH = shutil.which("bash")
 pytestmark = [pytest.mark.skipif(BASH is None, reason="bash not available"), pytest.mark.slow_shell]
 
-NOW = calendar.timegm((2026, 10, 10, 15, 0, 0))  # 15:00 UTC, outside the backup window
+NOW = calendar.timegm((2026, 10, 10, 15, 0, 0))  # 15:00 UTC
 FULL = "f893585d9dc8af4426883fd1dbaffc80e728a3a1"
 
 STUBS = {
@@ -40,32 +40,18 @@ case "$1" in
   fetch) exit 0 ;;
   status) [ -n "$FAKE_GIT_STATUS_FAIL" ] && exit 128; [ -n "$FAKE_DIRTY" ] && printf '%s\n' "$FAKE_DIRTY"; exit 0 ;;
   rev-parse) for a; do last="$a"; done
-    case "$last" in HEAD) if [ -n "$FAKE_ON_VM" ]; then echo "${FAKE_VM_HEAD:-$FAKE_GIT_FULL}"; else echo "${FAKE_LOCAL_HEAD:-$FAKE_GIT_FULL}"; fi; exit 0 ;; 0000000*) exit 1 ;; origin/main) echo "$FAKE_GIT_TIP"; exit 0 ;; *) echo "$FAKE_GIT_FULL"; exit 0 ;; esac ;;
-  merge-base) exit "${FAKE_ANCESTOR_RC:-0}" ;;
-  rev-list) echo 3 ;;
+    case "$last" in HEAD) if [ -n "$FAKE_ON_VM" ]; then echo "${FAKE_VM_HEAD:-$FAKE_GIT_FULL}"; else echo "${FAKE_LOCAL_HEAD:-$FAKE_GIT_FULL}"; fi; exit 0 ;; *) echo "$FAKE_GIT_FULL"; exit 0 ;; esac ;;
   log) echo "$*" >> "$FAKE_DIR/gitlog.args"; [ -f "$FAKE_DIR/gitlog.txt" ] && cat "$FAKE_DIR/gitlog.txt" ;;
 esac
 """,
     "gh": r"""#!/bin/sh
 echo "$*" >> "$FAKE_DIR/gh.log"
-case ",$FAKE_BREAK," in *,gh,*) exit 1 ;; esac
 [ "$1" = issue ] && { case ",$FAKE_BREAK," in *,ghissues,*) exit 1 ;; esac; cat "$FAKE_DIR/issues.tsv"; exit 0; }
-# the real call asks for --workflow ci --limit 1, so serve only the newest "ci" line of the fixture (status and conclusion);
-# lines for other workflows (release, ...) are never returned to such a call
-grep '^ci ' "$FAKE_DIR/ci.txt" | head -n 1 | cut -d' ' -f2-
 exit 0
 """,
     "date": r"""#!/bin/sh
 if [ "$*" = "-u +%s" ] && [ -n "$FAKE_NOW" ]; then echo "$FAKE_NOW"; exit 0; fi
 exec "$FAKE_REAL_DATE" "$@"
-""",
-    "timedatectl": r"""#!/bin/sh
-case ",$FAKE_BREAK," in *,timedatectl,*) exit 1 ;; esac
-cat "$FAKE_DIR/timedatectl.txt"
-""",
-    "df": r"""#!/bin/sh
-case ",$FAKE_BREAK," in *,df,*) exit 1 ;; esac
-cat "$FAKE_DIR/df.txt"
 """,
     "python3": r"""#!/bin/sh
 case ",$FAKE_BREAK," in *,panels,*) exit 1 ;; esac
@@ -77,18 +63,13 @@ brk() { case ",$FAKE_BREAK," in *,"$1",*) return 0 ;; esac; return 1; }
 case "$*" in
   "compose ps -aq") echo c1; echo c2 ;;
   "compose config --services") brk services && exit 1; cat "$FAKE_DIR/services.txt" ;;
-  "manifest inspect"*) echo "$*" >> "$FAKE_DIR/manifest.log"; brk manifest && exit 1
-    [ -n "${FAKE_MANIFEST_MISSING:-}" ] && case "$*" in *"$FAKE_MANIFEST_MISSING"*) exit 1 ;; esac; exit 0 ;;
-  inspect*RepoDigests*) brk digest && exit 1; for a; do last="$a"; done; case "$last" in *nodigest*) exit 1 ;; esac; echo "${last%%:*}@sha256:fake-${last##*:}" ;;
   inspect*) brk inspect && exit 1; cat "$FAKE_DIR/inspect.txt" ;;
-  "ps -a --format"*) brk dockerps && exit 1; cat "$FAKE_DIR/psa.txt" ;;
   *"exec -T db"*) in="$(cat)"
     case "$in" in
       *"BEGIN ISOLATION"*) brk invariants && exit 1; cat "$FAKE_DIR/invariants.txt" ;;
       *"pilot session pairs"*) brk flap && exit 1; cat "$FAKE_DIR/flap.txt" ;;
       *poll_log*) brk gap && exit 1; cat "$FAKE_DIR/gap.txt" ;;
     esac ;;
-  *"backup.sh once"*) brk take && exit 1; echo "2026-11-19T15:01:00Z backup: ok 160M"; exit "${FAKE_TAKE_RC:-0}" ;;
   *"exec -T backup"*) brk dump && exit 1; cat "$FAKE_DIR/dump.txt" ;;
   *"exec -T collector"*) brk health && exit 1; cat "$FAKE_DIR/health.txt" ;;
   "compose logs"*) brk logs && exit 1; cat "$FAKE_DIR/wdlog.txt"; exit "${FAKE_LOGS_RC:-0}" ;;
@@ -108,7 +89,6 @@ def _inspect(restarts: str = "0", health: str = "healthy", loader_health: str = 
     return "\n".join(rows) + "\n"
 
 
-SERVICES_WITH_LOADER = "db\ncollector\ngrafana\nbackup\nwatchdog\nvatsim-atc-stats\nmigrate\n"
 PFX = "ghcr.io/t288matt/"
 TAG7 = "sha-" + FULL[:7]
 
@@ -144,17 +124,10 @@ class Fake:
         (self.home / "vatpac-statsV2" / "ops" / "smoke.sh").write_text('# ro-check-begin\ncat "$FAKE_DIR/smoke.txt"\n', newline="\n")
         self.env = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", FAKE_DIR=str(self.dir),
                         FAKE_HOME=str(self.home), FAKE_NOW=str(NOW), FAKE_REAL_DATE=shutil.which("date") or "date",
-                        FAKE_GIT_FULL=FULL, FAKE_GIT_TIP=FULL, DEPLOY_GH=str(self.bin / "gh"),
-                        DEPLOY_MEMINFO=str(self.dir / "meminfo"), DEPLOY_LOADAVG=str(self.dir / "loadavg"),
+                        FAKE_GIT_FULL=FULL,
                         DEPLOY_EXPECTED_FILE=str(self.dir / "expected.txt"), FAKE_BREAK="", DEPLOY_SSH="fakehost", USER="tester")
         w = self.write
-        w("ci.txt", "ci completed success\n")
-        w("timedatectl.txt", "System clock synchronized: yes\n              NTP service: active\n")
-        w("meminfo", "MemTotal: 8000000 kB\nMemFree: 500000 kB\nMemAvailable: 6700000 kB\n")
-        w("loadavg", "0.40 0.50 0.60 1/200 12345\n")
-        w("df.txt", "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda2 206099468 22795560 174375024 12% /\n")
         w("inspect.txt", _inspect())
-        w("psa.txt", "vatpac-db-1\nvatpac-collector-1\nvatpac-migrate-1\n")
         # the VM's compose services today: the stats loader is not among them before its first deploy
         w("services.txt", "db\ncollector\ngrafana\nbackup\nwatchdog\nmigrate\n")
         w("dump.txt", f"{NOW - 3600}.7457417320 5363183 vatpac_20261010T020000Z.dump\nvalid\n")
@@ -205,92 +178,61 @@ def line_for(out: str, check: str) -> str:
     raise AssertionError(f"no line for {check} in:\n{out}")
 
 
-def _at(hh: int, mm: int, day: int = 11) -> str:
-    return str(calendar.timegm((2026, 10, day, hh, mm, 0)))
-
-
 def _expected(f: Fake, line: str) -> None:
     f.write("expected.txt", line + "\n")
 
 
-# (mode, check, expected status, mutation); every check fails alone, once
+# (check, expected status, mutation); every check fails alone, once
 SCENARIOS = [
-    ("pre", "commit_on_main", "FAIL", lambda f: f.set(FAKE_ANCESTOR_RC="1")),
-    ("pre", "ci_green", "FAIL", lambda f: f.write("ci.txt", "ci completed failure\n")),
-    ("pre", "ci_green", "FAIL", lambda f: f.write("ci.txt", "ci in_progress \n")),
-    ("pre", "ci_green", "FAIL", lambda f: f.write("ci.txt", "")),
-    ("pre", "ci_green", "PASS", lambda f: f.write("ci.txt", "release completed failure\nci completed success\n")),  # a red release is not red CI
-    ("pre", "ci_green", "FAIL", lambda f: f.brk("gh")),
-    ("pre", "vm_reachable", "FAIL", lambda f: f.set(FAKE_SSH_DOWN="1")),
-    ("pre", "vm_clock", "FAIL", lambda f: f.write("timedatectl.txt", "System clock synchronized: no\n              NTP service: active\n")),
-    ("pre", "vm_clock", "FAIL", lambda f: f.brk("timedatectl")),
-    ("pre", "mem_available", "FAIL", lambda f: f.write("meminfo", "MemFree: 7000000 kB\nMemAvailable: 2900000 kB\n")),
-    ("pre", "mem_available", "PASS", lambda f: f.write("meminfo", "MemFree: 200000 kB\nMemAvailable: 6800000 kB\n")),  # free column ignored
-    ("pre", "load", "FAIL", lambda f: f.write("loadavg", "3.20 1.00 1.00 1/2 3\n")),
-    ("pre", "disk_free", "FAIL", lambda f: f.write("df.txt", "h\n/dev/sda2 100 90 10 95% /\n")),
-    ("pre", "containers_healthy", "FAIL", lambda f: f.write("inspect.txt", _inspect(health="unhealthy"))),
-    ("pre", "containers_healthy", "FAIL", lambda f: (f.write("inspect.txt", _inspect(loader_health="unhealthy")),
-                                                                         f.write("services.txt", SERVICES_WITH_LOADER))),  # walked once the VM runs it
-    ("pre", "restart_counts", "FAIL", lambda f: f.write("inspect.txt", _inspect(restarts="1"))),
-    ("pre", "backup_window", "FAIL", lambda f: f.set(FAKE_NOW=_at(2, 0))),
-    ("pre", "foreign_containers", "FAIL", lambda f: f.write("psa.txt", "vatpac-db-1\nreplayfuzz-pg\n")),
-    ("pre", "recent_dump", "FAIL", lambda f: f.write("dump.txt", f"{NOW - 30 * 3600} 5363183 old.dump\nvalid\n")),
-    ("pre", "recent_dump", "FAIL", lambda f: f.write("dump.txt", f"{NOW - 3600} 5363183 bad.dump\ninvalid\n")),
-    ("pre", "recent_dump", "FAIL", lambda f: f.write("dump.txt", f"{NOW + 7200} 5363183 future.dump\nvalid\n")),
-    ("pre", "recent_dump", "WARN", lambda f: f.write("dump.txt", f"{NOW - 13 * 3600} 5363183 d.dump\nvalid\n")),
-    ("pre", "recent_dump", "FAIL", lambda f: f.brk("dump")),
-    ("ver", "smoke", "FAIL", lambda f: f.write("smoke.txt", "FAIL  x\nSMOKE FAIL (1 failed)\n")),
-    ("ver", "smoke", "FAIL", lambda f: (f.home / "vatpac-statsV2" / "ops" / "smoke.sh").write_text("cat x\n")),  # old unguarded smoke is never run
-    ("ver", "panels", "FAIL", lambda f: f.write("panels.txt", "panel queries: 70 with rows, 5 empty, 2 errors\n")),
-    ("ver", "panels", "FAIL", lambda f: f.brk("panels")),
-    ("ver", "restart_counts", "FAIL", lambda f: f.write("inspect.txt", _inspect(restarts="2"))),
-    ("ver", "polling_gap", "WARN", lambda f: f.write("gap.txt", "125|25|20|10-10 14:50:00\n")),
-    ("ver", "polling_gap", "FAIL", lambda f: f.write("gap.txt", "301|25|20|t\n")),
-    ("ver", "polling_gap", "FAIL", lambda f: f.write("gap.txt", "30|91|20|t\n")),
-    ("ver", "polling_gap", "FAIL", lambda f: f.brk("gap")),
-    ("ver", "health", "FAIL", lambda f: f.write("health.txt", "200 True 0 601\n")),
-    ("ver", "health", "FAIL", lambda f: f.write("health.txt", "200 False 0 5\n")),
-    ("ver", "health", "FAIL", lambda f: f.write("health.txt", "200 True 3 5\n")),
-    ("ver", "health", "FAIL", lambda f: f.brk("health")),
-    ("ver", "identity_flap", "FAIL", lambda f: f.write("flap.txt", "pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)|0|\ncontroller session pairs, same cid+callsign, logon_time within 2 s (identity flap)|2|2026-10-10 14:59:30+00\n")),
-    ("ver", "invariant", "FAIL", lambda f: f.invariants({NAMES[1]: "1"})),
-    ("ver", "invariants", "FAIL", lambda f: f.invariants(rows=NAMES[:1])),  # a short pack is not a pass
-    ("ver", "invariant", "FAIL", lambda f: f.write("invariants.txt", "".join(f"{n}|0|\n" for n in NAMES[1:]) + f"{NAMES[0]}||\n")),  # NULL count
-    ("ver", "invariants", "FAIL", lambda f: f.brk("invariants")),
-    ("ver", "watchdog_log", "FAIL", lambda f: f.write("wdlog.txt", "Traceback (most recent call last):\n")),
-    ("ver", "watchdog_log", "FAIL", lambda f: f.brk("logs")),
+    ("smoke", "FAIL", lambda f: f.write("smoke.txt", "FAIL  x\nSMOKE FAIL (1 failed)\n")),
+    ("smoke", "FAIL", lambda f: (f.home / "vatpac-statsV2" / "ops" / "smoke.sh").write_text("cat x\n")),  # old unguarded smoke is never run
+    ("panels", "FAIL", lambda f: f.write("panels.txt", "panel queries: 70 with rows, 5 empty, 2 errors\n")),
+    ("panels", "FAIL", lambda f: f.brk("panels")),
+    ("restart_counts", "FAIL", lambda f: f.write("inspect.txt", _inspect(restarts="2"))),
+    ("polling_gap", "WARN", lambda f: f.write("gap.txt", "125|25|20|10-10 14:50:00\n")),
+    ("polling_gap", "FAIL", lambda f: f.write("gap.txt", "301|25|20|t\n")),
+    ("polling_gap", "FAIL", lambda f: f.write("gap.txt", "30|91|20|t\n")),
+    ("polling_gap", "FAIL", lambda f: f.brk("gap")),
+    ("health", "FAIL", lambda f: f.write("health.txt", "200 True 0 601\n")),
+    ("health", "FAIL", lambda f: f.write("health.txt", "200 False 0 5\n")),
+    ("health", "FAIL", lambda f: f.write("health.txt", "200 True 3 5\n")),
+    ("health", "FAIL", lambda f: f.brk("health")),
+    ("identity_flap", "FAIL", lambda f: f.write("flap.txt", "pilot session pairs, same cid+callsign, logon_time within 2 s (identity flap)|0|\ncontroller session pairs, same cid+callsign, logon_time within 2 s (identity flap)|2|2026-10-10 14:59:30+00\n")),
+    ("invariant", "FAIL", lambda f: f.invariants({NAMES[1]: "1"})),
+    ("invariants", "FAIL", lambda f: f.invariants(rows=NAMES[:1])),  # a short pack is not a pass
+    ("invariant", "FAIL", lambda f: f.write("invariants.txt", "".join(f"{n}|0|\n" for n in NAMES[1:]) + f"{NAMES[0]}||\n")),  # NULL count
+    ("invariants", "FAIL", lambda f: f.brk("invariants")),
+    ("watchdog_log", "FAIL", lambda f: f.write("wdlog.txt", "Traceback (most recent call last):\n")),
+    ("watchdog_log", "FAIL", lambda f: f.brk("logs")),
     # expected-warning entries
-    ("ver", "invariant", "WARN", lambda f: (f.invariants({GAPS: "1"}), _expected(f, f"{GAPS}|1|10-10-2026 15:01|x"))),
-    ("ver", "invariant", "FAIL", lambda f: (f.invariants({GAPS: "500"}), _expected(f, f"{GAPS}|1|10-10-2026 15:01|x"))),  # above the max count
-    ("ver", "invariant", "FAIL", lambda f: (f.invariants({GAPS: "1"}), _expected(f, f"{GAPS}|1|10-10-2026 14:59|x"))),  # expired
-    ("ver", "invariant", "FAIL", lambda f: (f.invariants({NAMES[1]: "1"}), _expected(f, f"{GAPS}|1|31-12-2099 00:00|x"))),  # another check's entry
+    ("invariant", "WARN", lambda f: (f.invariants({GAPS: "1"}), _expected(f, f"{GAPS}|1|10-10-2026 15:01|x"))),
+    ("invariant", "FAIL", lambda f: (f.invariants({GAPS: "500"}), _expected(f, f"{GAPS}|1|10-10-2026 15:01|x"))),  # above the max count
+    ("invariant", "FAIL", lambda f: (f.invariants({GAPS: "1"}), _expected(f, f"{GAPS}|1|10-10-2026 14:59|x"))),  # expired
+    ("invariant", "FAIL", lambda f: (f.invariants({NAMES[1]: "1"}), _expected(f, f"{GAPS}|1|31-12-2099 00:00|x"))),  # another check's entry
 ]
-GOOD = {"pre": ["--preflight", "f893585"], "ver": ["--verify"]}
+GOOD = ["--verify"]
 
 
 def _scenario(arg: tuple[int, tuple]) -> str:  # type: ignore[type-arg]
-    i, (mode, check, want, mutate) = arg
+    i, (check, want, mutate) = arg
     with tempfile.TemporaryDirectory() as tmp:
         f = Fake(Path(tmp))
         mutate(f)
-        rc, out = f.run(*GOOD[mode])
+        rc, out = f.run(*GOOD)
         try:
             got = line_for(out, check).split()[0]
         except AssertionError:
             got = "MISSING"
         has_fail = any(ln.split()[:1] == ["FAIL"] for ln in out.splitlines())
         if got != want or (rc == 1) != has_fail:
-            return f"#{i} {mode} {check}: wanted {want}, got {got}, rc={rc}\n{out}"
+            return f"#{i} {check}: wanted {want}, got {got}, rc={rc}\n{out}"
     return ""
 
 
 def test_every_check_passes_when_healthy_and_fails_alone() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         f = Fake(Path(tmp))
-        rc, out = f.run(*GOOD["pre"])
-        assert rc == 0 and "RESULT   preflight OK" in out, out
-        assert "1 h old" in line_for(out, "recent_dump")
-        rc, out = f.run(*GOOD["ver"])
+        rc, out = f.run(*GOOD)
         assert rc == 0 and "RESULT   verify OK" in out, out
         assert len(NAMES) == 19 and "19 invariants checked" in line_for(out, "invariants")
     with ThreadPoolExecutor(16) as pool:
@@ -318,31 +260,18 @@ def test_verify_refuses_a_checkout_that_is_not_at_the_vm_commit(tmp_path: Path) 
     assert rc == 1 and line_for(out, "vm_reachable").startswith("FAIL") and line_for(out, "checkout_current").startswith("FAIL")
 
 
-def test_mark_refuses_when_the_checkout_is_not_the_commit(tmp_path: Path) -> None:
+def test_status_names_the_local_checkout(tmp_path: Path) -> None:
     f = Fake(tmp_path)
-    tree = f.home / "vatpac-statsV2"
-    f.set(FAKE_LOCAL_HEAD="a" * 40)
-    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
-    assert rc == 1 and "STALE CHECKOUT" in out and "git worktree add --detach .worktrees/verify " + FULL[:10] in out and "nothing written" in out, out
-    assert "origin/main" not in out
-    assert not (tree / ".deploy").exists()
-    f.set(FAKE_LOCAL_HEAD=FULL)
-    assert f.run("--mark", "f893585", "--allow-silent-issues")[0] == 0
+    f.set(FAKE_LOCAL_HEAD="a" * 40)  # status keeps working from any checkout
+    rc, out = f.run("--status")
+    assert rc == 0 and "local checkout is at " + "a" * 10 in out, out
 
 
-def test_preflight_and_status_name_the_local_checkout(tmp_path: Path) -> None:
+def test_usage_and_removed_modes(tmp_path: Path) -> None:
     f = Fake(tmp_path)
-    f.set(FAKE_LOCAL_HEAD="a" * 40)  # these two keep working from any checkout
-    for mode in (["--preflight", "f893585"], ["--status"]):
-        rc, out = f.run(*mode)
-        assert rc == 0 and "local checkout is at " + "a" * 10 in out, out
-
-
-def test_usage_and_hostile_arguments(tmp_path: Path) -> None:
-    f = Fake(tmp_path)
-    assert f.run("--preflight")[0] == 2
-    assert f.run("--preflight", "not-a-sha; rm -rf /")[0] == 2
-    assert f.run("--mark", "x; rm -rf /")[0] == 2
+    for flag in ("--preflight", "--mark", "--deploy-mark", "--deploy-gate"):
+        rc, out = f.run(flag, "f893585")
+        assert rc == 2 and "usage: bash ops/deploy.sh --verify | --status | --wait-healthy" in out, (flag, out)
     assert f.run()[0] == 2
 
 
@@ -356,13 +285,7 @@ def test_pure_logic(tmp_path: Path) -> None:
     f.write_text("# c\n\nchk a|2|12-10-2026 15:42|r\nchk b|2|bad date|x\nchk c|x|12-10-2026 15:42|r\n", newline="\n")
     ok, ex = ep(2026, 10, 12, 15, 41, 59), ep(2026, 10, 12, 15, 42, 0)
     fp = f.as_posix()
-    yn = " && echo y || echo n"
     calls = [
-        "mem_ok 3000" + yn, "mem_ok 2999" + yn, 'mem_ok ""' + yn, "mem_ok 12x" + yn,
-        f"in_backup_window {ep(2026, 10, 11, 1, 49, 0)}" + yn, f"in_backup_window {ep(2026, 10, 11, 1, 50, 0)}" + yn,
-        f"in_backup_window {ep(2026, 10, 11, 2, 30, 0)}" + yn, f"in_backup_window {ep(2026, 10, 11, 2, 31, 0)}" + yn,
-        f"in_backup_window {ep(2026, 10, 11, 4, 5, 0)} 04:00" + yn, f"in_backup_window {ep(2026, 10, 11, 2, 0, 0)} 04:00" + yn,
-        f"in_backup_window {ep(2026, 10, 11, 23, 55, 0)} 00:05" + yn,
         'dmy_to_epoch "12-10-2026 15:42"', 'dmy_to_epoch "2026-10-12 15:42" || echo bad',
         "classify_gap 30 25", "classify_gap 90 25", "classify_gap 300 25", "classify_gap 301 25", "classify_gap 30 90", 'classify_gap "" 5',
         f'expected_warning_status "chk a" {ok} "{fp}"', f'expected_warning_status "chk a" {ex} "{fp}"',
@@ -373,14 +296,13 @@ def test_pure_logic(tmp_path: Path) -> None:
     e = dict(os.environ, DEPLOY_SOURCE_ONLY="1")
     p = subprocess.run([str(BASH), "-c", f'. "{SCRIPT.as_posix()}"; ' + "; ".join(calls)], capture_output=True, text=True, env=e, timeout=60)
     got = p.stdout.split("\n")
-    assert got[:11] == ["y", "n", "n", "n", "n", "y", "y", "n", "y", "n", "y"], got
-    assert got[11:13] == [str(ep(2026, 10, 12, 15, 42, 0)), "bad"]
-    assert got[13:19] == ["PASS", "WARN", "WARN", "FAIL", "FAIL", "BAD"], got
-    assert got[19:24] == ["valid 2 12-10-2026 15:42", "expired 2 12-10-2026 15:42", "malformed", "malformed", "none"], got
-    assert got[24].startswith("WARN|chk a = 2 (expected, at most 2")
-    assert got[25].startswith("FAIL|chk a = 3 (above the expected maximum of 2")
-    assert got[26].startswith("FAIL|") and "expired" in got[26]
-    assert got[27] == "PASS|" and got[28].startswith("FAIL|")
+    assert got[:2] == [str(ep(2026, 10, 12, 15, 42, 0)), "bad"]
+    assert got[2:8] == ["PASS", "WARN", "WARN", "FAIL", "FAIL", "BAD"], got
+    assert got[8:13] == ["valid 2 12-10-2026 15:42", "expired 2 12-10-2026 15:42", "malformed", "malformed", "none"], got
+    assert got[13].startswith("WARN|chk a = 2 (expected, at most 2")
+    assert got[14].startswith("FAIL|chk a = 3 (above the expected maximum of 2")
+    assert got[15].startswith("FAIL|") and "expired" in got[15]
+    assert got[16] == "PASS|" and got[17].startswith("FAIL|")
 
 
 def test_shipped_expected_warnings_file_is_well_formed() -> None:
@@ -398,65 +320,37 @@ def test_shipped_expected_warnings_file_is_well_formed() -> None:
 
 # ------------------------------------------------------------------ status, mark, safety
 
-def test_status_and_mark(tmp_path: Path) -> None:
+def test_status(tmp_path: Path) -> None:
     f = Fake(tmp_path)
-    rc, out = f.run("--status")
-    assert rc == 0 and "no marker" in out and "vatpac-collector-1" in out and "vatpac_20261010T020000Z.dump, 1 h old" in out
     tree = f.home / "vatpac-statsV2"
     before = {p.relative_to(tree).as_posix() for p in tree.rglob("*")}
-    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")  # the first ever mark has no previous marker to compare with
-    assert rc == 0, out
-    assert {p.relative_to(tree).as_posix() for p in tree.rglob("*")} - before == {".deploy", ".deploy/release", ".deploy/release.log"}
-    assert (tree / ".deploy" / "release").read_text() == f"commit={FULL}\nmarked_utc=2026-10-10T15:00:00Z\nmarked_by=tester\n"
-    assert "no marker" not in f.run("--status")[1]
-    f.set(FAKE_GIT_FULL="a" * 40)
-    f.run("--mark", "aaaaaaa", "--allow-silent-issues")
-    assert (tree / ".deploy" / "release").read_text().startswith("commit=" + "a" * 40)
-    assert (tree / ".deploy" / "release.log").read_text().count("commit=") == 2
-
-
-def test_mark_refusals_and_failed_log_keeps_the_old_marker(tmp_path: Path) -> None:
-    f = Fake(tmp_path)
-    tree = f.home / "vatpac-statsV2"
-    assert f.run("--mark", "0000000")[0] == 1  # unknown commit
-    f.set(FAKE_ANCESTOR_RC="1")
-    rc, out = f.run("--mark", "f893585")  # not on origin/main
-    assert rc == 1 and "not on origin/main" in out and not (tree / ".deploy").exists()
-    f.set(FAKE_ANCESTOR_RC="0")
-    assert f.run("--mark", "f893585", "--allow-silent-issues")[0] == 0
-    old = (tree / ".deploy" / "release").read_text()
-    (tree / ".deploy" / "release.log").unlink()
-    (tree / ".deploy" / "release.log").mkdir()  # the log append will fail
-    f.set(FAKE_GIT_FULL="b" * 40)
-    rc, out = f.run("--mark", "bbbbbbb", "--allow-silent-issues")
-    assert rc == 1 and "unchanged" in out and (tree / ".deploy" / "release").read_text() == old
+    rc, out = f.run("--status")
+    assert rc == 0 and "vatpac-collector-1" in out and "vatpac_20261010T020000Z.dump, 1 h old" in out, out
+    assert "marker" not in out
+    assert {p.relative_to(tree).as_posix() for p in tree.rglob("*")} == before
     f.set(FAKE_SSH_DOWN="1")
-    assert f.run("--mark", "f893585")[0] == 1
     assert f.run("--status")[0] == 1
-
-
 FORBIDDEN = re.compile(r"docker (run|rm|stop|start|restart|build|kill|volume|system|image)|compose (up|down|restart|build|stop|start|rm|run|kill)|sudo|\btar\b|\brm\b|roles\.sql|\.env\b|printenv|\benv\b|TELEGRAM")
 
 
 def test_read_only_modes_write_nothing_and_run_nothing_forbidden(tmp_path: Path) -> None:
     f = Fake(tmp_path)
     before = sorted(str(p.relative_to(f.home)) for p in f.home.rglob("*"))
-    for mode in (["--preflight", "f893585"], ["--verify"], ["--status"]):
+    for mode in (["--verify"], ["--status"], ["--wait-healthy"]):
         f.run(*mode)
     assert sorted(str(p.relative_to(f.home)) for p in f.home.rglob("*")) == before
-    f.run("--mark", "f893585", "--allow-silent-issues")
     log = f.ssh_log() + (f.dir / "docker.log").read_text()
-    # The only reads of .env: three keys by name, each through env_key (ops/env_key.sh, sent to the VM as text; issue 212). The key
+    # The only reads of .env: two keys by name, each through env_key (ops/env_key.sh, sent to the VM as text; issue 212). The key
     # names are not secrets and the values are never printed; any other .env access still trips FORBIDDEN below.
-    for key in ("BACKUP_TIME_UTC", "VATPAC_IMAGE_PREFIX", "VATPAC_IMAGE_TAG"):
+    for key in ("VATPAC_IMAGE_PREFIX", "VATPAC_IMAGE_TAG"):
         read = f"env_key .env {key}"
         assert read in log
         log = log.replace(read, "")
     assert not FORBIDDEN.search(log), FORBIDDEN.search(log)
-    assert "ServerAliveInterval=10" in log and "--commit" in (f.dir / "gh.log").read_text()
+    assert "ServerAliveInterval=10" in log
+    assert not (f.dir / "gh.log").exists()  # deploy.sh makes no gh call
     code = "\n".join(ln for ln in SCRIPT.read_text(encoding="utf-8").splitlines() if not ln.lstrip().startswith("#"))
-    assert not re.search(r"compose (up|down|restart|build|stop)|docker run|sudo|roles\.sql", code)
-
+    assert not re.search(r"compose (up|down|restart|build|stop)|docker run|sudo|roles\.sql|\bgh\b", code)
 
 def test_ci_checks_deploy_sh_with_bash_not_sh() -> None:
     ci = (REPO / "ops" / "run_checks.sh").read_text(encoding="utf-8")   # the shell syntax check lives in the shared script (issue 241)
@@ -464,7 +358,7 @@ def test_ci_checks_deploy_sh_with_bash_not_sh() -> None:
     assert '"$f" = ops/deploy.sh ] || [ "$f" = ops/stale_issues.sh ] || sh -n' in ci
 
 
-# ------------------------------------------------------------------ silent-issue guard (issue 104)
+# ------------------------------------------------------------------ ops/stale_issues.sh (issue 104)
 
 STALE = STALE_SH = REPO / "ops" / "stale_issues.sh"
 PREV = "c" * 40
@@ -484,55 +378,11 @@ def _guard_fake(tmp_path: Path, commits: list[str], issues: list[tuple[int, str,
     return f
 
 
-def _marker(f: Fake) -> str:
-    return (f.home / "vatpac-statsV2" / ".deploy" / "release").read_text()
-
-
 COMMITS = [
     _commit("a" * 40, "2026-10-10T10:00:00+10:00", "Fix thing (#93)\n\nRefs #94"),  # 00:00Z
     _commit("b" * 40, "2026-10-10T12:00:00+00:00", "Docs for issues 95, 96 and 97"),
     _commit("d" * 40, "2026-10-10T13:00:00+00:00", "Merge pull request #139 from x/dev"),
 ]
-
-
-def test_guard_refuses_silent_issues_and_lists_them(tmp_path: Path) -> None:
-    issues = [(93, "ninety-three", "2026-10-10T01:00:00Z"),   # commented after the commit: fine
-              (94, "ninety-four", "2026-10-09T23:00:00Z"),    # comment older than the commit: silent
-              (95, "ninety-five", ""),                        # no comment at all: silent
-              (96, "ninety-six", "2026-10-10T12:00:00Z"),     # same second as the commit: not newer, silent
-              (97, "ninety-seven", "2026-10-10T12:00:01Z"),   # newer: fine
-              (50, "unrelated", "")]                          # not named in any commit
-    f = _guard_fake(tmp_path, COMMITS, issues)
-    rc, out = f.run("--mark", "f893585")
-    assert rc == 1 and "nothing written" in out, out
-    assert all(x in out for x in ("#94", "#95", "#96", "ninety-five", "no comments"))
-    assert not any(x in out for x in ("#93 ", "#97", "#50", "#139"))
-    assert PREV in _marker(f)  # untouched
-    assert f"{PREV}..{FULL}" in (f.dir / "gitlog.args").read_text()  # the range starts at the previous marker
-
-
-def test_guard_allows_with_warning_and_passes_when_all_commented(tmp_path: Path) -> None:
-    f = _guard_fake(tmp_path, COMMITS, [(94, "x", "2026-10-09T00:00:00Z")])
-    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
-    assert rc == 0 and "WARN" in out and "#94" in out and FULL in _marker(f)
-    f = _guard_fake(tmp_path / "ok", COMMITS, [(n, "t", "2026-10-11T00:00:00Z") for n in (93, 94, 95, 96, 97)])
-    rc, out = f.run("--mark", "f893585")
-    assert rc == 0 and "PASS" in out and FULL in _marker(f)
-    f = _guard_fake(tmp_path / "none", [_commit("e" * 40, "2026-10-10T10:00:00Z", "Tidy")], [])
-    assert f.run("--mark", "f893585")[0] == 0
-
-
-def test_guard_fails_closed(tmp_path: Path) -> None:
-    f = _guard_fake(tmp_path, COMMITS, [])
-    f.brk("ghissues")
-    rc, out = f.run("--mark", "f893585")
-    assert rc == 1 and "could not run" in out and PREV in _marker(f)
-    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
-    assert rc == 0 and "WARN" in out and FULL in _marker(f)
-    f = Fake(tmp_path / "nomarker")  # no previous marker to take a range from
-    rc, out = f.run("--mark", "f893585")
-    assert rc == 1 and "no previous marker" in out and not (f.home / "vatpac-statsV2" / ".deploy").exists()
-    assert f.run("--mark", "f893585", "--bogus")[0] == 2
 
 
 def test_stale_issues_script_table_and_exit_codes(tmp_path: Path) -> None:
@@ -562,53 +412,13 @@ def test_stale_issues_script_table_and_exit_codes(tmp_path: Path) -> None:
 
 def test_registry_pure_logic() -> None:
     calls = ["registry_mode ''", "registry_mode ghcr.io/x/", "registry_mode ghcr.io/x/", "registry_mode ''",  # the prefix alone decides (the tag argument was ignored and is gone)
-             "short_tag " + FULL + "; echo", "valid_prefix ghcr.io/t288matt/ && echo v", "valid_prefix 'ghcr.io/x' || echo noslash",
-             "valid_prefix 'a/b/;rm -rf /' || echo unsafe", "valid_prefix '' || echo empty",
+             "short_tag " + FULL + "; echo",
              f"head_matches {FULL} {FULL[:7]} && echo m1", f"head_matches {FULL} {FULL} && echo m2",
              f"head_matches {FULL} abcdef0 || echo no1", f"head_matches {FULL} {FULL[:6]} || echo short", f"head_matches {FULL} '' || echo empty2"]
     e = dict(os.environ, DEPLOY_SOURCE_ONLY="1")
     p = subprocess.run([str(BASH), "-c", f'. "{SCRIPT.as_posix()}"; ' + "; ".join(calls)], capture_output=True, text=True, env=e, timeout=60)
-    assert p.stdout.split() == ["local", "registry", "registry", "local", TAG7, "v", "noslash", "unsafe", "empty",
+    assert p.stdout.split() == ["local", "registry", "registry", "local", TAG7,
                                 "m1", "m2", "no1", "short", "empty2"], p.stdout + p.stderr
-
-
-def test_preflight_registry_checks(tmp_path: Path) -> None:
-    f = Fake(tmp_path)
-    f.registry()
-    rc, out = f.run("--preflight", "f893585")
-    assert rc == 0, out
-    assert line_for(out, "registry_mode").startswith("PASS") and line_for(out, "registry_images").startswith("PASS")
-    assert line_for(out, "image_tag_env").startswith("PASS")
-    manifests = (f.dir / "manifest.log").read_text()
-    for n in ("collector", "watchdog", "backup", "migrate", "loader"):
-        assert f"manifest inspect {PFX}vatpac-stats-{n}:{TAG7}" in manifests
-
-
-def test_preflight_registry_failures(tmp_path: Path) -> None:
-    f = Fake(tmp_path / "missing")
-    f.registry()
-    f.set(FAKE_MANIFEST_MISSING="vatpac-stats-migrate")
-    rc, out = f.run("--preflight", "f893585")
-    ln = line_for(out, "registry_images")
-    assert rc == 1 and ln.startswith("FAIL") and ln.split("as " + TAG7 + ":")[1].split(";")[0].split() == ["migrate"], out
-    f = Fake(tmp_path / "pinned")  # a sha- pin in the .env stops deploys following latest: a loud WARN, not FAIL
-    f.registry(tag="sha-1234567")
-    rc, out = f.run("--preflight", "f893585")
-    assert rc == 0 and line_for(out, "image_tag_env").startswith("WARN") and "WARNING" in out and "Delete that line" in out
-    f = Fake(tmp_path / "tagonly")  # a tag without a prefix is not registry mode: local build, no manifest calls
-    f.dotenv(f"VATPAC_IMAGE_TAG={TAG7}\n")
-    rc, out = f.run("--preflight", "f893585")
-    assert rc == 0 and "local build mode" in line_for(out, "registry_mode") and not (f.dir / "manifest.log").exists()
-    f = Fake(tmp_path / "badprefix")
-    f.registry(prefix="x;rm -rf /")
-    rc, out = f.run("--preflight", "f893585")
-    assert rc == 1 and line_for(out, "registry_images").startswith("FAIL") and not (f.dir / "manifest.log").exists()
-    f = Fake(tmp_path / "local")  # neither variable: local mode, no manifest calls
-    rc, out = f.run("--preflight", "f893585")
-    assert rc == 0 and "local build mode" in line_for(out, "registry_mode") and not (f.dir / "manifest.log").exists()
-    f = Fake(tmp_path / "down")
-    f.set(FAKE_SSH_DOWN="1")
-    assert line_for(f.run("--preflight", "f893585")[1], "registry_mode").startswith("FAIL")
 
 
 def test_verify_checks_image_revisions(tmp_path: Path) -> None:
@@ -648,41 +458,6 @@ def test_status_shows_images(tmp_path: Path) -> None:
     assert all(ln.count("|") == 3 for ln in containers.splitlines()[1:] if ln.startswith("/")), containers  # the old four fields
     f = Fake(tmp_path / "local")
     assert "image mode: local" in f.run("--status")[1]
-
-
-_UNKNOWN_TP = "db=unknown grafana=unknown migrate_base=unknown"
-
-
-def test_mark_records_third_party_digests_and_never_blocks(tmp_path: Path) -> None:
-    f = Fake(tmp_path)
-    vm = f.home / "vatpac-statsV2"
-    (vm / "ops" / "migrate").mkdir(parents=True)
-    (vm / "docker-compose.yml").write_text("services:\n  db:\n    image: postgres:16-bookworm\n  grafana:\n    image: grafana/grafana:12  # the OSS edition\n", newline="\n")
-    (vm / "ops" / "migrate" / "Dockerfile").write_text("# x\nFROM amacneil/dbmate:2\n", newline="\n")
-    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
-    log = (vm / ".deploy" / "release.log").read_text()
-    assert rc == 0, out
-    assert "thirdparty=db=postgres@sha256:fake-16-bookworm grafana=grafana/grafana@sha256:fake-12 migrate_base=amacneil/dbmate@sha256:fake-2\n" in log
-    assert (vm / ".deploy" / "release").read_text() == f"commit={FULL}\nmarked_utc=2026-10-10T15:00:00Z\nmarked_by=tester\n"
-    f.brk("digest")  # docker cannot answer: the mark still succeeds and records unknown
-    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
-    assert rc == 0 and (vm / ".deploy" / "release.log").read_text().endswith(f"thirdparty={_UNKNOWN_TP}\n---\n")
-
-
-def test_mark_records_images_in_the_log_only(tmp_path: Path) -> None:
-    for sub, setup, want in (("reg", lambda f: f.registry(), FULL[:12]), ("loc", lambda f: None, "local"),
-                             ("tagonly", lambda f: f.dotenv("VATPAC_IMAGE_TAG=sha-1\n"), "local")):
-        f = Fake(tmp_path / sub)
-        setup(f)
-        rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
-        d = f.home / "vatpac-statsV2" / ".deploy"
-        assert rc == 0 and "not the commit being marked" not in out, out
-        assert (d / "release").read_text() == f"commit={FULL}\nmarked_utc=2026-10-10T15:00:00Z\nmarked_by=tester\n"  # format unchanged
-        assert (d / "release.log").read_text() == (d / "release").read_text() + f"images={want}\nthirdparty={_UNKNOWN_TP}\n---\n"  # no compose file on this fake VM
-    f = Fake(tmp_path / "head")  # the VM checkout is not at the commit being marked
-    f.set(FAKE_VM_HEAD="b" * 40)
-    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
-    assert rc == 0 and "WARN" in out and "not the commit being marked" in out
 
 
 def test_image_mode_script_prefix_alone_is_registry_mode(tmp_path: Path) -> None:
@@ -815,23 +590,21 @@ def test_pulled_images_check_distinct_messages(tmp_path: Path) -> None:
 # ------------------------------------------------------------------ shared helper file (issue 215)
 
 def _source_run(script: Path, flag: str, calls: str, **env: str) -> str:
-    e = {k: v for k, v in os.environ.items() if k not in ("GH_BIN", "DEPLOY_GH")}
+    e = {k: v for k, v in os.environ.items() if k != "GH_BIN"}
     e.update(env, **{flag: "1"})
     p = subprocess.run([str(BASH), "-c", f'. "{script.as_posix()}"; {calls}'], capture_output=True, text=True, env=e, timeout=60)
     assert p.returncode == 0, p.stderr
     return p.stdout.strip()
 
 
-def test_gh_bin_is_the_same_in_both_scripts() -> None:
+def test_gh_bin_in_stale_issues() -> None:
     fallback = 'PATH=/nonexistent; gh_bin'  # builtins only: the function is already defined, so no gh and no other program is found
-    for script, flag, var in ((SCRIPT, "DEPLOY_SOURCE_ONLY", "DEPLOY_GH"), (STALE_SH, "STALE_SOURCE_ONLY", "GH_BIN")):
-        assert _source_run(script, flag, "gh_bin", **{var: "/x/my-gh"}) == "/x/my-gh", script
-        assert _source_run(script, flag, fallback) == "/c/Program Files/GitHub CLI/gh.exe", script  # the Windows fallback
-    assert _source_run(STALE_SH, "STALE_SOURCE_ONLY", "gh_bin", DEPLOY_GH="/x/dep-gh", GH_BIN="/x/env-gh") == "/x/env-gh"  # one function: GH_BIN wins
+    assert _source_run(STALE_SH, "STALE_SOURCE_ONLY", "gh_bin", GH_BIN="/x/my-gh") == "/x/my-gh"
+    assert _source_run(STALE_SH, "STALE_SOURCE_ONLY", fallback) == "/c/Program Files/GitHub CLI/gh.exe"  # the Windows fallback
 
 
-def test_one_marker_reader_for_both_scripts(tmp_path: Path) -> None:
-    """The release marker is read with one pattern (7 to 40 hex characters; git resolves a short one) wherever it is read."""
+def test_stale_issues_reads_the_marker_with_one_pattern(tmp_path: Path) -> None:
+    """The release marker is read with one pattern: 7 to 40 hex characters (git resolves a short one)."""
     text = {"full": f"commit={FULL}\nmarked_utc=x\n", "short": "commit=f893585\r\nmarked_utc=x\r\n", "bad": "commit=zzzzzzz\n", "tiny": "commit=f89358\n"}
     want = {"full": FULL, "short": "f893585", "bad": "", "tiny": ""}
     for key, body in text.items():
@@ -847,35 +620,21 @@ def test_one_marker_reader_for_both_scripts(tmp_path: Path) -> None:
             assert p.returncode == 0 and f"since the release marker {want[key][:10]}" in out, (key, out)
         else:
             assert p.returncode == 2 and "could not read the release marker" in out, (key, out)
-        # deploy.sh --mark takes the previous marker from the same file
-        g = Fake(tmp_path / (key + "-mark"))
-        d = g.home / "vatpac-statsV2" / ".deploy"
-        d.mkdir()
-        (d / "release").write_bytes(body.encode())
-        g.write("gitlog.txt", "")
-        rc, mout = g.run("--mark", "f893585")
-        if want[key]:
-            assert rc == 0, (key, mout)
-        else:
-            assert rc == 1 and "no previous marker" in mout, (key, mout)
-
 
 # ------------------------------------------------------------------ one .env key reader (issue 212)
 
 def test_vm_env_keys_are_read_with_quotes_export_and_crlf(tmp_path: Path) -> None:
     f = Fake(tmp_path)
-    f.dotenv('export VATPAC_IMAGE_PREFIX="ghcr.io/t288matt/"\r\nVATPAC_IMAGE_TAG=\'sha-1234567\'\r\nBACKUP_TIME_UTC="03:30"\r\nVATPAC_IMAGE_PREFIX="ghcr.io/t288matt/"\r\n')
+    f.dotenv('export VATPAC_IMAGE_PREFIX="ghcr.io/t288matt/"\r\nVATPAC_IMAGE_TAG=\'sha-1234567\'\r\nVATPAC_IMAGE_PREFIX="ghcr.io/t288matt/"\r\n')
     f.write("inspect.txt", _inspect_registry())
-    rc, out = f.run("--preflight", "f893585")
-    assert "registry mode" in line_for(out, "registry_mode") and line_for(out, "image_tag_env").startswith("WARN"), out
-    assert "outside the 03:30 UTC backup window" in line_for(out, "backup_window"), out  # a quoted BACKUP_TIME_UTC is now honoured like the image keys
+    assert "image mode: registry" in f.run("--status")[1]
     f.dotenv("VATPAC_IMAGE_PREFIX=ghcr.io/t288matt/\nVATPAC_IMAGE_PREFIX=\n")  # the last assignment wins: blank means local mode
-    assert "local build mode" in line_for(f.run("--preflight", "f893585")[1], "registry_mode")
+    assert "image mode: local" in f.run("--status")[1]
 
 
 # ------------------------------------------------------------------ one wording of the sha- pin warning (issue 213)
 
-def test_the_sha_pin_warning_has_one_wording_in_all_three_places(tmp_path: Path) -> None:
+def test_the_sha_pin_warning_has_one_wording_in_both_places(tmp_path: Path) -> None:
     sentence = subprocess.run([str(BASH), "-c", f'IMAGE_MODE_SOURCE_ONLY=1 . "{(REPO / "ops" / "image_mode.sh").as_posix()}"; sha_pin_warning'],
                               capture_output=True, text=True, timeout=30).stdout.strip()
     assert sentence.startswith("WARNING: VATPAC_IMAGE_TAG is a sha- pin") and "Delete that line unless this is a deliberate rollback" in sentence
@@ -888,10 +647,6 @@ def test_the_sha_pin_warning_has_one_wording_in_all_three_places(tmp_path: Path)
     (tmp_path / "g.env").write_text((tmp_path / "g.env").read_text(encoding="utf-8") + "VATPAC_IMAGE_TAG=sha-1234567\n", newline="\n")
     p = subprocess.run([str(BASH), "-c", f'sh "{(REPO / "ops" / "check_env.sh").as_posix()}" "{(tmp_path / "g.env").as_posix()}"'], capture_output=True, text=True, timeout=30)
     assert "check_env: " + sentence in p.stderr and "1234567" not in p.stderr
-    f = Fake(tmp_path / "vm")
-    f.registry(tag="sha-1234567")
-    out = f.run("--preflight", "f893585")[1]
-    assert sentence in line_for(out, "image_tag_env") and line_for(out, "image_tag_env").startswith("WARN")
 
 
 # ------------------------------------------------------------------ read once, probe once (issue 214)
@@ -901,7 +656,7 @@ def _count(f: Fake, needle: str) -> int:
 
 
 def test_each_mode_reads_the_image_keys_head_and_reachability_once(tmp_path: Path) -> None:
-    for mode in (["--verify"], ["--preflight", "f893585"], ["--status"], ["--mark", "f893585", "--allow-silent-issues"]):
+    for mode in (["--verify"], ["--status"]):
         f = Fake(tmp_path / mode[0].strip("-"))
         f.registry()
         rc, out = f.run(*mode)
@@ -923,7 +678,7 @@ def test_read_only_output_is_unchanged_by_the_caching(tmp_path: Path) -> None:
     assert "registry mode: collector watchdog backup migrate loader run latest, built from the checkout " + FULL[:10] in line_for(out, "image_revisions")
 
 
-def test_verify_and_mark_refuse_uncommitted_changes_under_ops(tmp_path: Path) -> None:
+def test_verify_refuses_uncommitted_changes_under_ops(tmp_path: Path) -> None:
     f = Fake(tmp_path / "clean")
     rc, out = f.run("--verify")
     assert rc == 0 and line_for(out, "checkout_clean").startswith("PASS"), out
@@ -933,85 +688,16 @@ def test_verify_and_mark_refuse_uncommitted_changes_under_ops(tmp_path: Path) ->
     ln = line_for(out, "checkout_clean")
     assert rc == 1 and ln.startswith("FAIL") and "ops/audit/invariants.sql" in ln and "ops/new2.sql" in ln and "new3" not in ln, out
     assert "commit, stash or use a clean worktree at the VM's commit" in ln and "invariants " not in out.split("checkout_clean")[1]
-    rc, out = f.run("--mark", "f893585", "--allow-silent-issues")
-    assert rc == 1 and "DIRTY CHECKOUT" in out and "ops/audit/invariants.sql" in out and "nothing written" in out
-    assert not (f.home / "vatpac-statsV2" / ".deploy").exists()
     f.set(FAKE_DIRTY="?? ops/scratch.sh")  # untracked alone is enough
     assert f.run("--verify")[0] == 1
     f.set(FAKE_DIRTY="", FAKE_GIT_STATUS_FAIL="1")  # git cannot answer: a FAIL with a clear message, not a crash
     rc, out = f.run("--verify")
     assert rc == 1 and "cannot read the git status" in line_for(out, "checkout_clean")
-    assert f.run("--mark", "f893585", "--allow-silent-issues")[0] == 1
-    f.set(FAKE_DIRTY=" M ops/x.sh", FAKE_GIT_STATUS_FAIL="")  # preflight and status work from a dirty checkout
-    assert f.run("--preflight", "f893585")[0] == 0 and f.run("--status")[0] == 0
+    f.set(FAKE_DIRTY=" M ops/x.sh", FAKE_GIT_STATUS_FAIL="")  # status works from a dirty checkout
+    assert f.run("--status")[0] == 0
 
 
-# ---------------------------------------------------------------- make deploy on the VM (issue 411)
-
-
-def _gate_fake(tmp_path: Path, dump_epoch: int = NOW + 60, valid: str = "valid") -> Fake:
-    """A healthy VM whose newest dump is the one the fake backup container writes: newer than the deploy start unless told otherwise."""
-    f = Fake(tmp_path)
-    f.write("dump.txt", f"{dump_epoch}.5 5363183 vatpac_20261110T150100Z.dump\n{valid}\n")
-    return f
-
-
-def _dump_taken(f: Fake) -> bool:
-    log = f.dir / "docker.log"
-    return log.exists() and "backup.sh once" in log.read_text()
-
-
-def test_deploy_gate_takes_a_fresh_dump_and_passes_when_it_is_valid(tmp_path: Path) -> None:
-    f = _gate_fake(tmp_path)
-    rc, out = f.run("--deploy-gate", FULL)
-    assert rc == 0, out
-    assert line_for(out, "dump_space").startswith("PASS") and line_for(out, "dump_taken").startswith("PASS"), out
-    assert line_for(out, "dump_valid").startswith("PASS") and _dump_taken(f), out
-    assert line_for(out, "recent_dump").startswith("SKIP") and "RESULT   deploy-gate OK" in out, out
-    assert not (f.home / "vatpac-statsV2" / ".deploy").exists()  # the gate writes no marker
-
-
-def test_deploy_gate_stops_before_anything_changes_when_the_dump_fails(tmp_path: Path) -> None:
-    f = _gate_fake(tmp_path)
-    f.set(FAKE_TAKE_RC="1")
-    rc, out = f.run("--deploy-gate", FULL)
-    assert rc == 1 and line_for(out, "dump_taken").startswith("FAIL"), out
-    assert "dump_valid" not in out and "stopped before anything changed" in out, out
-
-
-def test_deploy_gate_stops_when_the_new_dump_is_invalid(tmp_path: Path) -> None:
-    f = _gate_fake(tmp_path, valid="invalid")
-    rc, out = f.run("--deploy-gate", FULL)
-    assert rc == 1 and line_for(out, "dump_valid").startswith("FAIL") and "readable: invalid" in out, out
-    assert "stopped before anything changed" in out
-
-
-def test_deploy_gate_refuses_a_dump_older_than_the_deploy_start(tmp_path: Path) -> None:
-    f = _gate_fake(tmp_path, dump_epoch=NOW - 3600)
-    rc, out = f.run("--deploy-gate", FULL)
-    assert rc == 1 and "older than the start of this deploy" in line_for(out, "dump_valid"), out
-
-
-def test_deploy_gate_stops_before_the_dump_when_disk_is_low(tmp_path: Path) -> None:
-    f = _gate_fake(tmp_path)
-    f.write("df.txt", "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda2 206099468 22795560 1000 50% /\n")
-    rc, out = f.run("--deploy-gate", FULL)
-    assert rc == 1 and line_for(out, "dump_space").startswith("FAIL") and "1000 MB free" in out, out
-    assert not _dump_taken(f) and "dump_taken" not in out
-
-
-def test_deploy_gate_refuses_when_a_preflight_check_fails(tmp_path: Path) -> None:
-    f = _gate_fake(tmp_path)
-    f.set(FAKE_BREAK="gh")  # no CI answer: the first step fails, so no dump is taken
-    rc, out = f.run("--deploy-gate", FULL)
-    assert rc == 1 and line_for(out, "ci_green").startswith("FAIL") and not _dump_taken(f), out
-
-
-def test_disk_margin_is_the_dump_plus_the_safety_margin() -> None:
-    for free, want in (("1160", "yes"), ("1159", "no"), ("", "no"), ("x", "no")):
-        p = subprocess.run([str(BASH), "-c", 'DEPLOY_SOURCE_ONLY=1; . "$0"; disk_ok "$1" && echo yes || echo no', str(SCRIPT), free],
-                           capture_output=True, text=True, cwd=REPO, timeout=60)
-        assert p.stdout.strip() == want, (free, p.stdout, p.stderr)
+# ---------------------------------------------------------------- make deploy on the VM
 
 
 def test_wait_healthy_passes_then_refuses_when_a_service_stays_unhealthy(tmp_path: Path) -> None:
@@ -1021,72 +707,36 @@ def test_wait_healthy_passes_then_refuses_when_a_service_stays_unhealthy(tmp_pat
     f.write("inspect.txt", _inspect(health="starting"))
     f.set(DEPLOY_WAIT_S="0")
     rc, out = f.run("--wait-healthy")
-    assert rc == 1 and "not healthy after 0 s: db=starting" in out and "marker was NOT written" in out, out
+    assert rc == 1 and "not healthy after 0 s: db=starting" in out and "marker" not in out, out
 
 
-def test_deploy_mark_writes_the_marker_after_a_passing_verify(tmp_path: Path) -> None:
-    f = Fake(tmp_path)
-    assert f.run("--verify")[0] == 0
-    rc, out = f.run("--deploy-mark", FULL)
-    assert rc == 0 and "PASS  marked" in out, out
-    assert f"commit={FULL}" in (f.home / "vatpac-statsV2" / ".deploy" / "release").read_text()
-
-
-def test_deploy_mark_is_not_reached_when_verify_fails(tmp_path: Path) -> None:
-    f = Fake(tmp_path)
-    f.write("smoke.txt", "FAIL  container healthy: db\n")  # no SMOKE PASS: verify fails
-    chain = 'bash "$0" --verify && bash "$0" --deploy-mark "$1"'  # make stops at the first failing recipe line
-    p = subprocess.run([str(BASH), "-c", chain, str(SCRIPT), FULL], capture_output=True, text=True, env=f.env, cwd=REPO, timeout=120)
-    assert p.returncode != 0 and "RESULT   verify FAILED" in p.stdout, p.stdout
-    assert not (f.home / "vatpac-statsV2" / ".deploy" / "release").exists()
-
-
-def test_deploy_mark_warns_about_a_silent_issue_and_still_marks(tmp_path: Path) -> None:
-    f = Fake(tmp_path)
-    marker = f.home / "vatpac-statsV2" / ".deploy"
-    marker.mkdir(parents=True)
-    (marker / "release").write_text("commit=" + "1" * 40 + "\nmarked_utc=x\nmarked_by=x\n", newline="\n")
-    f.write("gitlog.txt", "\x01" + FULL + "\x1f2026-11-18T10:00:00+00:00\x1fFix the thing (Refs #77)\n")
-    f.write("issues.tsv", "77\tA silent issue\t\n")  # open, no comment at all
-    rc, out = f.run("--deploy-mark", FULL)
-    assert rc == 0 and "SILENT ISSUES (1)" in out and "#77" in out, out
-    assert "WARN  marking with silent or unchecked issues" in out, out
-    assert f"commit={FULL}" in (marker / "release").read_text()
-
-
-def test_make_deploy_runs_the_gate_first_and_the_marker_last() -> None:
+def test_make_deploy_runs_the_steps_in_order_with_no_gh_and_one_sha() -> None:
     lines = (REPO / "Makefile").read_text(encoding="utf-8").splitlines()
     body = []
     for ln in lines[lines.index("deploy: check-env") + 1:]:
         if not ln.startswith("\t"):
             break
         body.append(ln[1:])
-    keys = ["--deploy-gate", "git merge --ff-only", "docker compose up -d --no-build", "--wait-healthy", "--verify", "--deploy-mark"]
-    idx = [next(i for i, b in enumerate(body) if k in b) for k in keys]
-    assert idx == sorted(idx) and len(set(idx)) == len(idx), body
+    text = "\n".join(body)
+    keys = ["image_mode.sh", "git fetch -q origin main", 'git merge --ff-only "$$sha"', "docker compose pull", "sh ops/check_pulled_images.sh",
+            "docker compose up -d --no-build", "DEPLOY_LOCAL=1 bash ops/deploy.sh --wait-healthy", "sh ops/smoke.sh"]
+    idx = [text.index(k) for k in keys]
+    assert idx == sorted(idx) and len(set(idx)) == len(idx), text
+    assert text.count("rev-parse origin/main") == 1, text  # the tip is read once; the fast-forward is to that sha
+    assert not re.search(r"\bgh\b|--verify|--mark|--preflight|--deploy-|dump|git pull", text), text  # no gh, no gate, no dump, no marker, no pull of a moved main
+    chain = body[body.index("fi") + 1:]  # after the mode check: one shell, so a failure stops the chain
+    assert all(b.endswith("&& \\") for b in chain[:-1]) and chain[-1] == "sh ops/smoke.sh", chain
     assert not any(b.lstrip().startswith("-") for b in body), body  # no recipe line ignores its own failure
 
 
-def test_make_deploy_ships_only_the_commit_the_gate_checked() -> None:
-    """One sha is read once; the gate, the fast-forward and the marker all use it, so a push during the gate cannot be deployed."""
-    text = (REPO / "Makefile").read_text(encoding="utf-8")
-    body = text.split("\ndeploy: check-env")[1].split("\n\n")[0]
-    assert body.count("rev-parse origin/main") == 1, body  # the tip is read once, not again after the gate
-    assert 'git merge --ff-only "$$sha"' in body and '--deploy-gate "$$sha"' in body and '--deploy-mark "$$sha"' in body, body
-    assert "git pull" not in body.replace("# ", ""), body  # a pull would take whatever main is by then
-    assert body.count("&& \\") >= 8, body  # one shell, so the sha reaches every step and a failure stops the chain
-
-
-def test_deploy_local_runs_the_gate_and_wait_healthy_without_ssh(tmp_path: Path) -> None:
+def test_deploy_local_runs_wait_healthy_without_ssh(tmp_path: Path) -> None:
     """make deploy sets DEPLOY_LOCAL=1: every VM command runs in this checkout, so the ssh stub must never be called."""
-    f = _gate_fake(tmp_path)
+    f = Fake(tmp_path)
     f.set(DEPLOY_LOCAL="1")
     rc, out = f.run("--wait-healthy")
     assert rc == 0 and line_for(out, "containers_healthy").startswith("PASS"), out
-    rc, out = f.run("--deploy-gate", FULL)
-    assert rc == 0 and line_for(out, "dump_valid").startswith("PASS") and _dump_taken(f), out
-    assert "the local shell answers" in line_for(out, "vm_reachable") and "ssh" not in line_for(out, "vm_reachable"), out
     assert f.ssh_log() == "", f.ssh_log()
+    assert not (f.dir / "gh.log").exists()
 
 
 def test_reachability_message_is_correct_for_ssh_and_for_local(tmp_path: Path) -> None:
@@ -1098,29 +748,8 @@ def test_reachability_message_is_correct_for_ssh_and_for_local(tmp_path: Path) -
     assert line_for(f.run("--verify")[1], "vm_reachable").endswith("ssh answers")  # remote wording unchanged
 
 
-def test_deploy_gate_refuses_a_dump_smaller_than_the_minimum(tmp_path: Path) -> None:
-    f = _gate_fake(tmp_path)
-    f.write("dump.txt", f"{NOW + 60}.5 999 vatpac_20261110T150100Z.dump\nvalid\n")  # readable, new, but under DEPLOY_MIN_DUMP_BYTES
-    rc, out = f.run("--deploy-gate", FULL)
-    assert rc == 1 and line_for(out, "dump_valid").startswith("FAIL") and "999 bytes (min 1000000)" in out, out
-    assert "stopped before anything changed" in out
-
-
-def test_stale_issues_reads_the_marker_over_ssh_or_locally(tmp_path: Path) -> None:
+def test_stale_issues_reads_the_marker_over_ssh(tmp_path: Path) -> None:
     f = _guard_fake(tmp_path, COMMITS, [(94, "ninety-four", "2026-10-09T23:00:00Z")])
     f.set(GH_BIN=str(f.bin / "gh"), REPO="o/r", DEPLOY_SSH="fakehost")
-
-    ops = f.home / "vatpac-statsV2" / "ops"  # the script finds its checkout from its own place: use a copy inside the fake VM checkout
-    for name in ("stale_issues.sh", "release_common.sh"):
-        shutil.copy(REPO / "ops" / name, ops / name)
-
-    def run() -> tuple[int, str]:
-        p = subprocess.run([str(BASH), str(ops / "stale_issues.sh")], capture_output=True, text=True, env=f.env, cwd=REPO, timeout=60)
-        return p.returncode, p.stdout + p.stderr
-
-    rc, out = run()  # unset: the marker is read over ssh, as before
-    assert f"since the release marker {PREV[:10]}" in out and "fakehost" in f.ssh_log(), (rc, out)
-    (f.dir / "ssh.log").unlink()
-    f.set(DEPLOY_LOCAL="1", FAKE_SSH_DOWN="1")  # locally: read from the checkout; ssh is never called (and would fail if it were)
-    rc, out = run()
-    assert f"since the release marker {PREV[:10]}" in out and f.ssh_log() == "", (rc, out)
+    p = subprocess.run([str(BASH), str(STALE)], capture_output=True, text=True, env=f.env, cwd=REPO, timeout=60)
+    assert f"since the release marker {PREV[:10]}" in p.stdout + p.stderr and "fakehost" in f.ssh_log(), p.stdout + p.stderr
