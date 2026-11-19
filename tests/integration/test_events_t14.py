@@ -8,9 +8,10 @@ timestamps, and the query is executed. Rules under test:
   card 78   same RAAFv rule; last month; one count per session (v1 de-duplicated on callsign + logon time);
             per-route flights, distinct pilots and shares.
   card 131  Monday window 0700-1200 UTC; a controller session counts if it overlaps the window (starts before 1200,
-            ends at or after 0700); one bar per Monday, distinct CIDs (issue 353 replaced the attendance chart).
+            ends at or after 0700); one bar per UTC month that has a Monday with any (issue 407 moved the bucket from
+            Monday to month; issue 353 replaced the attendance chart), distinct CIDs.
   card 134  YMML-YSSY (either direction) flights ending Monday 0700-1200 UTC; share of airborne minutes flown
-            by pilots whose home airfield is in the home region. (v1 still uses 0800.)
+            by pilots whose home airfield is in the home region, one bar per UTC month (v1 still uses 0800).
   card 133  stays dropped (frequency matching, ADR-002): no panel mentions it.
 """
 from __future__ import annotations
@@ -107,13 +108,15 @@ def test_raafv_routes_last_month_count_each_session_once(conn) -> None:
     assert [float(r["% of RAAFv pilots"]) for r in rows] == [66.67, 33.33]
 
 
-# ------------------------------------------------------------------ card 131 (controllers per Monday, issue 353)
-CONTROLLERS = "Controllers online during the Monday event window"
+# ------------------------------------------------------------------ card 131 (controllers per month, issues 353, 407)
+CONTROLLERS_MONTH = "Unique controllers online during the Monday event window, by month"
 
 
-def test_monday_controllers_chart_counts_distinct_cids_in_the_window_0700_to_1200_utc(conn) -> None:
-    mon = monday_utc(2)
-    other = mon - timedelta(days=7)
+def test_monthly_controllers_chart_counts_distinct_cids_in_the_window_0700_to_1200_utc(conn) -> None:
+    """Fixed, explicit UTC dates (never monday_utc()): a monthly assertion needs the two Mondays to land in known,
+    different UTC months, which the relative helper cannot guarantee."""
+    mon = datetime(2026, 10, 5, tzinfo=UTC)
+    other = datetime(2026, 9, 28, tzinfo=UTC)   # the Monday before, in the previous UTC month
 
     def h(x: float, day: datetime = mon) -> datetime:
         return day + timedelta(hours=x)
@@ -126,21 +129,19 @@ def test_monday_controllers_chart_counts_distinct_cids_in_the_window_0700_to_120
     add_controller(conn, 9400026, h(8), h(9))                    # in
     add_controller(conn, 9400026, h(10), h(11))                  # the same CID twice in the window: counted once
     add_controller(conn, 9400027, h(-3), h(30))                  # in: spans the whole day and more, counted once, and only on Mondays
-    add_controller(conn, 9400028, h(8, other), h(9, other))      # the Monday before: another bar
+    add_controller(conn, 9400028, h(8, other), h(9, other))      # the Monday before, a different UTC month: another bar
     add_controller(conn, 9400029, h(8) + timedelta(days=1), h(9) + timedelta(days=1))   # Tuesday: out
     add_flight(conn, 9400030, h(8), h(9))                        # a pilot: not counted here
-    rows = run_panel(conn, EVENTS, CONTROLLERS, other - timedelta(days=1), mon + timedelta(days=2))
-    assert [(r["Monday (UTC)"], r["Controllers online"]) for r in rows] == [
-        (other.strftime("%d-%m-%Y"), 1), (mon.strftime("%d-%m-%Y"), 5)]   # other: 28; mon: 21, 22, 24, 26, 27
+    rows = run_panel(conn, EVENTS, CONTROLLERS_MONTH, other - timedelta(days=1), mon + timedelta(days=2))
+    assert [(r["Month (UTC)"], r["Controllers online"]) for r in rows] == [
+        (other.strftime("%m-%Y"), 1), (mon.strftime("%m-%Y"), 5)]   # other: 28; mon: 21, 22, 24, 26, 27
 
 
-CONTROLLERS_MONTH = "Unique controllers online during the Monday event window, by month"
-
-
-def test_monday_controllers_chart_by_month_counts_a_cid_on_two_mondays_once_not_twice(conn) -> None:
-    """Issue 407: the monthly panel is not a sum of the weekly bars. 05-10-2026 and 12-10-2026 are both in October 2026.
-    CID 9400041 is online in the window on both Mondays (two sessions, same CID); CID 9400040 is online on the first
-    Monday only. The weekly bars sum to 3 for the month; the true distinct CID count is 2."""
+def test_monthly_controllers_chart_by_month_counts_a_cid_on_two_mondays_once_not_twice(conn) -> None:
+    """Issue 407: the monthly panel is not a sum of per-Monday counts. 05-10-2026 and 12-10-2026 are both in October
+    2026 (fixed, explicit dates, never monday_utc()). CID 9400041 is online in the window on both Mondays (two
+    sessions, same CID); CID 9400040 is online on the first Monday only. A naive per-Monday sum would be 3; the true
+    distinct CID count for the month is 2."""
     mon, next_mon = datetime(2026, 10, 5, tzinfo=UTC), datetime(2026, 10, 12, tzinfo=UTC)
 
     def h(x: float, day: datetime = mon) -> datetime:
@@ -150,22 +151,22 @@ def test_monday_controllers_chart_by_month_counts_a_cid_on_two_mondays_once_not_
     add_controller(conn, 9400041, h(8), h(9))                        # Monday 1
     add_controller(conn, 9400041, h(8, next_mon), h(9, next_mon))    # same CID again, Monday 2
     window = (mon - timedelta(days=1), next_mon + timedelta(days=2))
-    weekly = run_panel(conn, EVENTS, CONTROLLERS, *window)
-    assert [(r["Monday (UTC)"], r["Controllers online"]) for r in weekly] == [
-        (mon.strftime("%d-%m-%Y"), 2), (next_mon.strftime("%d-%m-%Y"), 1)]    # weekly bars: sum over October = 3
     monthly = run_panel(conn, EVENTS, CONTROLLERS_MONTH, *window)
     assert [(r["Month (UTC)"], r["Controllers online"]) for r in monthly] == [("10-2026", 2)]   # not 3: 9400041 counted once
 
 
-def test_monday_controllers_chart_has_the_aircraft_chart_format() -> None:
-    aircraft = panel(EVENTS, "Aircraft airborne during the Monday event window")
-    mine = panel(EVENTS, CONTROLLERS)
+def test_monthly_controllers_chart_has_the_aircraft_chart_format() -> None:
+    aircraft = panel(EVENTS, "Unique aircraft airborne during the Monday event window")
+    mine = panel(EVENTS, CONTROLLERS_MONTH)
     assert mine["type"] == aircraft["type"] == "barchart"
-    assert mine["timeFrom"] == aircraft["timeFrom"] == "1825d"
+    assert "timeFrom" not in mine and "timeFrom" not in aircraft
     assert mine["options"] == aircraft["options"] and mine["gridPos"]["w"] == aircraft["gridPos"]["w"]
     assert mine["targets"][0]["format"] == aircraft["targets"][0]["format"] == "table"
-    assert "to_char(m.monday, 'DD-MM-YYYY')" in mine["targets"][0]["rawSql"]
-    assert all(p.get("title") != "Monday event attendance (0700-1200Z)" for p in json.loads(EVENTS.read_text(encoding="utf-8"))["panels"])
+    assert "to_char(date_trunc('month', m.monday), 'MM-YYYY')" in mine["targets"][0]["rawSql"]
+    panels = json.loads(EVENTS.read_text(encoding="utf-8"))["panels"]
+    assert all(p.get("title") != "Monday event attendance (0700-1200Z)" for p in panels)
+    assert all(", each Monday" not in p.get("title", "") for p in panels)
+    assert all("timeFrom" not in p for p in panels)
 
 
 # ------------------------------------------------------------------ card 134
@@ -184,7 +185,7 @@ def test_local_share_of_ymml_yssy_airborne_time_monday_window(conn) -> None:
     add_flight(conn, 9400037, h(29), h(33), 500, dep="YMML", arr="YSSY", home="EGLL")  # Tuesday: out
     rows = run_panel(conn, EVENTS, "Share of YMML-YSSY", mon - timedelta(days=1), mon + timedelta(days=3))
     assert len(rows) == 1
-    assert rows[0]["Monday (UTC)"] == mon.strftime("%d-%m-%Y")
+    assert rows[0]["Month (UTC)"] == mon.strftime("%m-%Y")
     assert float(rows[0]["Local pilots (%)"]) == 50.0   # (60 + 60) / (60 + 120 + 60)
 
 
