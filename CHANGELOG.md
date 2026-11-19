@@ -8,7 +8,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 ## Monday events: monthly versions of the two weekly event-window charts (19-11-2026, issue 407)
 
-- **Two new panels alongside the existing ones.** `events/monday-events.json` now has "Unique aircraft airborne during the Monday event window, by month (0700-1200Z)" and "Unique controllers online during the Monday event window, by month (0700-1200Z)", grouped by UTC month instead of by Monday. The two weekly panels are unchanged.
+- **One new panel alongside the existing ones.** `events/monday-events.json` now has "Unique controllers online during the Monday event window, by month (0700-1200Z)", grouped by UTC month instead of by Monday. The two weekly panels are unchanged. (An equivalent monthly aircraft panel was built and then removed on the owner's instruction, 19-11-2026 - only the controllers one was wanted.)
 - **Not a sum of the weekly bars.** Each monthly panel re-runs the same `COUNT(DISTINCT session_id)` / `COUNT(DISTINCT cid)` query as its weekly sibling, grouped by the month that contains each Monday, so a flight or controller present on two Mondays in the same month counts once in that month's bar, not twice.
 - Not yet deployed.
 
