@@ -7,21 +7,20 @@ The result is the same stack that runs in production: PostgreSQL 16, a collector
 ## 1. What you need
 - A Linux machine that stays on (Debian or Ubuntu are what the project uses), 2 vCPU, 4 GB RAM, **40 GB or more of disk** (about 2 to 3 GB of positions at 180 days, plus WAL, 14 days of backups, images and logs; 20 GB is too tight). Sizing source: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md).
 - **On Proxmox or QEMU set the VM CPU type to `host` (or `x86-64-v2-AES`), not the default "Common KVM processor"**: the collector uses numpy 2.x, which needs the x86-64-v2 CPU baseline (SSE4.2, POPCNT) and otherwise crash-loops on import. Check the type with `grep -m1 -ow sse4_2 /proc/cpuinfo` (it must print `sse4_2`); a changed type needs a full stop and start of the VM, not a reboot.
-- Docker Engine and the Docker Compose plugin (Compose v2; `docker compose version` must work). Install: `curl -fsSL https://get.docker.com | sudo sh`, then `sudo usermod -aG docker "$USER"`, log out and in again, and check `docker compose version`.
+- Docker Engine and the Docker Compose plugin (Compose v2 or newer; `docker compose version` must work). Install: `curl -fsSL https://get.docker.com | sudo sh`, then `sudo usermod -aG docker "$USER"`, log out and in again (on WSL, run `wsl --terminate <distro>` from Windows and open the distro again), and check `docker compose version`.
 - A synchronised clock. Check `timedatectl`: it must say `System clock synchronized: yes`. The collector rejects a feed snapshot dated more than `FEED_MAX_FUTURE_SECONDS` (120) ahead of the clock, and a clock that is more than about two minutes slow breaks polling.
 - Outbound HTTPS to `data.vatsim.net`, `status.vatsim.net` and `api.vatsim.net` (VATSIM; the last is the ATC stats loader's source), to Docker Hub and PyPI (Python packages) for the first build, to `github.com` to clone, and, only if you use them, `ghcr.io` (registry mode, 4b) and `api.telegram.org` (alerts).
-- `git`, `bash`, `sh` (POSIX shell), `make`, `openssl` (used by `ops/gen_env.sh` when present), `curl` and `ca-certificates` (for the Docker install line), `ssh-keygen` (package `openssh-client`, for the deploy key), `sudo` (for the Docker install) and Python 3.11 or newer, for the helper scripts (Debian 12 and Ubuntu 24.04 have it; Ubuntu 22.04 does not). On a Windows PC (development only, never production) `make` is not installed and `psql` is not on the PATH of Git Bash; the stack needs neither: see section 11.
-- Access to the repository (it is private: you need a read credential from the owner). The method for servers is a read-only GitHub deploy key (section 2).
+- `git`, `bash`, `sh` (POSIX shell), `make`, `openssl` (used by `ops/gen_env.sh` when present), `curl` and `ca-certificates` (for the Docker install line), `sudo` (for the Docker install) and Python 3.11 or newer, for the helper scripts (Debian 12 and Ubuntu 24.04 have it; Ubuntu 22.04 does not). On Debian and Ubuntu, `make` is not installed by default: `sudo apt-get install -y make`. On a Windows PC (development only, never production) `make` is not installed and `psql` is not on the PATH of Git Bash; the stack needs neither: see section 11.
 
 ## 2. Get the code
 ```sh
-git clone <repository url> vatpac-statsV2
+git clone https://github.com/t288matt/vatpac-statsV2 vatpac-statsV2
 cd vatpac-statsV2
 git checkout <the commit the owner gives you>
 ```
 Run every later command from this folder. In a local-build install, do not use the tip of `main` unless the owner says so: it can contain reviewed work that is not yet in production. In registry mode (4b) the checkout follows `main`.
 
-**Deploy key (for a server that keeps itself up to date).** Instead of a personal login, give the machine a read-only deploy key: `ssh-keygen -t ed25519 -f ~/.ssh/vatpac_deploy -N ""`, add the `.pub` line in the repository's Settings > Deploy keys with **Allow write access OFF**, and clone with `GIT_SSH_COMMAND="ssh -i ~/.ssh/vatpac_deploy -o IdentitiesOnly=yes" git clone git@github.com:t288matt/vatpac-statsV2.git`. The full, checked procedure (adopting an existing folder, and the checks after each step) is section 2d of [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md). Alternative to a deploy key: HTTPS with a fine-grained personal access token (Contents: read-only, this repository only); never store the token in the remote URL, use a credential helper. To deploy a fixed commit rather than a moving branch, use `git fetch origin && git checkout --detach <commit>` (the repository has no version tags).
+The repository is public: the clone needs no login or key. To deploy a fixed commit rather than a moving branch, use `git fetch origin && git checkout --detach <commit>` (the repository has no version tags). How the production VM keeps its checkout up to date is in [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md).
 
 ## 3. Configure `.env`
 All settings live in one file, `.env`, which is not in git. `.env.example` lists every setting with its default; the secrets are **blank on purpose**, and the stack refuses to start until they are set.
@@ -45,7 +44,7 @@ sh ops/check_env.sh    # rejects blank, change-me*, shorter than 16 characters, 
 | `GRAFANA_ADMIN_PASSWORD` | Grafana admin login; applies only on Grafana's FIRST start |
 
 **Worth reviewing before the first start:**
-- `GRAFANA_BIND` (default `127.0.0.1`, this machine only) and `GRAFANA_PORT` (3300). For access from your LAN set `GRAFANA_BIND` to the machine's LAN address, or to `0.0.0.0` if the address comes from DHCP (Docker can start before the address exists, and a bind to a missing address fails); then firewall it (section 8).
+- `GRAFANA_BIND` (default `127.0.0.1`, this machine only) and `GRAFANA_PORT` (3300). If you change `GRAFANA_PORT`, change the port in `GRAFANA_ROOT_URL` to match. For access from your LAN set `GRAFANA_BIND` to the machine's LAN address, or to `0.0.0.0` if the address comes from DHCP (Docker can start before the address exists, and a bind to a missing address fails); then firewall it (section 8).
 - `GRAFANA_ROOT_URL` (default `http://localhost:3300/`) and `GRAFANA_COOKIE_SECURE` (`false`; `true` only when users reach Grafana over https).
 - `GRAFANA_ADMIN_USER` (default `admin`), `POSTGRES_DB` and `POSTGRES_USER` (default `vatpac`).
 - `HOME_ICAO_PREFIXES` (default `Y`, the Australian airport prefix) and `BACKUP_TIME_UTC` (02:00).
@@ -66,7 +65,7 @@ The airspace polygon and the controller whitelist that decide what is kept from 
 make up            # = sh ops/check_env.sh .env, then docker compose up -d --build (first installs and PCs). It refuses to run when VATPAC_IMAGE_PREFIX is set (registry mode, see 4b)
 docker compose ps
 ```
-Without `make`: `sh ops/check_env.sh .env` then `docker compose up -d --build`. The first build downloads images and Python packages and builds the project images; allow several minutes.
+Without `make`: `sh ops/check_env.sh .env` then `docker compose up -d --build`. The first build downloads images and Python packages and builds the project images; allow a few minutes (longer on a slow connection or a small machine).
 
 **Starting again over an old stack.** `docker compose down` keeps the named volumes (`pgdata`, `grafana_data`, `backups`, `watchdog_status`, `archive`), and they belong to the project name `vatpac`, so a new `.env` on the same machine silently reuses them. Postgres reads `POSTGRES_PASSWORD` only when it first creates the data directory, so the new random passwords will not match the old database, and the old database still has the old table layout. For a genuinely fresh start on a development machine, delete the old volumes first: `docker compose down -v` removes ALL of this stack's volumes (the database, Grafana state, backups and the archive), so use it only when none of that data matters. Then run `sh ops/gen_env.sh` again and start as above.
 
@@ -87,7 +86,7 @@ What happens, in order:
 
 **Grafana 12.x and an existing `grafana_data` volume:** the image is `grafana/grafana:12.4`, so a `docker compose pull` can bring a newer 12.4.x patch version. The first start of a newer Grafana version (12.x minors included) migrates the `grafana_data` volume one way. There is no downgrade: an older Grafana cannot read the upgraded volume without the tarball taken before the upgrade. If you upgrade an install from before Grafana 12, copy the volume first (the command is in RUNBOOKS/public-access.md, "Roll back") and keep the copy until you are sure. A fresh install with an empty volume is not affected.
 
-`db`, `collector`, `grafana` and `watchdog` become `healthy` once their health checks pass (checks every 10 to 60 seconds, after a start period of up to 90 seconds). `backup` and `vatsim-atc-stats` check their health only every 5 minutes, so they can show `health: starting` for the first few minutes; the loader turns `healthy` once its first run has written a day. If `migrate` is not `exited (0)`, read `docker compose logs migrate`.
+`db`, `collector`, `grafana` and `watchdog` become `healthy` once their health checks pass (checks every 10 to 60 seconds, after a start period of up to 90 seconds). `backup` and `vatsim-atc-stats` check their health only every 5 minutes, so they can show `health: starting` for up to a few minutes; on a fast machine all six services were healthy within about two minutes of `make up`. If `migrate` is not `exited (0)`, read `docker compose logs migrate`.
 
 ### The ATC stats loader
 `vatsim-atc-stats` downloads every ATC session on the VATSIM network (all callsigns) from VATSIM's public history API, `https://api.vatsim.net/v2/atc/history`, and keeps it for `STATS_RETENTION_YEARS` (10 years, fixed in `docker-compose.yml`). It runs once a day at 06:00 UTC and starts a run about a minute after it starts, unless one has already succeeded that day. The first run backfills history newest first, one request every 45 seconds, so it can take from one to several days. Its only outbound traffic is HTTPS to `api.vatsim.net`. It logs in to the database as the role `stats_loader` with `STATS_LOADER_DB_PASSWORD`, which `ops/gen_env.sh` generates with the other secrets. The six ATC dashboards fill from it as the days are written. How to check it, and what its alerts mean: [RUNBOOKS/atc-stats-loader.md](RUNBOOKS/atc-stats-loader.md).
@@ -98,13 +97,13 @@ Grafana login: open `http://localhost:3300` (or `http://<GRAFANA_BIND>:3300`), u
 ```sh
 make smoke                                  # or: sh ops/smoke.sh   ends with SMOKE PASS
 python3 ops/check_panels.py                 # runs every dashboard query through Grafana; expect 0 errors (empty panels are fine while data is young)
-docker compose logs --tail=20 collector     # an ok poll about every 30 seconds
+docker compose logs --tail=20 collector     # an ok poll about every 30 seconds (a single `slow poll` warning on the first poll is normal)
 ```
 `ops/smoke.sh` waits up to four minutes for each of `db`, `collector`, `grafana`, `backup` and `watchdog` to be healthy, then checks that `migrate` exited 0, the collector `/health`, a recent `ok` row in `poll_log`, Grafana's health, and that the Grafana role cannot write. The ATC stats loader is not part of the smoke test (its checks are in [RUNBOOKS/atc-stats-loader.md](RUNBOOKS/atc-stats-loader.md)). `backup` can still show `starting` in its first few minutes, so if a smoke test run straight after the first start reports `container healthy: backup (status: starting)`, wait a few minutes and run it again. The collector's `/health` is on port 8080 inside the Docker network only and is not published; the smoke test reaches it for you. The database is not published either (the dev overlay `make dev` publishes it on `127.0.0.1:55432` only).
 
 Charts: the "Monitoring: collector and data freshness" dashboard shows whether data is arriving. The rest fill over the first hours and days. Routine checks afterwards: [RUNBOOKS/daily-checks.md](RUNBOOKS/daily-checks.md).
 
-**What day zero looks like.** `ops/smoke.sh` should end with SMOKE PASS and `ops/check_panels.py` should end with a line like `panel queries: N with rows, M empty, 0 errors`. Expect `0 errors`. M is large on day zero and shrinks as data arrives; errors are what matter.
+**What day zero looks like.** `ops/smoke.sh` should end with SMOKE PASS and `ops/check_panels.py` should end with a line like `panel queries: N with rows, M empty, 0 errors`. Expect `0 errors`. At first fewer than half of the panel queries return rows; M shrinks as data arrives, and errors are what matter.
 
 ### 5b. Optional, owner only: compare a new instance with production
 Both commands only read. From the repository root, dump the structure of the new instance and of production with `ops/schema_dump.sql` and compare the two files:
@@ -120,12 +119,12 @@ A new instance and production differ in exactly three places, none of them a rea
 docker compose exec backup backup.sh once   # or: make backup     writes vatpac_<UTC stamp>.dump into the backups volume
 make backup-test                            # restores the newest dump into a scratch database and checks it, then drops it
 ```
-**On a brand-new instance the first command may fail.** The backup script refuses a first dump smaller than `BACKUP_MIN_FIRST_BYTES` (default 1 MiB, a guard against keeping an empty backup), and a database that is only minutes old can be smaller than that. It then prints `FAILED content check: first dump is ... bytes, under the minimum ...`, moves the file aside as `vatpac_<stamp>.dump.rejected` in the backups volume, and `make backup-test` then says `no backup found`. For the first backup of a new instance lower the limit for that one run, then continue as normal:
+**On a brand-new instance the first command may fail.** The backup service also takes a small dump of its own when it starts. On a new instance that dump is under the minimum below, so a `vatpac_<stamp>.dump.rejected` file is already in the backups volume before you run anything. The backup script refuses a first dump smaller than `BACKUP_MIN_FIRST_BYTES` (default 1 MiB, a guard against keeping an empty backup), and a database that is only minutes old can be smaller than that. It then prints `FAILED content check: first dump is ... bytes, under the minimum ...`, moves the file aside as `vatpac_<stamp>.dump.rejected` in the backups volume, and `make backup-test` then says `no backup found`. For the first backup of a new instance lower the limit for that one run, then continue as normal:
 ```sh
 docker compose exec -e BACKUP_MIN_FIRST_BYTES=100000 backup backup.sh once
 docker compose exec backup restore-test.sh      # = make backup-test; expect: <UTC time> OK /backups/vatpac_<stamp>.dump poll_log=<n> pilot_session=<n> flight_summary=0
 ```
-The 1 MiB limit applies only to the very first dump; later dumps are compared with the previous one, so the nightly backups need no change. You can delete the `.rejected` file from the first attempt.
+The 1 MiB limit applies only to the very first dump; later dumps are compared with the previous one, so the nightly backups need no change. Expect one or two `.rejected` files (the start-up dump and your first attempt); you can delete them or leave them, since they rotate out with the older backups; list them with `docker compose exec backup ls /backups`.
 
 What the restore check does:
 - It counts `poll_log`, `pilot_session` and `flight_summary` (the table of finished flights, which the migrations create). It fails if `flight_summary` is missing or has no `session_ids` column.
@@ -145,7 +144,7 @@ The default is safe: Grafana listens on the loopback address only, the database 
 ## 9. After the first day: updating and keeping it safe
 - Update: [RUNBOOKS/deploy-to-vm.md](RUNBOOKS/deploy-to-vm.md) ("Updating", "What a change needs", "Roll back"). Before an update, compare `.env.example` with your `.env` and add any new blank secret (section 3, "A new secret in an existing `.env`"). Take a fresh dump before every update (`make backup`, with the first-backup note in section 6); then deploy: in local-build mode `docker compose up -d --build` (never `docker compose restart` for a code change); in registry mode (the production VM) `make deploy` after the release workflow has published the commit (runbook section 2f; never `--build` there). Then `make smoke` and `python3 ops/check_panels.py`. Migrations are forward-only; never edit one that has been applied.
 - Backups and restore: [RUNBOOKS/restore.md](RUNBOOKS/restore.md). Disk full: [RUNBOOKS/db-full.md](RUNBOOKS/db-full.md). Collector stuck: [RUNBOOKS/stuck-collector.md](RUNBOOKS/stuck-collector.md). Feed down: [RUNBOOKS/feed-outage.md](RUNBOOKS/feed-outage.md).
-- Reboot test: restart the machine once and confirm everything returns by itself (containers restart automatically); deploy-to-vm.md section 7.
+- Reboot test: reboot the machine once and confirm everything returns by itself (containers restart automatically); deploy-to-vm.md section 7. On WSL, `wsl --terminate` restarts only the distro, so it is not a machine reboot.
 - Never run `db/roles.sql` by hand against a running instance: it resets the role passwords.
 
 ## 10. Stopping and starting

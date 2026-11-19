@@ -12,7 +12,7 @@ Files outside `docs/` that belong with these: [../README.md](../README.md) (what
 
 | File | What it is for | Who reads it | Status |
 |---|---|---|---|
-| [INSTALL.md](INSTALL.md) | How to install a new instance from the source code on a clean Linux machine | Operator, engineer | CURRENT (reviewed against the code on 19-11-2026; live walk-through on a clean Linux machine still to do) |
+| [INSTALL.md](INSTALL.md) | How to install a new instance from the source code on a clean Linux machine | Operator, engineer | CURRENT (walked through on a clean Ubuntu 24.04 on 19-11-2026) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the system fits together, what each container does; section 10 is the goal evidence | Engineers, agents | CURRENT (reviewed 08-10-2026; later changes are in the ADRs and runbooks) |
 
 ## 2. Operations (runbooks, in [RUNBOOKS/](RUNBOOKS/))
