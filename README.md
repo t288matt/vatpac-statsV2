@@ -203,7 +203,7 @@ flowchart TB
 | `make config` | Validate the compose files with a throwaway env |
 | `make soak` | Soak report from `poll_log`: was a snapshot stored every poll interval over the last `HOURS` (default 24) |
 | `make up` / `make dev` / `make down` | Start (optionally with the dev overlay) or stop the stack; volumes are kept. `make up` builds the images locally; it is not the registry deploy, and it refuses to run in registry mode (added by pull request 180; see the deploy runbook) |
-| `make deploy` | Registry mode only: `git pull --ff-only`, `docker compose pull`, `ops/check_pulled_images.sh` (stops if the images were not built from the checkout), then `docker compose up -d --no-build`. It does not run `--preflight`, so run that first |
+| `make deploy` | Registry mode only: `git pull --ff-only`, `docker compose pull`, `ops/check_pulled_images.sh` (stops if the images were not built from the checkout), then `docker compose up -d --no-build`. Since issue 411 it first runs the preflight checks and takes a fresh dump on the VM (a failure stops it before anything changes), and after start it waits for healthy containers, runs `--verify` and writes the release marker only if verify passed (`DEPLOY_LOCAL=1 bash ops/deploy.sh --deploy-gate|--wait-healthy|--verify|--deploy-mark`) |
 | `make logs` / `make ps` | Follow logs; container status |
 | `make backup` / `make backup-test` | Take a backup now; restore the newest into a scratch database and check it |
 | `make restore FILE=... CONFIRM=...` | Restore a dump ([docs/RUNBOOKS/restore.md](docs/RUNBOOKS/restore.md)) |

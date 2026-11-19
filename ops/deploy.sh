@@ -21,6 +21,12 @@
 # Settings (environment): DEPLOY_SSH (default vatpac-v3), DEPLOY_DIR (default ~/vatpac-statsV2), DEPLOY_GH (path to gh),
 # DEPLOY_REPO (default t288matt/vatpac-statsV2), DEPLOY_MIN_MEM_MB, DEPLOY_MAX_DISK_PCT, DEPLOY_MAX_DUMP_AGE_H,
 # DEPLOY_MIN_DUMP_BYTES, DEPLOY_MAX_LOAD, DEPLOY_LOG_SINCE, DEPLOY_CMD_TIMEOUT (seconds per ssh call, default 60).
+# make deploy on the VM (issue 411) runs these on the VM itself, with DEPLOY_LOCAL=1 (the same commands, no ssh to itself):
+#   bash ops/deploy.sh --deploy-gate <commit>  first step, before anything changes: the preflight checks; then a fresh dump
+#       (backup.sh once in the backup container); then free space (DEPLOY_DUMP_RESERVE_MB, DEPLOY_SAFE_MARGIN_MB) and the new dump
+#       checked readable and newer than the start. Any FAIL stops make deploy with nothing changed.
+#   bash ops/deploy.sh --wait-healthy           after up: waits up to DEPLOY_WAIT_S (default 300) for every service to be healthy
+# Settings for these: DEPLOY_DUMP_RESERVE_MB (default 160), DEPLOY_SAFE_MARGIN_MB (default 2048), DEPLOY_WAIT_S (default 300).
 
 DEPLOY_SSH="${DEPLOY_SSH:-vatpac-v3}"
 DEPLOY_DIR="${DEPLOY_DIR:-~/vatpac-statsV2}"
@@ -34,6 +40,10 @@ FAIL_GAP_S=300     # a polling gap above this is a FAIL
 MAX_LOAD="${DEPLOY_MAX_LOAD:-2.0}"
 CMD_TIMEOUT="${DEPLOY_CMD_TIMEOUT:-60}"
 LOG_SINCE="${DEPLOY_LOG_SINCE:-6h}"
+DUMP_RESERVE_MB="${DEPLOY_DUMP_RESERVE_MB:-160}"   # a fresh dump is about this big (owner decision 19-11-2026)
+SAFE_MARGIN_MB="${DEPLOY_SAFE_MARGIN_MB:-2048}"    # free space that must still be left after that dump
+DUMP_NEED_MB=$(( DUMP_RESERVE_MB + SAFE_MARGIN_MB ))
+WAIT_HEALTHY_S="${DEPLOY_WAIT_S:-300}"
 SERVICES="db collector grafana backup watchdog vatsim-atc-stats"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY=python; command -v python >/dev/null 2>&1 || PY=python3   # counts the invariant pack with ops/watchdog/integrity.py (stdlib only, no psycopg needed)
@@ -141,10 +151,13 @@ summary() {
 
 SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3"
 with_timeout() { if command -v timeout >/dev/null 2>&1; then timeout "${TMO:-$CMD_TIMEOUT}" "$@"; else "$@"; fi; }
+# DEPLOY_LOCAL=1 (make deploy on the VM, issue 411): the same command runs in this checkout instead of over ssh to the VM itself.
 # shellcheck disable=SC2086
-vm()    { [ "$VM_DOWN" = 1 ] && return 255; with_timeout ssh -n $SSH_OPTS "$DEPLOY_SSH" "cd $DEPLOY_DIR && $1"; }
+vm()    { [ "$VM_DOWN" = 1 ] && return 255
+          if [ "${DEPLOY_LOCAL:-0}" = 1 ]; then with_timeout bash -c "cd \"$ROOT\" && $1" </dev/null; else with_timeout ssh -n $SSH_OPTS "$DEPLOY_SSH" "cd $DEPLOY_DIR && $1"; fi; }
 # shellcheck disable=SC2086
-vm_in() { [ "$VM_DOWN" = 1 ] && return 255; with_timeout ssh $SSH_OPTS "$DEPLOY_SSH" "cd $DEPLOY_DIR && $1"; }
+vm_in() { [ "$VM_DOWN" = 1 ] && return 255
+          if [ "${DEPLOY_LOCAL:-0}" = 1 ]; then with_timeout bash -c "cd \"$ROOT\" && $1"; else with_timeout ssh $SSH_OPTS "$DEPLOY_SSH" "cd $DEPLOY_DIR && $1"; fi; }
 
 # psql inside the db container, read-only, SQL on stdin. The single quotes keep $POSTGRES_* for the container's shell.
 PSQL='docker compose exec -T db sh -c '\''psql -X -q -tA -F"|" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'\'''
@@ -215,16 +228,20 @@ vm_services() {
   printf '%s' "${out# }"
 }
 
+# unhealthy <services>: the services of the list that are not healthy yet, as name=state; empty when all are healthy
+unhealthy() {
+  local svc h out=""
+  for svc in $1; do h="$(svc_line "$svc" | cut -d'|' -f4)"; [ "$h" = healthy ] || out="$out $svc=${h:-missing}"; done
+  printf '%s' "${out# }"
+}
+
 # check_healthy [<services>]: every named service (default: all of SERVICES) must be healthy; the preflight passes the VM's current ones
 check_healthy() {
-  local bad="" svc l h list="${1-$SERVICES}"
+  local bad list="${1-$SERVICES}"
   [ -n "$CONTAINERS" ] || { emit FAIL containers_healthy "could not read the container list"; return; }
   [ -n "$list" ] || { emit FAIL containers_healthy "could not read the VM's service list"; return; }
-  for svc in $list; do
-    l="$(svc_line "$svc")"; h="$(printf '%s' "$l" | cut -d'|' -f4)"
-    [ "$h" = healthy ] || bad="$bad $svc=${h:-missing}"
-  done
-  if [ -z "$bad" ]; then emit PASS containers_healthy "all of: $list"; else emit FAIL containers_healthy "not healthy:$bad"; fi
+  bad="$(unhealthy "$list")"
+  if [ -z "$bad" ]; then emit PASS containers_healthy "all of: $list"; else emit FAIL containers_healthy "not healthy: $bad"; fi
 }
 
 REGISTRY_SERVICES="collector watchdog backup migrate loader"
@@ -365,7 +382,8 @@ preflight() {
   fi
 
   # newest dump: readable, big enough, not from the future, under 26 h (FAIL); over 2 h old is a WARN
-  if ! dump_facts; then emit FAIL recent_dump "could not read the backup volume"
+  if [ "${DEPLOY_GATE:-0}" = 1 ]; then printf 'SKIP  %-30s %s\n' recent_dump "the fresh dump that make deploy takes next replaces this check"
+  elif ! dump_facts; then emit FAIL recent_dump "could not read the backup volume"
   elif [ -z "$now" ]; then emit FAIL recent_dump "no VM time to compute the age"
   else
     dumpage=$(( now - D_EPOCH )); ageh=$(( dumpage / 3600 ))
@@ -380,6 +398,7 @@ preflight() {
 
   check_registry_preflight "${full:-$want}"
 
+  [ "${DEPLOY_GATE:-0}" = 1 ] && return 0   # the deploy gate goes on to the dump and reads the counts itself
   summary preflight
 }
 
@@ -618,6 +637,75 @@ mark() {
   echo "PASS  marked ${full:0:10} at $stamp by $who (~/vatpac-statsV2/.deploy/release on the VM)"
 }
 
+# ---------------------------------------------------------------- make deploy on the VM (issue 411)
+
+# disk_ok <free MB on />: succeeds when it is a number at least what one fresh dump plus the safety margin needs
+disk_ok() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge "$DUMP_NEED_MB" ]; }
+
+# check_dump_space: free space on / before the dump (the dump is about DUMP_RESERVE_MB; SAFE_MARGIN_MB must stay free after it)
+check_dump_space() {
+  local free
+  free="$(vm 'df -Pm / | awk "NR==2{print \$4}"' 2>/dev/null | tr -d '\r' | head -n 1)"
+  if disk_ok "$free"; then emit PASS dump_space "$free MB free on / (needs $DUMP_NEED_MB: a dump of about $DUMP_RESERVE_MB MB and $SAFE_MARGIN_MB MB left over)"; return 0; fi
+  emit FAIL dump_space "${free:-could not read} MB free on / (needs $DUMP_NEED_MB: a dump of about $DUMP_RESERVE_MB MB and $SAFE_MARGIN_MB MB left over)"
+  return 1
+}
+
+# take_fresh_dump <start epoch>: one dump by the backup container's own script (backup.sh once: pg_dump, pg_restore -l, content check,
+# off-box copy, rotation; a rejected dump is kept aside as *.rejected). Then the newest dump must be readable (the same pg_restore -l
+# as --status), at least the minimum size, and not older than the start of this deploy.
+take_fresh_dump() {
+  local out rc=0 last
+  out="$(TMO=900 vm 'docker compose exec -T backup backup.sh once' 2>&1)" || rc=$?
+  out="$(printf '%s\n' "$out" | tr -d '\r')"; last="$(printf '%s\n' "$out" | tail -n 1 | cut -c1-100)"
+  printf '%s\n' "$out" | tail -n 5
+  if [ "$rc" -ne 0 ]; then emit FAIL dump_taken "backup.sh once failed (exit $rc): $last"; return 1; fi
+  emit PASS dump_taken "backup.sh once: $last"
+  if ! dump_facts; then emit FAIL dump_valid "could not read the newest dump"; return 1; fi
+  if [ "$D_VALID" != valid ] || [ "$D_SIZE" -lt "$MIN_DUMP_BYTES" ]; then emit FAIL dump_valid "$D_NAME: $D_SIZE bytes (min $MIN_DUMP_BYTES), readable: $D_VALID"; return 1; fi
+  if [ "$D_EPOCH" -lt "$1" ]; then emit FAIL dump_valid "newest dump $D_NAME is older than the start of this deploy"; return 1; fi
+  emit PASS dump_valid "$D_NAME, $D_SIZE bytes, pg_restore -l ok, newer than the start of this deploy"
+}
+
+# deploy_gate <commit>: the first step of make deploy, before anything changes. (1) the preflight checks, any FAIL stops; (2) free
+# space, then a fresh dump; (3) that dump is valid and new. Any FAIL returns 1 here, so the pull, the image check and up never run.
+deploy_gate() {
+  local start
+  DEPLOY_GATE=1 preflight "$1" || return $?
+  if [ "$FAILS" -eq 0 ]; then
+    start="$(vm_now)"
+    if [ -z "$start" ]; then emit FAIL dump_taken "could not read the VM time"
+    elif check_dump_space; then take_fresh_dump "$start"; fi
+  fi
+  if [ "$FAILS" -ne 0 ]; then
+    summary deploy-gate
+    echo "make deploy: stopped before anything changed" >&2
+    return 1
+  fi
+  summary deploy-gate
+}
+
+# wait_healthy: after up, polls until every service the VM's compose file defines is healthy, or WAIT_HEALTHY_S passes. Reads only.
+wait_healthy() {
+  local t0 bad list
+  t0="$(date +%s)"
+  while :; do
+    load_containers; list="$(vm_services)"
+    if [ -z "$list" ]; then bad="could not read the VM's service list"
+    else
+      bad="$(unhealthy "$list")"
+      if [ -z "$bad" ]; then emit PASS containers_healthy "all of: $list (after $(( $(date +%s) - t0 )) s)"; return 0; fi
+    fi
+    if [ $(( $(date +%s) - t0 )) -ge "$WAIT_HEALTHY_S" ]; then
+      emit FAIL containers_healthy "not healthy after $WAIT_HEALTHY_S s: $bad"
+      summary wait-healthy
+      echo "make deploy: containers not healthy; the release marker was NOT written" >&2
+      return 1
+    fi
+    sleep 10
+  done
+}
+
 # ---------------------------------------------------------------- main
 
 main() {
@@ -626,6 +714,9 @@ main() {
     --verify) verify ;;
     --status) status ;;
     --mark) mark "${2:-}" "${3:-}" ;;
+    --deploy-gate) deploy_gate "${2:-}" ;;
+    --wait-healthy) wait_healthy ;;
+    --deploy-mark) mark "${2:-}" --allow-silent-issues ;;   # make deploy, after a passing verify: silent issues warn, never refuse (issue 411)
     *) echo "usage: bash ops/deploy.sh --preflight <commit> | --verify | --status | --mark <commit> [--allow-silent-issues]" >&2; return 2 ;;
   esac
 }
