@@ -288,7 +288,7 @@
     {
       "id": 6,
       "type": "barchart",
-      "title": "Aircraft airborne during the Monday event window, by month (0700-1200Z)",
+      "title": "Unique aircraft airborne during the Monday event window, by month (0700-1200Z)",
       "description": "For each UTC month in the last 5 years that has a Monday with any, the number of distinct finished flights that were connected at some moment between 0700 and 1200 UTC on any Monday in that month and had airborne time above 0 (groundspeed of 60 kt or more at some point, as on the weekday and weekend charts). A flight that overlaps the window on one or more Mondays in the month counts once for that month, however many Mondays it touches or how long it spans each one. The flight summary stores when a flight started and ended and its total airborne minutes, not when it was airborne, so a flight that took off and landed outside the window but stayed connected into it is counted: the bars are an upper bound of the aircraft actually in the air during the window. Flights imported from historical records are included (no altitude data is needed for this count). A flight counts about 8 hours after its last position, so the latest month fills in during that evening. This is NOT a sum of the weekly chart above: a flight on two Mondays in the same month counts once here, not twice. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -369,7 +369,7 @@
     {
       "id": 7,
       "type": "barchart",
-      "title": "Controllers online during the Monday event window, by month (0700-1200Z)",
+      "title": "Unique controllers online during the Monday event window, by month (0700-1200Z)",
       "description": "For each UTC month in the last 5 years that has a Monday with any, the number of distinct controllers (CIDs) with a session connected at some moment between 0700 and 1200 UTC on any Monday in that month. A session that starts before 1200 and ends at or after 0700 on a Monday in that month counts, however long it spans the window or how short its overlap; a controller with several sessions across one or more Mondays in the month counts once for that month. Only whitelisted positions are stored. A session appears once it has ended. This is NOT a sum of the weekly chart above: a controller online on two Mondays in the same month counts once here, not twice. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",

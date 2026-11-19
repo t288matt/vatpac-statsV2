@@ -239,7 +239,7 @@ def test_card_156_reads_the_flight_summary_not_raw_positions() -> None:
 
 
 # ------------------------------------------------------------------ card 156 by month (issue 407: not a sum of the weekly bars)
-MONTH_TITLE = "Aircraft airborne during the Monday event window, by month (0700-1200Z)"
+MONTH_TITLE = "Unique aircraft airborne during the Monday event window, by month (0700-1200Z)"
 
 
 def _bars_by_month(conn, start: datetime = MON - timedelta(days=1), end: datetime = NEXT_MON + timedelta(days=3)) -> dict[str, int]:

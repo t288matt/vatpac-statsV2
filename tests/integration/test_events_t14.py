@@ -134,7 +134,7 @@ def test_monday_controllers_chart_counts_distinct_cids_in_the_window_0700_to_120
         (other.strftime("%d-%m-%Y"), 1), (mon.strftime("%d-%m-%Y"), 5)]   # other: 28; mon: 21, 22, 24, 26, 27
 
 
-CONTROLLERS_MONTH = "Controllers online during the Monday event window, by month"
+CONTROLLERS_MONTH = "Unique controllers online during the Monday event window, by month"
 
 
 def test_monday_controllers_chart_by_month_counts_a_cid_on_two_mondays_once_not_twice(conn) -> None:
