@@ -8,7 +8,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 
 ## Monday events: visitors can choose the time range (19-11-2026, issue 407)
 
-- **The time picker on the public Monday events page now works.** A public page ignores the picker unless it is switched on for that page, and it was on only for the promotions page, so choosing "This year" changed nothing. It is now on for both (`TIME_PICKER` in `ops/grafana_public.py`). The page still opens on the last 14 months. A longer range makes the four charts slower to load.
+- **The time picker on the public Monday events page now works.** A public page ignores the picker unless it is switched on for that page, and it was on only for the promotions page, so choosing "This year" changed nothing. It is now on for both (`TIME_PICKER` in `ops/grafana_public.py`). The page still opens on the last 14 months. A longer range costs almost nothing: each chart's query took under 0.2 seconds on production at 14 months and at 10 years (measured 19-11-2026).
 - Not yet deployed. The setting changes when `python3 ops/grafana_public.py` is run on the VM.
 
 ## Monday events: every panel grouped by month, no fixed time range (19-11-2026, issue 407)

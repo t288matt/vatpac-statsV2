@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Share every provisioned Grafana dashboard as a read-only public dashboard, or list or remove the links.
 
-A public dashboard has a fixed time range, except the promotions and Monday events pages. It runs only the queries saved
-on the dashboard: visitors cannot send their own SQL or edit anything (docs/RUNBOOKS/public-access.md). Run on the VM, from ~/vatpac-statsV2:
+A public dashboard has a fixed time range, except the promotions and Monday events pages. It runs only the queries
+saved on the dashboard: visitors cannot send their own SQL or edit anything (docs/RUNBOOKS/public-access.md).
+Run on the VM, from ~/vatpac-statsV2:
 
     python3 ops/grafana_public.py                 create or repair the public links and print them
     python3 ops/grafana_public.py --list          print the links only (changes nothing)
