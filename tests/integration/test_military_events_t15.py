@@ -172,7 +172,7 @@ def test_card_184_flights_per_utc_week_of_end(conn) -> None:
 # ------------------------------------------------------------------ card 156 (issues 324, 407: one bar per month)
 # The panel counts finished flights from the flight summary (`flight`): airborne_minutes > 0 and connected at some moment in
 # 0700-1200 UTC on any Monday in a UTC month (start before 12:00, end after 07:00 on that Monday). The time range is the
-# panel's own (5 years), here a fixed pair. MON and NEXT_MON are both Mondays in October 2026 (same UTC month), fixed
+# dashboard default (14 months), here a fixed pair. MON and NEXT_MON are both Mondays in October 2026 (same UTC month), fixed
 # explicit dates (never the relative monday_utc() helper, which is not safe for a monthly assertion).
 MON = datetime(2026, 10, 5, tzinfo=UTC)
 NEXT_MON = MON + timedelta(days=7)
