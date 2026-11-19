@@ -15,6 +15,8 @@ up: check-env
 # Registry mode (images pulled, never built): VATPAC_IMAGE_PREFIX is set once in .env; the tag defaults to latest, so no .env
 # edit per deploy. Order: fast-forward the checkout, pull, check the pulled images were built from this checkout, only then up.
 # Run the release workflow for the commit first; if its images are not published yet this stops before touching anything running.
+# Issue 411: the VM runs the preflight checks and takes a fresh dump before anything changes (any failure stops it there); after up it
+# waits for healthy containers, runs --verify, and writes the release marker only if verify passed. Settings: ops/deploy.sh header.
 # On a detached checkout (after a rollback) run `git checkout main` first.
 deploy: check-env
 	@mode="$$(sh ops/image_mode.sh .env)"; \
@@ -22,11 +24,16 @@ deploy: check-env
 	  echo "make deploy: VATPAC_IMAGE_PREFIX is not set (environment or .env); mode is: $$mode." >&2; \
 	  echo "Use 'make up' for local builds." >&2; exit 1; \
 	fi
-	docker compose config --images
-	git pull --ff-only
-	docker compose pull
-	sh ops/check_pulled_images.sh
-	docker compose up -d --no-build
+	sha="$$(git fetch -q origin main && git rev-parse origin/main)" && \
+	DEPLOY_LOCAL=1 bash ops/deploy.sh --deploy-gate "$$sha" && \
+	docker compose config --images && \
+	git merge --ff-only "$$sha" && \
+	docker compose pull && \
+	sh ops/check_pulled_images.sh && \
+	docker compose up -d --no-build && \
+	DEPLOY_LOCAL=1 bash ops/deploy.sh --wait-healthy && \
+	DEPLOY_LOCAL=1 bash ops/deploy.sh --verify && \
+	DEPLOY_LOCAL=1 bash ops/deploy.sh --deploy-mark "$$sha"
 
 # db published on 127.0.0.1:55432 (dev overlay). Builds locally, so it refuses in registry mode too.
 dev: check-env

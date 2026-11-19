@@ -88,6 +88,7 @@ case "$*" in
       *"pilot session pairs"*) brk flap && exit 1; cat "$FAKE_DIR/flap.txt" ;;
       *poll_log*) brk gap && exit 1; cat "$FAKE_DIR/gap.txt" ;;
     esac ;;
+  *"backup.sh once"*) brk take && exit 1; echo "2026-11-19T15:01:00Z backup: ok 160M"; exit "${FAKE_TAKE_RC:-0}" ;;
   *"exec -T backup"*) brk dump && exit 1; cat "$FAKE_DIR/dump.txt" ;;
   *"exec -T collector"*) brk health && exit 1; cat "$FAKE_DIR/health.txt" ;;
   "compose logs"*) brk logs && exit 1; cat "$FAKE_DIR/wdlog.txt"; exit "${FAKE_LOGS_RC:-0}" ;;
@@ -807,7 +808,7 @@ def test_pulled_images_check_distinct_messages(tmp_path: Path) -> None:
     assert r.returncode == 1 and "pins a sha- tag" in r.stderr and "Delete that line" in r.stderr
     mk = (REPO / "Makefile").read_text(encoding="utf-8")
     body = mk.split("\ndeploy:")[1].split("\n\n")[0]
-    order = [body.index(x) for x in ("git pull --ff-only", "docker compose pull", "check_pulled_images.sh", "docker compose up -d --no-build")]
+    order = [body.index(x) for x in ("git merge --ff-only", "docker compose pull", "check_pulled_images.sh", "docker compose up -d --no-build")]
     assert order == sorted(order) and "--build" not in body.replace("--no-build", "")  # never up before the check, never builds
 
 
@@ -943,3 +944,183 @@ def test_verify_and_mark_refuse_uncommitted_changes_under_ops(tmp_path: Path) ->
     assert f.run("--mark", "f893585", "--allow-silent-issues")[0] == 1
     f.set(FAKE_DIRTY=" M ops/x.sh", FAKE_GIT_STATUS_FAIL="")  # preflight and status work from a dirty checkout
     assert f.run("--preflight", "f893585")[0] == 0 and f.run("--status")[0] == 0
+
+
+# ---------------------------------------------------------------- make deploy on the VM (issue 411)
+
+
+def _gate_fake(tmp_path: Path, dump_epoch: int = NOW + 60, valid: str = "valid") -> Fake:
+    """A healthy VM whose newest dump is the one the fake backup container writes: newer than the deploy start unless told otherwise."""
+    f = Fake(tmp_path)
+    f.write("dump.txt", f"{dump_epoch}.5 5363183 vatpac_20261110T150100Z.dump\n{valid}\n")
+    return f
+
+
+def _dump_taken(f: Fake) -> bool:
+    log = f.dir / "docker.log"
+    return log.exists() and "backup.sh once" in log.read_text()
+
+
+def test_deploy_gate_takes_a_fresh_dump_and_passes_when_it_is_valid(tmp_path: Path) -> None:
+    f = _gate_fake(tmp_path)
+    rc, out = f.run("--deploy-gate", FULL)
+    assert rc == 0, out
+    assert line_for(out, "dump_space").startswith("PASS") and line_for(out, "dump_taken").startswith("PASS"), out
+    assert line_for(out, "dump_valid").startswith("PASS") and _dump_taken(f), out
+    assert line_for(out, "recent_dump").startswith("SKIP") and "RESULT   deploy-gate OK" in out, out
+    assert not (f.home / "vatpac-statsV2" / ".deploy").exists()  # the gate writes no marker
+
+
+def test_deploy_gate_stops_before_anything_changes_when_the_dump_fails(tmp_path: Path) -> None:
+    f = _gate_fake(tmp_path)
+    f.set(FAKE_TAKE_RC="1")
+    rc, out = f.run("--deploy-gate", FULL)
+    assert rc == 1 and line_for(out, "dump_taken").startswith("FAIL"), out
+    assert "dump_valid" not in out and "stopped before anything changed" in out, out
+
+
+def test_deploy_gate_stops_when_the_new_dump_is_invalid(tmp_path: Path) -> None:
+    f = _gate_fake(tmp_path, valid="invalid")
+    rc, out = f.run("--deploy-gate", FULL)
+    assert rc == 1 and line_for(out, "dump_valid").startswith("FAIL") and "readable: invalid" in out, out
+    assert "stopped before anything changed" in out
+
+
+def test_deploy_gate_refuses_a_dump_older_than_the_deploy_start(tmp_path: Path) -> None:
+    f = _gate_fake(tmp_path, dump_epoch=NOW - 3600)
+    rc, out = f.run("--deploy-gate", FULL)
+    assert rc == 1 and "older than the start of this deploy" in line_for(out, "dump_valid"), out
+
+
+def test_deploy_gate_stops_before_the_dump_when_disk_is_low(tmp_path: Path) -> None:
+    f = _gate_fake(tmp_path)
+    f.write("df.txt", "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda2 206099468 22795560 1000 50% /\n")
+    rc, out = f.run("--deploy-gate", FULL)
+    assert rc == 1 and line_for(out, "dump_space").startswith("FAIL") and "1000 MB free" in out, out
+    assert not _dump_taken(f) and "dump_taken" not in out
+
+
+def test_deploy_gate_refuses_when_a_preflight_check_fails(tmp_path: Path) -> None:
+    f = _gate_fake(tmp_path)
+    f.set(FAKE_BREAK="gh")  # no CI answer: the first step fails, so no dump is taken
+    rc, out = f.run("--deploy-gate", FULL)
+    assert rc == 1 and line_for(out, "ci_green").startswith("FAIL") and not _dump_taken(f), out
+
+
+def test_disk_margin_is_the_dump_plus_the_safety_margin() -> None:
+    for free, want in (("1160", "yes"), ("1159", "no"), ("", "no"), ("x", "no")):
+        p = subprocess.run([str(BASH), "-c", 'DEPLOY_SOURCE_ONLY=1; . "$0"; disk_ok "$1" && echo yes || echo no', str(SCRIPT), free],
+                           capture_output=True, text=True, cwd=REPO, timeout=60)
+        assert p.stdout.strip() == want, (free, p.stdout, p.stderr)
+
+
+def test_wait_healthy_passes_then_refuses_when_a_service_stays_unhealthy(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    rc, out = f.run("--wait-healthy")
+    assert rc == 0 and line_for(out, "containers_healthy").startswith("PASS"), out
+    f.write("inspect.txt", _inspect(health="starting"))
+    f.set(DEPLOY_WAIT_S="0")
+    rc, out = f.run("--wait-healthy")
+    assert rc == 1 and "not healthy after 0 s: db=starting" in out and "marker was NOT written" in out, out
+
+
+def test_deploy_mark_writes_the_marker_after_a_passing_verify(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    assert f.run("--verify")[0] == 0
+    rc, out = f.run("--deploy-mark", FULL)
+    assert rc == 0 and "PASS  marked" in out, out
+    assert f"commit={FULL}" in (f.home / "vatpac-statsV2" / ".deploy" / "release").read_text()
+
+
+def test_deploy_mark_is_not_reached_when_verify_fails(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    f.write("smoke.txt", "FAIL  container healthy: db\n")  # no SMOKE PASS: verify fails
+    chain = 'bash "$0" --verify && bash "$0" --deploy-mark "$1"'  # make stops at the first failing recipe line
+    p = subprocess.run([str(BASH), "-c", chain, str(SCRIPT), FULL], capture_output=True, text=True, env=f.env, cwd=REPO, timeout=120)
+    assert p.returncode != 0 and "RESULT   verify FAILED" in p.stdout, p.stdout
+    assert not (f.home / "vatpac-statsV2" / ".deploy" / "release").exists()
+
+
+def test_deploy_mark_warns_about_a_silent_issue_and_still_marks(tmp_path: Path) -> None:
+    f = Fake(tmp_path)
+    marker = f.home / "vatpac-statsV2" / ".deploy"
+    marker.mkdir(parents=True)
+    (marker / "release").write_text("commit=" + "1" * 40 + "\nmarked_utc=x\nmarked_by=x\n", newline="\n")
+    f.write("gitlog.txt", "\x01" + FULL + "\x1f2026-11-18T10:00:00+00:00\x1fFix the thing (Refs #77)\n")
+    f.write("issues.tsv", "77\tA silent issue\t\n")  # open, no comment at all
+    rc, out = f.run("--deploy-mark", FULL)
+    assert rc == 0 and "SILENT ISSUES (1)" in out and "#77" in out, out
+    assert "WARN  marking with silent or unchecked issues" in out, out
+    assert f"commit={FULL}" in (marker / "release").read_text()
+
+
+def test_make_deploy_runs_the_gate_first_and_the_marker_last() -> None:
+    lines = (REPO / "Makefile").read_text(encoding="utf-8").splitlines()
+    body = []
+    for ln in lines[lines.index("deploy: check-env") + 1:]:
+        if not ln.startswith("\t"):
+            break
+        body.append(ln[1:])
+    keys = ["--deploy-gate", "git merge --ff-only", "docker compose up -d --no-build", "--wait-healthy", "--verify", "--deploy-mark"]
+    idx = [next(i for i, b in enumerate(body) if k in b) for k in keys]
+    assert idx == sorted(idx) and len(set(idx)) == len(idx), body
+    assert not any(b.lstrip().startswith("-") for b in body), body  # no recipe line ignores its own failure
+
+
+def test_make_deploy_ships_only_the_commit_the_gate_checked() -> None:
+    """One sha is read once; the gate, the fast-forward and the marker all use it, so a push during the gate cannot be deployed."""
+    text = (REPO / "Makefile").read_text(encoding="utf-8")
+    body = text.split("\ndeploy: check-env")[1].split("\n\n")[0]
+    assert body.count("rev-parse origin/main") == 1, body  # the tip is read once, not again after the gate
+    assert 'git merge --ff-only "$$sha"' in body and '--deploy-gate "$$sha"' in body and '--deploy-mark "$$sha"' in body, body
+    assert "git pull" not in body.replace("# ", ""), body  # a pull would take whatever main is by then
+    assert body.count("&& \\") >= 8, body  # one shell, so the sha reaches every step and a failure stops the chain
+
+
+def test_deploy_local_runs_the_gate_and_wait_healthy_without_ssh(tmp_path: Path) -> None:
+    """make deploy sets DEPLOY_LOCAL=1: every VM command runs in this checkout, so the ssh stub must never be called."""
+    f = _gate_fake(tmp_path)
+    f.set(DEPLOY_LOCAL="1")
+    rc, out = f.run("--wait-healthy")
+    assert rc == 0 and line_for(out, "containers_healthy").startswith("PASS"), out
+    rc, out = f.run("--deploy-gate", FULL)
+    assert rc == 0 and line_for(out, "dump_valid").startswith("PASS") and _dump_taken(f), out
+    assert "the local shell answers" in line_for(out, "vm_reachable") and "ssh" not in line_for(out, "vm_reachable"), out
+    assert f.ssh_log() == "", f.ssh_log()
+
+
+def test_reachability_message_is_correct_for_ssh_and_for_local(tmp_path: Path) -> None:
+    for local, want in (("", "ssh fakehost"), ("1", "the local shell")):
+        p = subprocess.run([str(BASH), "-c", 'DEPLOY_SOURCE_ONLY=1; . "$0"; reach_what', str(SCRIPT)],
+                           capture_output=True, text=True, cwd=REPO, timeout=60, env=dict(os.environ, DEPLOY_LOCAL=local, DEPLOY_SSH="fakehost"))
+        assert p.stdout.strip() == want, (local, p.stdout, p.stderr)
+    f = Fake(tmp_path)
+    assert line_for(f.run("--verify")[1], "vm_reachable").endswith("ssh answers")  # remote wording unchanged
+
+
+def test_deploy_gate_refuses_a_dump_smaller_than_the_minimum(tmp_path: Path) -> None:
+    f = _gate_fake(tmp_path)
+    f.write("dump.txt", f"{NOW + 60}.5 999 vatpac_20261110T150100Z.dump\nvalid\n")  # readable, new, but under DEPLOY_MIN_DUMP_BYTES
+    rc, out = f.run("--deploy-gate", FULL)
+    assert rc == 1 and line_for(out, "dump_valid").startswith("FAIL") and "999 bytes (min 1000000)" in out, out
+    assert "stopped before anything changed" in out
+
+
+def test_stale_issues_reads_the_marker_over_ssh_or_locally(tmp_path: Path) -> None:
+    f = _guard_fake(tmp_path, COMMITS, [(94, "ninety-four", "2026-10-09T23:00:00Z")])
+    f.set(GH_BIN=str(f.bin / "gh"), REPO="o/r", DEPLOY_SSH="fakehost")
+
+    ops = f.home / "vatpac-statsV2" / "ops"  # the script finds its checkout from its own place: use a copy inside the fake VM checkout
+    for name in ("stale_issues.sh", "release_common.sh"):
+        shutil.copy(REPO / "ops" / name, ops / name)
+
+    def run() -> tuple[int, str]:
+        p = subprocess.run([str(BASH), str(ops / "stale_issues.sh")], capture_output=True, text=True, env=f.env, cwd=REPO, timeout=60)
+        return p.returncode, p.stdout + p.stderr
+
+    rc, out = run()  # unset: the marker is read over ssh, as before
+    assert f"since the release marker {PREV[:10]}" in out and "fakehost" in f.ssh_log(), (rc, out)
+    (f.dir / "ssh.log").unlink()
+    f.set(DEPLOY_LOCAL="1", FAKE_SSH_DOWN="1")  # locally: read from the checkout; ssh is never called (and would fail if it were)
+    rc, out = run()
+    assert f"since the release marker {PREV[:10]}" in out and f.ssh_log() == "", (rc, out)
