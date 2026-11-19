@@ -13,7 +13,7 @@ Disk sizing: about 2 to 3 GB of positions at 180 days, plus WAL (up to 2 GB), pl
 **The idea.** The VM is a read-only git checkout of this repository. The five images that this project builds (collector, watchdog, backup, migrate and the ATC stats loader) are built once by GitHub Actions and stored in a private registry (GHCR), tagged with the commit (`sha-` plus the first 7 characters). The VM pulls them instead of building them. The images carry the moving tag `latest` as well as `sha-<7>`, and a deploy is `make deploy` (section 2f):
 
 ```sh
-make deploy   # git pull --ff-only, docker compose pull, sh ops/check_pulled_images.sh, then docker compose up -d --no-build
+make deploy   # git merge --ff-only to the commit the checks passed for, docker compose pull, sh ops/check_pulled_images.sh, then docker compose up -d --no-build
 ```
 
 To deploy one exact commit instead, see "Roll back" (a `sha-<7>` pin for one command).

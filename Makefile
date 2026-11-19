@@ -24,16 +24,16 @@ deploy: check-env
 	  echo "make deploy: VATPAC_IMAGE_PREFIX is not set (environment or .env); mode is: $$mode." >&2; \
 	  echo "Use 'make up' for local builds." >&2; exit 1; \
 	fi
-	git fetch -q origin main
-	DEPLOY_LOCAL=1 bash ops/deploy.sh --deploy-gate "$$(git rev-parse origin/main)"
-	docker compose config --images
-	git pull --ff-only
-	docker compose pull
-	sh ops/check_pulled_images.sh
-	docker compose up -d --no-build
-	DEPLOY_LOCAL=1 bash ops/deploy.sh --wait-healthy
-	DEPLOY_LOCAL=1 bash ops/deploy.sh --verify
-	DEPLOY_LOCAL=1 bash ops/deploy.sh --deploy-mark "$$(git rev-parse HEAD)"
+	sha="$$(git fetch -q origin main && git rev-parse origin/main)" && \
+	DEPLOY_LOCAL=1 bash ops/deploy.sh --deploy-gate "$$sha" && \
+	docker compose config --images && \
+	git merge --ff-only "$$sha" && \
+	docker compose pull && \
+	sh ops/check_pulled_images.sh && \
+	docker compose up -d --no-build && \
+	DEPLOY_LOCAL=1 bash ops/deploy.sh --wait-healthy && \
+	DEPLOY_LOCAL=1 bash ops/deploy.sh --verify && \
+	DEPLOY_LOCAL=1 bash ops/deploy.sh --deploy-mark "$$sha"
 
 # db published on 127.0.0.1:55432 (dev overlay). Builds locally, so it refuses in registry mode too.
 dev: check-env

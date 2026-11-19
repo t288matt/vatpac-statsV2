@@ -808,7 +808,7 @@ def test_pulled_images_check_distinct_messages(tmp_path: Path) -> None:
     assert r.returncode == 1 and "pins a sha- tag" in r.stderr and "Delete that line" in r.stderr
     mk = (REPO / "Makefile").read_text(encoding="utf-8")
     body = mk.split("\ndeploy:")[1].split("\n\n")[0]
-    order = [body.index(x) for x in ("git pull --ff-only", "docker compose pull", "check_pulled_images.sh", "docker compose up -d --no-build")]
+    order = [body.index(x) for x in ("git merge --ff-only", "docker compose pull", "check_pulled_images.sh", "docker compose up -d --no-build")]
     assert order == sorted(order) and "--build" not in body.replace("--no-build", "")  # never up before the check, never builds
 
 
@@ -1061,10 +1061,20 @@ def test_make_deploy_runs_the_gate_first_and_the_marker_last() -> None:
         if not ln.startswith("\t"):
             break
         body.append(ln[1:])
-    keys = ["--deploy-gate", "git pull --ff-only", "docker compose up -d --no-build", "--wait-healthy", "--verify", "--deploy-mark"]
+    keys = ["--deploy-gate", "git merge --ff-only", "docker compose up -d --no-build", "--wait-healthy", "--verify", "--deploy-mark"]
     idx = [next(i for i, b in enumerate(body) if k in b) for k in keys]
     assert idx == sorted(idx) and len(set(idx)) == len(idx), body
     assert not any(b.lstrip().startswith("-") for b in body), body  # no recipe line ignores its own failure
+
+
+def test_make_deploy_ships_only_the_commit_the_gate_checked() -> None:
+    """One sha is read once; the gate, the fast-forward and the marker all use it, so a push during the gate cannot be deployed."""
+    text = (REPO / "Makefile").read_text(encoding="utf-8")
+    body = text.split("\ndeploy: check-env")[1].split("\n\n")[0]
+    assert body.count("rev-parse origin/main") == 1, body  # the tip is read once, not again after the gate
+    assert 'git merge --ff-only "$$sha"' in body and '--deploy-gate "$$sha"' in body and '--deploy-mark "$$sha"' in body, body
+    assert "git pull" not in body.replace("# ", ""), body  # a pull would take whatever main is by then
+    assert body.count("&& \\") >= 8, body  # one shell, so the sha reaches every step and a failure stops the chain
 
 
 def test_deploy_local_runs_the_gate_and_wait_healthy_without_ssh(tmp_path: Path) -> None:
