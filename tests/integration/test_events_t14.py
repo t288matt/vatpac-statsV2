@@ -110,6 +110,7 @@ def test_raafv_routes_last_month_count_each_session_once(conn) -> None:
 
 # ------------------------------------------------------------------ card 131 (controllers per month, issues 353, 407)
 CONTROLLERS_MONTH = "Unique controllers online during the Monday event window, by month"
+CONTROLLERS_MONTH_ALL = "Controllers online during the Monday event window, by month"
 
 
 def test_monthly_controllers_chart_counts_distinct_cids_in_the_window_0700_to_1200_utc(conn) -> None:
@@ -153,6 +154,36 @@ def test_monthly_controllers_chart_by_month_counts_a_cid_on_two_mondays_once_not
     window = (mon - timedelta(days=1), next_mon + timedelta(days=2))
     monthly = run_panel(conn, EVENTS, CONTROLLERS_MONTH, *window)
     assert [(r["Month (UTC)"], r["Controllers online"]) for r in monthly] == [("10-2026", 2)]   # not 3: 9400041 counted once
+
+
+def test_non_unique_monthly_controllers_chart_counts_a_cid_on_two_mondays_twice(conn) -> None:
+    """Issue 407: the plain "Controllers online ... by month" chart is the unique chart without DISTINCT. Same fixture as the
+    unique test (fixed dates in October 2026): CID 9400041 is online on both Mondays, CID 9400040 on the first only. The
+    unique chart gives 2; this chart gives 3."""
+    mon, next_mon = datetime(2026, 10, 5, tzinfo=UTC), datetime(2026, 10, 12, tzinfo=UTC)
+
+    def h(x: float, day: datetime = mon) -> datetime:
+        return day + timedelta(hours=x)
+
+    add_controller(conn, 9400040, h(8), h(9))
+    add_controller(conn, 9400041, h(8), h(9))
+    add_controller(conn, 9400041, h(8, next_mon), h(9, next_mon))
+    window = (mon - timedelta(days=1), next_mon + timedelta(days=2))
+    plain = run_panel(conn, EVENTS, CONTROLLERS_MONTH_ALL, *window)
+    unique = run_panel(conn, EVENTS, CONTROLLERS_MONTH, *window)
+    assert [(r["Month (UTC)"], r["Controllers online"]) for r in plain] == [("10-2026", 3)]
+    assert [(r["Month (UTC)"], r["Controllers online"]) for r in unique] == [("10-2026", 2)]
+
+
+def test_non_unique_monthly_controllers_chart_matches_the_unique_chart_apart_from_distinct() -> None:
+    plain, unique = panel(EVENTS, CONTROLLERS_MONTH_ALL), panel(EVENTS, CONTROLLERS_MONTH)
+    assert plain["title"] != unique["title"] and not plain["title"].startswith("Unique")
+    for key in ("type", "options", "fieldConfig"):
+        assert plain[key] == unique[key]
+    sql_plain, sql_unique = (p["targets"][0]["rawSql"] for p in (plain, unique))
+    assert "count(s.cid)" in sql_plain and "DISTINCT" not in sql_plain
+    body = lambda q: q.split("SELECT", 1)[1].replace("count(DISTINCT s.cid)", "count(s.cid)")  # noqa: E731
+    assert body(sql_plain) == body(sql_unique)
 
 
 def test_monthly_controllers_chart_has_the_aircraft_chart_format() -> None:

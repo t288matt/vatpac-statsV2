@@ -282,6 +282,86 @@
           }
         ]
       }
+    },
+    {
+      "id": 8,
+      "type": "barchart",
+      "title": "Controllers online during the Monday event window, by month (0700-1200Z)",
+      "description": "For each UTC month in the selected time range (14 months by default) that has a Monday with any, the number of controller sessions connected at some moment between 0700 and 1200 UTC on a Monday in that month, not made distinct: a controller online on three Mondays counts three times, and one with two separate sessions in the window on one Monday counts twice. The chart above counts each controller once per month. A session that starts before 1200 and ends at or after 0700 counts, however long it spans the window. Only whitelisted positions are stored. A session appears once it has ended. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- Each session is expanded to the UTC days it touches; only Mondays are kept, grouped by the month that contains each Monday, so the query reads the sessions once; the count is not distinct, so a controller on two Mondays in the same month counts twice\nSELECT to_char(date_trunc('month', m.monday), 'MM-YYYY') AS \"Month (UTC)\",\n       count(s.cid) AS \"Controllers online\"\nFROM controller_session_ranked s\nCROSS JOIN LATERAL generate_series(date_trunc('day', s.session_start AT TIME ZONE 'UTC'),\n                                   date_trunc('day', s.session_end AT TIME ZONE 'UTC'), interval '1 day') AS d(day)\nCROSS JOIN LATERAL (SELECT d.day::date AS monday,\n                           (d.day::date + time '07:00') AT TIME ZONE 'UTC' AS win_start,\n                           (d.day::date + time '12:00') AT TIME ZONE 'UTC' AS win_end) m\nWHERE s.session_end >= ($__timeFrom())::timestamptz\n  AND s.session_start <= ($__timeTo())::timestamptz\n  AND extract(isodow FROM d.day) = 1\n  AND s.session_start < m.win_end\n  AND s.session_end >= m.win_start\n  AND m.win_start BETWEEN ($__timeFrom())::timestamptz AND ($__timeTo())::timestamptz\nGROUP BY date_trunc('month', m.monday)\nORDER BY date_trunc('month', m.monday)"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "xField": "Month (UTC)",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "showValue": "auto",
+        "stacking": "none",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Controllers online"
+            },
+            "properties": [
+              {
+                "id": "custom.axisLabel",
+                "value": "Controllers online"
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }
