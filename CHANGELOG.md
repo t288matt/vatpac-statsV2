@@ -6,6 +6,12 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (release marker); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Monday events: monthly versions of the two weekly event-window charts (19-11-2026, issue 407)
+
+- **Two new panels alongside the existing ones.** `events/monday-events.json` now has "Aircraft airborne during the Monday event window, by month (0700-1200Z)" and "Controllers online during the Monday event window, by month (0700-1200Z)", grouped by UTC month instead of by Monday. The two weekly panels are unchanged.
+- **Not a sum of the weekly bars.** Each monthly panel re-runs the same `COUNT(DISTINCT session_id)` / `COUNT(DISTINCT cid)` query as its weekly sibling, grouped by the month that contains each Monday, so a flight or controller present on two Mondays in the same month counts once in that month's bar, not twice.
+- Not yet deployed.
+
 ## Telegram alert for pilots who log on and never get airborne (16-11-2026, issue 331)
 
 - **New alert.** The watchdog messages the Telegram chat when a pilot is online with a flight plan filed and has not taken off, and either has finished flights in the last 90 days with none airborne (the pilots on the panel "Pilots who logged on but never flew (90 days)") or has no finished flight at all, with the same Y-name rule as the panel. One message per logon, including a reconnect after a drop; a logon is forgotten after 24 hours. Wording, memory and settings: [docs/RUNBOOKS/alerts.md](docs/RUNBOOKS/alerts.md).

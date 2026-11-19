@@ -284,6 +284,168 @@
           }
         ]
       }
+    },
+    {
+      "id": 6,
+      "type": "barchart",
+      "title": "Aircraft airborne during the Monday event window, by month (0700-1200Z)",
+      "description": "For each UTC month in the last 5 years that has a Monday with any, the number of distinct finished flights that were connected at some moment between 0700 and 1200 UTC on any Monday in that month and had airborne time above 0 (groundspeed of 60 kt or more at some point, as on the weekday and weekend charts). A flight that overlaps the window on one or more Mondays in the month counts once for that month, however many Mondays it touches or how long it spans each one. The flight summary stores when a flight started and ended and its total airborne minutes, not when it was airborne, so a flight that took off and landed outside the window but stayed connected into it is counted: the bars are an upper bound of the aircraft actually in the air during the window. Flights imported from historical records are included (no altitude data is needed for this count). A flight counts about 8 hours after its last position, so the latest month fills in during that evening. This is NOT a sum of the weekly chart above: a flight on two Mondays in the same month counts once here, not twice. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 9
+      },
+      "timeFrom": "1825d",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- Each flight is expanded to the UTC days it touches; only Mondays are kept, grouped by the month that contains each Monday, so the query reads the flights once and a flight on two Mondays in the same month counts once (same dedup as the weekly panel, grouped coarser)\nSELECT to_char(date_trunc('month', m.monday), 'MM-YYYY') AS \"Month (UTC)\",\n       count(DISTINCT f.session_id) AS \"Aircraft airborne\"\nFROM flight f\nCROSS JOIN LATERAL generate_series(date_trunc('day', f.start_time AT TIME ZONE 'UTC'),\n                                   date_trunc('day', f.end_time AT TIME ZONE 'UTC'), interval '1 day') AS d(day)\nCROSS JOIN LATERAL (SELECT d.day::date AS monday,\n                           (d.day::date + time '07:00') AT TIME ZONE 'UTC' AS win_start,\n                           (d.day::date + time '12:00') AT TIME ZONE 'UTC' AS win_end) m\nWHERE f.airborne_minutes > 0\n  AND f.end_time >= ($__timeFrom())::timestamptz\n  AND f.start_time <= ($__timeTo())::timestamptz\n  AND extract(isodow FROM d.day) = 1\n  AND f.start_time < m.win_end\n  AND f.end_time > m.win_start\n  AND m.win_start BETWEEN ($__timeFrom())::timestamptz AND ($__timeTo())::timestamptz\nGROUP BY date_trunc('month', m.monday)\nORDER BY date_trunc('month', m.monday)"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "xField": "Month (UTC)",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "showValue": "auto",
+        "stacking": "none",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Aircraft airborne"
+            },
+            "properties": [
+              {
+                "id": "custom.axisLabel",
+                "value": "Aircraft airborne"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "type": "barchart",
+      "title": "Controllers online during the Monday event window, by month (0700-1200Z)",
+      "description": "For each UTC month in the last 5 years that has a Monday with any, the number of distinct controllers (CIDs) with a session connected at some moment between 0700 and 1200 UTC on any Monday in that month. A session that starts before 1200 and ends at or after 0700 on a Monday in that month counts, however long it spans the window or how short its overlap; a controller with several sessions across one or more Mondays in the month counts once for that month. Only whitelisted positions are stored. A session appears once it has ended. This is NOT a sum of the weekly chart above: a controller online on two Mondays in the same month counts once here, not twice. Times are UTC.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "vatpac"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 24,
+        "h": 9
+      },
+      "timeFrom": "1825d",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "vatpac"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "-- Each session is expanded to the UTC days it touches; only Mondays are kept, grouped by the month that contains each Monday, so the query reads the sessions once and a controller on two Mondays in the same month counts once (same dedup as the weekly panel, grouped coarser)\nSELECT to_char(date_trunc('month', m.monday), 'MM-YYYY') AS \"Month (UTC)\",\n       count(DISTINCT s.cid) AS \"Controllers online\"\nFROM controller_session_ranked s\nCROSS JOIN LATERAL generate_series(date_trunc('day', s.session_start AT TIME ZONE 'UTC'),\n                                   date_trunc('day', s.session_end AT TIME ZONE 'UTC'), interval '1 day') AS d(day)\nCROSS JOIN LATERAL (SELECT d.day::date AS monday,\n                           (d.day::date + time '07:00') AT TIME ZONE 'UTC' AS win_start,\n                           (d.day::date + time '12:00') AT TIME ZONE 'UTC' AS win_end) m\nWHERE s.session_end >= ($__timeFrom())::timestamptz\n  AND s.session_start <= ($__timeTo())::timestamptz\n  AND extract(isodow FROM d.day) = 1\n  AND s.session_start < m.win_end\n  AND s.session_end >= m.win_start\n  AND m.win_start BETWEEN ($__timeFrom())::timestamptz AND ($__timeTo())::timestamptz\nGROUP BY date_trunc('month', m.monday)\nORDER BY date_trunc('month', m.monday)"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "xField": "Month (UTC)",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "showValue": "auto",
+        "stacking": "none",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3AA0DD"
+          },
+          "decimals": 0,
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisSoftMin": 0,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Controllers online"
+            },
+            "properties": [
+              {
+                "id": "custom.axisLabel",
+                "value": "Controllers online"
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }
