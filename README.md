@@ -18,14 +18,18 @@ This version (v3) replaces the original system (v1).
 
 A complete step-by-step install for a new instance on a clean Linux machine is in [docs/INSTALL.md](docs/INSTALL.md). The short version:
 
-**Requirements:** Docker Desktop (Windows or macOS), or Docker Engine with the Compose plugin (Linux). Nothing else is needed to run the stack. If it runs in a virtual machine, set the CPU type to `host` or `x86-64-v2-AES` (the collector uses numpy 2, which needs it).
+**Requirements:** Docker Desktop (Windows or macOS), or Docker Engine with the Compose plugin (Linux). To fetch the code and run the commands below you also need `git`, `sh`, Python 3.11 or newer (for the check scripts) and, on Linux, `make` (optional: every `make` target has a plain command); the full list is in [docs/INSTALL.md](docs/INSTALL.md) section 1. If it runs in a virtual machine, set the CPU type to `host` or `x86-64-v2-AES` (the collector uses numpy 2, which needs it).
 
 ```
+git clone https://github.com/t288matt/vatpac-statsV2 vatpac-statsV2   # the repository is public: no login or key
+cd vatpac-statsV2
 sh ops/gen_env.sh            # writes .env with random passwords (Git Bash or Linux); or: make gen-env
 sh ops/check_env.sh          # rejects blank, weak or repeated secrets (make up runs this for you)
 docker compose up -d --build   # PC and first install: builds the images locally (on the production VM use pull and --no-build, below)
-docker compose ps            # wait until db, collector, grafana, backup and watchdog are healthy
+docker compose ps            # wait until db, collector, grafana, backup, watchdog and vatsim-atc-stats are healthy (migrate exits 0); up to about five minutes
 ```
+
+A new instance also backfills VATSIM's ATC session history from api.vatsim.net, newest first, over days (the ATC stats loader; see [docs/INSTALL.md](docs/INSTALL.md) "The ATC stats loader").
 
 `.env.example` has blank secrets on purpose: the stack will not start until they are set. Without `sh`, copy `.env.example` to `.env` and fill every blank secret yourself (letters and digits only, at least 16 characters, a different value for each, because the passwords sit inside connection URLs). Never commit `.env`.
 
