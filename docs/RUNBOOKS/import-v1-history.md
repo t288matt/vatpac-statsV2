@@ -28,7 +28,7 @@ No panel and no dashboard file is changed by this work. After a load:
 All of these before step 2. Stop if any is missing.
 
 1. The owner's explicit go for this load, in the session.
-2. A fresh dump of the target database, taken now (working agreement section 10): `cd ~/vatpac-statsV2 && docker compose exec backup backup.sh once`, then check the new file in `/backups` ([restore.md](restore.md)). The dump is the way back if a check fails after the commit.
+2. A fresh dump of the target database, taken now: `cd ~/vatpac-statsV2 && docker compose exec backup backup.sh once`, then check the new file in `/backups` ([restore.md](restore.md)). The dump is the way back if a check fails after the commit.
 3. The exact target. The loader refuses to run unless the name given with `--expect-db` equals `current_database()`. This catches a typo only: it does not tell a restored copy of production from the real thing, and the load runs as the container's superuser. On the VM the stack's database is `vatpac` unless `POSTGRES_DB` in `.env` says otherwise. Never aim it at a restored copy of production that tests will later empty (the integration tests empty every data table: [run-tests.md](run-tests.md); "Make a local copy of production" in [restore.md](restore.md)).
 4. The loader connects as the **owner role** (the `collector` role has no right on `flight_summary`). The default connection is `docker compose exec -T db sh -c 'psql -X -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'`, run from `~/vatpac-statsV2`. To use another connection, set `V1_IMPORT_PSQL` to a command (run with `sh -c`) that reads SQL on stdin.
 5. The collector is healthy and no deploy or restore is running.

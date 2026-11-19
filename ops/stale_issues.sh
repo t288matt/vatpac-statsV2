@@ -1,12 +1,12 @@
 #!/bin/bash
 # Silent-issue check (issue 104, owner decision 11-10-2026). Read-only: git log and `gh issue list`; writes nothing anywhere.
-#   bash ops/stale_issues.sh                    commits on origin/main since the last release marker (read over ssh, like deploy.sh --status)
+#   bash ops/stale_issues.sh                    commits on origin/main since the last release marker (read over ssh from ~/vatpac-statsV2/.deploy/release on the VM)
 #   bash ops/stale_issues.sh --since <sha|date> commits since that commit, or since that date (anything `git log --since` accepts)
-#   bash ops/stale_issues.sh --range <a>..<b>   exactly that commit range (used by deploy.sh --mark)
+#   bash ops/stale_issues.sh --range <a>..<b>   exactly that commit range
 # Lists every OPEN issue that a commit in the range names (#93, "issues 93, 94", "Refs #N") and that has no comment newer
 # than its newest such commit. Output: number, title, last comment date, newest commit. Exit 0 none, 1 some, 2 could not check.
 # Settings (environment): GH_BIN (default gh on PATH, else "C:\Program Files\GitHub CLI\gh.exe"), REPO (default t288matt/vatpac-statsV2),
-# DEPLOY_SSH (default vatpac-v3), DEPLOY_DIR (default ~/vatpac-statsV2), DEPLOY_LOCAL=1 (read the marker here, not over ssh).
+# DEPLOY_SSH (default vatpac-v3), DEPLOY_DIR (default ~/vatpac-statsV2).
 
 REPO="${REPO:-t288matt/vatpac-statsV2}"
 DEPLOY_SSH="${DEPLOY_SSH:-vatpac-v3}"
@@ -15,7 +15,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 g() { git -C "$ROOT" "$@"; }
 # shellcheck source=ops/release_common.sh
-. "$HERE/release_common.sh"   # gh_bin, RELEASE_MARKER_CMD, release_marker_commit (shared with deploy.sh)
+. "$HERE/release_common.sh"   # gh_bin, RELEASE_MARKER_CMD, release_marker_commit
 
 # issue_refs: stdin is `git log --format=%x01%H%x1f%cI%x1f%B`; prints "number<TAB>sha<TAB>iso date", once per commit and number.
 # Matches "#93" (also "#93, #94") and the word forms "issue 93", "issues 93, 94 and 95", "issues #93, 94".
@@ -34,12 +34,7 @@ issue_refs() {
 }
 
 # last_marker_commit: the commit in the VM release marker, empty when there is none or the VM cannot be read.
-# DEPLOY_LOCAL=1 (run on the VM itself, as make deploy does): read the marker in this checkout, no ssh (issue 411).
 last_marker_commit() {
-  if [ "${DEPLOY_LOCAL:-0}" = 1 ]; then
-    (cd "$ROOT" && bash -c "$RELEASE_MARKER_CMD") 2>/dev/null | release_marker_commit
-    return
-  fi
   # shellcheck disable=SC2029
   ssh -n -o BatchMode=yes -o ConnectTimeout=10 "$DEPLOY_SSH" "cd $DEPLOY_DIR && $RELEASE_MARKER_CMD" 2>/dev/null | release_marker_commit
 }
