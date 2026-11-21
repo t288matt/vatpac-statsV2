@@ -17,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import REPO
-from helpers import record_flight
+from helpers import panel, record_flight
 
 pytestmark = pytest.mark.integration
 
@@ -91,7 +91,9 @@ def test_180_lists_only_pilots_who_never_flew_in_90_days(conn):
     a = got[0]
     assert a["total_flights"] == 3 and a["flights_with_zero_enroute_time"] == 3
     assert float(a["zero_enroute_percentage"]) == 100.0
-    assert float(a["min_time_online_minutes"]) == 10 and float(a["max_time_online_minutes"]) == 30
+    assert "min_time_online_minutes" not in a and "max_time_online_minutes" not in a             # removed from the panel (issue 415)
+    v = conn.execute("SELECT min_time_online_minutes AS lo, max_time_online_minutes AS hi FROM pilot_never_flew_90d WHERE cid = 9100001").fetchone()
+    assert (float(v["lo"]), float(v["hi"])) == (10, 30)                                         # the view still has them
     assert float(a["avg_time_online_minutes"]) == 20 and float(a["total_time_online_minutes"]) == 60
 
 
@@ -140,10 +142,15 @@ def test_181_never_flew_that_month(conn):
     got = {r["month_label"]: (r["total_pilots"], r["pilots_with_zero_enroute_time"],
                               float(r["percentage_zero_enroute"])) for r in rows(conn, ONBOARDING, NEVER_FLEW_MONTH)}
     assert got == {
-        "January 2026": (4, 2, 50.0),     # P1 and P5 never flew; P2 flew once
-        "February 2026": (1, 1, 100.0),
-        "March 2026": (1, 0, 0.0),
+        "Jan 2026": (4, 2, 50.0),     # P1 and P5 never flew; P2 flew once
+        "Feb 2026": (1, 1, 100.0),
+        "Mar 2026": (1, 0, 0.0),
     }
+    p = panel(ONBOARDING, NEVER_FLEW_MONTH)          # issue 415: one bar per month, labelled like "Oct 2026"
+    assert p["type"] == "barchart" and p["options"]["xField"] == "month_label"
+    hidden = {o["matcher"]["options"] for o in p["fieldConfig"]["overrides"]
+              for x in o["properties"] if x["id"] == "custom.hideFrom" and x["value"].get("viz")}
+    assert {"total_pilots", "month"} <= hidden and "percentage_zero_enroute" not in hidden   # the percentage stays in the tooltip
 
 
 # ---------------------------------------------------------------- card 155

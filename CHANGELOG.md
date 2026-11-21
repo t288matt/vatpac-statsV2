@@ -6,6 +6,14 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (the image revision labels); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## Never-flew panel: plain column titles and a last airborne flight column (21-11-2026, issue 415)
+
+- **Plain titles.** "Pilots who logged on but never flew (90 days)" (pilots/pilot-onboarding.json, card 180) shows readable column headings, such as "VATSIM ID", "Pilot" and "Average time online (min)", in place of the database column names. The data and the order of the rows are unchanged.
+- **Shortest and longest removed.** The panel no longer shows the "Shortest time online (min)" and "Longest time online (min)" columns. The view it reads still holds those figures, so nothing else changes.
+- **New column.** "Last airborne flight" shows when each pilot last had a flight with airborne time, at any age, or "Never" when there is none. A pilot listed here has no airborne flight in the last 90 days, so the figure comes from older flights, including flights imported from the earlier system.
+- **Month chart.** "Pilots who logged on in a month but never flew that month" (pilots/pilot-onboarding.json, card 181) is now a bar chart with one bar per month, labelled like "Oct 2026", in place of a time series. Each month shows the count of pilots who never flew that month and the percentage of that month's pilots, on a right-hand percent axis. The rows and their order are unchanged.
+- Not yet deployed.
+
 ## The never-flew alert sends messages by default (21-11-2026, issue 331)
 
 - **Live by default.** `docker-compose.yml` now passes `WATCHDOG_NEVER_FLEW_DRY_RUN` as `0` when `.env` has no line, so the watchdog sends the Telegram message for each new never-flew logon. Set `WATCHDOG_NEVER_FLEW_DRY_RUN=1` in `.env` to go back to dry-run.

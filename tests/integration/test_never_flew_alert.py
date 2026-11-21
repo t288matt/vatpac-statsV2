@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import re
 import sys
 import time
 from contextlib import contextmanager
@@ -126,7 +127,7 @@ def rolled_back(c):
 # Issue 406 changed the panel on purpose: it now sorts by last_qualifying_flight (recency) instead of total_flights, and the
 # view grew that one new column. OLD_PANEL_SQL is the query as it stood before issue 406 (no recency column, counted-first order).
 OLD_COLUMNS = ("cid", "name", "total_flights", "flights_with_zero_enroute_time", "zero_enroute_percentage",
-               "avg_time_online_minutes", "min_time_online_minutes", "max_time_online_minutes", "total_time_online_minutes")
+               "avg_time_online_minutes", "total_time_online_minutes")
 
 
 def same_candidates(old_rows: list[dict], new_rows: list[dict]) -> bool:
@@ -141,7 +142,7 @@ def sorted_by_recency(rows: list[dict]) -> bool:
 
 
 def strip_limit(sql: str) -> str:
-    return sql.replace("\nLIMIT 200", "")
+    return re.sub(r"\n\s*LIMIT 200", "", sql)
 
 
 # ------------------------------------------------------------------------------------------------ 1. panel unchanged (except the fix)
@@ -194,6 +195,55 @@ def test_panel_returns_identical_rows_before_and_after_on_awkward_data(db) -> No
     with rolled_back(db):                                                                                        # an empty database
         db.execute(f"TRUNCATE {TABLES} CASCADE")                                                                 # noqa: S608
         assert db.execute(OLD_PANEL_SQL).fetchall() == run_panel(db, DASH, TITLE) == []
+
+
+def test_panel_last_airborne_flight_column_and_plain_titles(db) -> None:
+    """Issue 415: the panel ends with last_airborne_flight (the end of the pilot's latest flight with airborne time, at any age, NULL
+    when there is none, shown as 'Never'); every column has a plain title; the other columns and the rows are unchanged."""
+    p = panel(DASH, TITLE)
+    sql = p["targets"][0]["rawSql"]
+    assert "pilot_never_flew_90d" in sql and "flight_summaries" not in sql and "SUBSTRING" not in sql.upper()
+    base = run_panel(db, DASH, TITLE)
+    assert list(base[0])[-1] == "last_airborne_flight"                           # placed last
+    assert all(r["last_airborne_flight"] is None for r in base)                  # nobody in the shared scenario flew in old history
+    with rolled_back(db):
+        finished(db, 120, days_ago=3, airborne=0, name="Old Flyer YSSY")
+        finished(db, 120, days_ago=200, airborne=90, name="Old Flyer YSSY")
+        finished(db, 120, days_ago=150, airborne=45, name="Old Flyer YSSY")      # a later (more recent) old airborne flight wins
+        finished(db, 121, days_ago=2, airborne=0, name="Never Flown YSSY")
+        finished(db, 121, days_ago=300, airborne=None, name="Never Flown YSSY")  # a NULL-airborne flight is not airborne time
+        finished(db, 121, days_ago=250, airborne=0, name="Never Flown YSSY")     # nor is a zero one
+        got = {r["cid"]: r for r in run_panel(db, DASH, TITLE)}
+        expected = db.execute("SELECT max(end_time) AS e FROM flight WHERE cid = 120 AND airborne_minutes > 0").fetchone()["e"]
+        assert expected is not None and got[120]["last_airborne_flight"] == expected
+        assert expected < datetime.now(UTC) - timedelta(days=140)                 # it is the 150-day-old flight, outside the 90 days
+        assert 121 in got and got[121]["last_airborne_flight"] is None
+        old = db.execute(OLD_PANEL_SQL).fetchall()
+        assert same_candidates(old, list(got.values())) and sorted_by_recency(list(got.values()))
+        for r in got.values():                                                    # the other columns are the view's, unchanged
+            v = db.execute("SELECT * FROM pilot_never_flew_90d WHERE cid = %s", (r["cid"],)).fetchone()
+            assert (r["name"], r["total_flights"], r["last_qualifying_flight"]) == (v["name"], v["total_flights"], v["last_qualifying_flight"])
+    # the titles: one override per column of the query, none for a column that is not there, and the new column maps NULL to Never
+    cols = list(base[0])
+    assert len(cols) == 9 and "min_time_online_minutes" not in cols and "max_time_online_minutes" not in cols      # issue 415: nine columns
+    names = [o["matcher"]["options"] for o in p["fieldConfig"]["overrides"] if o["matcher"]["id"] == "byName"]
+    assert sorted(names) == sorted(cols) and len(names) == len(set(names))
+    titles = {o["matcher"]["options"]: next(x["value"] for x in o["properties"] if x["id"] == "displayName")
+              for o in p["fieldConfig"]["overrides"]}
+    assert titles == {"cid": "VATSIM ID", "name": "Pilot", "total_flights": "Flights (90 days)",
+                      "flights_with_zero_enroute_time": "Flights never airborne", "zero_enroute_percentage": "% never airborne",
+                      "avg_time_online_minutes": "Average time online (min)", "total_time_online_minutes": "Total time online (min)",
+                      "last_qualifying_flight": "Last logged flight", "last_airborne_flight": "Last airborne flight"}
+    last = next(o for o in p["fieldConfig"]["overrides"] if o["matcher"]["options"] == "last_airborne_flight")
+    maps = next(x["value"] for x in last["properties"] if x["id"] == "mappings")
+    assert maps == [{"type": "special", "options": {"match": "null", "result": {"text": "Never"}}}]
+
+
+def test_panel_computes_last_airborne_flight_only_for_the_kept_rows() -> None:
+    """The extra lookup sits outside the inner LIMIT 200, so it runs for at most 200 pilots (checked on the text of the query)."""
+    sql = panel(DASH, TITLE)["targets"][0]["rawSql"]
+    inner, outer = sql[sql.index("FROM (") : sql.rindex(") q")], sql[: sql.index("FROM (")] + sql[sql.rindex(") q") :]
+    assert "LIMIT 200" in inner and "airborne_minutes" not in inner and "LIMIT" not in outer and "airborne_minutes > 0" in outer
 
 
 # ------------------------------------------------------------------------------------------------- 2. who is a candidate
