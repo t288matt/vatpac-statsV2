@@ -91,7 +91,9 @@ def test_180_lists_only_pilots_who_never_flew_in_90_days(conn):
     a = got[0]
     assert a["total_flights"] == 3 and a["flights_with_zero_enroute_time"] == 3
     assert float(a["zero_enroute_percentage"]) == 100.0
-    assert float(a["min_time_online_minutes"]) == 10 and float(a["max_time_online_minutes"]) == 30
+    assert "min_time_online_minutes" not in a and "max_time_online_minutes" not in a             # removed from the panel (issue 415)
+    v = conn.execute("SELECT min_time_online_minutes AS lo, max_time_online_minutes AS hi FROM pilot_never_flew_90d WHERE cid = 9100001").fetchone()
+    assert (float(v["lo"]), float(v["hi"])) == (10, 30)                                         # the view still has them
     assert float(a["avg_time_online_minutes"]) == 20 and float(a["total_time_online_minutes"]) == 60
 
 

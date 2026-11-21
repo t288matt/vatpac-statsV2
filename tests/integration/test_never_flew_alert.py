@@ -127,7 +127,7 @@ def rolled_back(c):
 # Issue 406 changed the panel on purpose: it now sorts by last_qualifying_flight (recency) instead of total_flights, and the
 # view grew that one new column. OLD_PANEL_SQL is the query as it stood before issue 406 (no recency column, counted-first order).
 OLD_COLUMNS = ("cid", "name", "total_flights", "flights_with_zero_enroute_time", "zero_enroute_percentage",
-               "avg_time_online_minutes", "min_time_online_minutes", "max_time_online_minutes", "total_time_online_minutes")
+               "avg_time_online_minutes", "total_time_online_minutes")
 
 
 def same_candidates(old_rows: list[dict], new_rows: list[dict]) -> bool:
@@ -225,14 +225,14 @@ def test_panel_last_airborne_flight_column_and_plain_titles(db) -> None:
             assert (r["name"], r["total_flights"], r["last_qualifying_flight"]) == (v["name"], v["total_flights"], v["last_qualifying_flight"])
     # the titles: one override per column of the query, none for a column that is not there, and the new column maps NULL to Never
     cols = list(base[0])
+    assert len(cols) == 9 and "min_time_online_minutes" not in cols and "max_time_online_minutes" not in cols      # issue 415: nine columns
     names = [o["matcher"]["options"] for o in p["fieldConfig"]["overrides"] if o["matcher"]["id"] == "byName"]
     assert sorted(names) == sorted(cols) and len(names) == len(set(names))
     titles = {o["matcher"]["options"]: next(x["value"] for x in o["properties"] if x["id"] == "displayName")
               for o in p["fieldConfig"]["overrides"]}
     assert titles == {"cid": "VATSIM ID", "name": "Pilot", "total_flights": "Flights (90 days)",
                       "flights_with_zero_enroute_time": "Flights never airborne", "zero_enroute_percentage": "% never airborne",
-                      "avg_time_online_minutes": "Average time online (min)", "min_time_online_minutes": "Shortest time online (min)",
-                      "max_time_online_minutes": "Longest time online (min)", "total_time_online_minutes": "Total time online (min)",
+                      "avg_time_online_minutes": "Average time online (min)", "total_time_online_minutes": "Total time online (min)",
                       "last_qualifying_flight": "Last logged flight", "last_airborne_flight": "Last airborne flight"}
     last = next(o for o in p["fieldConfig"]["overrides"] if o["matcher"]["options"] == "last_airborne_flight")
     maps = next(x["value"] for x in last["properties"] if x["id"] == "mappings")
