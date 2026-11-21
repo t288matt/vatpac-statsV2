@@ -9,6 +9,7 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 ## Never-flew panel: plain column titles and a last airborne flight column (21-11-2026, issue 415)
 
 - **Plain titles.** "Pilots who logged on but never flew (90 days)" (pilots/pilot-onboarding.json, card 180) shows readable column headings, such as "VATSIM ID", "Pilot" and "Average time online (min)", in place of the database column names. The data and the order of the rows are unchanged.
+- **Shortest and longest removed.** The panel no longer shows the "Shortest time online (min)" and "Longest time online (min)" columns. The view it reads still holds those figures, so nothing else changes.
 - **New column.** "Last airborne flight" shows when each pilot last had a flight with airborne time, at any age, or "Never" when there is none. A pilot listed here has no airborne flight in the last 90 days, so the figure comes from older flights, including flights imported from the earlier system.
 - Not yet deployed.
 
