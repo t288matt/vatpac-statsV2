@@ -6,6 +6,11 @@ How to read it. "Deployed" means running on the production VM, with the date and
 
 Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh --status` (the image revision labels); this page does not name it. The marker history of 11 to 13-10-2026 (b3189ad, c70e72f for phase 1, 3d4b5b6 for phase 1b, 38e3958 for phase 3, 7a71d30 for phases 4 and 5 at 10:05:56 UTC on 13-10-2026) is kept in the entries below. The entries for phases 1, 1b and 3 are dated records and use the names of their time: `flight_record` is today's `flight_summary`, and `flight_legacy`, `flight_part` and the old pieces table (then called `flight_summary`) existed until phase 5.
 
+## The never-flew alert sends messages by default (21-11-2026, issue 331)
+
+- **Live by default.** `docker-compose.yml` now passes `WATCHDOG_NEVER_FLEW_DRY_RUN` as `0` when `.env` has no line, so the watchdog sends the Telegram message for each new never-flew logon. Set `WATCHDOG_NEVER_FLEW_DRY_RUN=1` in `.env` to go back to dry-run.
+- Not yet deployed.
+
 ## make deploy on the VM: fast-forward, pull, check, start, wait, smoke test (19-11-2026, issue 411)
 
 - **`make deploy` is one chained command on the VM.** It reads the tip of origin/main once, fast-forwards the checkout to it (`git merge --ff-only`), runs `docker compose pull`, `ops/check_pulled_images.sh` (stops if the images were not built from the checkout) and `docker compose up -d --no-build`, waits up to 300 s for every container to be healthy (`DEPLOY_LOCAL=1 bash ops/deploy.sh --wait-healthy`), then runs `sh ops/smoke.sh`. Each step stops the rest if it fails. It makes no `gh` call and needs no GitHub token on the VM.

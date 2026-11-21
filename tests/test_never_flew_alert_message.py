@@ -115,9 +115,9 @@ def test_remember_hours_is_read_from_the_environment_and_never_negative(monkeypa
     assert wd.Config().never_flew_remember_hours >= 0
 
 
-def test_settings_reach_the_watchdog_container_and_dry_run_defaults_on_there() -> None:
+def test_settings_reach_the_watchdog_container_and_the_compose_default_is_live() -> None:
     compose = (REPO / "docker-compose.yml").read_text(encoding="utf-8")
     env = (REPO / ".env.example").read_text(encoding="utf-8")
-    assert "WATCHDOG_NEVER_FLEW_DRY_RUN: ${WATCHDOG_NEVER_FLEW_DRY_RUN:-1}" in compose      # on unless the owner turns it off in .env
+    assert "WATCHDOG_NEVER_FLEW_DRY_RUN: ${WATCHDOG_NEVER_FLEW_DRY_RUN:-0}" in compose      # live unless .env sets dry-run (1)
     assert "WATCHDOG_NEVER_FLEW_DRY_RUN=1" in env                                            # the example file ships with it on
     assert "WATCHDOG_NEVER_FLEW_REMEMBER_HOURS: 24" in compose
