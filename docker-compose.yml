@@ -319,7 +319,7 @@ services:
       WATCHDOG_CROSSCHECK_SAMPLES: 24
       # alert for pilots who log on, file a plan and never get airborne (issue 331). Dry-run: log only, send nothing; the owner sets
       # WATCHDOG_NEVER_FLEW_DRY_RUN=0 in .env to start the messages. A logon is remembered for the hours below after its alert.
-      WATCHDOG_NEVER_FLEW_DRY_RUN: ${WATCHDOG_NEVER_FLEW_DRY_RUN:-1}
+      WATCHDOG_NEVER_FLEW_DRY_RUN: 0
       WATCHDOG_NEVER_FLEW_REMEMBER_HOURS: 24
       ARCHIVE_DIR: /archive
       REFERENCE_CONFIG_DIR: /config
