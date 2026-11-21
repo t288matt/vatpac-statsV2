@@ -95,7 +95,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  cid,\n  name,\n  total_flights,\n  flights_with_zero_enroute_time,\n  ROUND(flights_with_zero_enroute_time * 100.0 / total_flights, 2) as zero_enroute_percentage,\n  ROUND(avg_time_online_minutes, 2) as avg_time_online_minutes,\n  min_time_online_minutes,\n  max_time_online_minutes,\n  total_time_online_minutes,\n  last_qualifying_flight\nFROM pilot_never_flew_90d\nORDER BY last_qualifying_flight DESC, name\nLIMIT 200"
+          "rawSql": "SELECT\n  q.*,\n  (SELECT MAX(f.end_time) FROM flight f WHERE f.cid = q.cid AND f.airborne_minutes > 0) AS last_airborne_flight\nFROM (\n  SELECT\n    cid,\n    name,\n    total_flights,\n    flights_with_zero_enroute_time,\n    ROUND(flights_with_zero_enroute_time * 100.0 / total_flights, 2) as zero_enroute_percentage,\n    ROUND(avg_time_online_minutes, 2) as avg_time_online_minutes,\n    min_time_online_minutes,\n    max_time_online_minutes,\n    total_time_online_minutes,\n    last_qualifying_flight\n  FROM pilot_never_flew_90d\n  ORDER BY last_qualifying_flight DESC, name\n  LIMIT 200\n) q\nORDER BY q.last_qualifying_flight DESC, q.name"
         }
       ],
       "options": {
@@ -120,7 +120,154 @@
             "filterable": false
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cid"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "VATSIM ID"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Pilot"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_flights"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Flights (90 days)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "flights_with_zero_enroute_time"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Flights never airborne"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "zero_enroute_percentage"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "% never airborne"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_time_online_minutes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Average time online (min)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "min_time_online_minutes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Shortest time online (min)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max_time_online_minutes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Longest time online (min)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_time_online_minutes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Total time online (min)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_qualifying_flight"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Last logged flight"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_airborne_flight"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Last airborne flight"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null",
+                      "result": {
+                        "text": "Never"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       }
     },
     {
