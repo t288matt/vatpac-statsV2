@@ -17,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import REPO
-from helpers import record_flight
+from helpers import panel, record_flight
 
 pytestmark = pytest.mark.integration
 
@@ -142,10 +142,15 @@ def test_181_never_flew_that_month(conn):
     got = {r["month_label"]: (r["total_pilots"], r["pilots_with_zero_enroute_time"],
                               float(r["percentage_zero_enroute"])) for r in rows(conn, ONBOARDING, NEVER_FLEW_MONTH)}
     assert got == {
-        "January 2026": (4, 2, 50.0),     # P1 and P5 never flew; P2 flew once
-        "February 2026": (1, 1, 100.0),
-        "March 2026": (1, 0, 0.0),
+        "Jan 2026": (4, 2, 50.0),     # P1 and P5 never flew; P2 flew once
+        "Feb 2026": (1, 1, 100.0),
+        "Mar 2026": (1, 0, 0.0),
     }
+    p = panel(ONBOARDING, NEVER_FLEW_MONTH)          # issue 415: one bar per month, labelled like "Oct 2026"
+    assert p["type"] == "barchart" and p["options"]["xField"] == "month_label"
+    hidden = {o["matcher"]["options"] for o in p["fieldConfig"]["overrides"]
+              for x in o["properties"] if x["id"] == "custom.hideFrom" and x["value"].get("viz")}
+    assert {"total_pilots", "month"} <= hidden and "percentage_zero_enroute" not in hidden   # the percentage stays in the tooltip
 
 
 # ---------------------------------------------------------------- card 155

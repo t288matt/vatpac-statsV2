@@ -249,7 +249,7 @@
     },
     {
       "id": 4,
-      "type": "timeseries",
+      "type": "barchart",
       "title": "Pilots who logged on in a month but never flew that month",
       "description": "Australian-based pilots each month who logged on but had no airborne time, as a count and a percentage.",
       "datasource": {
@@ -272,10 +272,18 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table: one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n  WHERE airborne_minutes IS NOT NULL\n),\nmonthly_pilot_stats AS (\n  SELECT\n    DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC') as month,\n    cid,\n    COUNT(*) as total_flights_in_month,\n    COUNT(CASE WHEN total_enroute_time_minutes > 0 THEN 1 END) as flights_with_enroute_time,\n    COUNT(CASE WHEN total_enroute_time_minutes = 0 THEN 1 END) as flights_with_zero_enroute_time\n  FROM flight_summaries\n  WHERE cid IS NOT NULL\n  AND completion_time IS NOT NULL\n  AND logon_time IS NOT NULL\n  AND name IS NOT NULL\n  AND LENGTH(name) >= 4\n  AND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n  GROUP BY DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC'), cid\n  HAVING COUNT(*) > 0\n),\nmonthly_zero_enroute_pilots AS (\n  SELECT\n    month,\n    COUNT(DISTINCT cid) as pilots_with_zero_enroute_time\n  FROM monthly_pilot_stats\n  WHERE flights_with_enroute_time = 0\n  GROUP BY month\n),\nmonthly_total_pilots AS (\n  SELECT\n    DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC') as month,\n    COUNT(DISTINCT cid) as total_pilots\n  FROM flight_summaries\n  WHERE cid IS NOT NULL\n  AND completion_time IS NOT NULL\n  AND logon_time IS NOT NULL\n  AND name IS NOT NULL\n  AND LENGTH(name) >= 4\n  AND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n  GROUP BY DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC')\n)\nSELECT\n  t.month,\n  TRIM(TO_CHAR(t.month, 'FMMonth YYYY')) as month_label,\n  t.total_pilots,\n  COALESCE(z.pilots_with_zero_enroute_time, 0) as pilots_with_zero_enroute_time,\n  ROUND(COALESCE(z.pilots_with_zero_enroute_time, 0) * 100.0 / t.total_pilots, 2) as percentage_zero_enroute\nFROM monthly_total_pilots t\nLEFT JOIN monthly_zero_enroute_pilots z ON t.month = z.month\nORDER BY t.month"
+          "rawSql": "WITH flight_summaries AS (\n  -- v3 stand-in for the v1 table: one row per flight\n  SELECT cid, name, logon_time,\n         end_time AS completion_time,\n         airborne_minutes AS total_enroute_time_minutes,\n         duration_minutes AS time_online_minutes\n  FROM flight\n  WHERE airborne_minutes IS NOT NULL\n),\nmonthly_pilot_stats AS (\n  SELECT\n    DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC') as month,\n    cid,\n    COUNT(*) as total_flights_in_month,\n    COUNT(CASE WHEN total_enroute_time_minutes > 0 THEN 1 END) as flights_with_enroute_time,\n    COUNT(CASE WHEN total_enroute_time_minutes = 0 THEN 1 END) as flights_with_zero_enroute_time\n  FROM flight_summaries\n  WHERE cid IS NOT NULL\n  AND completion_time IS NOT NULL\n  AND logon_time IS NOT NULL\n  AND name IS NOT NULL\n  AND LENGTH(name) >= 4\n  AND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n  GROUP BY DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC'), cid\n  HAVING COUNT(*) > 0\n),\nmonthly_zero_enroute_pilots AS (\n  SELECT\n    month,\n    COUNT(DISTINCT cid) as pilots_with_zero_enroute_time\n  FROM monthly_pilot_stats\n  WHERE flights_with_enroute_time = 0\n  GROUP BY month\n),\nmonthly_total_pilots AS (\n  SELECT\n    DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC') as month,\n    COUNT(DISTINCT cid) as total_pilots\n  FROM flight_summaries\n  WHERE cid IS NOT NULL\n  AND completion_time IS NOT NULL\n  AND logon_time IS NOT NULL\n  AND name IS NOT NULL\n  AND LENGTH(name) >= 4\n  AND SUBSTRING(name FROM LENGTH(name) - 3 FOR 1) = 'Y'\n  GROUP BY DATE_TRUNC('month', logon_time AT TIME ZONE 'UTC')\n)\nSELECT\n  t.month,\n  TO_CHAR(t.month, 'FMMon YYYY') as month_label,\n  t.total_pilots,\n  COALESCE(z.pilots_with_zero_enroute_time, 0) as pilots_with_zero_enroute_time,\n  ROUND(COALESCE(z.pilots_with_zero_enroute_time, 0) * 100.0 / t.total_pilots, 2) as percentage_zero_enroute\nFROM monthly_total_pilots t\nLEFT JOIN monthly_zero_enroute_pilots z ON t.month = z.month\nORDER BY t.month"
         }
       ],
       "options": {
+        "orientation": "vertical",
+        "xField": "month_label",
+        "barWidth": 0.8,
+        "groupWidth": 0.8,
+        "showValue": "auto",
+        "stacking": "none",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
         "legend": {
           "displayMode": "table",
           "placement": "bottom",
@@ -299,15 +307,11 @@
             "fixedColor": "#3AA0DD"
           },
           "custom": {
-            "drawStyle": "bars",
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
             "fillOpacity": 70,
             "gradientMode": "opacity",
-            "showPoints": "never",
-            "spanNulls": true,
-            "axisPlacement": "left",
+            "lineWidth": 1,
             "axisSoftMin": 0,
+            "axisPlacement": "left",
             "axisBorderShow": false
           }
         },
@@ -366,30 +370,34 @@
                 "value": "percent"
               },
               {
-                "id": "custom.drawStyle",
-                "value": "line"
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1FAF8A"
+                }
               },
               {
                 "id": "custom.axisPlacement",
                 "value": "right"
               },
               {
-                "id": "custom.fillOpacity",
+                "id": "custom.axisSoftMin",
                 "value": 0
-              },
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "month"
+            },
+            "properties": [
               {
-                "id": "custom.lineWidth",
-                "value": 2
-              },
-              {
-                "id": "custom.showPoints",
-                "value": "always"
-              },
-              {
-                "id": "color",
+                "id": "custom.hideFrom",
                 "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#1FAF8A"
+                  "legend": true,
+                  "tooltip": true,
+                  "viz": true
                 }
               }
             ]
@@ -401,12 +409,8 @@
             },
             "properties": [
               {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": true,
-                  "tooltip": true,
-                  "viz": true
-                }
+                "id": "displayName",
+                "value": "Month"
               }
             ]
           }
