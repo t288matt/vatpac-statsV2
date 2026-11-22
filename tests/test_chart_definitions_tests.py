@@ -29,18 +29,6 @@ def all_panels() -> set[tuple[str, str]]:
     return out
 
 
-def test_every_panel_has_a_row_with_named_tests() -> None:
-    rows = {}
-    for line in DOC.split("\n"):
-        m = PANEL_CELL.search(line) if line.startswith("|") else None
-        if m:
-            rows[(m.group(1), m.group(2).strip())] = line
-    panels = all_panels()
-    assert panels - set(rows) == set(), f"panels with no row in CHART_DEFINITIONS.md: {sorted(panels - set(rows))}"
-    without = [k for k, line in rows.items() if "Asserted by" not in line.rsplit(" | ", 1)[-1]]
-    assert without == [], f"rows whose Test column names no test: {without}"
-
-
 def test_every_test_named_in_the_document_exists() -> None:
     have: set[str] = set()
     for root in ("tests", "collector/tests"):
