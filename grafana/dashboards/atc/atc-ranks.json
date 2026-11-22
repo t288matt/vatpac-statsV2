@@ -745,7 +745,7 @@
     {
       "type": "table",
       "title": "S1 and S2 logons with no Tower or Ground above them ",
-      "description": "S1 and S2 controllers who logged on to Delivery or Ground when the position above them was not staffed at that airport, and it was still not staffed 10 minutes later. For an S2 the position above is Tower. For an S1 on Delivery it is Ground. An S1 on Ground is never listed. Sessions under 8 minutes and logons on a Monday (UTC) are left out, and a quick reconnect counts as one session. Rank is the rank held at the time of the session. The last column shows how long after the logon the position above first logged on at that airport during the session, or never. Based on VATPAC Air Traffic Services Policy v1.1, clause 2.13.1(4). The data cannot show whether an event, training or staff approval allowed the logon, and a Tower with a callsign that is not on the whitelist counts as missing. The data starts on 07-10-2026, so the table shows nothing earlier. Times are UTC.",
+      "description": "S1 and S2 controllers who logged on to Delivery or Ground when the position above them was not staffed at that airport, and it was still not staffed 10 minutes later. For an S2 the position above is Tower. For an S1 on Delivery it is Ground. An S1 on Ground is never listed. Sessions under 8 minutes and logons on a Monday (UTC) are left out, and a quick reconnect counts as one session. Times are UTC.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "vatpac"
