@@ -14,6 +14,12 @@ Updated 22-10-2026. The commit production runs is shown by `bash ops/deploy.sh -
 - **Month chart.** "Pilots who logged on in a month but never flew that month" (pilots/pilot-onboarding.json, card 181) is now a bar chart with one bar per month, labelled like "Oct 2026", in place of a time series. Each month shows the count of pilots who never flew that month and the percentage of that month's pilots, on a right-hand percent axis. The rows and their order are unchanged.
 - Not yet deployed.
 
+## ATC: hours by rank gets a table of S1 and S2 logons with no Tower or Ground above them (22-11-2026, issue 417)
+
+- **New table at the bottom of "ATC: hours by rank".** It lists S1 and S2 controllers who logged on to Delivery or Ground when the position above them (Ground for an S1 on Delivery, Tower for an S2) was not staffed at that airport at logon or within the next 10 minutes. It covers the last 6 months, leaves out sessions under 8 minutes and logons on a Monday (UTC), and counts a reconnect within 5 minutes as one session. It reads the view `controller_summaries`, so it shows nothing before 07-10-2026. Deployed on 22-11-2026 (PR 418, reported by the owner); the time and commit are not recorded.
+- **New last column, "Position above arrived".** It shows how many minutes after the logon the position above first logged on at that airport during the session, or never. It can miss a logon of a few seconds, because the view is built from 30 second snapshots. Not yet deployed (PR 420).
+- **Chart definitions.** The "Difference from v1" column is removed from every table, and the section for this dashboard names the new table (row E11). Not yet deployed (PR 420).
+
 ## The never-flew alert sends messages by default (21-11-2026, issue 331)
 
 - **Live by default.** `docker-compose.yml` now passes `WATCHDOG_NEVER_FLEW_DRY_RUN` as `0` when `.env` has no line, so the watchdog sends the Telegram message for each new never-flew logon. Set `WATCHDOG_NEVER_FLEW_DRY_RUN=1` in `.env` to go back to dry-run.
