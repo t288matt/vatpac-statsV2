@@ -59,7 +59,7 @@ def test_summary_counts_match_the_table_rows() -> None:
         b = next(i for i, ln in enumerate(lines) if i > a and ln.startswith(end))
         return [[c.strip() for c in ln.strip().strip("|").split(" | ")] for ln in lines[a:b] if re.match(r"\| \d+ ", ln)]
 
-    rebuilt = [re.sub(r" \(.*", "", r[5]) for r in rows("## v1 cards rebuilt", "## Cards added after")]
+    rebuilt = [re.sub(r" \(.*", "", r[4]) for r in rows("## v1 cards rebuilt", "## Cards added after")]
     dropped = rows("## v1 cards dropped", "### Why these charts")
     want = {"KEPT": rebuilt.count("KEPT"), "CHANGED": rebuilt.count("CHANGED"), "UNVERIFIED": rebuilt.count("UNVERIFIED"), "DROPPED": len(dropped)}
     assert set(rebuilt) <= {"KEPT", "CHANGED", "UNVERIFIED"}
